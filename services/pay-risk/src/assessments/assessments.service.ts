@@ -23,7 +23,7 @@ export interface AssessmentInput {
   payer_fingerprint?: string;
   /**
    * D-29. `merchant_name` (nombre legal del comercio) es lo que SIEMPRE se criba; `name` es el del pagador, solo si lo dio.
-   * `merchant_*` es una EXTENSIÓN del contrato vigente (PROPUESTAS PR-17): el contrato solo conoce `name` y `entity_type`.
+   * `merchant_*` y `name`/`entity_type` son los campos de `AssessmentCreate.screening` de internal-risk-v1.yaml (PR-17 aplicada); ninguno es `required`.
    */
   screening?: { merchant_name?: string; merchant_entity_type?: 'person' | 'business'; name?: string; entity_type?: 'person' | 'business' };
 }

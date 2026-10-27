@@ -65,3 +65,9 @@ los números de pruebas son de prueba y están marcados como tales.
 |---|---|---|
 | D5-44 | **D-33:** `pay-merchants` emite `legal_name` (la razón social del alta) SOLO en `merchant.created` y `merchant.activated`, dentro de la misma transacción que el cambio de estado; nunca en otro evento, ni en logs, trazas o errores. NIT, nombre de fantasía y documentos siguen sin salir. `pay-schedules` ignora el campo (el evento tipado no lo lleva y no se guarda). | P3 (consume) |
 | D5-45 | **PROP-19:** en `pay-risk` el grupo es el INTENTO (`payment_intent_id`). Velocidad = intentos distintos en la ventana; importes diarios = cada intento una vez con el MAYOR importe que se le evaluó (no «el de la primera»: dos evaluaciones pueden compartir `created_at` y el orden por `id` es aleatorio); si alguna evaluación del intento fue `deny`, el intento no consume el límite. La evaluación en curso excluye a su propio intento. Re-evaluar con un importe menor no esquiva el límite; con uno mayor cuenta el mayor. | P3 |
+
+## Ola 2, tanda 2e
+
+| ID | Decisión / supuesto | Confirmar con |
+|---|---|---|
+| D5-46 | **Contratos aplicados (PR-16, 17, 21, 22):** `pay-risk` valida `screening` con el esquema del contrato (`merchant_name` 1..300, `name` 1..200, tipos `person\|business`, sin `required`); el importe diario de un intento es el **MAYOR** evaluado (no «el de la primera»: dos evaluaciones pueden compartir `created_at` y el desempate por `id` es aleatorio; reemplaza el criterio de D5-45). `pay-merchants` valida `api_key.revoked` con `merchant_closed` sin sustituciones. | P3 |

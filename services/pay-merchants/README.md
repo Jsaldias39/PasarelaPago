@@ -28,7 +28,7 @@ Comercios de la pasarela de pagos ALOVIDA (carril P5, `P5.H1`): alta, KYC, contr
 
 - `PAY_MODE` (`sandbox` \| `live`) es **obligatorio y sin valor por defecto**. Bajo `live` el servicio no arranca con el almacén `fs` ni con `DISABLE_BACKGROUND_JOBS=1`, y exige la credencial de operador completa.
 - Para dar de alta al primer comercio en sandbox: `PAY_MODE=sandbox node scripts/sandbox-operator-token.mjs --roles … --issuer … --audience pay-merchants` imprime la clave pública para el servicio y una credencial sintética para el operador (nunca emite credenciales de `live`).
-- Cerrar un comercio **revoca sus claves de API** (D-32; motivo `merchant_closed`, ver PR-16); suspender solo las bloquea y es reversible.
+- Cerrar un comercio **revoca sus claves de API** (D-32; motivo `merchant_closed`, ya en el AsyncAPI: PR-16/PR-22); suspender solo las bloquea y es reversible.
 
 ## Entorno
 
