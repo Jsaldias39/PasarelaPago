@@ -73,6 +73,7 @@ Q-01 a Q-10 quedaron respondidas en D-16 a D-25. Salieron nuevas de los spikes:
 | Q-18 | ¿Evento `payout.in_transit` y recurso público `dispute`? El estado público de payout existe pero no tiene evento; las disputas solo existen como eventos. | P2 + P3 | `asyncapi/ledger-settlement.yaml` |
 | Q-20 | Saldo AloVida: ¿quién emite y verifica el `wallet_authorization` (token de un solo uso del usuario, atado a comercio e importe) y con qué formato? Alternativa: el intento queda `requires_action` hasta que el usuario confirma en su sesión. | Dueño + identidad + P3 | P3.H3.M4 |
 | Q-21 | Conciliación: ¿qué roles (`settlement_operator`, `settlement_admin`) existen en el servicio de identidad y quién tiene el tope para aprobar ajustes? | Dueño + contabilidad | P2.H2 |
+| Q-22 | Payouts: ¿dónde vive el registro de las cuentas de liquidación de cada comercio (banco, titular, número) y quién lo valida? Hoy el contrato usa `destination_ref`, una referencia opaca; la pasarela no mueve ni guarda números de cuenta. Es dato personal/financiero sensible. | Dueño + P5 + asesoría legal | P2.H2.M3, `internal-connectors-v1` `/transfers` |
 | Q-19 | Bóveda: ¿quién aloja el formulario de captura de tarjeta (el banco o `pay-vault`) y `reveal` devuelve la tarjeta o hace de proxy hacia el proveedor? | Dueño + P3 + QSA | P3.H3 |
 
 (Q-01 a Q-10, ya respondidas: Lo que queda fuera del software está en las tensiones T-01 (volumen contra Coolify) y T-03 (cuenta recaudadora y visto bueno legal).)
