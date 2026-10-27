@@ -942,7 +942,7 @@ components:
             key_id: key_bm70q2b045qc
             merchant_id: mc_5c048c31m1fb
             mode: live
-            key_hash: $argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQ$aGFzaC1kZS1lamVtcGxv
+            key_hash: sha256$a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4
             last4: a1b2
             created_at: '2026-10-27T15:00:00.000Z'
           merchantid: mc_5c048c31m1fb
@@ -1407,8 +1407,8 @@ components:
           - live
         key_hash:
           type: string
-          pattern: ^\$argon2id\$
-          description: Hash argon2id (cadena PHC) del secreto. Con él `pay-edge` verifica; el secreto nunca se publica.
+          pattern: ^sha256\$[0-9a-f]{64}$
+          description: 'Hash `sha256$<hex>` del secreto (D-27, `@pay/api-key`). Con él `pay-edge` verifica en tiempo constante; el secreto nunca se publica. El `key_id` viaja dentro del token (`sk_<mode>_<keyBody>_<secret>`).'
         last4:
           type: string
           minLength: 4

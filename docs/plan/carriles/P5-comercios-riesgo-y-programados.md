@@ -53,7 +53,7 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 | P5.H1.M3 | KYC: documentos al almacén de objetos, revisión y nivel de riesgo | REQ-P5-8 | Test pegado | TODO |
 | P5.H1.M4 | Contratos versionados y aceptación inmutable | REQ-P5-2 | Test pegado | TODO |
 | P5.H1.M5 | Tarifario por canal y acuerdo, con vigencia + evento | REQ-P5-3 | Test pegado | TODO |
-| P5.H1.M6 | API keys (`sk_test_` / `sk_live_`), hash argon2id, rotación con gracia, revocación + eventos | REQ-P5-4 | Test pegado | TODO |
+| P5.H1.M6 | API keys (`sk_test_` / `sk_live_`), hash SHA-256 con `@pay/api-key` (D-27), rotación con gracia, revocación + eventos | REQ-P5-4 | Test pegado | TODO |
 | P5.H1.M7 | **Tarifario de alcance completo** (D-07): % + fijo por transacción, mínimo y tope, descuento por canal directo (7.9) y abono mensual; el cálculo vive en `@pay/money` y lo usan P3 y P2 | Para cada combinación, comisión + neto = bruto (test de propiedades) | Test pegado | TODO |
 
 ## H2 — `pay-risk` (olas 1 y 2)

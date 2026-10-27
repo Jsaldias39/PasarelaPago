@@ -2,7 +2,7 @@
   "name": "pasarela-pago",
   "private": true,
   "version": "0.0.0",
-  "description": "Pasarela de pagos ALOVIDA — monorepo de microservicios",
+  "description": "Pasarela de pagos ALOVIDA \u2014 monorepo de microservicios",
   "packageManager": "yarn@4.14.1",
   "engines": {
     "node": ">=22"
@@ -16,7 +16,8 @@
     "typecheck": "yarn workspaces foreach -A --topological-dev run typecheck",
     "lint": "eslint --no-error-on-unmatched-pattern \"contracts/**/*.ts\" \"services/**/*.ts\" \"platform/**/*.ts\"",
     "test": "yarn workspaces foreach -A --topological-dev run test",
-    "contracts:lint": "node contracts/scripts/lint-contracts.mjs"
+    "contracts:lint": "node contracts/scripts/lint-contracts.mjs",
+    "contracts:events": "node contracts/scripts/validate-events.mjs"
   },
   "devDependencies": {
     "@asyncapi/parser": "^3.6.6",

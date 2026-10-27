@@ -63,7 +63,7 @@ original, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P1.H2.M1 | Réplica de API keys hasheadas (argon2id) desde los eventos `api_key.*`, con inbox | Clave creada → usable; revocada → `401` | Test de integración con NATS JetStream real | TODO |
+| P1.H2.M1 | Réplica de API keys hasheadas (SHA-256, `@pay/api-key`, D-27) desde los eventos `api_key.*`, con inbox | Clave creada → usable; revocada → `401` | Test de integración con NATS JetStream real | TODO |
 | P1.H2.M2 | *Rate limit* por clave y por IP (Redis), con `429` y `Retry-After` | El pedido 101 en la ventana devuelve `429` | Test de carga corto pegado | TODO |
 | P1.H2.M3 | Enrutamiento a los servicios con mTLS y propagación de `traceparent` y `request_id` | La traza en Jaeger cruza borde → servicio | Captura de la traza en `evidencia/` | TODO |
 | P1.H2.M4 | Matriz de autorización negativa (otro comercio, sin clave, clave revocada, entorno *test* contra *live*) | Todos los casos dan `401`/`404` | Suite `authz.e2e` en verde | TODO |

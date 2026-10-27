@@ -32,6 +32,8 @@ jobs:
         run: yarn test
       - name: Contratos (OpenAPI y AsyncAPI)
         run: yarn contracts:lint
+      - name: Eventos (ejemplos válidos y mutaciones rechazadas)
+        run: yarn contracts:events
       - name: La plantilla de servicio sigue funcionando
         run: platform/scripts/verify-template.sh
       - name: Apagar el stack
