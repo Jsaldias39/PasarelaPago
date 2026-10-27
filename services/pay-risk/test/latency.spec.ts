@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import { createTestContext, type TestContext } from './support/app';
 import { json, startWatchmanDouble } from './support/watchman-double';
-import { assessmentBody, post, publishRules, rows, CLEAN_NAME, SANCTIONED_ORG } from './support/http';
+import { CLEAN_MERCHANT_NAME, assessmentBody, post, publishRules, rows, SANCTIONED_ORG } from './support/http';
 
 let ctx: TestContext;
 beforeAll(async () => {
@@ -47,19 +47,20 @@ async function measure(count: number, concurrency: number, build: (i: number) =>
 }
 
 describe('POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real', () => {
-  const body = (i: number) => assessmentBody({ payer_fingerprint: `huella-${i % 7}`, merchant_id: `mc_latency${i % 5}abcdefghijk`.slice(0, 19), screening: { name: i % 10 === 0 ? SANCTIONED_ORG : CLEAN_NAME, entity_type: 'business' } });
-  const bodyTwoSearches = (i: number) => assessmentBody({ payer_fingerprint: `huella-${i % 7}`, screening: { name: CLEAN_NAME } });
+  const body = (i: number) => assessmentBody({ payer_fingerprint: `huella-${i % 7}`, merchant_id: `mc_latency${i % 5}abcdefghijk`.slice(0, 19), screening: { merchant_name: i % 10 === 0 ? SANCTIONED_ORG : CLEAN_MERCHANT_NAME, name: undefined, entity_type: undefined } });
+  // Comercio (1 búsqueda: empresa) + pagador con nombre y SIN tipo (2 búsquedas: persona y empresa) = 3 búsquedas en Watchman.
+  const bodyThreeSearches = (i: number) => assessmentBody({ payer_fingerprint: `huella-${i % 7}`, screening: { entity_type: undefined } });
 
-  it('secuencial, 1 cliente, 1 búsqueda en Watchman (entity_type conocido): ≥ 200 llamadas', async () => {
+  it('secuencial, 1 cliente, 1 búsqueda en Watchman (solo el comercio: pagador invitado sin nombre): ≥ 200 llamadas', async () => {
     await measure(5, 1, body); // calentamiento (conexiones, JIT)
     const line = summary('secuencial-1-busqueda', await measure(200, 1, body));
     expect(line.n).toBe(200);
     expect(line.p99).toBeLessThan(300);
   });
 
-  it('secuencial, 1 cliente, 2 búsquedas en Watchman (tipo desconocido: persona y empresa): ≥ 200 llamadas', async () => {
-    await measure(5, 1, bodyTwoSearches);
-    const line = summary('secuencial-2-busquedas', await measure(200, 1, bodyTwoSearches));
+  it('secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas', async () => {
+    await measure(5, 1, bodyThreeSearches);
+    const line = summary('secuencial-3-busquedas', await measure(200, 1, bodyThreeSearches));
     expect(line.p99).toBeLessThan(300);
   });
 
@@ -79,7 +80,7 @@ describe('POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman R
       const times: number[] = [];
       for (let i = 0; i < 205; i += 1) {
         const started = performance.now();
-        const res = await post(own, assessmentBody({ payer_fingerprint: `huella-${i % 7}`, screening: { name: CLEAN_NAME, entity_type: 'business' } }));
+        const res = await post(own, assessmentBody({ payer_fingerprint: `huella-${i % 7}`, screening: { entity_type: 'business' } }));
         if (i >= 5) times.push(performance.now() - started);
         expect(res.status).toBe(201);
       }

@@ -57,7 +57,7 @@ Arranque medido en la corrida de humo (`evidencia/e2e-smoke.txt`); variables de 
 | `pay-payments` (P3) | Sí | 3991 ms | `DB_*`, `RISK_URL`, `CONNECTORS_URL`, `LEDGER_URL` | `VAULT_URL`, `TEMPORAL_*`, `RISK_*`, `PAY_MODE` | P3: `VAULT_URL` falta en `.env.example`; no lee `PAY_MODE`; errores de apagado (hallazgo 3) |
 | `pay-settlement` (P2) | Sí | 1699 ms | `DB_*`, `LEDGER_URL`, `CONNECTORS_URL`, `OPERATOR_TOKEN_ISSUER`, `OPERATOR_TOKEN_AUDIENCE`, `OPERATOR_TOKEN_PUBLIC_KEY` | `SETTLEMENT_MODE`, `SETTLEMENT_TRANSFER_CONNECTOR`, `PAY_MODE` (por defecto `sandbox`) | ninguno |
 | `pay-schedules` (P5) | Sí | 1717 ms | `DB_*`, `LEDGER_URL`, `RETRY_DELAYS_SECONDS` | `PAY_MODE` | P5: no tiene cliente de `pay-payments` (hallazgo 4); no lee `PAY_MODE` |
-| `pay-edge` (P1) | Sí | 1268 ms | `DB_*`, `PAY_MODE`, `REDIS_URL`, seis `UPSTREAM_PAY_*_URL` | `RATE_LIMIT_PREFIX` | P1: `LegacyRouteConverter` avisa en el arranque (hallazgo 6) |
+| `pay-edge` (P1) | Sí | 1268 ms | `DB_*`, `PAY_MODE`, `REDIS_URL`, seis `UPSTREAM_PAY_*_URL` | `RATE_LIMIT_PREFIX` | P1 (resuelto en 2c: aviso `LegacyRouteConverter`, hallazgo 6) |
 
 Notas de lectura: `DB_PORT` figura `vivo_no_sano` en todos porque el puerto por defecto (5432) existe pero no es la
 base del arnés; es un efecto del entorno de la prueba y no un defecto. `NATS_URL` y `LOG_LEVEL` tienen valor por
@@ -93,13 +93,15 @@ defecto en todos.
    Temporal que se apaga dos veces). No afecta el cierre del proceso, sí ensucia el log.
 4. **`pay-schedules` no tiene cliente de `pay-payments`** — P5/P3. El plan de llamadas del contrato lo declara;
    el humo lo ejercita directo contra `pay-payments`, pero el servicio no lo consume todavía.
-5. **`PAY_MODE` se maneja distinto en cada servicio** — cada carril; la política de guardia la fija P1.
-   Exigen valor explícito: `connectors`, `edge`, `qr`, `webhooks`. Por defecto `sandbox` y rechazan `live` con
-   dobles: `settlement`, `vault`. **No lo leen:** `ledger`, `merchants`, `payments`, `risk`, `schedules`. Propuesta
-   (decisión pendiente de P1/coordinador): que los 11 lo exijan explícito y se nieguen a arrancar con dobles
-   declarados bajo `live`.
-6. **`pay-edge`: advertencia `LegacyRouteConverter`** en el arranque — P1 (mía; es de la plantilla de rutas de Nest,
-   no afecta al comportamiento).
+5. **`PAY_MODE` (2c)** — cada carril. Estado medido con `e2e/flows/live-guard.e2e.ts` (`PAY_MODE=live` + el entorno de sandbox del arnés: conector `mock`,
+   `VAULT_BACKEND=fake`, destinos y CA de sandbox, rail `mock`, listas de Watchman congeladas, GUID de QR provisional, destinos en loopback):
+   **se niegan a arrancar y nombran `PAY_MODE=live`: `pay-vault`, `pay-merchants`, `pay-webhooks`, `pay-connectors`, `pay-payments`, `pay-settlement`, `pay-edge`, `pay-qr`, `pay-risk`.**
+   `pay-schedules` y `pay-ledger` **no embeben ningún doble** (el arnés le da a `pay-ledger` un TigerBeetle REAL y `pay-schedules` habla con `pay-ledger` por HTTP),
+   así que en live arrancan legítimamente; su guardia cubre interruptores de prueba (`DISABLE_BACKGROUND_JOBS=1` en schedules, probado) y dobles del motor (ledger, probado en su carril).
+   Por eso «ningún servicio arranca» es cierto para los que reciben un doble, no para los 11 en sentido literal. Que `PAY_MODE` falte o tenga otro valor **no arranca** en los 11
+   (`pay-edge` y `pay-webhooks`: pruebas de configuración; el resto: cada carril, ver su `loadConfig`).
+6. **`pay-edge`: aviso `LegacyRouteConverter`** — **resuelto** (P1). Venía del comodín `*` por defecto de `nestjs-pino` combinado con el prefijo `/v1`
+   («Unsupported route path: /v1/*»); se declara `forRoutes: [{ path: '{*path}' }]`. Comprobado: el arranque ya no emite el aviso. La plantilla no tiene prefijo, no se ve afectada.
 7. **`.env.example` inconsistentes** — P3/P5: valores por defecto de URL distintos entre `payments` y `schedules`,
    y `VAULT_URL` ausente en el de `payments`. El arnés no depende de ellos (construye el entorno desde cero).
 8. **Reintentos benignos de arranque** en `schedules` y `webhooks` mientras la base/NATS terminan de estar listos.
@@ -121,11 +123,34 @@ sano); cuatro intenciones de pago generan eventos; el receptor permanece caído 
 responde 410 queda `disabled` con motivo `gone_410`, y una quinta intención solo llega al endpoint sano. Las firmas
 Standard Webhooks v1 se verifican en el receptor. Salida literal: `evidencia/e6-e2e.txt`.
 
+## D-32 — claves de un comercio cerrado (2c)
+
+`pay-merchants` ya publica `merchant.closed` y un `api_key.revoked` por clave viva al cerrar; suspender solo publica `merchant.suspended`.
+`pay-edge` (cambio de esta tanda): `closed` ⇒ **401** (clave revocada, indistinguible de una inexistente); `suspended` ⇒ **403 `merchant_suspended`** (reactivable);
+`merchant.closed` además revoca en la réplica todas las claves que conoce del comercio y gana aunque llegue con un instante anterior (cerrado es terminal);
+una clave que llegue DESPUÉS del cierre tampoco sirve. El comportamiento anterior (cerrado ⇒ 403) cambió por decisión del dueño: la aserción de
+`test/authz.spec.ts` se dividió en suspendido (403, reactivable) y cerrado (401), sin quitar ninguna comprobación.
+Pruebas en tres niveles — correcto / límite / inválido: `services/pay-edge/test/replica.spec.ts` § D-32 (NATS, Postgres y Redis reales, 14 casos) y
+`e2e/flows/key-lifecycle.e2e.ts` (6 casos con procesos reales; la acción del operador es un [DOBLE] que hace lo mismo que `MerchantsService`). Tiempos medidos: ver `evidencia/`.
+
+## Pendientes (`yarn e2e:pending`, fuera de la suite por defecto)
+
+| Archivo | Qué prueba | Qué lo bloquea hoy | Quién | Se pasa a `flows/` cuando |
+|---|---|---|---|---|
+| `e2e/pending/e1.e2e.ts` | E1: alta (siembra [DOBLE]) → `sk_test_` → cobro QR de Bs 100 → callback del conector `mock` → `succeeded` → ledger con 97,00 en `merchant:X:pending` y 3,00 en `platform:fees`, débitos = créditos, `GET /v1/balance` y un `payment_intent.succeeded` al comercio | D-29/D-30: el intento termina `failed` con `risk_denied` (medido: `last_error.code = risk_denied`); `pay-payments` no manda el nombre del comercio a `pay-risk` y `pay-risk` contesta `review` (`screening_not_provided`) | P3 + P5 (2c) | el intento llega a `succeeded` |
+| `e2e/pending/e2.e2e.ts` | E2 por la API pública: callback duplicado (…03), fuera de orden (…04) y perdido que resuelve la consulta de estado (…05, `STATUS_INQUIRY_MS=1000`): un solo `succeeded`, un solo asiento | el mismo `risk_denied` | P3 + P5 (2c) | ídem |
+
+Lo que ya está probado hoy, contra los servicios REALES, de los mismos flujos (dentro de la suite por defecto):
+`flows/ledger-capture.e2e.ts` (el asiento exacto que manda `recordLedger`: 97,00/3,00, partida doble, idempotencia, `insufficient_funds`, 403 por identidad/modo/matriz) y
+`flows/connector-callbacks.e2e.ts` (…00, …03, …04, …05 y callback sin firma, hasta el evento del bus, un solo evento por cobro). Lo que NO está probado es el tramo del medio
+(`pay-payments` consume el evento, asienta en el ledger y cierra el intento) porque hoy el riesgo lo deniega antes.
+Una suposición sin verificar en E1/E2: que el intento exponga `succeeded_at` y que `GET /v1/balance` muestre `pending_minor = net_minor` (están en el contrato público; no se vieron correr).
+
 ## No cubierto
 
 - Svix real (el motor de entrega es el propio, declarado DOBLE de Svix).
 - Dinero real, cuenta recaudadora, conector bancario real (modo B es un doble; T-03).
-- Cobro exitoso de punta a punta (hallazgo 2) y las rutas de `schedules → payments` (hallazgo 4).
+- Cobro exitoso de punta a punta (hallazgo 2; E1/E2 escritos, en `e2e/pending/`) y las rutas de `schedules → payments` (hallazgo 4).
 - El onboarding real del comercio (hallazgo 1).
 - Aislamiento de red del `pay-vault` (P1.H4.M3, ola 3).
 - Carga/concurrencia: el arnés corre con 1 worker.
@@ -135,5 +160,6 @@ Standard Webhooks v1 se verifican en el receptor. Salida literal: `evidencia/e6-
 
 - El TigerBeetle privado preasigna ~1,2 GB en `e2e/.run/<runId>/`; se borra al apagar, pero un `kill -9` del
   proceso del arnés lo deja (se limpia con `yarn e2e:down` o `rm` del directorio).
-- `pg`, `nats` y `yaml` los importa el arnés desde el `node_modules` raíz (hoisted); no están declarados en el
-  `package.json` raíz. Declararlos es un cambio de dependencias que queda como decisión para el coordinador.
+- `pg`, `nats`, `yaml` y `@types/pg` quedaron declarados en `devDependencies` del `package.json` raíz (mismos rangos que los servicios, así que no
+  hay resoluciones nuevas). **`yarn.lock` NO se actualizó** (pedido del coordinador: solo cuando avise que no hay otros agentes): hasta entonces
+  `yarn install --immutable` fallaría por el lock desactualizado. Falta correr `yarn install` y revisar que el diff del lock solo toque el bloque del workspace raíz.

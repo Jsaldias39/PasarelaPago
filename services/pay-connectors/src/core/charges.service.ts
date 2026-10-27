@@ -137,7 +137,12 @@ export class ChargesService {
         return await ctx.atomic('charge_sent', async (client) => {
           const updated = await client.query(
             `UPDATE connector_charges
-                SET connector = $2, connector_mode = $3, ambiguous = false, provider_status = $4, provider_reference = $5, next_action = $6::jsonb, failure_code = $7, updated_at = $8
+                SET connector = $2, connector_mode = $3, ambiguous = false,
+                    -- La respuesta síncrona solo fija el estado si el cobro sigue pending: un callback o una consulta pudo llegar mientras
+                    -- esperábamos al proveedor y su estado (más nuevo) no se pisa. La precondición va en la escritura (regla 96.3).
+                    provider_status = CASE WHEN provider_status = 'pending' THEN $4 ELSE provider_status END,
+                    failure_code = CASE WHEN provider_status = 'pending' THEN $7 ELSE failure_code END,
+                    provider_reference = $5, next_action = $6::jsonb, updated_at = $8
               WHERE id = $1 RETURNING *`,
             [row.id, code, this.gateway.connector(code).mode, result.status, result.providerReference, result.nextAction ? JSON.stringify(result.nextAction) : null, result.failureCode ?? null, this.clock.now()],
           );

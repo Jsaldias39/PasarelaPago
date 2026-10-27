@@ -23,3 +23,21 @@ LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":20.3,"p95":82.3,"p9
 Test Suites: 1 failed, 11 passed, 12 total
 Tests:       5 failed, 183 passed, 188 total
 === pay-risk corrida 2 (21:55:45, load 12.18) ===
+LATENCIA {"label":"secuencial-1-busqueda","n":200,"p50":240.9,"p95":321.7,"p99":398.9,"max":565}
+LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":18.7,"p95":64.4,"p99":96.7,"max":183.1}
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 1 búsqueda en Watchman (entity_type conocido): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 2 búsquedas en Watchman (tipo desconocido: persona y empresa): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › concurrencia moderada (4 clientes en paralelo), ≥ 400 llamadas — INFORMATIVA: el Watchman (monohilo por búsqueda) es el cuello de botella
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › cada llamada medida dejó su rastro, con su duración interna registrada
+  ● D-29 con el Watchman REAL: se criba siempre el nombre legal del comercio y, si el pagador dio nombre, también › correcto: comercio y pagador limpios ⇒ allow cribado
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › decisiones con el Watchman REAL › sin límites cargados y nombre limpio: allow `no_limits_configured`, screened true, regla v1, y el GET devuelve lo mismo
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › decisiones con el Watchman REAL › entrada de la lista pública (Hizballah) ⇒ deny `sanctions_match`; el rastro guarda puntaje, lista e id de la entrada pública
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › decisiones con el Watchman REAL › coincidencia aproximada ⇒ review `sanctions_possible_match` (entre el umbral de revisión y el de rechazo)
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › velocidad por pagador: el 4.º intento distinto dentro de la ventana se rechaza; repetir el mismo intento no cuenta; la ventana se desliza
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › velocidad por comercio: independiente del pagador y de otros comercios
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › tope diario por pagador: lo rechazado no cuenta, la suma llega justo al tope y a las 24 h se libera
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › un límite por pagador sin huella del pagador ⇒ review `payer_unidentified` (no se deja pasar)
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › horario permitido en hora de La Paz (UTC-4): el inicio es inclusivo y el fin exclusivo
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › varias reglas a la vez: gana el motivo más grave y TODOS quedan en el rastro
+Test Suites: 3 failed, 9 passed, 12 total
+Tests:       14 failed, 174 passed, 188 total

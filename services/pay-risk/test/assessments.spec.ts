@@ -149,7 +149,7 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
       const double = await startWatchmanDouble((_req, res) => json(res, { entities: null }));
       const counted = await createTestContext({ settings: { watchmanUrl: double.url } });
       try {
-        const body = assessmentBody();
+        const body = assessmentBody({ screening: { entity_type: undefined } }); // pagador sin tipo
         const key = uniqueKey();
         await post(counted, body, key);
         const callsAfterFirst = double.requests.length;

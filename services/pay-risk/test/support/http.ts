@@ -52,7 +52,8 @@ export function assessmentBody(overrides: AssessmentBody = {}): Record<string, u
     ...rest,
   };
   if (screening !== null) {
-    const merged = { merchant_name: CLEAN_MERCHANT_NAME, name: CLEAN_NAME, ...screening };
+    // `entity_type: business` en el pagador por defecto = UNA búsqueda por parte (Watchman es el cuello de botella y las pruebas lo comparten con otros carriles).
+    const merged = { merchant_name: CLEAN_MERCHANT_NAME, name: CLEAN_NAME, entity_type: 'business', ...screening };
     body.screening = Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined));
   }
   return body;

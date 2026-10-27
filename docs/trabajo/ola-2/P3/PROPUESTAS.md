@@ -1,4 +1,4 @@
-# Propuestas de P3 para el coordinador (ola 2, tanda 2b)
+# Propuestas de P3 para el coordinador (ola 2, tandas 2b y 2c)
 
 > P3 no edita `contracts/` ni `contracts/packages/`: las aplica el coordinador. Cada una trae el parche exacto y qué cambia en `pay-payments` cuando se aplique.
 
@@ -15,6 +15,23 @@
 ## PROP-16 · `X-Pay-Mode` opcional en `internal-risk-v1.yaml`
 - **Hoy:** `pay-payments` manda `X-Service-Id` a pay-risk pero NO `X-Pay-Mode`, porque el contrato de riesgo no declara el parámetro `PayMode` (sí lo declaran ledger, conectores y payments). Una prueba lo fija («el contrato de riesgo no declara PayMode: no se inventa»).
 - **Parche:** si riesgo va a calcular límites o reglas distintos por modo, agregar `- $ref: 'common.yaml#/components/parameters/PayMode'` a `POST /assessments`. P3 lo enviaría desde `RiskClient.assess` (la activity ya conoce `intent.mode`).
+
+## PROP-17 · La razón social del comercio llega a `pay-payments` (D-29) — **BLOQUEA los cobros hasta aplicarla**
+- **Hoy (verificado en `contracts/`):** NO hay fuente contractual del nombre legal del comercio para `pay-payments`. `internal-merchants-v1.yaml` lo recibe en `MerchantCreate.legal_name`, pero (a) `MerchantAdmin` (la respuesta de `GET /merchants/{id}`, rol `merchant_operator`) solo trae `display_name` y `legal_type`, y (b) los eventos `merchant.created|activated|suspended|closed` (`asyncapi/merchants-schedules.yaml`, `additionalProperties: false`) no lo llevan. P3 NO lo inventa (ni usa `display_name`, ni el id) y no puede leer la base de `pay-merchants` (separación #5).
+- **Efecto de hoy:** el cobro sale a pay-risk SIN `screening`; el contrato obliga a pay-risk a responder `201 review / screening_not_provided`, y `review` ⇒ `risk_denied` (D-30). Es decir: **con el contrato vigente, ningún cobro puede pasar el riesgo**. Es fail-closed, no un error silencioso, pero es un bloqueo funcional.
+- **Parche mínimo (una de dos, recomendada la primera):**
+  1. `asyncapi/merchants-schedules.yaml` → `MerchantCreatedData` y `MerchantActivatedData`: agregar `legal_name: { type: string, minLength: 1, maxLength: 300 }` (opcional en `activated`, obligatoria en `created`). Es dato del comercio, no del pagador; la razón social es información pública del registro, pero igual no se registra en logs.
+  2. Alternativa: `internal-merchants-v1.yaml` → agregar `legal_name` a `MerchantAdmin` y permitir `GET /merchants/{id}` a `pay-payments` (hoy exige rol `merchant_operator`).
+- **Qué cambia en P3 al aplicarla:** NADA de código. Ya está hecho: `merchant_replica.legal_name` (columna), `EventHandlers.merchantChanged` lo guarda si el evento lo trae (un `suspended`/`closed` sin el campo no lo borra) y `assessRisk` lo manda como `screening {name, entity_type: business}`. Con la opción 2 habría que sumar una consulta al crear el cobro.
+
+## PROP-18 · Nombre opcional del pagador en `PaymentIntentCreate` (D-29)
+- **Hoy:** `PaymentIntentCreate` (`public-v1.yaml`, `additionalProperties: false`) no tiene ningún dato del pagador, y el token de tarjeta de `pay-vault` tampoco lo expone (`holder_name` solo existe en `CardData`, la entrada de la bóveda, y nunca sale de ella). P3 no acepta un campo fuera del contrato (lista blanca, regla 96.2): la API pública no puede traer hoy un nombre de pagador.
+- **Lo que SÍ está hecho:** la columna `payment_intents.payer_name` (dato personal: no sale en respuestas ni eventos y se BORRA al llegar el intento a un estado terminal), el cribado del pagador en `assessRisk` (segunda evaluación, `entity_type: person`, clave `${intentId}:risk:payer`) y la regla «invitado sin nombre ⇒ no se manda nada y no se bloquea el cobro». Probado con intentos creados directamente contra el repositorio.
+- **Parche:** `public-v1.yaml` → `PaymentIntentCreate.properties.payer: { type: object, additionalProperties: false, properties: { name: { type: string, minLength: 1, maxLength: 200, x-sensitive: true } } }` (opcional, y `pay-edge` debe reenviarlo). P3 cambia solo `parseCreateIntent` (acepta `payer.name`, `noPan` incluido) y `createIntent` (lo pasa a `intentsRepo.insert`).
+
+## PROP-19 · Una sola evaluación de riesgo con varios nombres a cribar
+- **Hoy:** `AssessmentCreate.screening` admite UN nombre; para cribar comercio y pagador P3 hace DOS evaluaciones (`${intentId}:risk` y `${intentId}:risk:payer`) del MISMO `payment_intent_id`. Riesgo: si `pay-risk` cuenta velocidad o límites por evaluación y no por intento, el pagador con nombre contaría doble. El contrato no dice cómo se cuenta.
+- **Parche (P5):** o bien aclarar en `internal-risk-v1.yaml` que una `Idempotency-Key` distinta sobre el mismo `payment_intent_id` NO suma a velocidad ni a límites, o bien reemplazar `screening` por `screenings: [{ name, entity_type, role: merchant|payer }]` y devolver la peor decisión. P3 adaptaría `RiskClient.assess` en una línea.
 
 ## Resueltas por el coordinador en la tanda 2a (ya no son propuestas)
 PROP-2 (`tx_`/`hd_`), 3 (`mock`), 4 (`risk_denied`/`payment_declined`), 5 (`contradiction_detected`), 7 (cuenta en `bank_transfer_instructions`), 8 (`ch_`/`cr_`), 9 (D-28), 10 (`GET /refunds/{id}`), 11 (`GET /refunds/{id}` del conector). PROP-6 (disputas) sigue siendo decisión del dueño; PROP-13 y 14 son de plataforma.

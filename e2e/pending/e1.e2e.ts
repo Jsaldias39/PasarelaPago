@@ -48,8 +48,8 @@ describe('E1 — primer cobro QR de punta a punta', () => {
     const created = await api.createQrIntent(GROSS, 'e1-intent-0001-key');
     expect(created.status).toBe(201);
     expect(created.intent).toMatchObject({ amount_minor: GROSS, fee_minor: FEE, net_minor: NET });
-    expect(created.intent.next_action?.type).toBe('display_qr');
-    expect(created.intent.next_action?.qr?.payload.startsWith('000201')).toBe(true);
+    // El QR (`next_action`) no se afirma acá: lo asigna el conector DESPUÉS de crear el intento y el simulador aprueba en ~1 s, así que
+    // un cobro rápido ya es `succeeded` (sin `next_action`) cuando se lo consulta. Su payload se prueba en connector-callbacks.e2e.ts.
 
     const replay = await api.createQrIntent(GROSS, 'e1-intent-0001-key');
     expect(replay.intent.id).toBe(created.intent.id);

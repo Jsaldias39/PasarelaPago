@@ -73,3 +73,48 @@ export async function waitForEdgeToKnow(stack: Stack, merchant: SeededMerchant, 
     timeoutMs,
   );
 }
+
+export type MerchantTransition = 'suspend' | 'reactivate' | 'close';
+
+/**
+ * [DOBLE] de la acción de un operador sobre un comercio (el back-office real exige una credencial que hoy nadie puede obtener):
+ * hace lo MISMO que `MerchantsService.suspend|activate|close` de pay-merchants — cambia la fila y publica los eventos por outbox en la
+ * misma transacción. D-32: cerrar revoca todas las claves vivas (un `api_key.revoked` por clave) y además publica `merchant.closed`;
+ * suspender solo bloquea. `announceKeyRevocations: false` publica SOLO `merchant.closed` (el peor caso para quien consume: la
+ * revocación por clave no llega o llega después).
+ */
+export async function changeMerchantStatus(stack: Stack, merchant: SeededMerchant, transition: MerchantTransition, options: { announceKeyRevocations?: boolean } = {}): Promise<void> {
+  const client = new Client({ host: stack.infra.postgres.host, port: stack.infra.postgres.port, database: 'pay_merchants', user: 'pay_merchants', password: 'dev_only_merchants' });
+  await client.connect();
+  try {
+    await client.query('BEGIN');
+    const now = new Date();
+    const iso = now.toISOString();
+    const { merchantId } = merchant;
+    const emit = (type: string, subject: string, data: Record<string, unknown>, aggregateType: string) =>
+      enqueue(client, newCloudEvent({ source: '/pay-merchants', type, subject, merchantId, data }), { aggregateType, aggregateId: subject });
+    if (transition === 'suspend') {
+      await client.query(`UPDATE merchants SET status = 'suspended', suspended_at = $2, suspension_reason = 'manual' WHERE id = $1`, [merchantId, now]);
+      await emit('merchant.suspended', merchantId, { merchant_id: merchantId, status: 'suspended', suspended_at: iso, reason: 'manual' }, 'merchant');
+    } else if (transition === 'reactivate') {
+      await client.query(`UPDATE merchants SET status = 'active', activated_at = $2, suspended_at = NULL, suspension_reason = NULL WHERE id = $1`, [merchantId, now]);
+      await emit('merchant.activated', merchantId, { merchant_id: merchantId, status: 'active', activated_at: iso }, 'merchant');
+    } else {
+      await client.query(`UPDATE merchants SET status = 'closed', closed_at = $2 WHERE id = $1`, [merchantId, now]);
+      const live = await client.query('SELECT key_id, mode FROM api_keys WHERE merchant_id = $1 AND revoked_at IS NULL ORDER BY created_at, key_id', [merchantId]);
+      for (const key of live.rows as { key_id: string; mode: 'test' | 'live' }[]) {
+        await client.query(`UPDATE api_keys SET revoked_at = $2, revoke_reason = 'merchant_closed' WHERE key_id = $1`, [key.key_id, now]);
+        if (options.announceKeyRevocations !== false) {
+          await emit('api_key.revoked', key.key_id, { key_id: key.key_id, merchant_id: merchantId, mode: key.mode, reason: 'merchant_closed', revoked_at: iso }, 'api_key');
+        }
+      }
+      await emit('merchant.closed', merchantId, { merchant_id: merchantId, status: 'closed', closed_at: iso }, 'merchant');
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw error;
+  } finally {
+    await client.end();
+  }
+}

@@ -1,0 +1,69 @@
+# services/pay-payments yarn test --maxWorkers=2 (corrida 1) · tanda 2c (2026-10-27T22:00:23Z)
+(node:3386) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3385) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+2026-10-27T22:01:32.610Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-e801b355',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9jOGM1ZTQ1ZmZkNGU4MmI5ZTgxYjQwMzAaJDU3OWQ1NjI5LWFjMmItNGM3NS04NTUxLTBjOWQyYzY3NTI4MCBZKAEyAjEwQg1pbnF1aXJlUmVmdW5kSgkIARCnq4ABGAE=',
+  activityId: '10',
+  activityType: 'inquireRefund',
+  workflowId: 'refund-re_c8c5e45ffd4e82b9e81b4030',
+  workflowRunId: '579d5629-ac2b-4c75-8551-0c9d2c675280',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: timeout
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:145:13)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.getRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:119:22)
+      at inquireRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:78:17)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:331:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'timeout',
+    upstream: 'pay-connectors',
+    status: undefined,
+    problemCode: undefined
+  },
+  durationMs: 3063
+}
+2026-10-27T22:01:56.179Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-ed724b83',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfZmQ2NjViMmVmZGZmMGJhM2I3MDIyN2JkGiQ3ZTA1YmIxOS1hYmJlLTQzYzItODE0OS03NzNiZGMyZDk3ZTkgESgBMgEzQgxjcmVhdGVDaGFyZ2VKCQgBEIqugAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_fd665b2efdff0ba3b70227bd',
+  workflowRunId: '7e05bb19-abbe-43c2-8149-773bdc2d97e9',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:192:62)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:331:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 63
+}

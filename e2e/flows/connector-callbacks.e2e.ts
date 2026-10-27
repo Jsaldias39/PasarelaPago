@@ -23,7 +23,7 @@ describe('E2 (conector real) — callbacks duplicados, fuera de orden y perdidos
       json: { payment_intent_id: paymentIntentId, merchant_id: MERCHANT, amount_minor: 10_000 + Number(cents), currency: 'BOB', method: 'qr', expires_at: new Date(Date.now() + 600_000).toISOString() },
     });
     expect(res.status).toBe(201);
-    return { paymentIntentId, id: (res.json as { id: string }).id };
+    return { paymentIntentId, id: (res.json as { id: string }).id, nextAction: (res.json as { next_action?: { type: string; payload: string } }).next_action };
   };
   const state = async (id: string, refresh = false) => {
     const res = await stack.callAs('pay-payments', 'pay-connectors', 'GET', `/charges/${id}/status${refresh ? '?refresh=true' : ''}`, {});
@@ -46,7 +46,9 @@ describe('E2 (conector real) — callbacks duplicados, fuera de orden y perdidos
   });
 
   it('CORRECTO (…00): el callback llega, el cobro queda succeeded y se publica UN evento captured', async () => {
-    const { paymentIntentId, id } = await charge('00');
+    const { paymentIntentId, id, nextAction } = await charge('00');
+    expect(nextAction?.type).toBe('display_qr');
+    expect(nextAction?.payload).toMatch(/^000201.*6304[0-9A-F]{4}$/);
     const events = await until('evento captured', () => connectorEvents(stack, paymentIntentId), (e) => e.length >= 1);
     expect(events.map((e) => e.data.status)).toEqual(['captured']);
     expect((await state(id)).status).toBe('succeeded');

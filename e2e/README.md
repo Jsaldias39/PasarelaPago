@@ -6,7 +6,8 @@ TigerBeetle privado, en `PAY_MODE=sandbox` con el conector `mock`. Matriz, halla
 
 ```bash
 yarn e2e:up | e2e:down | e2e:boot | e2e:smoke
-yarn e2e            # jest (humo, degradado, E6, unitarias del arnés), 1 worker
+yarn e2e            # jest (humo, degradado, E6, D-32, ledger, callbacks, guardia de modo, unitarias del arnés), 1 worker
+yarn e2e:pending    # E1/E2 de punta a punta: escritos, fuera de la suite por defecto hasta que P3/P5 cierren D-29/D-30
 yarn e2e:typecheck
 ```
 
@@ -19,3 +20,5 @@ yarn e2e:typecheck
 - `lib/seed.ts` siembra un comercio sandbox (DOBLE declarado del onboarding) con llave `sk_test_`.
 - `lib/receiver.ts` es el comercio de prueba: HTTPS con certificado autofirmado, con rutas `up`/`down`/`gone`.
 - Las dependencias `pg`, `nats` y `yaml` se importan desde el `node_modules` raíz (no están declaradas).
+- `flows/` es la suite por defecto (todo debe pasar). `pending/` son pruebas escritas contra el contrato que hoy no pueden pasar por una
+  causa ajena documentada en ARNES.md § Pendientes; cuando la causa se resuelve se mueven a `flows/`.

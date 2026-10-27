@@ -233,21 +233,22 @@ describe('4 · bajo PAY_MODE=live el servicio se niega a arrancar con un doble o
 });
 
 describe('5 · apagado limpio: sin IllegalStateError «Not running» al recibir SIGTERM', () => {
-  it('la API con el worker embebido (dist/main.js) sale con código 0 y sin IllegalStateError al recibir SIGTERM', async () => {
+  it('la API con el worker embebido (dist/main.js) se apaga solo y sin IllegalStateError al recibir SIGTERM', async () => {
     const port = await freePort();
     const child = spawn(process.execPath, [path.join(process.cwd(), 'dist/main.js')], {
-      env: { ...stack.env, PORT: String(port), CONSUME_EVENTS: 'false', TEMPORAL_TASK_QUEUE: `p3-shutdown-${randomUUID().slice(0, 8)}`, PGOPTIONS: `-c search_path=${stack.db.schema}`, NODE_OPTIONS: '' },
+      env: { ...stack.env, PORT: String(port), CONSUME_EVENTS: 'false', TEMPORAL_RUN_WORKER: 'true', TEMPORAL_TASK_QUEUE: `p3-shutdown-${randomUUID().slice(0, 8)}`, PGOPTIONS: `-c search_path=${stack.db.schema}`, NODE_OPTIONS: '' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
     child.stdout?.on('data', (c: Buffer) => (output += c.toString()));
     child.stderr?.on('data', (c: Buffer) => (output += c.toString()));
-    const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
+    // Nest apaga y vuelve a levantar la señal sobre sí mismo: terminar por SIGTERM (o con 0) es un apagado limpio; el defecto daba código 1.
+    const exited = new Promise<string>((resolve) => child.once('exit', (code, signal) => resolve(code === 0 ? 'clean' : signal === 'SIGTERM' ? 'clean' : `code=${code} signal=${signal}`)));
     try {
       await waitFor(async () => (await fetch(`http://127.0.0.1:${port}/health/live`).then((r) => r.ok).catch(() => false)) || undefined, 60_000, 'la API en pie');
       child.kill('SIGTERM');
       const code = await Promise.race([exited, new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 30_000).unref())]);
-      expect(code).toBe(0);
+      expect(code).toBe('clean');
       expect(output).not.toMatch(/IllegalStateError|Not running|Error happened during shutdown/);
     } finally {
       if (child.exitCode === null) child.kill('SIGKILL'); // por PID: nunca por nombre
