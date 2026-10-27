@@ -25,7 +25,7 @@
 
 ## 2 · Modo de operación
 
-**Modo A — orquestador (D-02).** AloVida cobra a través de PSP y bancos con licencia, emite su
+**Modo A — orquestador (D-02), pasarela propia (D-16).** AloVida no revende a un PSP: se integra directo con el **Banco Mercantil Santa Cruz** (QR interoperable, adquirencia de tarjetas y cuenta recaudadora), emite su
 propio QR, lleva el libro mayor de cada comercio y le paga desde una cuenta recaudadora. El modo B
 (adquirente) queda como doble detrás de `settlement.mode`.
 
@@ -39,7 +39,7 @@ recaudadora y el visto bueno de la asesoría legal sobre el encuadre en el regla
 flowchart LR
   subgraph Externos
     M[Comercios · mantra-core-health-api]:::ext
-    PSP[Libélula · banco adquirente QR · bancos]:::ext
+    PSP[Banco Mercantil Santa Cruz<br/>QR · tarjeta · cuenta recaudadora]:::ext
   end
   M -->|HTTPS + API key<br/>Idempotency-Key| EDGE[pay-edge · P1]
   EDGE --> PAY[pay-payments<br/>Temporal · P3]
@@ -75,7 +75,7 @@ flowchart LR
 | `pay-webhooks` | Webhooks salientes Standard Webhooks sobre **Svix**. | Postgres de Svix | P1 |
 | `pay-payments` | Intención de pago, máquina de estados, sagas en **Temporal** (cobro, reembolso, anulación, disputa), idempotencia de negocio, cotización con el tarifario replicado, medios de pago. | Postgres `pay_payments` + Temporal | P3 |
 | `pay-vault` | Bóveda de tarjetas: tokeniza el PAN y es lo único que lo ve. Se adopta `hyperswitch-card-vault`. Red aislada. | Su propio Postgres cifrado + OpenBao | P3 |
-| `pay-connectors` | Interfaz `Connector` y un adaptador por proveedor (simulador, Libélula, banco QR, transferencia); ruteo por reglas; verificación de callbacks; consulta de estado. | Postgres `pay_connectors` + OpenBao | P4 |
+| `pay-connectors` | Interfaz `Connector` y un adaptador por proveedor (simulador, Mercantil QR, Mercantil tarjeta, transferencia); ruteo por reglas; verificación de callbacks; consulta de estado. | Postgres `pay_connectors` + OpenBao | P4 |
 | `pay-qr` | QR EMVCo MPM estático y dinámico, perfil boliviano, CRC16, vencimiento. | Postgres `pay_qr` | P4 |
 | `pay-ledger` | Partida doble sobre **TigerBeetle**: cuentas, retenciones en dos fases, saldos, extractos, medio «saldo AloVida», exportación a M16. Único que conoce saldos. | TigerBeetle + Postgres `pay_ledger` | P2 |
 | `pay-settlement` | Corte semanal, payouts (`PayoutRail`), abono mensual y comisiones (neteo), conciliación (`camt.053` o CSV), excepciones. | Postgres `pay_settlement` | P2 |
@@ -158,10 +158,10 @@ consumidores.
 
 | Ola | Semanas (est.) | Qué pasa | Sale cuando |
 |---|---|---|---|
-| **0 · Contratos y suelo** | 1 | P1 levanta `platform/` y la plantilla. Cada dueño escribe su contrato y todos revisan los que consumen. *Spikes*: TigerBeetle (P2), Temporal y card vault (P3), perfil QR y Libélula (P4), Watchman (P5), Svix (P1). | Contratos con la etiqueta `v1-frozen`; `docker compose up` sano; el servicio *hello* pasa CI. |
+| **0 · Contratos y suelo** | 1 | P1 levanta `platform/` y la plantilla. Cada dueño escribe su contrato y todos revisan los que consumen. *Spikes*: TigerBeetle (P2), Temporal y card vault (P3), APIs del Banco Mercantil Santa Cruz y perfil QR (P4), Watchman (P5), Svix (P1). | Contratos con la etiqueta `v1-frozen`; `docker compose up` sano; el servicio *hello* pasa CI. |
 | **1 · Servicios contra dobles** | 2–4 | Cada carril construye contra dobles de los demás, en los tres niveles (regla 65). | Tests unitarios y de integración contra su propia base real en verde. |
 | **2 · Integración** | 5–6 | Dobles reemplazados por servicios reales; flujos E1–E6 con el conector simulador. | E1–E6 en verde contra el stack real. |
-| **3 · Endurecimiento** | 7–9 | Inyección de fallos, **prueba de carga a 2× 100.000 pagos/día (T-01)**, gates de seguridad, segmentación PCI, *staging* en Coolify multiservidor, conectores reales si hay credenciales (Q-01, Q-02). | Gates de §7 en verde con evidencia pegada; decisión de despliegue tomada con los números. |
+| **3 · Endurecimiento** | 7–9 | Inyección de fallos, **prueba de carga a 2× 100.000 pagos/día (T-01)**, gates de seguridad, segmentación PCI, *staging* en Coolify multiservidor, conectores del Mercantil si hay credenciales (D-16). | Gates de §7 en verde con evidencia pegada; decisión de despliegue tomada con los números. |
 | **4 · Integración del monolito** | 10–11 | Carril INT. | REQ-INT-1 a 3. |
 
 ## 6 · Kill-test global y flujos E2E
@@ -210,5 +210,5 @@ pago no termina en **un solo** estado terminal, no está hecho.
 | `hyperswitch-card-vault` no encaja | Sin bóveda | Hasta resolverlo, solo campos alojados del PSP (el PAN no nos toca). |
 | Contratos mal congelados | Retrabajo en cadena | Revisión cruzada obligatoria en la ola 0. |
 | 11 servicios para 5 personas | Carga operativa | Plantilla única, CI reutilizable, un Compose. |
-| Sin sandbox real (Q-01, Q-02) | E2E solo contra el simulador | Declarado así; la integración real se verifica aparte. |
-| Redondeo de comisiones (Q-05) | Dinero perdido | `@pay/money` + test de propiedades (comisión + neto = bruto). |
+| Sin ambiente de pruebas del Mercantil (D-16) | E2E solo contra el simulador | Declarado así; la integración real se verifica aparte. |
+| Redondeo de comisiones (D-20) | Dinero perdido | `@pay/money` + test de propiedades (comisión + neto = bruto). |

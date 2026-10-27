@@ -11,8 +11,8 @@
 
 ## Resultado observable
 
-`pay-payments` cobra por cualquier riel (QR interoperable de un banco, Libélula y, más adelante,
-otros) a través de **una sola interfaz**. El ruteo elige el riel por reglas, los callbacks del
+`pay-payments` cobra por cualquier riel (QR interoperable y tarjeta del Banco Mercantil Santa Cruz, transferencia y, más adelante,
+otros bancos) a través de **una sola interfaz**. El ruteo elige el riel por reglas, los callbacks del
 proveedor se aceptan solo si son auténticos, y cuando un callback no llega, el estado se averigua
 igual. La pasarela emite su propio QR EMVCo, que cualquier app bancaria boliviana lee.
 
@@ -32,7 +32,7 @@ carácter: si el CRC no lo detecta, tampoco.
 
 - **REQ-P4-1** — Dado un callback con firma inválida o desde un endpoint no registrado, cuando llega, entonces se responde `401` y no se publica nada (reciclando `webhook-secret.resolver.ts` y `callback-endpoint.policy.ts`). — `MISSING`
 - **REQ-P4-2** — Dado el mismo callback N veces, cuando llega, entonces se publica un evento con el mismo `event_id` (idempotente por `(connector, provider_event_id)`). — `MISSING`
-- **REQ-P4-3** — Dada una regla «QR → banco X; si X está *down*, Libélula», cuando X falla su *health check*, entonces el siguiente cobro va a Libélula. — `MISSING`
+- **REQ-P4-3** — Dada una regla «tarjeta → Mercantil; si está *down*, el cobro se rechaza con `connector_unavailable` y se reintenta por consulta de estado», cuando el Mercantil falla su *health check*, entonces el cobro no se pierde ni se duplica. El ruteo queda listo para un segundo banco (D-05). — `MISSING`
 - **REQ-P4-4** — Dado un QR emitido, cuando se decodifica, entonces respeta EMVCo MPM: `000201` al inicio, `6304` + CRC16 válido al final, monto, moneda `068` (BOB) y la plantilla de cuenta del comercio con su GUID. — `MISSING`
 - **REQ-P4-5** — Dado un cobro sin callback a los T segundos, cuando corre el *poller*, entonces consulta el estado al proveedor y publica el resultado. — `MISSING`
 - **REQ-P4-6** — Dado cualquier log, traza o error, cuando se inspecciona, entonces no contiene credenciales del conector ni datos personales del pagador. — `MISSING`
@@ -45,7 +45,7 @@ carácter: si el CRC no lo detecta, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P4.H1.M1 | **Spike**: manual de Libélula (ya alineado en `libelula-payment-alignment.md`) y especificación del QR interoperable; lista de lo que falta | Documento de brechas con fuentes | `evidencia/spike-rieles.md` | TODO |
+| P4.H1.M1 | **Spike**: APIs del Banco Mercantil Santa Cruz (QR interoperable, adquirencia de tarjetas, extractos y cuenta recaudadora) y especificación del QR interoperable; lista de lo que falta y de lo que hay que pedirle al banco | Documento de brechas con fuentes | `evidencia/spike-rieles.md` | TODO |
 | P4.H1.M2 | Esquema `pay_connectors` en el modelo (desde `gateway_connections`, `provider_api_operations`, `provider_api_attempts`, `provider_callback_endpoints` y `provider_callback_events`) | Sin deriva | Verificador de deriva | TODO |
 | P4.H1.M3 | Interfaz `Connector` (`createCharge`, `refund`, `getStatus`, `verifyCallback`, `fetchStatement`) + registro de adaptadores (patrón de Hyperswitch / Kill Bill) | Agregar un adaptador no toca el núcleo | Test de registro | TODO |
 | P4.H1.M4 | Conector **simulador**, configurable por escenario (éxito, rechazo, demora, duplicado, reorden, *down*) | Cada escenario es reproducible por semilla | Test por escenario | TODO |
@@ -55,14 +55,14 @@ carácter: si el CRC no lo detecta, tampoco.
 ## H2 — Ruteo y rieles reales (olas 1 a 3)
 
 **CA:** Dado un cobro, cuando hay varios rieles posibles, entonces se elige por regla y, ante una caída, se pasa al siguiente sin intervención humana.
-**DoD:** REQ-P4-3 + adaptador Libélula contra su sandbox (ola 3).
+**DoD:** REQ-P4-3 + adaptadores del Banco Mercantil Santa Cruz contra su ambiente de pruebas (ola 3).
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
 | P4.H2.M1 | Motor de reglas de ruteo (canal, monto, costo, salud), declarativo y versionado | REQ-P4-3 | Test pegado | TODO |
 | P4.H2.M2 | *Health checks* por conector + eventos `connector.health.*` | Un conector caído sale del ruteo | Test pegado | TODO |
-| P4.H2.M3 | Adaptador **Libélula** (registro de deuda → checkout → callback → consulta de estado) | Contra el sandbox, o declarado `BLOQUEADO` con el contrato simulado en los 3 niveles | Salida contra el sandbox | TODO |
-| P4.H2.M4 | Adaptador **QR interoperable** del banco adquirente | Ídem | Ídem | TODO |
+| P4.H2.M3 | Adaptador **Mercantil · tarjeta** (adquirencia: autorización, captura, anulación, reembolso, callback y consulta de estado; tokens de su página de pago o de `pay-vault`) | Contra el sandbox, o declarado `BLOQUEADO` con el contrato simulado en los 3 niveles | Salida contra el sandbox | TODO |
+| P4.H2.M4 | Adaptador **Mercantil · QR interoperable** (emisión con la cuenta recaudadora, callback, consulta de estado) | Ídem | Ídem | TODO |
 | P4.H2.M5 | Extractos: `fetchStatement` en `camt.053` o CSV para P2 | El extracto del simulador cuadra con sus cobros | Test pegado | TODO |
 | P4.H2.M6 | Credenciales en OpenBao con rotación; nada de secretos en variables de imagen | REQ-P4-6; `git grep` de secretos → 0 | Salida pegada | TODO |
 | P4.H2.M7 | Adaptador **transferencia bancaria**: instrucciones de pago con referencia única, y confirmación cuando la línea aparece en el extracto | Una línea con la referencia confirma el intento; una sin referencia va a excepción | Test con extracto del simulador | TODO |
@@ -86,7 +86,7 @@ carácter: si el CRC no lo detecta, tampoco.
 | PSP / banco real | Manual del proveedor | Cobro confirmado | Callback a los 59 min de un QR de 60 min; callback duplicado | Firma inválida; estado desconocido → `contradiccion` para conciliación |
 | Especificación oficial del QR boliviano | EMVCo MPM + perfil nacional | QR estándar | Monto máximo; referencia de longitud máxima | Plantilla sin GUID → rechazada |
 
-**Lo que queda contra dobles hasta tener acceso:** los sandboxes de Libélula y del banco. Se declara
+**Lo que queda contra dobles hasta tener acceso:** el ambiente de pruebas del Banco Mercantil Santa Cruz. Se declara
 así en el reporte. No es `BLOQUEADO`: el contrato está escrito y simulado.
 
 ## Gates y entrega

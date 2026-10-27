@@ -10,7 +10,7 @@
 
 ## Resultado observable
 
-`mantra-core-health-api` deja de hablar con Libélula y cobra (consultas, farmacia, suscripciones)
+`mantra-core-health-api` deja de hablar con Libélula (su PSP actual) y cobra (consultas, farmacia, suscripciones)
 a través de la API pública de la pasarela, como un comercio más. Su módulo 42 se retira por
 partes, detrás de un *flag*, sin cortar un solo cobro en curso.
 
