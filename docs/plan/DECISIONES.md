@@ -69,6 +69,8 @@ Q-01 a Q-10 quedaron respondidas en D-16 a D-25. Salieron nuevas de los spikes:
 | Q-16 | `PaymentIntent`: ¿cuál es el estado inicial y cuándo se emite `payment_intent.requires_action` además de `created`? Faltan códigos de error para «riesgo denegó» y «tarjeta rechazada» en el catálogo de `@pay/problem`. | P3 | P3.H1, `asyncapi/payments.yaml` |
 | Q-17 | La API key debe llevar su `key_id` embebido en el secreto para que `pay-edge` la encuentre sin recorrer todos los hashes; definir el formato. | P5 + P1 | P1.H2.M1 |
 | Q-18 | ¿Evento `payout.in_transit` y recurso público `dispute`? El estado público de payout existe pero no tiene evento; las disputas solo existen como eventos. | P2 + P3 | `asyncapi/ledger-settlement.yaml` |
+| Q-20 | Saldo AloVida: ¿quién emite y verifica el `wallet_authorization` (token de un solo uso del usuario, atado a comercio e importe) y con qué formato? Alternativa: el intento queda `requires_action` hasta que el usuario confirma en su sesión. | Dueño + identidad + P3 | P3.H3.M4 |
+| Q-21 | Conciliación: ¿qué roles (`settlement_operator`, `settlement_admin`) existen en el servicio de identidad y quién tiene el tope para aprobar ajustes? | Dueño + contabilidad | P2.H2 |
 | Q-19 | Bóveda: ¿quién aloja el formulario de captura de tarjeta (el banco o `pay-vault`) y `reveal` devuelve la tarjeta o hace de proxy hacia el proveedor? | Dueño + P3 + QSA | P3.H3 |
 
 (Q-01 a Q-10, ya respondidas: Lo que queda fuera del software está en las tensiones T-01 (volumen contra Coolify) y T-03 (cuenta recaudadora y visto bueno legal).)

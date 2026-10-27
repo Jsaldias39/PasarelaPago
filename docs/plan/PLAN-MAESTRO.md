@@ -1,6 +1,6 @@
 # Plan maestro — Pasarela de pagos ALOVIDA
 
-> **AVANCE: 8 / 107 — 7,5 %.** Ola 0 en curso. Peldaño de evidencia: **`TESTED`** para lo marcado `HECHO` en los carriles
+> **AVANCE: 8 / 108 — 7,4 %.** Ola 0 en curso. Peldaño de evidencia: **`TESTED`** para lo marcado `HECHO` en los carriles
 > (librerías `@pay/*`, plantilla de servicio, Compose local y tres spikes), **`UNKNOWN`** para el resto. Los 11 servicios
 > todavía no existen: lo que hay son librerías, contratos en borrador y la plantilla. Evidencia en [`../trabajo/ola-0/`](../trabajo/ola-0/REPORTE.md).
 >
@@ -150,13 +150,13 @@ necesita la aprobación del dueño y de cada consumidor. Los cambios aditivos so
 
 | Carril | Eje | Carpetas | Microtareas | Archivo |
 |---|---|---|---|---|
-| **P1** | Plataforma, contratos, borde, cumplimiento y E2E sandbox | `contracts/`, `platform/`, `e2e/`, `services/pay-edge`, `services/pay-webhooks`, `docs/cumplimiento/` | 26 | [`P1`](./carriles/P1-plataforma-contratos-y-borde.md) |
+| **P1** | Plataforma, contratos, borde, cumplimiento y E2E sandbox | `contracts/`, `platform/`, `e2e/`, `services/pay-edge`, `services/pay-webhooks`, `docs/cumplimiento/` | 27 | [`P1`](./carriles/P1-plataforma-contratos-y-borde.md) |
 | **P2** | Dinero en reposo | `services/pay-ledger`, `services/pay-settlement` | 18 | [`P2`](./carriles/P2-ledger-y-liquidacion.md) |
 | **P3** | Ciclo de vida del pago y bóveda | `services/pay-payments`, `services/pay-vault` | 18 | [`P3`](./carriles/P3-nucleo-de-pagos.md) |
 | **P4** | Rieles externos y banco simulado | `services/pay-connectors`, `services/pay-qr`, `services/pay-mockbank` | 22 | [`P4`](./carriles/P4-conectores-ruteo-y-qr.md) |
 | **P5** | Comercios, riesgo y programados | `services/pay-merchants`, `services/pay-risk`, `services/pay-schedules` | 18 | [`P5`](./carriles/P5-comercios-riesgo-y-programados.md) |
 | **INT** | El monolito cobra por la pasarela (ola 5, lidera P3) | `mantra-core-health-api` | 5 | [`INT`](./carriles/INT-monolito-como-cliente.md) |
-| | **Total** | | **107** | |
+| | **Total** | | **108** | |
 
 Las carpetas son **disjuntas**: cada programador escribe solo en las suyas. `CODEOWNERS` lo hace
 cumplir en los PRs. Los contratos se proponen por PR a `contracts/`, que revisan P1 y los

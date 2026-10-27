@@ -24,7 +24,11 @@ info:
     - Repetir el mismo `business_ref` + `attempt` devuelve **el mismo resultado** (`result: exists`), sea éxito o
       rechazo. Es la idempotencia: no vuelve a mover dinero.
     - El llamador sube `attempt` **solo** si el intento anterior fue **rechazado** y quiere probar de nuevo
-      (por ejemplo, después de que entró saldo). Subirlo tras un éxito es un error de quien llama: movería el dinero dos veces.
+      (por ejemplo, después de que entró saldo).
+    - **El ledger lo hace cumplir, no se confía en el llamador:** rechaza con `409 invalid_state_transition` cualquier
+      `attempt` nuevo de un `business_ref` que ya tiene un intento **aceptado** (movería el dinero dos veces), y solo admite
+      `attempt = N + 1` cuando el intento `N` existe y fue rechazado (sin saltos; el primero es `1`). Repetir el mismo
+      `business_ref` + `attempt` con contenido distinto al primero da `422 idempotency_key_reused`.
 
     ## Plan de cuentas (PLAN-MAESTRO §3.3)
 
@@ -63,15 +67,18 @@ paths:
           description: 'Asiento aplicado por primera vez (`result: created`).'
           content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } }
         '200':
-          description: 'Ya existía este `business_ref` + `attempt` (`result: exists`). Mismo contenido que la primera respuesta.'
+          description: 'Ya existía este `business_ref` + `attempt` con el mismo contenido (`result: exists`). Mismo resultado que la primera respuesta.'
           content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } }
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
-        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '409':
+          description: '`invalid_state_transition`: ese `business_ref` ya tiene un intento aceptado, o `attempt` no es el siguiente al último rechazado. No se mueve dinero.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
         '422':
           description: |
             Rechazo de negocio, definitivo para este `attempt`: `insufficient_funds` (la cuenta no puede quedar en
-            negativo) o `validation_failed`. Reintentar exige `attempt + 1`.
+            negativo) o `validation_failed`; o `idempotency_key_reused` si el contenido difiere del primero con ese
+            `attempt`. Reintentar tras un rechazo exige `attempt + 1`.
           content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
   /transactions/{business_ref}:

@@ -213,8 +213,15 @@ paths:
       tags: [Reconciliation]
       x-owner: P2
       summary: Cierra una excepción con la decisión de una persona
-      description: 'Registra quién decidió y por qué. `request_adjustment` NO ajusta el ledger: solicita el asiento de ajuste por el flujo normal (`code: adjustment`) con su propia aprobación.'
+      description: >-
+        Registra quién decidió y por qué. **Quién decide sale de la credencial del operador, nunca del cuerpo**: el servicio
+        verifica un token de operador (`OperatorToken`), toma su `sub` como `resolved_by` y exige el rol `settlement_operator`
+        para `dismiss` y `settlement_admin` para `request_adjustment`; la decisión queda en la auditoría. `request_adjustment`
+        NO ajusta el ledger: solicita el asiento de ajuste por el flujo normal (`code: adjustment`) con su propia aprobación.
       x-open-question: 'Quién puede aprobar un ajuste y con qué tope no lo define el stakeholder. Confirmar con el dueño y contabilidad antes de congelar.'
+      security:
+        - mTLS: []
+          OperatorToken: []
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
@@ -235,6 +242,11 @@ components:
     mTLS:
       type: mutualTLS
       description: Certificado de servicio. La identidad del llamador se confirma además con `X-Service-Id`.
+    OperatorToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Credencial de la persona operadora (emitida por el servicio de identidad de ALOVIDA y verificada por `pay-settlement`). De ahí salen la identidad (`sub`) y el rol de quien resuelve; nunca del cuerpo de la petición.
   parameters:
     ServiceId:
       name: X-Service-Id
@@ -349,14 +361,13 @@ components:
         statement_amount_minor: { oneOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { type: 'null' }] }
         ledger_amount_minor: { oneOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { type: 'null' }] }
         status: { type: string, enum: [open, resolved, dismissed] }
-        resolved_by: { type: [string, 'null'], description: 'Identificador de la persona que decidió (no su nombre).' }
+        resolved_by: { type: [string, 'null'], readOnly: true, description: 'Identificador de la persona que decidió (el `sub` de su credencial; no su nombre). Solo lectura: lo fija el servidor.' }
         resolution_note: { type: [string, 'null'], maxLength: 500 }
         created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
     ReconciliationExceptionResolve:
       type: object
-      required: [resolution, resolved_by, note]
+      required: [resolution, note]
       additionalProperties: false
       properties:
         resolution: { type: string, enum: [request_adjustment, dismiss], description: '`dismiss` = falsa alarma; `request_adjustment` = pide un asiento de ajuste por el flujo normal.' }
-        resolved_by: { type: string, minLength: 1, maxLength: 100 }
         note: { type: string, minLength: 1, maxLength: 500, description: 'Motivo. Sin datos personales.' }

@@ -371,10 +371,18 @@ components:
               type: string
               description: Token del PSP o de `pay-vault`. NUNCA el número de tarjeta (solo si type = card).
               maxLength: 200
-            wallet_user_id:
+            wallet_authorization:
               type: string
-              description: Usuario ALOVIDA cuyo saldo se usa (solo si type = wallet). La autorización del uso la valida el servidor.
-              maxLength: 100
+              maxLength: 500
+              description: >-
+                Solo si type = wallet. Token de **un solo uso** que el propio usuario ALOVIDA emite dentro de su sesión
+                autenticada, atado al comercio, al importe y a la moneda, con vencimiento de minutos. Sin un token válido
+                no se debita ningún saldo: el comercio nunca puede indicar de qué usuario cobrar (IDOR). Un token usado,
+                vencido o emitido para otro comercio o importe se rechaza con `forbidden`.
+              x-open-question: >-
+                Quién emite y verifica el token (el servicio de identidad de ALOVIDA o el monolito) y su formato no están
+                definidos (Q-20). Alternativa equivalente: el intento queda `requires_action` hasta que el usuario confirma
+                dentro de su sesión.
         description: { type: string, maxLength: 200 }
         expires_in_seconds: { type: integer, minimum: 60, maximum: 86400, default: 3600 }
         metadata: { $ref: 'common.yaml#/components/schemas/Metadata' }
@@ -503,7 +511,15 @@ components:
       required: [url, enabled_events]
       additionalProperties: false
       properties:
-        url: { type: string, format: uri, pattern: '^https://', description: Solo HTTPS. }
+        url:
+          type: string
+          format: uri
+          pattern: '^https://'
+          description: >-
+            Solo HTTPS y solo destinos públicos. `pay-webhooks` resuelve el nombre al registrar y de nuevo en CADA entrega,
+            fija la IP resuelta, y rechaza (422 `validation_failed`) los destinos privados, de loopback, link-local, CGNAT,
+            de metadatos de nube (169.254.169.254) o nombres de servicios internos. No sigue redirecciones (o revalida cada
+            una) y entrega a través de un proxy de salida sin ruta a la red interna (SSRF).
         enabled_events:
           type: array
           minItems: 1

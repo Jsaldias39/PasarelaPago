@@ -1,6 +1,6 @@
 # Carril P1 — Plataforma, contratos y borde
 
-> **Estado:** `EN CURSO` (ola 0) · **AVANCE: 5 / 26 — 19,2 %** · **Peldaño:** `TESTED` en lo marcado HECHO; `UNKNOWN` en el resto
+> **Estado:** `EN CURSO` (ola 0) · **AVANCE: 5 / 27 — 18,5 %** · **Peldaño:** `TESTED` en lo marcado HECHO; `UNKNOWN` en el resto
 > **Predecesor:** ninguno. **Este carril es el predecesor de la ola 0 de todos los demás**: sin `pay-platform` sano y la plantilla publicada, nadie arranca.
 > **Carpetas del monorepo:** `contracts/`, `platform/`, `services/pay-edge/`, `services/pay-webhooks/` · cumplimiento en `docs/cumplimiento/`.
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md) · Investigación: [`../INVESTIGACION.md`](../INVESTIGACION.md)
@@ -80,6 +80,7 @@ original, tampoco.
 | P1.H3.M3 | Receptor de prueba que verifica la firma (para E6 y como ejemplo para comercios) | Una firma alterada se rechaza | Test pegado | TODO |
 | P1.H3.M4 | E6: endpoint caído 10 min, `500` y después `200`; `410` lo deshabilita | Todos los eventos llegan una vez cada uno | Salida del E2E + log del receptor | TODO |
 | P1.H3.M5 | Política de payload: sin datos personales, solo ids y montos | grep de documento, nombre o teléfono en los payloads → 0 | Salida del grep pegada | TODO |
+| P1.H3.M6 | **Entrega a salvo de SSRF**: resolver y fijar la IP al registrar y en cada entrega; rechazar privadas, loopback, link-local, CGNAT, metadatos de nube y nombres internos; sin redirecciones; salida por un proxy sin ruta a la red interna | Un endpoint que apunta a `127.0.0.1`, `169.254.169.254`, `10.x`, un servicio interno o a un DNS que cambia a una IP privada tras el registro (rebinding) NO recibe nada | Test con esos destinos falsos: 0 entregas y 422 al registrar | TODO |
 
 ## H4 — Cumplimiento: PCI DSS y regulación (olas 0 a 3)
 

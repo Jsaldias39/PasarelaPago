@@ -4,7 +4,7 @@ Plataforma de pagos de ALOVIDA en **microservicios backend**: 11 servicios NestJ
 propia base de datos, imagen y despliegue, que solo se hablan por contratos (HTTP con OpenAPI o
 eventos sobre NATS JetStream con AsyncAPI).
 
-> **Estado:** ola 0 en curso. **AVANCE: 8 / 107 microtareas** (librerías `@pay/*`, plantilla de servicio, Compose local, contratos en borrador y tres spikes). Los servicios todavía no existen.
+> **Estado:** ola 0 en curso. **AVANCE: 8 / 108 microtareas** (librerías `@pay/*`, plantilla de servicio, Compose local, contratos en borrador y tres spikes). Los servicios todavía no existen.
 > Empezá por [`docs/plan/PLAN-MAESTRO.md`](docs/plan/PLAN-MAESTRO.md).
 
 ## Qué resuelve

@@ -81,7 +81,7 @@ cuerpo: si no responde `422 idempotency_key_reused`, tampoco.
 | P3.H3.M1 | **Spike** `hyperswitch-card-vault`: despliegue, API, gestión de claves con OpenBao, licencia en su `LICENSE` | Responde sí o no con criterio | `evidencia/spike-vault.md` | A MEDIAS |
 | P3.H3.M2 | `pay-vault` desplegado en la red aislada (P1.H4.M3), con tokens por comercio | Un token de otro comercio no se puede usar | Test pegado | TODO |
 | P3.H3.M3 | Medio **tarjeta**: por defecto con los campos alojados del PSP (token del PSP); con `pay-vault` cuando el comercio guarda la tarjeta | grep de PAN de prueba en logs, eventos y bases fuera de la bóveda → 0 | Salida del grep pegada | TODO |
-| P3.H3.M4 | Medios **saldo AloVida** (ledger, P2.H1.M8) y **transferencia** (`requires_action` con instrucciones, confirmada por el conector de P4) | Los dos terminan en `succeeded` contra dobles | Tests pegados | TODO |
+| P3.H3.M4 | Medios **saldo AloVida** (ledger, P2.H1.M8) y **transferencia** (`requires_action` con instrucciones, confirmada por el conector de P4) | Los dos terminan en `succeeded` contra dobles; el saldo AloVida solo se debita con `wallet_authorization` válida (un solo uso, atada a comercio, importe y moneda): sin token, token reutilizado o de otro comercio ⇒ `forbidden` y el saldo no cambia | Tests pegados | TODO |
 
 ## Dobles (regla 65)
 
