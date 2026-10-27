@@ -533,6 +533,7 @@ components:
         our_reference: { type: [string, 'null'], description: 'Nuestra referencia (por ejemplo, la de la transferencia) si el banco la devuelve. Nula si no.' }
         charge_id: { type: [string, 'null'], pattern: '^ch_[a-z0-9]{10,40}$', description: 'Cobro con el que se emparejó la línea, si se pudo.' }
         payment_intent_id: { type: [string, 'null'], pattern: '^pi_[a-z0-9]{10,40}$', description: 'Intento de pago al que pertenece el cobro emparejado, si se pudo. Es la clave con la que `pay-settlement` cruza la línea con el libro mayor (el `business_ref` del ledger es `pi_…:operación`, nunca un `ch_…`). Opcional por compatibilidad; nula si no hay emparejamiento.' }
+        merchant_id: { type: [string, 'null'], pattern: '^mc_[a-z0-9]{10,40}$', description: 'Comercio dueño del cobro emparejado (el `merchant_id` del cobro), si se pudo emparejar. Permite a `pay-settlement` detectar un `payment_intent_id` que pertenece a otro comercio. Nulo si no hay emparejamiento. Opcional por compatibilidad.' }
         direction: { type: string, enum: [credit, debit] }
         amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
         currency: { $ref: 'common.yaml#/components/schemas/Currency' }
