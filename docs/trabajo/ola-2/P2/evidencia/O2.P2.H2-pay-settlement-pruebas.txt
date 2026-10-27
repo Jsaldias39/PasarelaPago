@@ -1,0 +1,282 @@
+# O2.P2.H2 (pay-settlement): M1 contrato · M2 resolve 401/403 · M3 rail_rejected y mock · M4 payout.created sin lote · M5 modo — nombres literales de la última corrida (--json)
+
+## test/contract.spec.ts — 4/4 pasan
+  [passed] el servicio implementa el contrato interno de liquidación y nada más que lo propuesto cada operación de internal-settlement-v1.yaml tiene su ruta
+  [passed] el servicio implementa el contrato interno de liquidación y nada más que lo propuesto cada operación de public-v1.yaml que es de P2 (GET /payouts) tiene su ruta
+  [passed] el servicio implementa el contrato interno de liquidación y nada más que lo propuesto no hay rutas fuera del contrato (POST /charges y GET /exports/accounting ya están declaradas)
+  [passed] el servicio implementa el contrato interno de liquidación y nada más que lo propuesto toda ruta exige identidad de servicio: sin X-Service-Id válido ninguna responde distinto de 403
+
+## test/resolve.spec.ts — 17/17 pasan
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) dismiss: lo decide `settlement_operator`; quién decide sale de la credencial y queda en la auditoría
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) request_adjustment: exige `settlement_admin`, deja un pedido y NO toca el ledger
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) un operador no puede pedir un ajuste (403) y la excepción sigue abierta; un admin sí puede descartar (supuesto: admin incluye operador)
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) el cuerpo NO decide quién resuelve: un resolved_by escrito a mano es 422 y no cambia nada
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) sin credencial válida: 401 sin decir por qué, y nada cambia (CONTRATOS.md §3 fila 17: 401 la credencial, 403 el rol) sin Authorization
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) sin credencial válida: 401 sin decir por qué, y nada cambia (CONTRATOS.md §3 fila 17: 401 la credencial, 403 el rol) token vencido
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) sin credencial válida: 401 sin decir por qué, y nada cambia (CONTRATOS.md §3 fila 17: 401 la credencial, 403 el rol) audiencia ajena
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) sin credencial válida: 401 sin decir por qué, y nada cambia (CONTRATOS.md §3 fila 17: 401 la credencial, 403 el rol) emisor ajeno
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) sin credencial válida: 401 sin decir por qué, y nada cambia (CONTRATOS.md §3 fila 17: 401 la credencial, 403 el rol) alg none
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) sin credencial válida: 401 sin decir por qué, y nada cambia (CONTRATOS.md §3 fila 17: 401 la credencial, 403 el rol) basura
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) sin credencial válida: 401 sin decir por qué, y nada cambia (CONTRATOS.md §3 fila 17: 401 la credencial, 403 el rol) solo el service id, sin persona
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) sin credencial válida: 401 sin decir por qué, y nada cambia (CONTRATOS.md §3 fila 17: 401 la credencial, 403 el rol) un servicio que no es la consola, aunque traiga una credencial de admin válida, recibe 403
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) estados: ya cerrada ⇒ 409 (no se pisa la decisión de otra persona); inexistente o mal formada ⇒ 404
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) dos personas resuelven a la vez: una gana (200) y la otra recibe 409; una sola fila de auditoría
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) idempotencia: la misma clave repite la respuesta sin duplicar auditoría; el 403 por rol NO se guarda
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) el motivo es obligatorio y acotado: vacío, ausente o de más de 500 caracteres ⇒ 422
+  [passed] resolver una excepción (REQ-P2-6: lo decide una persona) una resolución desconocida es 422
+
+## test/payout.spec.ts — 34/34 pasan
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) retiene, ordena el pago por el riel y confirma la retención: el dinero sale una vez
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) un monto mayor al disponible da 422 insufficient_funds sin mover dinero ni llamar al riel (REQ-P2-2)
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) límite: justo lo disponible se paga; 1 centavo más no; y de a 1 centavo también
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza monto 0 con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza monto negativo con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza monto con decimales con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza monto como texto con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza moneda distinta con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza campo no declarado con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza comercio mal formado con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza riel desconocido con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza motivo reservado al corte con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza lote puesto a mano con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) rechaza riel que no está habilitado por settlement.mode con 422 y sin efecto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) el riel falla sin efecto garantizado (502 connector_unavailable): se anula la retención y el saldo queda intacto
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) el riel falla rechazo definitivo del riel: se anula la retención; el código propio se guarda y el evento usa el del contrato
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) el riel falla AMBIGUO (el banco pagó pero se perdió la respuesta): NO se anula; queda en tránsito con la retención viva y una consulta posterior «pagado» confirma
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) el riel falla AMBIGUO (la orden nunca llegó): la consulta dice «no existe» y recién entonces se anula la retención
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) el riel falla en tránsito (el banco confirma tarde): la retención sigue viva hasta que el riel diga pagado
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) el riel falla la retención venció mientras el banco pagaba: NO se declara pagado ni fallido (lo resuelve una persona) y no se anula nada
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) el ledger falla no responde al retener: 503 sin guardar la respuesta; el mismo pedido retoma y paga una sola vez
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) el ledger falla la retención SE CREÓ pero la respuesta se perdió: el reintento reutiliza la misma retención
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) el ledger falla el riel pagó pero el ledger no confirma la retención: 503; el reintento solo confirma, sin pagar otra vez
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) el ledger falla el barrido retoma un pago que quedó en `created` sin que nadie reintente
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) idempotencia la misma clave repite la respuesta guardada sin pagar de nuevo
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) idempotencia la misma clave con otro pedido es 422 idempotency_key_reused; sin clave, 400
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) idempotencia el rechazo por saldo también se repite tal cual con la misma clave
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) idempotencia diez pedidos simultáneos con la misma clave: un solo pago
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) idempotencia veinte pagos simultáneos que juntos superan el disponible: el saldo nunca queda en negativo ni se paga de más
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) modo B (settlement.mode=acquirer, REQ-P2-7, P2.H2.M8) usa el riel acquirer_settlement, que es un doble: el pago sale `simulated: true` y no se le pide nada al conector
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) modo B (settlement.mode=acquirer, REQ-P2-7, P2.H2.M8) en modo A el riel real no es simulado
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) lectura y autorización solo pay-schedules y la consola pagan; el resto, incluido pay-payments y pay-edge, recibe 403
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) lectura y autorización GET /payouts/{id}: 404 si no existe, 404 si el id no tiene forma de payout, y la consulta es solo de lectura
+  [passed] payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) lectura y autorización lista paginada, del más nuevo al más viejo, con filtros por comercio y estado
+
+## test/reconciliation.spec.ts — 28/28 pasan
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) todo cuadra: la corrida termina `completed` sin excepciones ni eventos
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) una línea que no coincide crea una excepción con la diferencia y el ledger NO se ajusta solo
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) detecta las cinco clases de diferencia en una misma corrida
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) repetir la corrida sobre el mismo periodo NO reabre ni vuelve a notificar lo ya conocido
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) una excepción ya resuelta no se reabre si la diferencia persiste
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) límite de periodo: una línea del banco asentada justo en `to` queda afuera; el cobro del ledger de ese borde se reporta, no se esconde
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) no guarda la glosa del banco: ni en las líneas ni en las excepciones
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) extractos que no se pueden leer: la corrida falla ENTERA, no asienta nada y no queda en `running` JSON con una fecha inválida ⇒ failed/()=>ctx.connectors.statements.set('mock', {
+                        format: 'json',
+                        lines: [
+                            line({
+                                provider_reference: 'B1',
+                                our_reference: ref(),
+                                value_date: '2026-02-30'
+                            })
+                        ]
+                    })
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) extractos que no se pueden leer: la corrida falla ENTERA, no asienta nada y no queda en `running` JSON con un monto con decimales ⇒ failed/()=>ctx.connectors.statements.set('mock', {
+                        format: 'json',
+                        lines: [
+                            {
+                                ...line({
+                                    provider_reference: 'B1'
+                                }),
+                                amount_minor: 10.5
+                            }
+                        ]
+                    })
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) extractos que no se pueden leer: la corrida falla ENTERA, no asienta nada y no queda en `running` texto JSON ilegible ⇒ failed/()=>ctx.connectors.statements.set('mock', {
+                        format: 'json',
+                        text: '{"data":'
+                    })
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) extractos que no se pueden leer: la corrida falla ENTERA, no asienta nada y no queda en `running` el conector no responde ⇒ failed/()=>ctx.connectors.statementError = new StatementUnavailableError()
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) extractos que no se pueden leer: la corrida falla ENTERA, no asienta nada y no queda en `running` el ledger no responde ⇒ failed/()=>ctx.ledger.failNext('listStatement', new LedgerUnavailableError())
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) extractos que no se pueden leer: la corrida falla ENTERA, no asienta nada y no queda en `running` un error inesperado del conector ⇒ failed/()=>ctx.connectors.statementError = new TypeError('boom')
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) extractos que no se pueden leer: la corrida falla ENTERA, no asienta nada y no queda en `running` el extracto es CSV o camt.053 según el conector, y lo ilegible falla igual
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) extractos que no se pueden leer: la corrida falla ENTERA, no asienta nada y no queda en `running` camt.053 truncado ⇒ failed/statement_malformed
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) un extracto que prueba que el banco pagó un payout en tránsito lo confirma; con otro monto, excepción y el pago sigue en tránsito
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) cinco corridas simultáneas sobre lo mismo: las excepciones no se duplican y cada una avisa una sola vez
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) un corte del proceso a mitad de corrida: resumeRunning la retoma desde cero y termina
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) forma del pedido y autorización rechaza conector desconocido con 422 y no crea nada
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) forma del pedido y autorización rechaza periodo invertido con 422 y no crea nada
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) forma del pedido y autorización rechaza periodo vacío con 422 y no crea nada
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) forma del pedido y autorización rechaza periodo de más de 93 días con 422 y no crea nada
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) forma del pedido y autorización rechaza fecha mal escrita con 422 y no crea nada
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) forma del pedido y autorización rechaza campo no declarado con 422 y no crea nada
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) forma del pedido y autorización rechaza faltan campos con 422 y no crea nada
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) forma del pedido y autorización solo la consola de operación; sin clave de idempotencia, 400; la misma clave repite la respuesta
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) forma del pedido y autorización GET /reconciliation_runs/{id}: 404 si no existe o el id está mal formado; 403 para quien no es la consola
+  [passed] conciliación (P2.H2.M6, REQ-P2-6) forma del pedido y autorización lista las excepciones de la más nueva a la más vieja, con paginación y filtro por estado
+
+## test/mode.spec.ts — 29/29 pasan
+  [passed] correcto: cada modo opera con lo suyo y todo lo propaga un pago en test se retiene, se paga y se publica con ese modo; el ledger y el conector reciben el mismo modo
+  [passed] correcto: cada modo opera con lo suyo y todo lo propaga un pago en live se retiene, se paga y se publica con ese modo; el ledger y el conector reciben el mismo modo
+  [passed] correcto: cada modo opera con lo suyo y todo lo propaga la misma Idempotency-Key en los dos modos son DOS pagos distintos, cada uno en su ledger, sin repetir la respuesta del otro
+  [passed] correcto: cada modo opera con lo suyo y todo lo propaga el pago suelto emite payout.created sin lote y válido; el del corte lo trae
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) el dinero de test no se puede pagar en el modo contrario: 422 por saldo, sin retención ni orden al conector
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) el dinero de live no se puede pagar en el modo contrario: 422 por saldo, sin retención ni orden al conector
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) un pago de test no se lista ni se consulta con el modo contrario (404, sin revelar nada)
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) un pago de live no se lista ni se consulta con el modo contrario (404, sin revelar nada)
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) concurrencia: 10 pagos simultáneos por modo sobre el mismo comercio suman por separado y ninguno cruza
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) el corte del MISMO lunes en los dos modos son dos lotes; cada uno libera solo lo cobrado en su modo y repetir uno no toca el otro
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) un cobro con la misma referencia en los dos modos son dos cobros; cada uno se cobra solo de su saldo, y el abono mensual sale una vez POR modo
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) la exportación contable es de UN modo: no suma comisiones ni líneas del otro
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) conciliación la corrida lee el ledger de SU modo; la misma diferencia en los dos modos abre una excepción en cada uno (el dedupe no las funde)
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) conciliación una corrida o una excepción de un modo no se consulta ni se resuelve desde el otro (404) y sigue abierta
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) conciliación un extracto que prueba un pago solo confirma payouts del MISMO modo
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero sin la cabecera ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero vacío ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero en mayúsculas ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero sandbox (modo de despliegue, no de clave) ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero un valor cualquiera ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero dos modos ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución sin la cabecera ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución vacío ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución en mayúsculas ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución sandbox (modo de despliegue, no de clave) ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución un valor cualquiera ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución dos modos ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` el modo solo sale de la cabecera: un `mode` en el cuerpo o en la consulta se rechaza como campo desconocido y no cambia de modo
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` el almacenamiento también lo impide: ninguna tabla de registro acepta un modo fuera de test|live
+
+## test/ledger-real.spec.ts — 11/11 pasan
+  [passed] payouts contra el ledger real retiene, ordena el pago y confirma: el dinero del comercio baja y payout:clearing sube exactamente el monto
+  [passed] payouts contra el ledger real un monto mayor al disponible lo rechaza el ledger real: 422 insufficient_funds, sin efecto
+  [passed] payouts contra el ledger real kill-test del lane: 20 pagos simultáneos que juntos superan lo disponible ⇒ exactamente los que caben, saldo nunca negativo
+  [passed] payouts contra el ledger real diez pedidos con la misma clave: un solo pago en el ledger real
+  [passed] payouts contra el ledger real el riel falla sin efecto: el ledger real anula la retención y el saldo vuelve entero
+  [passed] payouts contra el ledger real ambiguo: la retención real sigue viva (el dinero reservado) y la consulta «pagado» la confirma en el ledger real
+  [passed] el modo contra el ledger real (D-28) el dinero cargado en test no se puede pagar en live: el ledger real rechaza por saldo y no mueve nada; en test el mismo pago sale
+  [passed] el modo contra el ledger real (D-28) el mismo comercio con dinero en los dos modos: cada pago sale de SU saldo en el ledger real
+  [passed] cobros netos y conciliación contra el ledger real comisión programada: el ledger real acredita platform:fees y debita al comercio; sin saldo queda deuda y el ledger no se pasa de negativo
+  [passed] cobros netos y conciliación contra el ledger real conciliación: el extracto del banco contra el extracto REAL de la cuenta de compensación; la diferencia queda como excepción y el ledger no cambia
+  [passed] cobros netos y conciliación contra el ledger real el saldo y el extracto de una cuenta que el ledger real nunca vio son «sin movimientos», no un error
+
+## test/ledger-client.spec.ts — 24/24 pasan
+  [passed] HttpLedgerClient contra el contrato del ledger correcto: crea, consulta, confirma y anula retenciones; lo que envía cumple el contrato
+  [passed] HttpLedgerClient contra el contrato del ledger la transacción de liberación cumple el contrato y 201/200 son éxito
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 422 insufficient_funds ⇒ LedgerRejectedError({
+  kind: 'contract',
+  status: 422,
+  contentType: 'application/problem+json',
+  body: [Object]
+})
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 422 validation_failed ⇒ LedgerRejectedError({
+  kind: 'contract',
+  status: 422,
+  contentType: 'application/problem+json',
+  body: [Object]
+})
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 409 invalid_state_transition ⇒ LedgerRejectedError({
+  kind: 'contract',
+  status: 409,
+  contentType: 'application/problem+json',
+  body: [Object]
+})
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 422 con el HTML de un proxy ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 409 sin cuerpo ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 422 JSON con el código correcto pero SIN problem+json ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 502 ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 503 problem+json ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 504 ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 500 ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 429 ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 403 ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 200 con cuerpo ilegible ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) 200 con otra cosa ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) corte de socket ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger un rechazo de negocio solo cuenta si viene del ledger (application/problem+json con su código) tiempo agotado ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)
+  [passed] HttpLedgerClient contra el contrato del ledger «no existe» solo lo prueba un 404 problem+json resource_not_found saldo, retención y extracto: el 404 del ledger significa «sin movimientos» / «no existe»
+  [passed] HttpLedgerClient contra el contrato del ledger «no existe» solo lo prueba un 404 problem+json resource_not_found 404 de un proxy (HTML) NO se lee como «saldo 0» ni «sin extracto»: es no disponible
+  [passed] HttpLedgerClient contra el contrato del ledger «no existe» solo lo prueba un 404 problem+json resource_not_found 404 sin cuerpo NO se lee como «saldo 0» ni «sin extracto»: es no disponible
+  [passed] HttpLedgerClient contra el contrato del ledger «no existe» solo lo prueba un 404 problem+json resource_not_found 404 JSON sin problem+json NO se lee como «saldo 0» ni «sin extracto»: es no disponible
+  [passed] HttpLedgerClient contra el contrato del ledger recorre las páginas del extracto con el cursor y respeta la ventana [from, to)
+  [passed] HttpLedgerClient contra el contrato del ledger saldo: lee la naturaleza y rechaza un cuerpo sin ella
+
+## test/connectors-client.spec.ts — 42/42 pasan
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo correcto: pagado, en tránsito y pendiente; lo que se envía cumple el contrato y la clave es estable
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo un rechazo con prueba: Transfer `failed` con `failure_code` ⇒ no se pagó
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo DEFINITIVO: 502 application/problem+json connector_unavailable ⇒ RailUnavailableError (la única forma de anular)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 502 con el HTML de un proxy ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 502 vacío ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 502 problem+json con OTRO código ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 502 con el código correcto pero SIN content-type problem+json ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 503 ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 504 ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 500 del conector ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 429 ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 409: ese business_ref ya tiene una transferencia pagada ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 422 (no prueba que no se ejecutó) ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 404 genérico de una ruta desconocida (el contrato de POST no lo declara: lo fabrica un proxy) ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 200 con cuerpo ilegible ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 200 con JSON que no es una Transfer ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 200 con un id de transferencia mal formado ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 200 `failed` SIN failure_code (no prueba nada) ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: 200 con un estado desconocido ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: corte de socket ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo AMBIGUO: tiempo agotado (el conector no responde) ⇒ RailAmbiguousError (el hold se mantiene)
+  [passed] POST /transfers — solo es definitivo lo que el contrato declara definitivo nadie escucha en esa dirección (conexión rechazada) también es ambiguo: no se sabe si la orden salió antes del corte
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia correcto: consulta por business_ref:attempt (no por payout_id) y entiende los cuatro estados
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia PRUEBA de inexistencia: 404 problem+json transfer_not_found
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: 404 genérico resource_not_found (ruta desconocida) ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: 404 sin cuerpo ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: 404 con el HTML de un proxy ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: 404 con el código correcto pero SIN content-type problem+json ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: 404 problem+json sin código ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: 502 ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: 503 ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: 500 del conector ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: 200 ilegible ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: corte de socket ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] GET /transfers/{business_ref:attempt} — solo `404 transfer_not_found` prueba inexistencia AMBIGUO: tiempo agotado ⇒ RailAmbiguousError (no se anula, no se paga de nuevo)
+  [passed] el doble de conectores cumple el contrato (si no, los demás resultados no valen) rechaza una respuesta que se aparta del contrato en vez de dejarla pasar
+  [passed] de punta a punta con el cliente HTTP real: el hold solo se mueve con evidencia 502 de un proxy después de enviar: el hold queda vivo, el pago en tránsito; la consulta dice «pagado» ⇒ post
+  [passed] de punta a punta con el cliente HTTP real: el hold solo se mueve con evidencia 504 y la consulta dice `transfer_not_found` ⇒ recién ahí se anula el hold y el saldo vuelve
+  [passed] de punta a punta con el cliente HTTP real: el hold solo se mueve con evidencia la consulta devuelve un 404 GENÉRICO: no prueba nada ⇒ el hold sigue vivo, no se paga de nuevo y se escala a una persona (una sola vez)
+  [passed] de punta a punta con el cliente HTTP real: el hold solo se mueve con evidencia 502 problem+json connector_unavailable: definitivo, se anula de inmediato
+  [passed] de punta a punta con el cliente HTTP real: el hold solo se mueve con evidencia tiempo agotado al ordenar: ambiguo, con el hold vivo
+  [passed] de punta a punta con el cliente HTTP real: el hold solo se mueve con evidencia corte de socket al ordenar: ambiguo, con el hold vivo
+
+## test/drift.spec.ts — 6/6 pasan
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) sin deriva: el SQL aplicado coincide con lo que el código asume
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) columna obligatoria no mapeada
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) columna opcional que el mapa no conoce
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) tabla ausente, columna ausente, tipo y nulabilidad divergentes
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) tabla sin mapear e índice con nombre generado
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) las restricciones del esquema rechazan lo que el código nunca debe escribir
+
+## test/batch.spec.ts — 29/29 pasan
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) libera lo vencido (T+7) y paga una vez por comercio; lo cobrado después sigue pendiente
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) correr el corte dos veces el mismo lunes devuelve el mismo lote y no mueve dinero otra vez
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) la misma Idempotency-Key repite la respuesta guardada
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) cinco cortes simultáneos del mismo lunes: un solo lote, un solo pago por comercio, el dinero sale una vez
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) el corte siguiente solo mira lo que vence en su ventana (la marca de agua avanza)
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) un reembolso posterior al vencimiento no deja liberar de más y se descuenta en la ventana que le toca
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) límite: un comercio sin ventas, un comercio sin nada que liberar y un monto de 1 centavo
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) un comercio que aparece a mitad del corte entra en el siguiente, no en este
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) política del corte rechaza un martes (D-19: el corte es el lunes)
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) política del corte rechaza un lunes futuro
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) política del corte rechaza una fecha que no existe
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) política del corte rechaza una fecha mal escrita
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) política del corte rechaza campos que el contrato no declara y un desfase fuera de rango
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) política del corte el mismo lunes con otro desfase no es el mismo lote: se rechaza en vez de reinterpretarlo
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) política del corte con SETTLEMENT_CUTOFF_WEEKDAY=any acepta cualquier día
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) política del corte el desfase por defecto sale de la configuración (T+N) y release_days lo pisa
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) fallos a mitad del corte el ledger rechaza la liberación de un comercio: el lote queda `failed`, los demás se pagan y repetir el corte reintenta solo a ese con attempt + 1
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) fallos a mitad del corte el ledger se cae a mitad: 503 sin guardar la respuesta; reintentar con la misma clave retoma y no libera dos veces
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) fallos a mitad del corte el ledger no responde al planear: el corte no escribe nada de ese comercio y se retoma limpio
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) fallos a mitad del corte el ledger retiene el pago del corte pero la respuesta se pierde: el reintento retoma ESE pago (no inserta otro con monto 0) y paga una sola vez
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) fallos a mitad del corte resumeRunning retoma un lote que quedó a medias (el proceso murió)
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible mueve min(deuda, disponible) de available a debt con el monto fijado antes de llamar al ledger, y paga el resto
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible si el disponible no alcanza, netea lo que hay, deja el resto como deuda y no paga nada; el corte siguiente la termina
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible sin deuda no hay neteo y la deuda nunca se paga de más
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible repetir el corte, o cortarse justo después de asentar el neteo, no lo mueve dos veces
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible si el ledger rechaza el neteo (el saldo cambió), ese corte lo omite sin romper el lote y la deuda sigue
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible tres cortes seguidos: la deuda se paga UNA vez y las ventanas de liberación no se distorsionan (el contracargo ya salió de `pending`)
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) autorización: solo la consola de operación corre y lista cortes; sin identidad, 403
+  [passed] corte semanal (P2.H2.M2, REQ-P2-5) lista los lotes del más nuevo al más viejo, con paginación estable
