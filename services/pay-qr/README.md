@@ -7,7 +7,7 @@ Plan: `docs/plan/PLAN-MAESTRO.md`; carril: `docs/plan/carriles/P4-conectores-rut
 
 ## API (contrato PROPUESTO)
 
-El contrato vive en `docs/trabajo/ola-1/P4/propuesta/internal-qr-v1.yaml` (P4 no puede editar `contracts/`; la integración lo mueve).
+El contrato vive en `contracts/openapi/internal-qr-v1.yaml` (la propuesta de la ola 1 ya se integró; las pruebas leen ese archivo).
 
 | Ruta | Qué hace |
 |---|---|

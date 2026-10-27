@@ -22,14 +22,14 @@ afterEach(() => {
 
 /** Un cobro exitoso real (por el workflow) y saldo disponible del comercio para poder reembolsar. */
 async function succeededIntent(merchant = MC, available = 20000): Promise<string> {
-  const id = (await stack.service.createIntent(merchant, key(), QR)).body.id as string;
+  const id = (await stack.service.createIntent(merchant, 'test', key(), QR)).body.id as string;
   stack.connectors.setChargeStatus(stack.connectors.chargeFor(id)!.id, 'succeeded');
   await stack.orchestrator.signalCharge(id, { status: 'captured' });
   await waitFor(async () => ((await statusOf(stack, id)) === 'succeeded' ? true : undefined), 20_000, 'cobro exitoso');
   stack.ledger.setBalance(`merchant:${merchant}:available`, available);
   return id;
 }
-const refund = (id: string, amount: number, merchant = MC, k = key()) => stack.service.createRefund(merchant, id, k, { amount_minor: amount, reason: 'requested_by_customer' });
+const refund = (id: string, amount: number, merchant = MC, k = key()) => stack.service.createRefund(merchant, 'test', id, k, { amount_minor: amount, reason: 'requested_by_customer' });
 const available = (merchant = MC) => stack.ledger.balance(`merchant:${merchant}:available`);
 
 describe('P3.H2.M5 · RefundWorkflow con retención en dos fases (REQ-P3-6)', () => {
@@ -171,13 +171,13 @@ describe('P3.H2.M5 · RefundWorkflow con retención en dos fases (REQ-P3-6)', ()
     it('importe 0, negativo, decimal o campo no declarado: 422', async () => {
       const id = await succeededIntent();
       for (const body of [{ amount_minor: 0 }, { amount_minor: -1 }, { amount_minor: 1.5 }, { amount_minor: 100, reason: 'otro' }, { amount_minor: 100, fee: 0 }]) {
-        expect((await stack.service.createRefund(MC, id, key(), body).catch((e: { status: number }) => ({ status: e.status }))).status).toBe(422);
+        expect((await stack.service.createRefund(MC, 'test', id, key(), body).catch((e: { status: number }) => ({ status: e.status }))).status).toBe(422);
       }
     });
 
     it('un cobro que no está succeeded no se reembolsa (409) y uno ajeno es 404', async () => {
       stack.risk.mode = 'deny';
-      const failed = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+      const failed = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
       stack.risk.mode = 'allow';
       expect((await refund(failed, 100)).status).toBe(409);
       const mine = await succeededIntent();
@@ -248,7 +248,7 @@ describe('P3.H2.M6 · disputas: abrir, evidencia, resultado (D-22)', () => {
     expect(again.dispute.id).toBe(first.dispute.id);
     await expect(stack.service.openDispute({ paymentIntentId: id, openedKey: 'prov-evt-4' })).rejects.toMatchObject({ code: 'invalid_state_transition' });
     stack.risk.mode = 'deny';
-    const failed = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const failed = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     stack.risk.mode = 'allow';
     await expect(stack.service.openDispute({ paymentIntentId: failed, openedKey: 'x' })).rejects.toMatchObject({ code: 'invalid_state_transition' });
     expect((await eventsOf(stack, first.dispute.id)).filter((e) => e.type === 'dispute.opened')).toHaveLength(1);

@@ -30,7 +30,7 @@ export function createRefundActivities(deps: Deps) {
   return nonRetryableRejections({
     async loadRefundPlan(refundId: string): Promise<RefundPlan> {
       const { refund } = await loadBoth(refundId);
-      return { status: refund.status, hasHold: refund.ledgerHoldId !== null, waitMs: config.policy.refundWaitMs, activity: config.policy.activity };
+      return { status: refund.status, hasHold: refund.ledgerHoldId !== null, waitMs: config.policy.refundWaitMs, inquiryIntervalMs: config.policy.inquiryIntervalMs, activity: config.policy.activity };
     },
 
     /** Reserva el importe en el saldo disponible del comercio. Sin fondos el reembolso falla sin haber tocado al conector. */
@@ -38,6 +38,7 @@ export function createRefundActivities(deps: Deps) {
       const { refund, intent } = await loadBoth(refundId);
       if (refund.status !== 'pending' || refund.ledgerHoldId) return {};
       const result = await clients.ledger.createHold({
+        mode: refund.mode,
         businessRef: businessRef.refund(refundId),
         attempt: 1,
         debitAccount: `merchant:${refund.merchantId}:available`,
@@ -57,10 +58,24 @@ export function createRefundActivities(deps: Deps) {
     async refundAtConnector(refundId: string): Promise<{ status: 'succeeded' | 'failed' | 'pending'; failureCode?: string }> {
       const { refund, intent } = await loadBoth(refundId);
       if (!intent.chargeId) throw ApplicationFailure.nonRetryable('El cobro no tiene cargo en un conector para reembolsar', 'NoCharge');
-      const outcome = await clients.connectors.createRefund(intent.chargeId, refund.amountMinor, `${refundId}:refund`, refund.reason ?? undefined);
+      const outcome = await clients.connectors.createRefund(intent.chargeId, refund.amountMinor, `${refundId}:refund`, refund.mode, { reason: refund.reason ?? undefined, refundId });
       if (!outcome.ok) return { status: 'failed', failureCode: outcome.code };
+      // El `cr_…` es lo que permite CONSULTAR el reembolso si el aviso no llega (GET /refunds/{id}).
+      await refundsRepo.setConnectorRefund(deps.pool, refundId, outcome.value.id);
       const { status, failure_code: failureCode } = outcome.value;
       return { status, ...(failureCode ? { failureCode } : {}) };
+    },
+
+    /**
+     * Consulta autoritativa al conector (`GET /refunds/{id}?refresh=true`) de un reembolso `pending` cuyo aviso no llegó. `stale` o
+     * `pending` = sigue sin saberse. Es de solo lectura: un fallo se reintenta en el próximo ciclo, nunca cierra el reembolso.
+     */
+    async inquireRefund(refundId: string): Promise<{ status: 'pending' | 'succeeded' | 'failed'; failureCode?: string }> {
+      const { refund } = await loadBoth(refundId);
+      if (!refund.connectorRefundId) return { status: 'pending' };
+      const state = await clients.connectors.getRefund(refund.connectorRefundId, refund.mode, true);
+      if (state.stale || state.status === 'pending') return { status: 'pending' };
+      return { status: state.status, ...(state.failure_code ? { failureCode: state.failure_code } : {}) };
     },
 
     /** El conector devolvió el dinero: se confirma la retención (el dinero sale del saldo) y se cierra el reembolso. */
@@ -68,7 +83,7 @@ export function createRefundActivities(deps: Deps) {
       const { refund } = await loadBoth(refundId);
       if (refund.status !== 'pending') return;
       if (!refund.ledgerHoldId) throw ApplicationFailure.nonRetryable('Reembolso sin retención en el ledger', 'NoHold');
-      const posted = await clients.ledger.postHold(refund.ledgerHoldId, `${refundId}:post`);
+      const posted = await clients.ledger.postHold(refund.ledgerHoldId, `${refundId}:post`, refund.mode);
       // `conflict` = la retención ya estaba resuelta (una ejecución anterior la confirmó): se sigue.
       if (posted.kind === 'rejected') throw ApplicationFailure.nonRetryable('El ledger rechazó confirmar la retención', 'LedgerRejected');
       await deps.tx(async (db) => {
@@ -81,7 +96,7 @@ export function createRefundActivities(deps: Deps) {
     async failRefund(refundId: string, failureCode: string, voidHold: boolean): Promise<void> {
       const { refund } = await loadBoth(refundId);
       if (refund.status !== 'pending') return;
-      if (voidHold && refund.ledgerHoldId) await clients.ledger.voidHold(refund.ledgerHoldId, `${refundId}:void`);
+      if (voidHold && refund.ledgerHoldId) await clients.ledger.voidHold(refund.ledgerHoldId, `${refundId}:void`, refund.mode);
       await deps.tx(async (db) => {
         const done = await refundsRepo.complete(db, refundId, 'failed', { failureCode });
         if (done) await emitRefundEvent(db, 'refund.failed', done);
@@ -124,6 +139,7 @@ export function createDisputeActivities(deps: Deps) {
       let transferId: string | undefined;
       if (outcome === 'lost') {
         const result = await clients.ledger.createTransaction({
+          mode: dispute.mode,
           businessRef: businessRef.chargeback(disputeId),
           attempt: 1,
           currency: dispute.currency,
@@ -135,7 +151,7 @@ export function createDisputeActivities(deps: Deps) {
       await deps.tx(async (db) => {
         const done = await disputesRepo.resolve(db, disputeId, outcome, transferId);
         if (done) await emitDisputeEvent(db, outcome === 'won' ? 'dispute.won' : 'dispute.lost', {
-            id: done.id, paymentIntentId: done.paymentIntentId, merchantId: done.merchantId, amountMinor: done.amountMinor, currency: done.currency,
+            id: done.id, paymentIntentId: done.paymentIntentId, merchantId: done.merchantId, mode: done.mode, amountMinor: done.amountMinor, currency: done.currency,
             openedAt: done.openedAt, ...(done.resolvedAt ? { resolvedAt: done.resolvedAt } : {}), ledgerTransferId: done.ledgerTransferId,
           });
       });

@@ -252,7 +252,7 @@ describe('GET /charges/{id} y /status', () => {
 
     const [event] = await outboxEvents(t.db.pool, 'connector.transaction.status_changed');
     expect(validateEvent(MESSAGES.status, event?.envelope)).toEqual([]);
-    expect((event?.envelope.data as Record<string, unknown>)).toMatchObject({ status: 'captured', observed_via: 'status_inquiry', kind: 'charge', connector: 'simulator', amount_minor: 10005 });
+    expect((event?.envelope.data as Record<string, unknown>)).toMatchObject({ status: 'captured', observed_via: 'status_inquiry', kind: 'charge', connector: 'mock', amount_minor: 10005 });
     // Una segunda consulta no repite el evento.
     await get(t.app, `/charges/${created.body.id}/status?refresh=true`);
     expect(await outboxEvents(t.db.pool, 'connector.transaction.status_changed')).toHaveLength(1);

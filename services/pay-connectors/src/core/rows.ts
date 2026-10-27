@@ -63,6 +63,7 @@ export function chargeView(row: ChargeRow): Record<string, unknown> {
 export interface RefundRow {
   id: string;
   charge_id: string;
+  refund_id: string | null;
   caller: string;
   idempotency_key: string;
   amount_minor: bigint;
@@ -80,11 +81,13 @@ export function toRefundRow(raw: Record<string, unknown>): RefundRow {
   return { ...(raw as unknown as RefundRow), amount_minor: BigInt(raw.amount_minor as string | number | bigint) };
 }
 
-export function refundView(row: RefundRow): Record<string, unknown> {
+export function refundView(row: RefundRow, stale?: boolean): Record<string, unknown> {
   return {
     id: row.id,
     object: 'connector_refund',
     charge_id: row.charge_id,
+    refund_id: row.refund_id,
+    ...(stale !== undefined && { stale }),
     amount_minor: Number(row.amount_minor),
     currency: row.currency,
     status: row.status,

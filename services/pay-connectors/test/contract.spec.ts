@@ -1,6 +1,7 @@
 import { ChargesController } from '../src/http/charges.controller';
 import { CallbacksController } from '../src/http/callbacks.controller';
 import { ConnectorHealthController } from '../src/http/connector-health.controller';
+import { RefundsController } from '../src/http/refunds.controller';
 import { StatementsController } from '../src/http/statements.controller';
 import { TransfersController } from '../src/http/transfers.controller';
 import { createTestApp, get, post, SPEC, type TestApp } from './support/app';
@@ -13,14 +14,14 @@ beforeAll(async () => {
 });
 afterAll(async () => t.close());
 
-const implemented = () => routesOf(ChargesController, TransfersController, StatementsController, CallbacksController, ConnectorHealthController);
+const implemented = () => routesOf(ChargesController, RefundsController, TransfersController, StatementsController, CallbacksController, ConnectorHealthController);
 /** Operaciones del contrato que no tienen ruta (lo que el test tiene que detectar). */
 const missing = (operations: string[], routes: string[]) => operations.filter((op) => !routes.includes(op));
 
 describe('el contrato y las rutas coinciden', () => {
   it('cada operación del contrato tiene su ruta, y no hay rutas fuera del contrato', () => {
     const operations = t.contract.operations().sort();
-    expect(operations).toHaveLength(10);
+    expect(operations).toHaveLength(11);
     expect(missing(operations, implemented())).toEqual([]);
     expect(implemented().filter((r) => !operations.includes(r))).toEqual([]);
   });
@@ -43,6 +44,7 @@ const MATRIX: Array<{ op: string; method: 'get' | 'post'; path: string; allowed:
   { op: 'GET /charges/{id}/status', method: 'get', path: '/charges/ch_unknownunknown1/status', allowed: ['pay-payments', 'pay-settlement'] },
   { op: 'POST /charges/{id}/cancel', method: 'post', path: '/charges/ch_unknownunknown1/cancel', allowed: ['pay-payments'] },
   { op: 'POST /charges/{id}/refunds', method: 'post', path: '/charges/ch_unknownunknown1/refunds', allowed: ['pay-payments'] },
+  { op: 'GET /refunds/{id}', method: 'get', path: '/refunds/cr_unknownunknown1', allowed: ['pay-payments'] },
   { op: 'POST /transfers', method: 'post', path: '/transfers', allowed: ['pay-settlement'] },
   { op: 'GET /transfers/{reference}', method: 'get', path: '/transfers/po_x:payout:1', allowed: ['pay-settlement'] },
   { op: 'GET /statements', method: 'get', path: '/statements', allowed: ['pay-settlement'] },

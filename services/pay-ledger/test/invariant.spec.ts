@@ -54,15 +54,15 @@ describe('invariante global (REQ-P2-4)', () => {
     const logged = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     const report = await ctx.invariant.check();
     expect(report.ok).toBe(false);
-    expect(report.mismatches).toEqual([{ account: `merchant:${m}:pending`, field: 'credits_posted', tigerbeetle: '4242', postgres: '0' }]);
+    expect(report.mismatches).toEqual([{ mode: 'test', account: `merchant:${m}:pending`, field: 'credits_posted', tigerbeetle: '4242', postgres: '0' }]);
     expect(ctx.invariant.last).toBe(report);
     expect(logged).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(logged.mock.calls[0])).toContain('INVARIANTE DEL LEDGER ROTO');
     logged.mockRestore();
     // se restaura para que el resto de las pruebas del archivo (y el invariante global) no queden rotos
     await ctx.db.pool.query(
-      `INSERT INTO ledger_statement_lines (id, account, leg_id, business_ref, attempt, leg_index, direction, counterparty_account, amount_minor, code, posted_at)
-       SELECT 'sl_restaurada' || substr(md5(random()::text), 1, 8), $1, l.id, l.business_ref, l.attempt, l.leg_index, 'credit', l.debit_account, l.amount_minor, l.code, l.posted_at
+      `INSERT INTO ledger_statement_lines (id, mode, account, leg_id, business_ref, attempt, leg_index, direction, counterparty_account, amount_minor, code, posted_at)
+       SELECT 'sl_restaurada' || substr(md5(random()::text), 1, 8), l.mode, $1, l.id, l.business_ref, l.attempt, l.leg_index, 'credit', l.debit_account, l.amount_minor, l.code, l.posted_at
          FROM ledger_legs l WHERE l.credit_account = $1`,
       [`merchant:${m}:pending`],
     );

@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { LedgerController, PublicLedgerController } from '../src/ledger/ledger.controller';
-import { type LedgerTestContext, KNOWN_422_GAPS, createLedgerContext, merchantId, repoPath } from './helpers/app';
+import { type LedgerTestContext, createLedgerContext, merchantId, repoPath } from './helpers/app';
 import { loadContract } from '@pay/testing';
 
 let ctx: LedgerTestContext;
@@ -71,12 +71,13 @@ describe('identidad entre servicios: cada ruta niega sin identidad y a los servi
   });
 });
 
-describe('divergencias conocidas del contrato (PROPUESTAS.md #4)', () => {
-  it('siguen siendo ciertas: si el contrato ya declara el 422, hay que borrar la entrada de KNOWN_422_GAPS', () => {
-    for (const template of KNOWN_422_GAPS) {
+describe('el contrato ya declara el 422 de las cinco rutas que antes lo tomaban de tolerancia (CONTRATOS.md §5)', () => {
+  it.each(['GET /balances', 'GET /statements', 'POST /holds/{id}/void', 'GET /transactions/{business_ref}', 'GET /holds/{id}'])(
+    '%s declara 422 con un Problem',
+    (template) => {
       const [method, path] = template.split(' ');
-      const errors = ctx.contract.validateResponse({ method, path: sample(path), status: 422, body: {} });
-      expect([template, errors[0] ?? '']).toEqual([template, expect.stringContaining('no declara la respuesta 422')]);
-    }
-  });
+      const problem = { type: 'urn:alovida:pay:problem:validation_failed', title: 'Validación fallida', status: 422, code: 'validation_failed', request_id: 'req_aaaaaaaa' };
+      expect(ctx.contract.validateResponse({ method, path: sample(path), status: 422, body: problem })).toEqual([]);
+    },
+  );
 });

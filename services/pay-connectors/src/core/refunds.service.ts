@@ -7,6 +7,7 @@ import { PG_POOL } from '../database.module';
 import { ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError } from '../domain/connector';
 import { newId } from '../ids';
 import { parseCreateRefund } from './charge.dto';
+import { inTransaction, uniqueViolation } from './db';
 import { statusChangedEvent } from './events';
 import { ChargesService } from './charges.service';
 import { ProviderGateway } from './provider-gateway';
@@ -44,11 +45,20 @@ export class RefundsService {
           if (alreadyMinor + input.amountMinor > charge.amount_minor) {
             throw new ProblemError('validation_failed', { errors: [{ field: 'amount_minor', code: 'exceeds_refundable' }] });
           }
-          const inserted = await client.query(
-            `INSERT INTO connector_refunds (id, charge_id, caller, idempotency_key, amount_minor, currency, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, 'BOB', $6, $6) RETURNING *`,
-            [newId('cr'), chargeId, caller, key, input.amountMinor.toString(), this.clock.now()],
-          );
+          let inserted;
+          try {
+            inserted = await client.query(
+            `INSERT INTO connector_refunds (id, charge_id, refund_id, caller, idempotency_key, amount_minor, currency, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, 'BOB', $7, $7) RETURNING *`,
+            [newId('cr'), chargeId, input.refundId ?? null, caller, key, input.amountMinor.toString(), this.clock.now()],
+            );
+          } catch (error) {
+            if (uniqueViolation(error)?.constraint === 'connector_refunds_refund_id_uidx') {
+              // Otro pedido (otra Idempotency-Key) del MISMO `refund_id`: nunca un segundo `cr_…` (podría reembolsarse dos veces).
+              throw new ProblemError('invalid_state_transition', { detail: 'Ya hay un reembolso con ese refund_id' });
+            }
+            throw error;
+          }
           return toRefundRow(inserted.rows[0]);
         });
       } else {
@@ -59,6 +69,45 @@ export class RefundsService {
       if (ctx.recoveryPoint === 'refund_recorded') refund = await this.send(ctx, refund);
       return { status: 201, body: refundView(refund) };
     });
+  }
+
+  // ───────────────────────── GET /refunds/{id} ─────────────────────────
+
+  /**
+   * Estado de un reembolso. `404` solo significa que ESTE servicio no lo tiene (la fila se escribe antes de llamar al proveedor).
+   * Con `refresh=true` y el reembolso `pending`, pregunta al proveedor: `captured` ⇒ `succeeded`, `failed` ⇒ `failed`. Si el proveedor no
+   * responde, rechaza la consulta, no sabe consultar reembolsos, o dice `not_found`, devuelve lo último que se sabe (la fila y su reserva
+   * NO se tocan: un silencio del proveedor no prueba que el reembolso no se ejecutó) con `stale: true` salvo `not_found`, que es explícito.
+   */
+  async status(id: string, refresh: boolean): Promise<Record<string, unknown>> {
+    if (!/^cr_[a-z0-9]{10,40}$/.test(id)) throw new ProblemError('resource_not_found');
+    const found = await this.pool.query('SELECT * FROM connector_refunds WHERE id = $1', [id]);
+    if (found.rows.length === 0) throw new ProblemError('resource_not_found');
+    let refund = toRefundRow(found.rows[0]);
+    let stale = false;
+    if (refresh && refund.status === 'pending') {
+      const charge = await this.charges.byId(refund.charge_id);
+      const connector = this.gateway.connectorOrNull(charge.connector);
+      if (!connector?.getRefund) {
+        stale = true; // este conector no sabe consultar reembolsos
+      } else {
+        try {
+          const observed = await this.gateway.call(charge.connector, refund.id, 'get_refund', (c) => (c.getRefund as NonNullable<typeof c.getRefund>).call(c, refund.id, this.clock.now()));
+          if (observed.status === 'captured' || observed.status === 'failed') {
+            const target = observed.status === 'captured' ? 'succeeded' : 'failed';
+            const current = refund;
+            refund = await inTransaction(this.pool, async (client) => {
+              await client.query('SELECT 1 FROM connector_refunds WHERE id = $1 FOR UPDATE', [current.id]);
+              return this.settle(client, current, charge, target, observed.providerReference, observed.status === 'failed' ? (observed.failureCode ?? 'rejected_by_provider') : null);
+            });
+          }
+        } catch (error) {
+          if (!(error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError || error instanceof ConnectorRejectedError)) throw error;
+          stale = true;
+        }
+      }
+    }
+    return refundView(refund, refresh ? stale : false);
   }
 
   /** Envío al proveedor SERIALIZADO por reembolso: un segundo envío concurrente espera y reutiliza lo que dejó el primero. */
@@ -146,6 +195,7 @@ export class RefundsService {
           connector: charge.connector,
           kind: 'refund',
           internalId: refund.id,
+          refundId: refund.refund_id,
           paymentIntentId: charge.payment_intent_id,
           merchantId: charge.merchant_id,
           status: status === 'succeeded' ? 'captured' : 'failed',

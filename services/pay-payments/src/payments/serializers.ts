@@ -1,3 +1,4 @@
+import { normalizeFailureCode } from '../events/emit';
 import type { IntentRow } from '../persistence/intents.repo';
 import type { RefundRow } from '../persistence/refunds.repo';
 
@@ -8,7 +9,9 @@ const FAILURE_MESSAGES: Record<string, string> = {
   connector_unavailable: 'El proveedor de pago no respondió; intentá de nuevo.',
   ledger_unavailable: 'No se pudo registrar el cobro; el dinero no se movió.',
   merchant_suspended: 'El comercio está suspendido.',
-  validation_failed: 'El cobro fue rechazado por las reglas de la pasarela.',
+  validation_failed: 'La petición no es válida para este medio de pago.',
+  risk_denied: 'El control de riesgo rechazó el cobro.',
+  payment_declined: 'El medio de pago fue rechazado.',
 };
 const messageFor = (code: string): string => FAILURE_MESSAGES[code] ?? 'El cobro no se pudo completar.';
 
@@ -24,7 +27,7 @@ export function toPublicIntent(row: IntentRow): Record<string, unknown> {
     net_minor: row.netMinor,
     ...(row.description ? { description: row.description } : {}),
     ...(row.nextAction ? { next_action: row.nextAction } : {}),
-    last_error: row.failureCode ? { code: row.failureCode, message: messageFor(row.failureCode) } : null,
+    last_error: row.failureCode ? { code: normalizeFailureCode(row.failureCode), message: messageFor(normalizeFailureCode(row.failureCode)) } : null,
     metadata: row.metadata,
     created_at: row.createdAt.toISOString(),
     expires_at: row.expiresAt.toISOString(),

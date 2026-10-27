@@ -4,9 +4,9 @@ import { ConnectorRegistry } from './registry';
 import { DEFAULT_RULE_SET, parseRuleSet, selectCandidates, type Availability } from './routing';
 import { EnvSecretProvider, namespaceOf, ScopedSecretProvider } from './secrets';
 import { csvCell, toCamt053, toCsv } from './statement-formats';
-import { chargeStatusOf, eventConnectorCode, eventFailureCode } from './status-map';
+import { chargeStatusOf, eventFailureCode, transferFailureCode } from './status-map';
 import { evaluateCallbackEndpoint } from './endpoint-policy';
-import { newId, newTransferReference, connectorTransactionId } from '../ids';
+import { newId, newTransferReference } from '../ids';
 import { loadConfig } from '../config';
 import { MockConnector } from '../connectors/mock/mock.connector';
 import { SimulatedBank } from '../connectors/mock/simulated-bank';
@@ -55,17 +55,20 @@ describe('status-map', () => {
     expect(chargeStatusOf('expired', false)).toBe('expired');
   });
 
-  it('el simulador se llama `simulator` en los eventos y `mock` en la API; el resto no cambia', () => {
-    expect(eventConnectorCode('mock')).toBe('simulator');
-    expect(eventConnectorCode('mercantil_qr')).toBe('mercantil_qr');
-  });
-
-  it('el código de fallo de los eventos solo admite los tres del catálogo', () => {
+  it('el código de fallo de los eventos de transacción admite los cuatro del catálogo; lo demás sale como `validation_failed`', () => {
     expect(eventFailureCode(null)).toBeNull();
     expect(eventFailureCode(undefined)).toBeNull();
-    expect(eventFailureCode('card_declined')).toBe('validation_failed');
+    expect(eventFailureCode('card_declined')).toBe('card_declined');
+    expect(eventFailureCode('rechazado_por_otra_razon')).toBe('validation_failed');
     expect(eventFailureCode('connector_unavailable')).toBe('connector_unavailable');
     expect(eventFailureCode('internal_error')).toBe('internal_error');
+  });
+});
+
+describe('transferFailureCode', () => {
+  it('los cuatro del contrato pasan; cualquier otro sale como `rejected_by_provider` (nunca nulo: `failed` prueba que NO se pagó)', () => {
+    for (const code of ['rejected_by_bank', 'rejected_by_provider', 'connector_unavailable', 'validation_failed']) expect(transferFailureCode(code)).toBe(code);
+    for (const code of ['internal_error', 'invalid_state_transition', null, undefined, '']) expect(transferFailureCode(code)).toBe('rejected_by_provider');
   });
 });
 
@@ -249,8 +252,6 @@ describe('ids', () => {
     const refs = new Set(Array.from({ length: 2000 }, () => newTransferReference()));
     expect(refs.size).toBe(2000);
     for (const r of refs) expect(r).toMatch(/^TR[A-Z2-7]{10}$/);
-    expect(connectorTransactionId('ch_abcdefghijklmnop')).toBe('ct_abcdefghijklmnop');
-    expect(connectorTransactionId('cr_abcdefghijklmnop')).toBe('ct_abcdefghijklmnop');
   });
 });
 

@@ -1,6 +1,7 @@
 import type { LegDto } from './dto';
 import { type AccountInfo, parseAccount } from './accounts';
 import { accountTbId, legTbId } from './ids';
+import type { PayMode } from './mode';
 import { ProblemError } from '@pay/problem';
 import { LEDGER_BOB, type TigerBeetleEngine, transferCode } from './tb-engine';
 
@@ -35,7 +36,7 @@ export interface SplitPlan {
  * Determinista ante una caída: si TigerBeetle ya aplicó este `(business_ref, attempt)` y Postgres no llegó a registrarlo, se ADOPTA lo aplicado
  * (se lee de TigerBeetle por id) en vez de recalcular con un saldo que ya cambió. Solo si no hay nada aplicado se parte según el saldo actual.
  */
-export async function planLegs(tb: TigerBeetleEngine, businessRef: string, attempt: number, requested: readonly LegDto[]): Promise<SplitPlan> {
+export async function planLegs(tb: TigerBeetleEngine, mode: PayMode, businessRef: string, attempt: number, requested: readonly LegDto[]): Promise<SplitPlan> {
   const legs: LegDto[] = [];
   const tbIds: bigint[] = [];
   const merchants = new Set<string>();
@@ -43,16 +44,16 @@ export async function planLegs(tb: TigerBeetleEngine, businessRef: string, attem
   const chargebacks = requested.map((leg, index) => ({ leg, index })).filter(({ leg }) => isChargeback(leg));
   const applied = new Map<number, { main?: bigint; debt?: bigint }>();
   if (chargebacks.length > 0) {
-    const ids = chargebacks.flatMap(({ index }) => [legTbId(businessRef, attempt, index), legTbId(businessRef, attempt, index, 'debt')]);
+    const ids = chargebacks.flatMap(({ index }) => [legTbId(mode, businessRef, attempt, index), legTbId(mode, businessRef, attempt, index, 'debt')]);
     const found = new Map((await tb.lookupTransfers(ids)).map((t) => [t.id, t]));
     for (const { leg, index } of chargebacks) {
       const info = parseAccount(leg.debit_account) as AccountInfo;
-      const clearing = accountTbId(leg.credit_account);
+      const clearing = accountTbId(mode, leg.credit_account);
       // Lo ya aplicado se adopta SOLO si es exactamente una mitad de este contracargo: mismas cuentas, ledger y código, y las dos mitades suman el bruto.
       const half = (part: 'main' | 'debt', debitName: string): bigint | undefined => {
-        const t = found.get(legTbId(businessRef, attempt, index, part));
+        const t = found.get(legTbId(mode, businessRef, attempt, index, part));
         if (!t) return undefined;
-        if (t.debit_account_id !== accountTbId(debitName) || t.credit_account_id !== clearing || t.ledger !== LEDGER_BOB || t.code !== transferCode('adjustment')) throw reusedKey();
+        if (t.debit_account_id !== accountTbId(mode, debitName) || t.credit_account_id !== clearing || t.ledger !== LEDGER_BOB || t.code !== transferCode('adjustment')) throw reusedKey();
         return t.amount;
       };
       const main = half('main', leg.debit_account);
@@ -68,10 +69,10 @@ export async function planLegs(tb: TigerBeetleEngine, businessRef: string, attem
   const pendingInfos = new Map<string, AccountInfo>();
   for (const { leg } of chargebacks) pendingInfos.set(leg.debit_account, parseAccount(leg.debit_account) as AccountInfo);
   if (pendingInfos.size > 0) {
-    const accounts = await tb.lookupAccounts([...pendingInfos.keys()].map(accountTbId));
+    const accounts = await tb.lookupAccounts([...pendingInfos.keys()].map((name) => accountTbId(mode, name)));
     const byId = new Map(accounts.map((a) => [a.id, a]));
     for (const name of pendingInfos.keys()) {
-      const a = byId.get(accountTbId(name));
+      const a = byId.get(accountTbId(mode, name));
       free.set(name, a ? a.credits_posted - a.debits_posted - a.debits_pending : 0n);
     }
   }
@@ -79,7 +80,7 @@ export async function planLegs(tb: TigerBeetleEngine, businessRef: string, attem
   requested.forEach((leg, index) => {
     if (!isChargeback(leg)) {
       legs.push(leg);
-      tbIds.push(legTbId(businessRef, attempt, index));
+      tbIds.push(legTbId(mode, businessRef, attempt, index));
       return;
     }
     const info = pendingInfos.get(leg.debit_account) as AccountInfo;
@@ -97,11 +98,11 @@ export async function planLegs(tb: TigerBeetleEngine, businessRef: string, attem
     const excess = gross - fromPending;
     if (fromPending > 0n) {
       legs.push({ ...leg, amount_minor: Number(fromPending) });
-      tbIds.push(legTbId(businessRef, attempt, index));
+      tbIds.push(legTbId(mode, businessRef, attempt, index));
     }
     if (excess > 0n) {
       legs.push({ ...leg, debit_account: `merchant:${info.merchantId}:debt`, amount_minor: Number(excess) });
-      tbIds.push(legTbId(businessRef, attempt, index, 'debt'));
+      tbIds.push(legTbId(mode, businessRef, attempt, index, 'debt'));
     }
   });
   return { legs, tbIds, merchants: [...merchants].sort() };

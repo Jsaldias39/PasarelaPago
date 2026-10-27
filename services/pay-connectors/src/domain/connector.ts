@@ -10,7 +10,7 @@ export type ProviderStatus = 'pending' | 'authorized' | 'captured' | 'failed' | 
 
 export type NextAction =
   | { type: 'display_qr'; payload: string; expires_at?: string }
-  | { type: 'bank_transfer_instructions'; reference: string }
+  | { type: 'bank_transfer_instructions'; reference: string; bank_name?: string; account_holder?: string; account_number?: string }
   | { type: 'redirect_to_card_form'; url: string };
 
 export interface ProviderChargeRequest {
@@ -131,6 +131,11 @@ export class ConnectorRejectedError extends Error {
   }
 }
 
+/** Resultado de consultar un reembolso al proveedor. `not_found` SOLO si el proveedor respondió de forma explícita que no lo conoce. */
+export type ProviderRefundStatusResult =
+  | { readonly status: 'pending' | 'captured' | 'failed'; readonly providerReference: string; readonly failureCode?: string }
+  | { readonly status: 'not_found' };
+
 export type TransferStatus = 'pending' | 'in_transit' | 'paid' | 'failed';
 
 export interface ProviderTransferRequest {
@@ -158,6 +163,8 @@ export interface Connector {
   cancel(reference: string, now: Date): Promise<{ status: ProviderStatus }>;
   /** Idempotente por `request.reference`. */
   refund(request: ProviderRefundRequest, now: Date): Promise<ProviderRefundResult>;
+  /** Consulta autoritativa de un reembolso por la referencia con la que se pidió (`cr_…`). Opcional: sin ella, `GET /refunds/{id}` devuelve lo último que se sabe con `stale: true`. */
+  getRefund?(reference: string, now: Date): Promise<ProviderRefundStatusResult>;
   verifyCallback(input: VerifyCallbackInput): Promise<VerifyCallbackResult>;
   fetchStatement(range: { from: Date; to: Date }): Promise<readonly StatementLine[]>;
   probe(now: Date): Promise<ProbeResult>;

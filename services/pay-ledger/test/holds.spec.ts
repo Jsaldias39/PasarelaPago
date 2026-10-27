@@ -1,5 +1,5 @@
 import { type LedgerTestContext, businessRef, checked, createLedgerContext, merchantId } from './helpers/app';
-import { accountTbId, holdTbId } from '../src/ledger/ids';
+import { accountTbId, holdTbId } from './helpers/ids';
 import { pendingTransfer } from '../src/ledger/tb-engine';
 import { waitFor } from './helpers/wait';
 

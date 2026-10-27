@@ -17,6 +17,7 @@ describe('[DOBLE] autorización del borde — claves y modos', () => {
   });
   afterAll(async () => h.stop());
   afterEach(() => reset(h));
+  const balance_ = (path: string) => h.http().get(path);
   const balance = (auth?: string) => {
     const r = h.http().get('/v1/balance');
     return auth === undefined ? r : r.set('Authorization', auth);
@@ -30,6 +31,15 @@ describe('[DOBLE] autorización del borde — claves y modos', () => {
     expect(res.body).toMatchObject({ code: 'unauthorized', status: 401 });
     h.contract.assertResponse({ method: 'GET', path: '/balance', status: 401, body: res.body });
     expect(seen(h)).toBe(0);
+  });
+
+  it('el `instance` del error NO repite segmentos de la URL que parezcan datos del cliente (número de tarjeta, correo)', async () => {
+    for (const path of ['/v1/4111111111111111', '/v1/ana@correo.com/x', '/v1/balance?email=ana@correo.com']) {
+      const res = await balance_(path);
+      expect(res.status).toBe(401);
+      expect(JSON.stringify(res.body)).not.toMatch(/4111|ana@|correo/);
+    }
+    expect((await balance_('/v1/4111111111111111')).body.instance).toBe('/v1/:x');
   });
 
   it.each([
@@ -129,6 +139,19 @@ describe('[DOBLE] autorización del borde — identidad, aislamiento entre comer
     expect(mutation.status).toBe(404);
 
     expect((await h.http().get(`/v1/payment_intents/${PI}`).set('Authorization', bearer(owner.token))).status).toBe(200);
+  });
+
+  it('GET /refunds/{id}: el reembolso de OTRO comercio da 404 resource_not_found y el dueño lo ve (200)', async () => {
+    const owner = await h.seedKey();
+    const other = await h.seedKey();
+    h.doubles['pay-payments'].own(owner.merchantId, 're_abcdefghij12');
+    const intruder = await h.http().get('/v1/refunds/re_abcdefghij12').set('Authorization', bearer(other.token));
+    expect(intruder.status).toBe(404);
+    expect(intruder.body.code).toBe('resource_not_found');
+    const ok = await h.http().get('/v1/refunds/re_abcdefghij12').set('Authorization', bearer(owner.token));
+    expect(ok.status).toBe(200);
+    expect(h.contract.validateResponse({ method: 'GET', path: '/refunds/re_abcdefghij12', status: 200, body: ok.body })).toEqual([]);
+    expect((await h.http().get('/v1/refunds/re_abcdefghij12')).status).toBe(401);
   });
 
   it('X-Merchant-Id, X-Service-Id y X-Pay-Mode del cliente no llegan: el servicio recibe la identidad que el borde autenticó', async () => {

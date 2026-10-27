@@ -31,16 +31,24 @@ const cleanup = [];
 let baseDir = option('--base-dir');
 if (baseDir === undefined) {
   const ref = option('--base', 'origin/dev');
+  try {
+    execFileSync('git', ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { cwd: root, stdio: 'ignore' });
+  } catch {
+    console.error(`La referencia ${ref} no existe (¿falta un git fetch? el CI necesita fetch-depth: 0).`);
+    process.exit(2);
+  }
   const tmp = mkdtempSync(join(tmpdir(), 'contracts-base-'));
   cleanup.push(tmp);
   try {
     // Los contratos referencian ../schemas (JSON Schema): hay que traer también esa carpeta de la base.
     const sibling = join(dirname(dir), 'schemas');
-    const archive = execFileSync('git', ['archive', ref, dir, sibling], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+    const archive = execFileSync('git', ['archive', ref, dir, sibling], { cwd: root, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
     execFileSync('tar', ['-x', '-C', tmp], { input: archive });
   } catch {
-    console.error(`No se pudo leer ${dir} en la referencia ${ref} (¿existe? probá: git fetch origin dev).`);
-    process.exit(2);
+    // La referencia existe pero todavía no tiene contratos (primer cambio que los introduce): no hay nada contra qué comparar.
+    console.log(`La referencia ${ref} no tiene ${dir}: no hay base contra la cual comparar (todo es nuevo).`);
+    for (const dirToClean of cleanup.concat(tmp)) rmSync(dirToClean, { recursive: true, force: true });
+    process.exit(0);
   }
   baseDir = join(tmp, dir);
 }

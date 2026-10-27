@@ -1,4 +1,4 @@
-import type { ConnectorCode, ProviderStatus } from './connector';
+import type { ProviderStatus } from './connector';
 
 export type ChargeStatus = 'pending' | 'requires_action' | 'succeeded' | 'failed' | 'expired' | 'canceled';
 
@@ -21,19 +21,20 @@ export function chargeStatusOf(provider: ProviderStatus, hasNextAction: boolean)
 }
 
 /**
- * Código del conector en los EVENTOS (AsyncAPI). Difiere del de la API en `mock` ↔ `simulator`: inconsistencia entre los dos
- * contratos, registrada en docs/trabajo/ola-1/P4/PROPUESTAS.md; hasta que se unifiquen se traduce acá.
+ * `failure_code` de los EVENTOS de transacción (AsyncAPI): `connector_unavailable`, `validation_failed`, `card_declined` o `internal_error`.
+ * Cualquier otro código del proveedor sale como `validation_failed`.
  */
-export function eventConnectorCode(code: ConnectorCode): 'simulator' | 'mercantil_qr' | 'mercantil_card' | 'bank_transfer' {
-  return code === 'mock' ? 'simulator' : code;
+export function eventFailureCode(code: string | null | undefined): 'connector_unavailable' | 'validation_failed' | 'card_declined' | 'internal_error' | null {
+  if (!code) return null;
+  if (code === 'connector_unavailable' || code === 'internal_error' || code === 'card_declined') return code;
+  return 'validation_failed';
 }
 
 /**
- * `failure_code` de los EVENTOS: solo admite `connector_unavailable`, `validation_failed` o `internal_error`. Un rechazo del
- * proveedor (tarjeta declinada, etc.) se informa como `validation_failed` hasta que el catálogo tenga un código propio (PROPUESTAS.md).
+ * `failure_code` de los eventos de TRANSFERENCIA saliente: `rejected_by_bank`, `rejected_by_provider`, `connector_unavailable` o
+ * `validation_failed`. Siempre presente cuando la transferencia falló (prueba de que NO se pagó).
  */
-export function eventFailureCode(code: string | null | undefined): 'connector_unavailable' | 'validation_failed' | 'internal_error' | null {
-  if (!code) return null;
-  if (code === 'connector_unavailable' || code === 'internal_error') return code;
-  return 'validation_failed';
+export function transferFailureCode(code: string | null | undefined): 'rejected_by_bank' | 'rejected_by_provider' | 'connector_unavailable' | 'validation_failed' {
+  if (code === 'rejected_by_bank' || code === 'rejected_by_provider' || code === 'connector_unavailable' || code === 'validation_failed') return code;
+  return 'rejected_by_provider';
 }

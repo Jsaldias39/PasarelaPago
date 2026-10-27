@@ -27,7 +27,7 @@ const worker = async (): Promise<ChildWorker> => {
 describe('REQ-P3-4 · matar el worker a mitad de la saga: el cobro termina en UN solo estado y con UN solo asiento', () => {
   it.each([1, 2, 3, 4, 5])('corrida %i: SIGKILL con el asiento del ledger en vuelo', async () => {
     const a = await worker();
-    const created = await stack.service.createIntent(MC, key(), QR);
+    const created = await stack.service.createIntent(MC, 'test', key(), QR);
     const id = created.body.id as string;
     expect(created.body.status).toBe('requires_action');
 
@@ -50,7 +50,7 @@ describe('REQ-P3-4 · matar el worker a mitad de la saga: el cobro termina en UN
 
   it('SIGKILL mientras el cobro espera al pagador: el aviso del banco llega con el worker caído y se procesa al volver', async () => {
     const a = await worker();
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     await a.kill();
     stack.connectors.setChargeStatus(stack.connectors.chargeFor(id)!.id, 'succeeded');
     await stack.orchestrator.signalCharge(id, { status: 'captured' }); // la señal queda en el historial de Temporal
@@ -63,7 +63,7 @@ describe('REQ-P3-4 · matar el worker a mitad de la saga: el cobro termina en UN
 
   it('dos workers vivos a la vez (reparto de carga): la misma saga no se ejecuta dos veces', async () => {
     const [a, b] = [await worker(), await worker()];
-    const ids = await Promise.all(Array.from({ length: 6 }, async () => (await stack.service.createIntent(MC, key(), QR)).body.id as string));
+    const ids = await Promise.all(Array.from({ length: 6 }, async () => (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string));
     for (const id of ids) {
       stack.connectors.setChargeStatus(stack.connectors.chargeFor(id)!.id, 'succeeded');
       await stack.orchestrator.signalCharge(id, { status: 'captured' });

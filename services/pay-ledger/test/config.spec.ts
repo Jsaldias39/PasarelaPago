@@ -1,4 +1,5 @@
-import { accountTbId, publicId, useIdNamespace } from '../src/ledger/ids';
+import { publicId, useIdNamespace } from '../src/ledger/ids';
+import { accountTbId } from './helpers/ids';
 import { loadLedgerConfig } from '../src/ledger/ledger.config';
 
 describe('configuración de pay-ledger', () => {

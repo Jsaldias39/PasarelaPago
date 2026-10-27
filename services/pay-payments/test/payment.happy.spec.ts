@@ -10,7 +10,7 @@ beforeAll(async () => {
 afterAll(async () => stack.stop());
 
 it('humo: un cobro QR de Bs 100,00 llega a requires_action con QR, y al confirmarse deja 97,00 / 3,00 en el ledger', async () => {
-  const created = await stack.service.createIntent(MC, key(), { amount_minor: 10000, currency: 'BOB', payment_method: { type: 'qr' } });
+  const created = await stack.service.createIntent(MC, 'test', key(), { amount_minor: 10000, currency: 'BOB', payment_method: { type: 'qr' } });
   expect(created.status).toBe(201);
   expect(created.body).toMatchObject({ status: 'requires_action', fee_minor: 300, net_minor: 9700, next_action: { type: 'display_qr' } });
   const id = created.body.id as string;

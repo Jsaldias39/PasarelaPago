@@ -25,7 +25,7 @@ afterEach(() => {
   }
 });
 
-const create = async (body: object = QR) => (await stack.service.createIntent(MC, key(), body)).body;
+const create = async (body: object = QR) => (await stack.service.createIntent(MC, 'test', key(), body)).body;
 const pay = async (id: string) => {
   const charge = stack.connectors.chargeFor(id);
   if (!charge) throw new Error('sin cargo');
@@ -105,11 +105,11 @@ describe('P3.H2.M1 · PaymentWorkflow: riesgo → conector → espera → ledger
     const forOther = stack.wallet.issue({ userId: 'usr_carla', merchantId: 'mc_otro0000000001', amountMinor: 3000 });
     const wrongAmount = stack.wallet.issue({ userId: 'usr_carla', merchantId: MC, amountMinor: 3001 });
     for (const token of ['inventado', forOther, wrongAmount]) {
-      const result = await stack.service.createIntent(MC, key(), body(token));
+      const result = await stack.service.createIntent(MC, 'test', key(), body(token));
       expect(result.status).toBe(403);
     }
-    expect((await stack.service.createIntent(MC, key(), body(mine))).status).toBe(201);
-    expect((await stack.service.createIntent(MC, key(), body(mine))).status).toBe(403); // un solo uso
+    expect((await stack.service.createIntent(MC, 'test', key(), body(mine))).status).toBe(201);
+    expect((await stack.service.createIntent(MC, 'test', key(), body(mine))).status).toBe(403); // un solo uso
     await waitFor(async () => (stack.ledger.balance('user:usr_carla:wallet') === 6000 ? true : undefined), 10_000, 'un solo débito');
   });
 });
@@ -179,7 +179,7 @@ describe('P3.H2.M2 · política de llamadas síncronas', () => {
 
   it('crear el cargo con resultado AMBIGUO (500): no se sabe si se creó; el cobro sigue processing, se escala y se reintenta con la misma clave; al volver el conector sigue su camino con UN solo cargo', async () => {
     stack.connectors.scenario = 'charge_ambiguous';
-    const pending = stack.service.createIntent(MC, key(), QR);
+    const pending = stack.service.createIntent(MC, 'test', key(), QR);
     const created = await pending;
     const id = created.body.id as string;
     expect(created.body.status).toBe('processing'); // ni «failed» ni «connector_unavailable» por una duda
@@ -221,12 +221,12 @@ describe('P3.H2.M3 · idempotencia: repetir, reordenar y duplicar no cambia el r
   it('el id del intento sale de (comercio, clave): una caída a mitad de la creación se retoma sin crear un segundo cobro', async () => {
     const k = key();
     const { intentIdFor } = await import('../src/domain/ids');
-    const id = intentIdFor(MC, k);
+    const id = intentIdFor(MC, `test:${k}`);
     // Se simula la caída: la fila quedó escrita pero el workflow nunca arrancó.
     await stack.deps.tx(async (db) => {
-      await intentsRepo.insert(db, { id, merchantId: MC, amountMinor: 10000, method: 'qr', feeMinor: 300, netMinor: 9700, metadata: {}, expiresAt: new Date(Date.now() + 3600_000) });
+      await intentsRepo.insert(db, { id, merchantId: MC, mode: 'test', amountMinor: 10000, method: 'qr', feeMinor: 300, netMinor: 9700, metadata: {}, expiresAt: new Date(Date.now() + 3600_000) });
     });
-    const result = await stack.service.createIntent(MC, k, QR);
+    const result = await stack.service.createIntent(MC, 'test', k, QR);
     expect(result.body.id).toBe(id);
     expect(result.body.status).toBe('requires_action');
     expect(stack.connectors.chargeCreations.get(id)).toBe(1);
@@ -256,11 +256,11 @@ describe('P3.H2.M3 · caída del servicio a mitad de POST /payment_intents', () 
     const { PaymentsService } = await import('../src/payments/payments.service');
     const service = new PaymentsService(stack.deps, flaky);
     const k = key();
-    await expect(service.createIntent(MC, k, QR)).rejects.toThrow('Temporal no responde');
+    await expect(service.createIntent(MC, 'test', k, QR)).rejects.toThrow('Temporal no responde');
     const { intentIdFor } = await import('../src/domain/ids');
-    const id = intentIdFor(MC, k);
+    const id = intentIdFor(MC, `test:${k}`);
     expect(await statusOf(stack, id)).toBe('processing'); // la fila quedó escrita, el workflow no arrancó
-    const retry = await service.createIntent(MC, k, QR);
+    const retry = await service.createIntent(MC, 'test', k, QR);
     expect(retry.status).toBe(201);
     expect(retry.body.id).toBe(id);
     expect(retry.body.status).toBe('requires_action');
@@ -303,7 +303,7 @@ describe('P3.H1 / H2.M4 · cancelación de un QR', () => {
   it('cancelar un cobro que espera pago: 200, cargo cancelado en el conector, evento canceled y el workflow termina', async () => {
     const created = await create();
     const id = created.id as string;
-    const result = await stack.service.cancelIntent(MC, id, key());
+    const result = await stack.service.cancelIntent(MC, 'test', id, key());
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ status: 'canceled' });
     expect(stack.connectors.charges.get(stack.connectors.chargeFor(id)!.id)?.status).toBe('canceled');
@@ -315,9 +315,9 @@ describe('P3.H1 / H2.M4 · cancelación de un QR', () => {
   it('cancelar dos veces (misma clave o distinta) no repite efectos', async () => {
     const id = (await create()).id as string;
     const k = key();
-    const first = await stack.service.cancelIntent(MC, id, k);
-    const replay = await stack.service.cancelIntent(MC, id, k);
-    const other = await stack.service.cancelIntent(MC, id, key());
+    const first = await stack.service.cancelIntent(MC, 'test', id, k);
+    const replay = await stack.service.cancelIntent(MC, 'test', id, k);
+    const other = await stack.service.cancelIntent(MC, 'test', id, key());
     expect([first.status, replay.status, other.status]).toEqual([200, 200, 200]);
     expect(replay.replayed).toBe(true);
     expect((await eventsOf(stack, id)).filter((e) => e.type === 'payment_intent.canceled')).toHaveLength(1);
@@ -326,7 +326,7 @@ describe('P3.H1 / H2.M4 · cancelación de un QR', () => {
   it('cancelar un QR que YA se pagó es 409: el cobro no se cancela y sigue hasta succeeded', async () => {
     const id = (await create()).id as string;
     stack.connectors.setChargeStatus(stack.connectors.chargeFor(id)!.id, 'succeeded'); // pagó, el callback todavía no llegó
-    const result = await stack.service.cancelIntent(MC, id, key());
+    const result = await stack.service.cancelIntent(MC, 'test', id, key());
     expect(result.status).toBe(409);
     expect(result.body).toMatchObject({ code: 'invalid_state_transition' });
     const rows = await stack.db.pool.query("SELECT outcome FROM payment_cancellation_requests WHERE payment_intent_id = $1", [id]);
@@ -338,7 +338,7 @@ describe('P3.H1 / H2.M4 · cancelación de un QR', () => {
   it('un cobro ya terminal no se cancela (409) y uno en otro estado tampoco', async () => {
     stack.risk.mode = 'deny';
     const failed = (await create()).id as string;
-    expect((await stack.service.cancelIntent(MC, failed, key())).status).toBe(409);
+    expect((await stack.service.cancelIntent(MC, 'test', failed, key())).status).toBe(409);
   });
 });
 

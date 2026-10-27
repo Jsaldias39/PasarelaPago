@@ -22,6 +22,7 @@ import { EnvSecretProvider, type SecretProvider } from './domain/secrets';
 import { ChargesController } from './http/charges.controller';
 import { CallbacksController } from './http/callbacks.controller';
 import { ConnectorHealthController } from './http/connector-health.controller';
+import { RefundsController } from './http/refunds.controller';
 import { StatementsController } from './http/statements.controller';
 import { TransfersController } from './http/transfers.controller';
 import { TransfersService } from './core/transfers.service';
@@ -36,7 +37,7 @@ const unconfiguredQr: QrPort = {
 };
 
 @Module({
-  controllers: [ChargesController, TransfersController, StatementsController, CallbacksController, ConnectorHealthController],
+  controllers: [ChargesController, RefundsController, TransfersController, StatementsController, CallbacksController, ConnectorHealthController],
   providers: [
     { provide: CLOCK, useValue: systemClock },
     {
@@ -72,7 +73,7 @@ const unconfiguredQr: QrPort = {
             new BankTransferConnector('sandbox', new DbTransferReferenceStore(pool), {
               fetch: async (range) => transferBank.statement(range),
               probe: async () => (transferBank.isDown() ? { ok: false, latencyMs: 1, reason: 'unreachable' } : { ok: true, latencyMs: 1 }),
-            }),
+            }, config.bankTransferAccount),
           );
         }
         return registry;

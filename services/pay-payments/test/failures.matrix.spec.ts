@@ -61,7 +61,7 @@ const row = (r: Omit<Row, 'n'>) => rows.push({ n: ++n, ...r });
 describe('cobro (PaymentWorkflow)', () => {
   it('riesgo caído (503)', async () => {
     stack.risk.mode = 'down';
-    const intent = (await stack.service.createIntent(MC, key(), QR)).body;
+    const intent = (await stack.service.createIntent(MC, 'test', key(), QR)).body;
     expect(intent).toMatchObject({ status: 'failed', last_error: { code: 'risk_unavailable' } });
     expect(await terminalEvents(intent.id as string)).toBe(1);
     row({ dependencia: 'pay-risk', fallo: '503 Service Unavailable', clase: 'fail-closed (no mueve dinero)', esperado: 'failed risk_unavailable, sin cargo', observado: `failed (${(intent.last_error as { code: string }).code}), cargo creado: ${stack.connectors.chargeFor(intent.id as string) ? 'sí' : 'no'}`, asientos: entries(`${intent.id}:capture`), escalado: await escalations(intent.id as string) });
@@ -70,28 +70,28 @@ describe('cobro (PaymentWorkflow)', () => {
   it('riesgo colgado', async () => {
     stack.risk.mode = 'hang';
     const t = Date.now();
-    const intent = (await stack.service.createIntent(MC, key(), QR)).body;
+    const intent = (await stack.service.createIntent(MC, 'test', key(), QR)).body;
     expect(intent).toMatchObject({ status: 'failed', last_error: { code: 'risk_unavailable' } });
     row({ dependencia: 'pay-risk', fallo: 'no responde (timeout 300 ms)', clase: 'fail-closed (no mueve dinero)', esperado: 'failed risk_unavailable en pocos segundos', observado: `failed en ${Date.now() - t} ms`, asientos: entries(`${intent.id}:capture`), escalado: await escalations(intent.id as string) });
   });
 
   it('riesgo lento pero dentro del plazo', async () => {
     stack.risk.mode = { slowMs: 150 };
-    const intent = (await stack.service.createIntent(MC, key(), QR)).body;
+    const intent = (await stack.service.createIntent(MC, 'test', key(), QR)).body;
     expect(intent.status).toBe('requires_action');
     row({ dependencia: 'pay-risk', fallo: 'respuesta lenta (150 ms < 300 ms)', clase: 'sin fallo', esperado: 'el cobro sigue', observado: String(intent.status), asientos: entries(`${intent.id}:capture`), escalado: 'no' });
   });
 
   it('conector: 502 connector_unavailable exacto al crear el cargo', async () => {
     stack.connectors.scenario = 'down';
-    const intent = (await stack.service.createIntent(MC, key(), QR)).body;
+    const intent = (await stack.service.createIntent(MC, 'test', key(), QR)).body;
     expect(intent).toMatchObject({ status: 'failed', last_error: { code: 'connector_unavailable' } });
     row({ dependencia: 'pay-connectors', fallo: '502 problem+json connector_unavailable (crear cargo)', clase: 'definitivo (no se envió nada)', esperado: 'reintenta y cierra failed connector_unavailable', observado: `failed (${(intent.last_error as { code: string }).code}); POST /charges: ${stack.connectors.server.callsTo('POST', /^\/charges$/).length} llamadas en total`, asientos: entries(`${intent.id}:capture`), escalado: await escalations(intent.id as string) });
   });
 
   it('conector: 500 genérico al crear el cargo (ambiguo)', async () => {
     stack.connectors.scenario = 'charge_ambiguous';
-    const intent = (await stack.service.createIntent(MC, key(), QR)).body;
+    const intent = (await stack.service.createIntent(MC, 'test', key(), QR)).body;
     const id = intent.id as string;
     expect(intent.status).toBe('processing');
     await hasEscalation(id, 'charge_outcome_unknown');
@@ -107,13 +107,13 @@ describe('cobro (PaymentWorkflow)', () => {
 
   it('conector: rechazo 422 (tarjeta rechazada)', async () => {
     stack.connectors.scenario = 'decline';
-    const intent = (await stack.service.createIntent(MC, key(), QR)).body;
+    const intent = (await stack.service.createIntent(MC, 'test', key(), QR)).body;
     expect(intent.status).toBe('failed');
     row({ dependencia: 'pay-connectors', fallo: '422 validation_failed (rechazo del proveedor)', clase: 'definitivo', esperado: 'failed, sin asiento', observado: `failed (${(intent.last_error as { code: string }).code})`, asientos: entries(`${intent.id}:capture`), escalado: 'no' });
   });
 
   it('ledger: 3 fallos 500 y vuelve', async () => {
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     stack.ledger.failNext = 3;
     await pay(id);
     await settled(id, 'succeeded');
@@ -122,7 +122,7 @@ describe('cobro (PaymentWorkflow)', () => {
   });
 
   it('ledger: caído un rato después de capturar (ambiguo)', async () => {
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     stack.ledger.failNext = 1000;
     await pay(id);
     await hasEscalation(id, 'ledger_outcome_unknown');
@@ -138,7 +138,7 @@ describe('cobro (PaymentWorkflow)', () => {
   });
 
   it('ledger: rechazo 422 del asiento', async () => {
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     stack.ledger.rejectPattern = /:capture$/;
     await pay(id);
     await settled(id, 'failed');
@@ -148,7 +148,7 @@ describe('cobro (PaymentWorkflow)', () => {
   });
 
   it('callbacks duplicados y reordenados', async () => {
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     stack.connectors.setChargeStatus(stack.connectors.chargeFor(id)!.id, 'succeeded');
     for (const status of ['captured', 'captured', 'authorized', 'captured', 'failed'] as const) await stack.orchestrator.signalCharge(id, { status });
     await settled(id, 'succeeded');
@@ -161,7 +161,7 @@ describe('cobro (PaymentWorkflow)', () => {
 
 describe('reembolso (RefundWorkflow)', () => {
   const succeededIntent = async (): Promise<string> => {
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     await pay(id);
     await settled(id, 'succeeded');
     stack.ledger.setBalance(`merchant:${MC}:available`, 20000);
@@ -173,7 +173,7 @@ describe('reembolso (RefundWorkflow)', () => {
   it('conector: 502 connector_unavailable exacto', async () => {
     const id = await succeededIntent();
     stack.connectors.scenario = 'refund_down';
-    const r = (await stack.service.createRefund(MC, id, key(), { amount_minor: 2000 })).body;
+    const r = (await stack.service.createRefund(MC, 'test', id, key(), { amount_minor: 2000 })).body;
     expect(r).toMatchObject({ status: 'failed' });
     expect(holdOf(r.id as string)?.status).toBe('voided');
     row({ dependencia: 'pay-connectors', fallo: '502 connector_unavailable exacto al reembolsar', clase: 'definitivo (sin efecto)', esperado: 'anula la retención; reembolso failed', observado: `failed; retención ${holdOf(r.id as string)?.status}; saldo ${available()}`, asientos: '0', escalado: await escalations(id) });
@@ -182,7 +182,7 @@ describe('reembolso (RefundWorkflow)', () => {
   it('conector: 500 genérico (ambiguo), luego vuelve', async () => {
     const id = await succeededIntent();
     stack.connectors.scenario = 'refund_ambiguous';
-    const r = (await stack.service.createRefund(MC, id, key(), { amount_minor: 2000 })).body;
+    const r = (await stack.service.createRefund(MC, 'test', id, key(), { amount_minor: 2000 })).body;
     const refundId = r.id as string;
     await hasEscalation(id, 'refund_outcome_unknown');
     expect({ status: r.status, hold: holdOf(refundId)?.status, available: available() }).toEqual({ status: 'pending', hold: 'pending', available: 20000 });
@@ -197,7 +197,7 @@ describe('reembolso (RefundWorkflow)', () => {
     const id = await succeededIntent();
     const callsBefore = stack.connectors.server.callsTo('POST', /\/refunds$/).length;
     stack.ledger.failNext = 1000;
-    const r = (await stack.service.createRefund(MC, id, key(), { amount_minor: 2000 })).body;
+    const r = (await stack.service.createRefund(MC, 'test', id, key(), { amount_minor: 2000 })).body;
     const refundId = r.id as string;
     await hasEscalation(id, 'hold_outcome_unknown');
     expect(r.status).toBe('pending');
@@ -211,7 +211,7 @@ describe('reembolso (RefundWorkflow)', () => {
   it('conector: pending y nadie avisa', async () => {
     const id = await succeededIntent();
     stack.connectors.scenario = 'refund_pending';
-    const r = (await stack.service.createRefund(MC, id, key(), { amount_minor: 1500 })).body;
+    const r = (await stack.service.createRefund(MC, 'test', id, key(), { amount_minor: 1500 })).body;
     await hasEscalation(id, 'refund_pending_timeout');
     expect({ status: (await refundsRepo.byId(stack.deps.pool, r.id as string))?.status, hold: holdOf(r.id as string)?.status }).toEqual({ status: 'pending', hold: 'pending' });
     row({ dependencia: 'pay-connectors (eventos)', fallo: 'devolución `pending` y el aviso nunca llega', clase: 'ambiguo (sin consulta posible)', esperado: 'no se libera la retención ni se da por fallido; escalado', observado: 'pending, retención pending, esperando el aviso sin plazo', asientos: '0 confirmadas', escalado: await escalations(id) });
@@ -220,7 +220,7 @@ describe('reembolso (RefundWorkflow)', () => {
 
 describe('disputa (DisputeWorkflow)', () => {
   it('ledger: 500 al debitar el contracargo (ambiguo), luego vuelve', async () => {
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     await pay(id);
     await settled(id, 'succeeded');
     const { dispute } = await stack.service.openDispute({ paymentIntentId: id, openedKey: 'matrix-1' });

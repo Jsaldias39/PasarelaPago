@@ -149,6 +149,7 @@ export class MandatesService {
           data: {
             mandate_id: id,
             merchant_id: merchantId,
+            mode,
             status: 'active',
             kind: input.kind,
             beneficiary_merchant_id: input.beneficiary_merchant_id,
@@ -203,7 +204,7 @@ export class MandatesService {
         subject: id,
         aggregateType: 'mandate',
         aggregateId: id,
-        data: { mandate_id: id, merchant_id: merchantId, status: 'canceled', canceled_at: now.toISOString() },
+        data: { mandate_id: id, merchant_id: merchantId, mode, status: 'canceled', canceled_at: now.toISOString() },
       });
     });
   }

@@ -9,6 +9,7 @@ const ID_FOR: Record<string, string> = {
   api_keys: 'key_abcdefghij12',
   webhook_endpoints: 'we_abcdefghij12',
   mandates: 'md_abcdefghij12',
+  refunds: 're_abcdefghij12',
 };
 const concrete = (template: string): string => template.replace('{id}', ID_FOR[template.split('/')[1]]);
 const KEY = 'clave-de-idempotencia-0001';
@@ -17,7 +18,7 @@ const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/;
 async function authed(h: EdgeHarness) {
   const k = await h.seedKey({ mode: 'test' });
   const auth = `Bearer ${k.token}`;
-  for (const [id, svc] of [['pi_abcdefghij12', 'pay-payments'], ['key_abcdefghij12', 'pay-merchants'], ['we_abcdefghij12', 'pay-webhooks'], ['md_abcdefghij12', 'pay-schedules']] as const) h.doubles[svc].own(k.merchantId, id);
+  for (const [id, svc] of [['pi_abcdefghij12', 'pay-payments'], ['key_abcdefghij12', 'pay-merchants'], ['we_abcdefghij12', 'pay-webhooks'], ['md_abcdefghij12', 'pay-schedules'], ['re_abcdefghij12', 'pay-payments']] as const) h.doubles[svc].own(k.merchantId, id);
   return { ...k, auth };
 }
 
@@ -72,6 +73,18 @@ describe('[DOBLE] reenvío a los servicios dueños — nivel CORRECTO', () => {
     expect(new URL(`http://x${url}`).searchParams.get('limit')).toBe('5');
     expect(new URL(`http://x${url}`).searchParams.get('status')).toBe('succeeded');
     expect(new URL(`http://x${url}`).searchParams.get('starting_after')).toBe('abc def');
+  });
+
+  it('GET /webhook_endpoints acepta limit y starting_after (los reenvía) y sigue rechazando los demás', async () => {
+    const ok = await h.http().get('/v1/webhook_endpoints?limit=5&starting_after=abc').set('Authorization', k.auth);
+    expect(ok.status).toBe(200);
+    const url = h.doubles['pay-webhooks'].requests[0].url;
+    expect(new URL(`http://x${url}`).searchParams.get('limit')).toBe('5');
+    expect(new URL(`http://x${url}`).searchParams.get('starting_after')).toBe('abc');
+    h.doubles['pay-webhooks'].requests.length = 0;
+    const bad = await h.http().get('/v1/webhook_endpoints?limit=5&merchant_id=mc_otro').set('Authorization', k.auth);
+    expect(bad.status).toBe(422);
+    expect(h.doubles['pay-webhooks'].requests).toHaveLength(0);
   });
 
   it('continúa la traza del cliente (mismo trace id, span nuevo) y reemplaza una traza inválida', async () => {

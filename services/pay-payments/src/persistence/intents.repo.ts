@@ -2,9 +2,13 @@ import { ProblemError } from '@pay/problem';
 import { num, type Db } from './db';
 import type { IntentStatus } from '../domain/state';
 
+export type PayMode = 'test' | 'live';
+
 export interface IntentRow {
   readonly id: string;
   readonly merchantId: string;
+  /** Modo de la clave que originó el cobro (D-28). */
+  readonly mode: PayMode;
   readonly amountMinor: number;
   readonly currency: string;
   readonly method: 'qr' | 'card' | 'bank_transfer' | 'wallet';
@@ -34,6 +38,7 @@ export interface IntentRow {
 export interface NewIntent {
   readonly id: string;
   readonly merchantId: string;
+  readonly mode: PayMode;
   readonly amountMinor: number;
   readonly method: IntentRow['method'];
   readonly feeMinor: number;
@@ -48,7 +53,7 @@ export interface NewIntent {
   readonly beneficiaryMerchantId?: string | undefined;
 }
 
-const COLUMNS = `id, merchant_id, amount_minor, currency, method, status, fee_minor, net_minor, description, metadata, next_action,
+const COLUMNS = `id, merchant_id, mode, amount_minor, currency, method, status, fee_minor, net_minor, description, metadata, next_action,
   failure_code, connector, charge_id, charge_status, ledger_attempt, ledger_transfer_id, card_token, wallet_user_ref, source, kind,
   beneficiary_merchant_id, created_at, expires_at, succeeded_at, completed_at`;
 
@@ -56,6 +61,7 @@ function map(r: Record<string, unknown>): IntentRow {
   return {
     id: r.id as string,
     merchantId: r.merchant_id as string,
+    mode: r.mode as PayMode,
     amountMinor: num(r.amount_minor),
     currency: r.currency as string,
     method: r.method as IntentRow['method'],
@@ -88,14 +94,14 @@ export const intentsRepo = {
   /** Inserta el intento; si el id ya existe (reintento tras una caída) no hace nada. */
   async insert(db: Db, intent: NewIntent): Promise<{ inserted: boolean }> {
     const result = await db.query(
-      `INSERT INTO payment_intents (id, merchant_id, amount_minor, method, status, fee_minor, net_minor, description, metadata, expires_at,
+      `INSERT INTO payment_intents (id, merchant_id, mode, amount_minor, method, status, fee_minor, net_minor, description, metadata, expires_at,
                                     card_token, wallet_user_ref, source, kind, beneficiary_merchant_id)
-       VALUES ($1, $2, $3, $4, 'processing', $5, $6, $7, $8::jsonb, $9, $10, $11, $12::jsonb, $13, $14)
+       VALUES ($1, $2, $15, $3, $4, 'processing', $5, $6, $7, $8::jsonb, $9, $10, $11, $12::jsonb, $13, $14)
        ON CONFLICT (id) DO NOTHING`,
       [
         intent.id, intent.merchantId, intent.amountMinor, intent.method, intent.feeMinor, intent.netMinor, intent.description ?? null,
         JSON.stringify(intent.metadata), intent.expiresAt, intent.cardToken ?? null, intent.walletUserRef ?? null,
-        intent.source ? JSON.stringify(intent.source) : null, intent.kind ?? null, intent.beneficiaryMerchantId ?? null,
+        intent.source ? JSON.stringify(intent.source) : null, intent.kind ?? null, intent.beneficiaryMerchantId ?? null, intent.mode,
       ],
     );
     return { inserted: (result.rowCount ?? 0) === 1 };
@@ -106,9 +112,9 @@ export const intentsRepo = {
     return rows[0] ? map(rows[0]) : null;
   },
 
-  /** Un intento ajeno es indistinguible de uno que no existe: 404, nunca 403 (BOLA). */
-  async forMerchant(db: Db, merchantId: string, id: string): Promise<IntentRow> {
-    const { rows } = await db.query(`SELECT ${COLUMNS} FROM payment_intents WHERE id = $1 AND merchant_id = $2`, [id, merchantId]);
+  /** Un intento ajeno (de otro comercio O de otro modo) es indistinguible de uno que no existe: 404, nunca 403 (BOLA, D-28). */
+  async forMerchant(db: Db, merchantId: string, mode: PayMode, id: string): Promise<IntentRow> {
+    const { rows } = await db.query(`SELECT ${COLUMNS} FROM payment_intents WHERE id = $1 AND merchant_id = $2 AND mode = $3`, [id, merchantId, mode]);
     if (!rows[0]) throw new ProblemError('resource_not_found');
     return map(rows[0]);
   },
@@ -127,9 +133,9 @@ export const intentsRepo = {
    * Página de intentos del comercio, de más nuevo a más viejo, con desempate por id (orden determinista, regla 96.6).
    * El cursor es opaco: `base64url(created_at|id)` del último elemento de la página anterior.
    */
-  async list(db: Db, merchantId: string, options: { limit: number; startingAfter?: string; status?: string; createdFrom?: Date; createdTo?: Date }): Promise<{ rows: IntentRow[]; hasMore: boolean }> {
-    const params: unknown[] = [merchantId];
-    const where = ['merchant_id = $1'];
+  async list(db: Db, merchantId: string, mode: PayMode, options: { limit: number; startingAfter?: string; status?: string; createdFrom?: Date; createdTo?: Date }): Promise<{ rows: IntentRow[]; hasMore: boolean }> {
+    const params: unknown[] = [merchantId, mode];
+    const where = ['merchant_id = $1', 'mode = $2'];
     if (options.status) { params.push(options.status); where.push(`status = $${params.length}`); }
     if (options.createdFrom) { params.push(options.createdFrom); where.push(`created_at >= $${params.length}`); }
     if (options.createdTo) { params.push(options.createdTo); where.push(`created_at <= $${params.length}`); }

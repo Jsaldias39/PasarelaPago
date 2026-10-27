@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { parseAccount } from '../src/ledger/accounts';
-import { accountTbId, hash128, holdResolveTbId, holdTbId, legTbId, publicId, toHex128 } from '../src/ledger/ids';
+import { hash128, holdResolveTbId, publicId, toHex128 } from '../src/ledger/ids';
+import { accountTbId, holdTbId, legTbId } from './helpers/ids';
 
 const MAX = (1n << 128n) - 1n;
 
@@ -12,7 +13,7 @@ describe('ids deterministas (P2.H1.M3)', () => {
   });
 
   it('valor fijado: un cambio accidental del algoritmo de derivación rompería todos los ids ya asentados', () => {
-    const expected = BigInt('0x' + createHash('sha256').update('alovida-pay|ledger|v1|account|platform:fees').digest().subarray(0, 16).toString('hex'));
+    const expected = BigInt('0x' + createHash('sha256').update('alovida-pay|ledger|v1|account|test|platform:fees').digest().subarray(0, 16).toString('hex'));
     expect(accountTbId('platform:fees')).toBe(expected);
   });
 
@@ -22,6 +23,15 @@ describe('ids deterministas (P2.H1.M3)', () => {
     expect(legTbId('pi_abcdefghij:capture', 2, 0)).not.toBe(base);
     expect(legTbId('pi_abcdefghij:capture', 1, 1)).not.toBe(base);
     expect(legTbId('pi_abcdefghik:capture', 1, 0)).not.toBe(base);
+  });
+
+  it('el MODO entra en todos los ids: la misma cuenta, pata y retención de `test` y de `live` son identidades distintas (D-28)', () => {
+    expect(accountTbId('platform:fees', 'test')).not.toBe(accountTbId('platform:fees', 'live'));
+    expect(legTbId('pi_abcdefghij:capture', 1, 0, 'main', 'test')).not.toBe(legTbId('pi_abcdefghij:capture', 1, 0, 'main', 'live'));
+    expect(legTbId('pi_abcdefghij:capture', 1, 0, 'debt', 'test')).not.toBe(legTbId('pi_abcdefghij:capture', 1, 0, 'debt', 'live'));
+    expect(holdTbId('pi_abcdefghij:capture', 1, 'test')).not.toBe(holdTbId('pi_abcdefghij:capture', 1, 'live'));
+    expect(publicId('tx', 'test', 'pi_abcdefghij:capture', 1)).not.toBe(publicId('tx', 'live', 'pi_abcdefghij:capture', 1));
+    expect(publicId('hd', 'test', 'pi_abcdefghij:capture', 1)).not.toBe(publicId('hd', 'live', 'pi_abcdefghij:capture', 1));
   });
 
   it('los dominios no se pisan: la misma cadena como cuenta, pata, retención y resolución da ids distintos', () => {

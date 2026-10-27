@@ -131,7 +131,7 @@ export async function startDirectIntent(stack: Stack, input: { id: string; merch
   const amount = input.amountMinor ?? 10000;
   await stack.deps.tx(async (db) => {
     const { inserted } = await intentsRepo.insert(db, {
-      id: input.id, merchantId: input.merchantId ?? MC, amountMinor: amount, method: input.method ?? 'qr', feeMinor: Math.round(amount * 0.03), netMinor: amount - Math.round(amount * 0.03),
+      id: input.id, merchantId: input.merchantId ?? MC, mode: 'test', amountMinor: amount, method: input.method ?? 'qr', feeMinor: Math.round(amount * 0.03), netMinor: amount - Math.round(amount * 0.03),
       metadata: {}, expiresAt: new Date(Date.now() + input.expiresInMs), ...(input.walletUserRef ? { walletUserRef: input.walletUserRef } : {}),
     });
     if (inserted) {

@@ -1,6 +1,6 @@
 import { ProblemError } from '@pay/problem';
 import { type AccountInfo, parseAccount } from '../src/ledger/accounts';
-import { accountTbId, legTbId } from '../src/ledger/ids';
+import { accountTbId, legTbId } from './helpers/ids';
 import { TigerBeetleEngine, plainTransfer } from '../src/ledger/tb-engine';
 import { loadLedgerConfig } from '../src/ledger/ledger.config';
 import { type LedgerTestContext, businessRef, checked, createLedgerContext, merchantId } from './helpers/app';
@@ -281,7 +281,7 @@ describe('POST /transactions — contracargo perdido (D-22): `pending` nunca que
     const ref = businessRef('dispute');
     await seedPending(m, 100);
     // el servicio murió justo después de aplicar: 100 de `pending` y 50 de deuda, en un lote enlazado
-    await ctx.engine.ensureAccounts([parseAccount(`merchant:${m}:debt`) as AccountInfo]);
+    await ctx.engine.ensureAccounts('test', [parseAccount(`merchant:${m}:debt`) as AccountInfo]);
     await ctx.engine.createTransfers([
       plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment' }, true),
       plainTransfer({ id: legTbId(ref, 1, 0, 'debt'), debit: accountTbId(`merchant:${m}:debt`), credit: accountTbId(CLEARING), amount: 50n, code: 'adjustment' }, false),
@@ -553,7 +553,7 @@ describe('reutilizar (business_ref, attempt) con OTRO contenido tras una caída:
       const m = merchantId();
       const ref = businessRef('dispute');
       await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:pending`, 100)]));
-      await ctx.engine.ensureAccounts([parseAccount(`merchant:${m}:debt`) as AccountInfo]);
+      await ctx.engine.ensureAccounts('test', [parseAccount(`merchant:${m}:debt`) as AccountInfo]);
       await ctx.engine.createTransfers([
         plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment' }, true),
         plainTransfer({ id: legTbId(ref, 1, 0, 'debt'), debit: accountTbId(`merchant:${m}:debt`), credit: accountTbId(CLEARING), amount: 50n, code: 'adjustment' }, false),

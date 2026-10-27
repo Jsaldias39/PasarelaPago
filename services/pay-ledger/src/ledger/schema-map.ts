@@ -14,12 +14,14 @@ const col = (type: ColumnType, nullable = false): ColumnMap => ({ type, nullable
 
 export const LEDGER_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<string, ColumnMap>>>> = {
   ledger_accounts: {
+    mode: col('text'),
     account: col('text'),
     kind: col('text'),
     tb_id: col('character'),
     created_at: col('timestamp with time zone'),
   },
   ledger_transactions: {
+    mode: col('text'),
     id: col('text'),
     business_ref: col('text'),
     attempt: col('integer'),
@@ -31,6 +33,7 @@ export const LEDGER_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<string, 
     created_at: col('timestamp with time zone'),
   },
   ledger_legs: {
+    mode: col('text'),
     id: col('text'),
     source: col('text'),
     source_id: col('text'),
@@ -44,6 +47,7 @@ export const LEDGER_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<string, 
     posted_at: col('timestamp with time zone'),
   },
   ledger_statement_lines: {
+    mode: col('text'),
     id: col('text'),
     account: col('text'),
     leg_id: col('text'),
@@ -57,6 +61,7 @@ export const LEDGER_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<string, 
     posted_at: col('timestamp with time zone'),
   },
   ledger_holds: {
+    mode: col('text'),
     id: col('text'),
     business_ref: col('text'),
     attempt: col('integer'),
@@ -74,6 +79,7 @@ export const LEDGER_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<string, 
     resolved_at: col('timestamp with time zone', true),
   },
   ledger_rejections: {
+    mode: col('text'),
     id: col('bigint'),
     kind: col('text'),
     business_ref: col('text'),

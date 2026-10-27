@@ -10,7 +10,7 @@ import { QrService } from './qr.service';
 const QR_ID = /^qr_[a-z0-9]{10,40}$/;
 const REFERENCE = /^[A-Za-z0-9]{1,25}$/;
 
-/** Rutas internas de pay-qr. Las llama pay-connectors (el contrato propuesto está en docs/trabajo/ola-1/P4/propuesta/). */
+/** Rutas internas de pay-qr. Las llama pay-connectors (contrato: contracts/openapi/internal-qr-v1.yaml). */
 @Controller()
 @AllowedServices('pay-connectors')
 export class QrController {

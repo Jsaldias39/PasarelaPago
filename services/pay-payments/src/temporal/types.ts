@@ -46,6 +46,8 @@ export interface RefundPlan {
   readonly status: 'pending' | 'succeeded' | 'failed';
   readonly hasHold: boolean;
   readonly waitMs: number;
+  /** Cada cuánto se consulta `GET /refunds/{id}` al conector mientras el reembolso sigue `pending` y no llegó el aviso. */
+  readonly inquiryIntervalMs: number;
   readonly activity: ActivityPolicy;
 }
 

@@ -10,6 +10,7 @@ import { decideAttempt } from './attempts';
 import type { HoldDto, LegDto } from './dto';
 import { accountTbId, holdResolveTbId, holdTbId, publicId } from './ids';
 import { emitHoldCreated, emitHoldExpired, emitHoldPosted, emitHoldVoided } from './ledger-events';
+import type { PayMode } from './mode';
 import { LedgerService, interpretTransfers } from './ledger.service';
 import { resolveAccounts } from './resolve-accounts';
 import { holdCreate, holdId, holdPostBody, parseOrThrow } from './schemas';
@@ -18,6 +19,7 @@ import { inTransaction } from './unit-of-work';
 
 interface HoldRow {
   id: string;
+  mode: PayMode;
   business_ref: string;
   attempt: number;
   status: 'pending' | 'posted' | 'voided' | 'expired' | 'rejected';
@@ -34,7 +36,7 @@ interface HoldRow {
 }
 
 const COLUMNS =
-  'id, business_ref, attempt, status, content_hash, reject_code, debit_account, credit_account, amount_minor, posted_amount_minor, currency, expires_at, created_at, resolved_at';
+  'id, mode, business_ref, attempt, status, content_hash, reject_code, debit_account, credit_account, amount_minor, posted_amount_minor, currency, expires_at, created_at, resolved_at';
 
 /** `HoldCreate` no trae `code`: se deduce del destino. Propuesta de contrato en PROPUESTAS.md #3. */
 export function holdLegCode(debit: AccountInfo, credit: AccountInfo): LegCode {
@@ -81,7 +83,7 @@ export class HoldService {
   }
 
   /** `POST /holds` — primera fase. Misma regla de intentos que los asientos (H-TB1). */
-  async createHold(rawBody: unknown, caller: string): Promise<{ created: boolean; body: HoldDto }> {
+  async createHold(rawBody: unknown, caller: string, mode: PayMode): Promise<{ created: boolean; body: HoldDto }> {
     const input = parseOrThrow(holdCreate, rawBody);
     const infos = resolveAccounts([input], caller);
     const debit = infos.get(input.debit_account) as AccountInfo;
@@ -91,8 +93,8 @@ export class HoldService {
       .digest('hex');
 
     const outcome = await inTransaction(this.pool, async (client): Promise<Outcome<{ created: boolean; row: HoldRow }>> => {
-      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ledger:hold:${input.business_ref}`]);
-      const { rows } = await client.query<HoldRow>(`SELECT ${COLUMNS} FROM ledger_holds WHERE business_ref = $1 ORDER BY attempt`, [input.business_ref]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ledger:hold:${mode}:${input.business_ref}`]);
+      const { rows } = await client.query<HoldRow>(`SELECT ${COLUMNS} FROM ledger_holds WHERE mode = $1 AND business_ref = $2 ORDER BY attempt`, [mode, input.business_ref]);
       const decision = decideAttempt(rows, input.attempt);
       if (decision.kind === 'conflict') return { kind: 'problem', error: new ProblemError('invalid_state_transition', { detail: decision.reason }) };
       if (decision.kind === 'same') {
@@ -102,28 +104,29 @@ export class HoldService {
           : { kind: 'ok', value: { created: false, row: decision.row } };
       }
 
-      await this.accounts.register(client, [debit, credit]);
-      const tbId = holdTbId(input.business_ref, input.attempt);
+      await this.accounts.register(client, mode, [debit, credit]);
+      const tbId = holdTbId(mode, input.business_ref, input.attempt);
       const statuses = await this.tb.createTransfers([
         pendingTransfer(
-          { id: tbId, debit: accountTbId(debit.name), credit: accountTbId(credit.name), amount: BigInt(input.amount_minor), code: holdLegCode(debit, credit) },
+          { id: tbId, debit: accountTbId(mode, debit.name), credit: accountTbId(mode, credit.name), amount: BigInt(input.amount_minor), code: holdLegCode(debit, credit) },
           input.expires_in_seconds,
         ),
       ]);
       const verdict = interpretTransfers(statuses);
       if (verdict.kind === 'conflict') return { kind: 'problem', error: new ProblemError('idempotency_key_reused', { detail: 'El (business_ref, attempt) ya se aplicó con otro contenido' }) };
-      const hdId = publicId('hd', input.business_ref, input.attempt);
+      const hdId = publicId('hd', mode, input.business_ref, input.attempt);
       const now = new Date();
       const expiresAt = new Date(now.getTime() + input.expires_in_seconds * 1000);
-      const base = [hdId, input.business_ref, input.attempt, contentHash, input.debit_account, input.credit_account, input.amount_minor, input.currency, expiresAt, now];
+      const base = [hdId, input.business_ref, input.attempt, contentHash, input.debit_account, input.credit_account, input.amount_minor, input.currency, expiresAt, now, mode];
 
       if (verdict.kind === 'rejected') {
         await client.query(
-          `INSERT INTO ledger_holds (id, business_ref, attempt, content_hash, status, reject_code, debit_account, credit_account, amount_minor, currency, expires_at, created_at)
-           VALUES ($1, $2, $3, $4, 'rejected', $11, $5, $6, $7, $8, $9, $10)`,
+          `INSERT INTO ledger_holds (id, business_ref, attempt, content_hash, status, reject_code, debit_account, credit_account, amount_minor, currency, expires_at, created_at, mode)
+           VALUES ($1, $2, $3, $4, 'rejected', $12, $5, $6, $7, $8, $9, $10, $11)`,
           [...base, verdict.code],
         );
-        await client.query('INSERT INTO ledger_rejections (kind, business_ref, attempt, reject_code, tb_status, caller) VALUES ($1, $2, $3, $4, $5, $6)', [
+        await client.query('INSERT INTO ledger_rejections (mode, kind, business_ref, attempt, reject_code, tb_status, caller) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
+          mode,
           'hold',
           input.business_ref,
           input.attempt,
@@ -135,8 +138,8 @@ export class HoldService {
       }
 
       const inserted = await client.query<HoldRow>(
-        `INSERT INTO ledger_holds (id, business_ref, attempt, content_hash, status, debit_account, credit_account, amount_minor, currency, expires_at, created_at)
-         VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10) RETURNING ${COLUMNS}`,
+        `INSERT INTO ledger_holds (id, business_ref, attempt, content_hash, status, debit_account, credit_account, amount_minor, currency, expires_at, created_at, mode)
+         VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11) RETURNING ${COLUMNS}`,
         base,
       );
       await emitHoldCreated(client, { holdId: hdId, businessRef: input.business_ref, account: input.debit_account, creditAccount: input.credit_account }, {
@@ -152,39 +155,39 @@ export class HoldService {
     return { created: outcome.value.created, body: this.toDto(outcome.value.row, outcome.value.created ? 'created' : 'exists') };
   }
 
-  async getHold(rawId: string): Promise<HoldDto> {
+  async getHold(rawId: string, mode: PayMode): Promise<HoldDto> {
     const id = holdId.safeParse(rawId);
     // Un id que no tiene la forma de ninguna retención no puede existir: 404 (el contrato declara 404 en las tres rutas; el 400 genérico no tiene código en el catálogo, PROPUESTAS.md #4).
     if (!id.success) throw new ProblemError('resource_not_found');
-    const { rows } = await this.pool.query<HoldRow>(`SELECT ${COLUMNS} FROM ledger_holds WHERE id = $1 AND status <> 'rejected'`, [id.data]);
+    const { rows } = await this.pool.query<HoldRow>(`SELECT ${COLUMNS} FROM ledger_holds WHERE mode = $1 AND id = $2 AND status <> 'rejected'`, [mode, id.data]);
     if (rows.length === 0) throw new ProblemError('resource_not_found');
     return this.toDto(rows[0], 'exists');
   }
 
   /** `POST /holds/{id}/post` — segunda fase. Idempotente por `Idempotency-Key` (se repite la respuesta guardada). */
-  postHold(rawId: string, rawBody: unknown, caller: string, idempotencyKey: string) {
+  postHold(rawId: string, rawBody: unknown, caller: string, mode: PayMode, idempotencyKey: string) {
     const body = parseOrThrow(holdPostBody, rawBody) ?? {};
-    return this.idempotency.execute({ scope: caller, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/holds/${rawId}/post`, body }) }, async () => ({
+    return this.idempotency.execute({ scope: `${caller}|${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/holds/${rawId}/post`, body }) }, async () => ({
       status: 200,
-      body: await this.resolve(rawId, 'post', body.amount_minor),
+      body: await this.resolve(rawId, mode, 'post', body.amount_minor),
     }));
   }
 
   /** `POST /holds/{id}/void` — segunda fase. */
-  voidHold(rawId: string, caller: string, idempotencyKey: string) {
-    return this.idempotency.execute({ scope: caller, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/holds/${rawId}/void` }) }, async () => ({
+  voidHold(rawId: string, caller: string, mode: PayMode, idempotencyKey: string) {
+    return this.idempotency.execute({ scope: `${caller}|${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/holds/${rawId}/void` }) }, async () => ({
       status: 200,
-      body: await this.resolve(rawId, 'void'),
+      body: await this.resolve(rawId, mode, 'void'),
     }));
   }
 
-  private async resolve(rawId: string, action: 'post' | 'void', requestedAmount?: number): Promise<HoldDto> {
+  private async resolve(rawId: string, mode: PayMode, action: 'post' | 'void', requestedAmount?: number): Promise<HoldDto> {
     const id = holdId.safeParse(rawId);
     // Un id que no tiene la forma de ninguna retención no puede existir: 404 (el contrato declara 404 en las tres rutas; el 400 genérico no tiene código en el catálogo, PROPUESTAS.md #4).
     if (!id.success) throw new ProblemError('resource_not_found');
 
     const outcome = await inTransaction(this.pool, async (client): Promise<Outcome<HoldRow>> => {
-      const found = await client.query<HoldRow>(`SELECT ${COLUMNS} FROM ledger_holds WHERE id = $1 FOR UPDATE`, [id.data]);
+      const found = await client.query<HoldRow>(`SELECT ${COLUMNS} FROM ledger_holds WHERE mode = $1 AND id = $2 FOR UPDATE`, [mode, id.data]);
       const row = found.rows[0];
       if (!row || row.status === 'rejected') return { kind: 'problem', error: new ProblemError('resource_not_found') };
       if (row.status !== 'pending') return { kind: 'problem', error: new ProblemError('invalid_state_transition', { detail: `La retención ya está ${row.status}` }) };
@@ -202,8 +205,8 @@ export class HoldService {
 
       const debit = parseAccount(row.debit_account) as AccountInfo;
       const credit = parseAccount(row.credit_account) as AccountInfo;
-      const leg = { id: 0n, debit: accountTbId(row.debit_account), credit: accountTbId(row.credit_account), amount: BigInt(amount), code: holdLegCode(debit, credit) };
-      const pendingId = holdTbId(row.business_ref, row.attempt);
+      const leg = { id: 0n, debit: accountTbId(mode, row.debit_account), credit: accountTbId(mode, row.credit_account), amount: BigInt(amount), code: holdLegCode(debit, credit) };
+      const pendingId = holdTbId(mode, row.business_ref, row.attempt);
       const resolveId = holdResolveTbId(pendingId);
       const [status] = await this.tb.createTransfers([
         action === 'post' ? postPendingTransfer(resolveId, pendingId, { ...leg, id: resolveId }) : voidPendingTransfer(resolveId, pendingId, { ...leg, id: resolveId }),
@@ -233,7 +236,7 @@ export class HoldService {
           [row.id, amount, now],
         );
         const legs: LegDto[] = [{ debit_account: row.debit_account, credit_account: row.credit_account, amount_minor: amount, code: leg.code }];
-        const [transferId] = await this.ledger.recordLegs(client, { source: 'hold', sourceId: row.id, businessRef: row.business_ref, attempt: row.attempt, legs, postedAt: now });
+        const [transferId] = await this.ledger.recordLegs(client, { mode, source: 'hold', sourceId: row.id, businessRef: row.business_ref, attempt: row.attempt, legs, postedAt: now });
         await emitHoldPosted(client, base, { postedAmountMinor: amount, transferId, at: now });
         return { kind: 'ok', value: updated.rows[0] };
       }
@@ -269,12 +272,12 @@ export class HoldService {
       );
       let marked = 0;
       for (const row of due.rows) {
-        const pendingId = holdTbId(row.business_ref, row.attempt);
+        const pendingId = holdTbId(row.mode, row.business_ref, row.attempt);
         const resolveId = holdResolveTbId(pendingId);
         const debit = parseAccount(row.debit_account) as AccountInfo;
         const credit = parseAccount(row.credit_account) as AccountInfo;
         const [status] = await this.tb.createTransfers([
-          voidPendingTransfer(resolveId, pendingId, { id: resolveId, debit: accountTbId(row.debit_account), credit: accountTbId(row.credit_account), amount: 0n, code: holdLegCode(debit, credit) }),
+          voidPendingTransfer(resolveId, pendingId, { id: resolveId, debit: accountTbId(row.mode, row.debit_account), credit: accountTbId(row.mode, row.credit_account), amount: 0n, code: holdLegCode(debit, credit) }),
         ]);
         if (status === CreateTransferStatus.pending_transfer_expired || status === CreateTransferStatus.created) {
           // `created`: TigerBeetle todavía no la había vencido y la anulamos nosotros; el monto vuelve igual. Se informa como vencida.

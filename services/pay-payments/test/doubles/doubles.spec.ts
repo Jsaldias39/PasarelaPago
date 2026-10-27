@@ -66,7 +66,7 @@ describe('[DOBLE] pay-risk (internal-risk-v1)', () => {
 });
 
 describe('[DOBLE] pay-connectors (internal-connectors-v1)', () => {
-  const charge = { paymentIntentId: PI, merchantId: MC, amountMinor: 10000, currency: 'BOB', method: 'qr' as const, expiresAt: '2026-10-27T16:00:00Z' };
+  const charge = { mode: 'test' as const, paymentIntentId: PI, merchantId: MC, amountMinor: 10000, currency: 'BOB', method: 'qr' as const, expiresAt: '2026-10-27T16:00:00Z' };
 
   it('correcto: un cobro QR queda requires_action con el QR, e idempotente por intento', async () => {
     const first = await c.connectors.createCharge(charge);
@@ -87,13 +87,13 @@ describe('[DOBLE] pay-connectors (internal-connectors-v1)', () => {
   it('límite: cancelar un cargo ya pagado da 409; cancelar uno pendiente lo anula, y repetir es igual', async () => {
     const created = await c.connectors.createCharge({ ...charge, paymentIntentId: 'pi_cancelme00001' });
     const id = created.ok ? created.value.id : '';
-    const first = await c.connectors.cancelCharge(id, 'k-cancel-0001');
-    const again = await c.connectors.cancelCharge(id, 'k-cancel-0001');
+    const first = await c.connectors.cancelCharge(id, 'k-cancel-0001', 'test');
+    const again = await c.connectors.cancelCharge(id, 'k-cancel-0001', 'test');
     expect(first.ok && first.value.status).toBe('canceled');
     expect(again.ok && again.value.status).toBe('canceled');
     const paid = await c.connectors.createCharge({ ...charge, paymentIntentId: 'pi_paidcharge001' });
     connectors.setChargeStatus(paid.ok ? paid.value.id : '', 'succeeded');
-    expect(await c.connectors.cancelCharge(paid.ok ? paid.value.id : '', 'k-cancel-0002')).toMatchObject({ ok: false, status: 409 });
+    expect(await c.connectors.cancelCharge(paid.ok ? paid.value.id : '', 'k-cancel-0002', 'test')).toMatchObject({ ok: false, status: 409 });
   });
 
   it('inválido: el 422 del proveedor y el `502 connector_unavailable` exacto son DEFINITIVOS ({ok:false}); un 500 es AMBIGUO (UpstreamError)', async () => {
@@ -116,8 +116,8 @@ describe('[DOBLE] pay-connectors (internal-connectors-v1)', () => {
       const fake = await raw(status, body);
       const client = clientsFor({ connectors: fake.url }).connectors;
       await expect(client.createCharge({ ...charge, paymentIntentId: 'pi_proxyfail0001' })).rejects.toMatchObject({ name: 'UpstreamError' });
-      await expect(client.createRefund('ch_aaaaaaaaaaaa', 100, 'k-refund-proxy1')).rejects.toMatchObject({ name: 'UpstreamError' });
-      await expect(client.cancelCharge('ch_aaaaaaaaaaaa', 'k-cancel-proxy1')).rejects.toMatchObject({ name: 'UpstreamError' });
+      await expect(client.createRefund('ch_aaaaaaaaaaaa', 100, 'k-refund-proxy1', 'test')).rejects.toMatchObject({ name: 'UpstreamError' });
+      await expect(client.cancelCharge('ch_aaaaaaaaaaaa', 'k-cancel-proxy1', 'test')).rejects.toMatchObject({ name: 'UpstreamError' });
       await fake.close();
     }
   });
@@ -125,12 +125,57 @@ describe('[DOBLE] pay-connectors (internal-connectors-v1)', () => {
   it('límite: el estado del cargo refleja lo que «pagó» el pagador y reembolsar exige un cargo pagado', async () => {
     const created = await c.connectors.createCharge({ ...charge, paymentIntentId: 'pi_statuscheck01' });
     const id = created.ok ? created.value.id : '';
-    expect((await c.connectors.getChargeStatus(id)).status).toBe('requires_action');
-    expect(await c.connectors.createRefund(id, 1000, 'k-refund-0001')).toMatchObject({ ok: false, status: 409 });
+    expect((await c.connectors.getChargeStatus(id, 'test')).status).toBe('requires_action');
+    expect(await c.connectors.createRefund(id, 1000, 'k-refund-0001', 'test')).toMatchObject({ ok: false, status: 409 });
     connectors.setChargeStatus(id, 'succeeded');
-    expect((await c.connectors.getChargeStatus(id)).status).toBe('succeeded');
-    const refund = await c.connectors.createRefund(id, 1000, 'k-refund-0002');
+    expect((await c.connectors.getChargeStatus(id, 'test')).status).toBe('succeeded');
+    const refund = await c.connectors.createRefund(id, 1000, 'k-refund-0002', 'test', { refundId: 're_refundone0001' });
     expect(refund.ok && refund.value.status).toBe('succeeded');
+  });
+});
+
+describe('[DOBLE] pay-connectors: reembolsos consultables, refund_id y cuenta recaudadora (cambios de la ola 2)', () => {
+  const base = { mode: 'test' as const, merchantId: MC, amountMinor: 10000, currency: 'BOB', method: 'qr' as const, expiresAt: '2026-10-27T16:00:00Z' };
+
+  it('correcto: el reembolso lleva el refund_id de pay-payments y se consulta por su cr_ con X-Pay-Mode', async () => {
+    const created = await c.connectors.createCharge({ ...base, paymentIntentId: 'pi_refundquery01' });
+    const chargeId = created.ok ? created.value.id : '';
+    connectors.setChargeStatus(chargeId, 'succeeded');
+    connectors.scenario = 'refund_pending';
+    const refund = await c.connectors.createRefund(chargeId, 4000, 'k-refund-q0001', 'test', { refundId: 're_queryrefund001' });
+    expect(refund.ok && refund.value).toMatchObject({ status: 'pending', refund_id: 're_queryrefund001' });
+    const crId = refund.ok ? refund.value.id : '';
+    expect(await c.connectors.getRefund(crId, 'test')).toMatchObject({ status: 'pending' });
+    connectors.setRefundStatus(crId, 'succeeded');
+    expect(await c.connectors.getRefund(crId, 'test')).toMatchObject({ status: 'succeeded', refund_id: 're_queryrefund001' });
+    const last = connectors.server.callsTo('GET', /^\/refunds\//).at(-1);
+    expect(last?.headers['x-pay-mode']).toBe('test');
+    expect(last?.query.get('refresh')).toBe('true');
+  });
+
+  it('límite: sin poder consultar al proveedor el conector devuelve el último estado con stale (no es una novedad)', async () => {
+    const created = await c.connectors.createCharge({ ...base, paymentIntentId: 'pi_refundstale01' });
+    const chargeId = created.ok ? created.value.id : '';
+    connectors.setChargeStatus(chargeId, 'succeeded');
+    const refund = await c.connectors.createRefund(chargeId, 100, 'k-refund-s0001', 'test');
+    const crId = refund.ok ? refund.value.id : '';
+    connectors.refundInquiryStale = true;
+    expect(await c.connectors.getRefund(crId, 'test')).toMatchObject({ status: 'pending', stale: true });
+    connectors.refundInquiryStale = false;
+  });
+
+  it('inválido: un cr_ desconocido es un rechazo del contrato (404), no un estado', async () => {
+    await expect(c.connectors.getRefund('cr_doesnotexist00', 'test')).rejects.toBeInstanceOf(UpstreamRejection);
+  });
+
+  it('correcto/límite: la cuenta recaudadora viaja en la acción solo si el conector la informa (T-03: hoy no existe)', async () => {
+    const without = await c.connectors.createCharge({ ...base, method: 'bank_transfer', paymentIntentId: 'pi_bankwithout01' });
+    expect(without.ok && without.value.next_action).toMatchObject({ type: 'bank_transfer_instructions' });
+    expect(without.ok && (without.value.next_action as { account_number?: string }).account_number).toBeUndefined();
+    connectors.bankAccount = { bank_name: 'Banco de Prueba (sintético)', account_holder: 'ALOVIDA PRUEBA', account_number: '000-0000000-0' };
+    const withAccount = await c.connectors.createCharge({ ...base, method: 'bank_transfer', paymentIntentId: 'pi_bankwith00001' });
+    expect(withAccount.ok && withAccount.value.next_action).toMatchObject({ account_number: '000-0000000-0', bank_name: 'Banco de Prueba (sintético)' });
+    connectors.bankAccount = null;
   });
 });
 
@@ -139,7 +184,7 @@ describe('[DOBLE] pay-ledger (internal-ledger-v1, regla H-1 de TigerBeetle)', ()
     { debit_account: 'connector:mock:clearing', credit_account: `merchant:${MC}:pending`, amount_minor: 9700, code: 'charge' },
     { debit_account: 'connector:mock:clearing', credit_account: 'platform:fees', amount_minor: 300, code: 'fee' },
   ];
-  const tx = (ref: string, attempt: number, l: Leg[] = legs) => c.ledger.createTransaction({ businessRef: ref, attempt, currency: 'BOB', legs: l });
+  const tx = (ref: string, attempt: number, l: Leg[] = legs) => c.ledger.createTransaction({ mode: 'test', businessRef: ref, attempt, currency: 'BOB', legs: l });
 
   it('correcto: asienta una vez y el mismo (business_ref, attempt) devuelve el mismo resultado sin mover dinero otra vez', async () => {
     const first = await tx('pi_ledgerok00001:capture', 1);
@@ -180,20 +225,20 @@ describe('[DOBLE] pay-ledger (internal-ledger-v1, regla H-1 de TigerBeetle)', ()
 
   it('retención en dos fases: post confirma una vez, void anula, y una retención se resuelve una sola vez', async () => {
     ledger.setBalance(`merchant:${MC}:available`, 5000);
-    const hold = await c.ledger.createHold({ businessRef: 're_holdok000001:refund', attempt: 1, debitAccount: `merchant:${MC}:available`, creditAccount: 'connector:mock:clearing', amountMinor: 2000, currency: 'BOB', expiresInSeconds: 3600 });
+    const hold = await c.ledger.createHold({ mode: 'test', businessRef: 're_holdok000001:refund', attempt: 1, debitAccount: `merchant:${MC}:available`, creditAccount: 'connector:mock:clearing', amountMinor: 2000, currency: 'BOB', expiresInSeconds: 3600 });
     const id = hold.kind === 'ok' ? hold.value.id : '';
     expect(hold.kind).toBe('ok');
-    expect((await c.ledger.postHold(id, 'k-post-00001')).kind).toBe('ok');
-    expect((await c.ledger.postHold(id, 'k-post-00001')).kind).toBe('ok'); // misma clave: misma respuesta
-    expect((await c.ledger.voidHold(id, 'k-void-00001')).kind).toBe('conflict'); // ya resuelta
+    expect((await c.ledger.postHold(id, 'k-post-00001', 'test')).kind).toBe('ok');
+    expect((await c.ledger.postHold(id, 'k-post-00001', 'test')).kind).toBe('ok'); // misma clave: misma respuesta
+    expect((await c.ledger.voidHold(id, 'k-void-00001', 'test')).kind).toBe('conflict'); // ya resuelta
     expect(ledger.balance(`merchant:${MC}:available`)).toBe(3000);
-    const second = await c.ledger.createHold({ businessRef: 're_holdvoid0001:refund', attempt: 1, debitAccount: `merchant:${MC}:available`, creditAccount: 'connector:mock:clearing', amountMinor: 1000, currency: 'BOB', expiresInSeconds: 3600 });
-    expect((await c.ledger.voidHold(second.kind === 'ok' ? second.value.id : '', 'k-void-00002')).kind).toBe('ok');
+    const second = await c.ledger.createHold({ mode: 'test', businessRef: 're_holdvoid0001:refund', attempt: 1, debitAccount: `merchant:${MC}:available`, creditAccount: 'connector:mock:clearing', amountMinor: 1000, currency: 'BOB', expiresInSeconds: 3600 });
+    expect((await c.ledger.voidHold(second.kind === 'ok' ? second.value.id : '', 'k-void-00002', 'test')).kind).toBe('ok');
     expect(ledger.balance(`merchant:${MC}:available`)).toBe(3000);
   });
 
   it('inválido: una retención sin saldo se rechaza', async () => {
-    const hold = await c.ledger.createHold({ businessRef: 're_holdnofund001:refund', attempt: 1, debitAccount: 'merchant:mc_poor0000001:available', creditAccount: 'connector:mock:clearing', amountMinor: 100, currency: 'BOB', expiresInSeconds: 60 });
+    const hold = await c.ledger.createHold({ mode: 'test', businessRef: 're_holdnofund001:refund', attempt: 1, debitAccount: 'merchant:mc_poor0000001:available', creditAccount: 'connector:mock:clearing', amountMinor: 100, currency: 'BOB', expiresInSeconds: 60 });
     expect(hold).toEqual({ kind: 'rejected', code: 'insufficient_funds' });
   });
 

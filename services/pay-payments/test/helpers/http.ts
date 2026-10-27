@@ -37,4 +37,5 @@ export function routesOf(controller: { prototype: Record<string, unknown> }, bas
 export const normalizeOps = (ops: string[]): string[] => ops.map((op) => op.replace(/\{[^}]+\}/g, '{}')).sort();
 
 export const EDGE = { 'x-service-id': 'pay-edge' } as const;
-export const asMerchant = (merchantId: string) => ({ ...EDGE, 'x-merchant-id': merchantId });
+/** pay-edge fija `X-Pay-Mode` desde el registro de la clave (D-28). */
+export const asMerchant = (merchantId: string, mode: 'test' | 'live' = 'test') => ({ ...EDGE, 'x-merchant-id': merchantId, 'x-pay-mode': mode });

@@ -1,0 +1,37 @@
+$ (cd services/pay-edge && yarn typecheck)
+exit=0
+
+$ (cd services/pay-edge && yarn build)
+exit=0
+
+$ (cd services/pay-webhooks && yarn typecheck)
+exit=0
+
+$ (cd services/pay-webhooks && yarn build)
+exit=0
+
+$ (cd contracts/packages/money && yarn typecheck)
+exit=0
+
+$ (cd contracts/packages/money && yarn build)
+exit=0
+
+$ (cd contracts/packages/testing && yarn typecheck)
+exit=0
+
+$ (cd contracts/packages/testing && yarn build)
+exit=0
+
+$ (cd contracts/packages/idempotency && yarn typecheck)
+exit=0
+
+$ (cd contracts/packages/idempotency && yarn build)
+exit=0
+
+$ (cd contracts/packages/orm-queryable && yarn typecheck)
+exit=0
+
+$ (cd contracts/packages/orm-queryable && yarn build)
+exit=0
+
+$ yarn eslint services/pay-edge services/pay-webhooks contracts/packages platform

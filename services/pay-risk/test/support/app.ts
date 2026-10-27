@@ -16,7 +16,8 @@ const SERVICE = process.cwd();
 const REPO = resolve(SERVICE, '../..');
 export const SQL = [join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql'), join(SERVICE, 'sql/001_risk.sql')];
 export const CONTRACT_RISK = join(REPO, 'contracts/openapi/internal-risk-v1.yaml');
-export const CONTRACT_RULE_SETS = join(REPO, 'docs/trabajo/ola-1/P5/propuestas/internal-risk-rule-sets-v1.yaml');
+// La carga de límites (/rule_sets) ya está en internal-risk-v1.yaml: un solo contrato.
+export const CONTRACT_RULE_SETS = CONTRACT_RISK;
 
 /**
  * Las pruebas FUNCIONALES contra el Watchman real usan un tiempo máximo holgado: el Watchman de la máquina de desarrollo se

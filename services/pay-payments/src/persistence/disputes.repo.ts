@@ -1,9 +1,11 @@
 import { num, type Db } from './db';
+import type { PayMode } from './intents.repo';
 
 export interface DisputeRow {
   readonly id: string;
   readonly paymentIntentId: string;
   readonly merchantId: string;
+  readonly mode: PayMode;
   readonly amountMinor: number;
   readonly currency: string;
   readonly status: 'open' | 'won' | 'lost';
@@ -13,13 +15,14 @@ export interface DisputeRow {
   readonly resolvedAt: Date | null;
 }
 
-const COLUMNS = 'id, payment_intent_id, merchant_id, amount_minor, currency, status, evidence, ledger_transfer_id, opened_at, resolved_at';
+const COLUMNS = 'id, payment_intent_id, merchant_id, mode, amount_minor, currency, status, evidence, ledger_transfer_id, opened_at, resolved_at';
 
 function map(r: Record<string, unknown>): DisputeRow {
   return {
     id: r.id as string,
     paymentIntentId: r.payment_intent_id as string,
     merchantId: r.merchant_id as string,
+    mode: r.mode as PayMode,
     amountMinor: num(r.amount_minor),
     currency: r.currency as string,
     status: r.status as DisputeRow['status'],
@@ -32,10 +35,10 @@ function map(r: Record<string, unknown>): DisputeRow {
 
 export const disputesRepo = {
   /** @returns `false` si ya había una disputa abierta para el cobro (índice único parcial). */
-  async insert(db: Db, d: { id: string; paymentIntentId: string; merchantId: string; amountMinor: number }): Promise<boolean> {
+  async insert(db: Db, d: { id: string; paymentIntentId: string; merchantId: string; mode: PayMode; amountMinor: number }): Promise<boolean> {
     const result = await db.query(
-      `INSERT INTO disputes (id, payment_intent_id, merchant_id, amount_minor) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-      [d.id, d.paymentIntentId, d.merchantId, d.amountMinor],
+      `INSERT INTO disputes (id, payment_intent_id, merchant_id, mode, amount_minor) VALUES ($1, $2, $3, $5, $4) ON CONFLICT DO NOTHING`,
+      [d.id, d.paymentIntentId, d.merchantId, d.amountMinor, d.mode],
     );
     return (result.rowCount ?? 0) === 1;
   },

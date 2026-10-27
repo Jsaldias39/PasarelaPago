@@ -16,9 +16,14 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # contracts:breaking compara contra la rama base
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
       - name: Instalar (Yarn 4 está versionado en .yarn/releases)
         run: yarn install --immutable
       - name: Stack local (Postgres con un rol por servicio, NATS JetStream)
@@ -34,6 +39,15 @@ jobs:
         run: yarn contracts:lint
       - name: Eventos (ejemplos válidos y mutaciones rechazadas)
         run: yarn contracts:events
+      - name: Cambios que ROMPEN contratos congelados (oasdiff)
+        if: github.event_name == 'pull_request'
+        run: |
+          go install github.com/oasdiff/oasdiff@latest
+          OASDIFF="$(go env GOPATH)/bin/oasdiff" yarn contracts:breaking --base "origin/${{ github.base_ref }}"
+      - name: Pruebas del detector de rupturas
+        run: |
+          go install github.com/oasdiff/oasdiff@latest
+          OASDIFF="$(go env GOPATH)/bin/oasdiff" node --test contracts/scripts/check-breaking.test.mjs
       - name: La plantilla de servicio sigue funcionando
         run: platform/scripts/verify-template.sh
       - name: Apagar el stack

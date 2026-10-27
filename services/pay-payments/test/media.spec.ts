@@ -27,7 +27,7 @@ const finish = async (id: string) => {
 
 describe('P3.H3.M4 · transferencia bancaria: requires_action con instrucciones, confirmada por el conector', () => {
   it('devuelve las instrucciones con la referencia del conector y la cuenta recaudadora configurada, y termina succeeded', async () => {
-    const result = await stack.service.createIntent(MC, key(), { amount_minor: 20000, currency: 'BOB', payment_method: { type: 'bank_transfer' } });
+    const result = await stack.service.createIntent(MC, 'test', key(), { amount_minor: 20000, currency: 'BOB', payment_method: { type: 'bank_transfer' } });
     expect(result.status).toBe(201);
     expect(result.body).toMatchObject({ status: 'requires_action', payment_method_type: 'bank_transfer', fee_minor: 200, net_minor: 19800 });
     const action = result.body.next_action as { type: string; bank_transfer: Record<string, string> };
@@ -47,7 +47,7 @@ describe('P3.H3.M4 · transferencia bancaria: requires_action con instrucciones,
 
 describe('P3.H3.M3 · tarjeta: el cobro lleva solo el token y el pagador completa en la página del banco', () => {
   it('devuelve redirect_to_card_form, el conector recibe el token (nunca un número) y termina succeeded', async () => {
-    const result = await stack.service.createIntent(MC, key(), { amount_minor: 5000, currency: 'BOB', payment_method: { type: 'card', card_token: 'tok_abcdefghij12' } });
+    const result = await stack.service.createIntent(MC, 'test', key(), { amount_minor: 5000, currency: 'BOB', payment_method: { type: 'card', card_token: 'tok_abcdefghij12' } });
     expect(result.body).toMatchObject({ status: 'requires_action', next_action: { type: 'redirect_to_card_form' } });
     expect(publicContract.validateResponse({ method: 'POST', path: '/payment_intents', status: 201, body: result.body })).toEqual([]);
     const id = result.body.id as string;
@@ -70,28 +70,28 @@ describe('P3.H3.M4 · saldo AloVida: solo con `wallet_authorization` válida (un
     await new Promise((r) => setTimeout(r, 20));
 
     // Sin token: el servidor exige el campo (el comercio no puede indicar de qué usuario cobrar).
-    const missing = await stack.service.createIntent(MC, key(), { amount_minor: 4000, currency: 'BOB', payment_method: { type: 'wallet' } }).catch((e: { status: number }) => ({ status: e.status }));
+    const missing = await stack.service.createIntent(MC, 'test', key(), { amount_minor: 4000, currency: 'BOB', payment_method: { type: 'wallet' } }).catch((e: { status: number }) => ({ status: e.status }));
     expect(missing.status).toBe(422);
     for (const token of ['inventado', otherMerchant, otherAmount, expired]) {
-      const result = await stack.service.createIntent(MC, key(), wallet(token));
+      const result = await stack.service.createIntent(MC, 'test', key(), wallet(token));
       expect({ token: token.slice(0, 6), status: result.status, code: (result.body as { code?: string }).code }).toMatchObject({ status: 403, code: 'forbidden' });
     }
     expect(balance()).toBe(50000);
 
     // El válido funciona una vez…
-    const ok = await stack.service.createIntent(MC, key(), wallet(valid));
+    const ok = await stack.service.createIntent(MC, 'test', key(), wallet(valid));
     expect(ok.status).toBe(201);
     await waitFor(async () => ((await statusOf(stack, ok.body.id as string)) === 'succeeded' ? true : undefined), 20_000, 'saldo AloVida succeeded');
     expect(balance()).toBe(46000);
     // …y reutilizarlo es 403 y no debita otra vez.
-    const reuse = await stack.service.createIntent(MC, key(), wallet(valid));
+    const reuse = await stack.service.createIntent(MC, 'test', key(), wallet(valid));
     expect(reuse.status).toBe(403);
     expect(balance()).toBe(46000);
     // Ni siquiera el reintento con la MISMA Idempotency-Key lo repite (la respuesta guardada no vuelve a debitar).
     const k = key();
     const token2 = stack.wallet.issue({ userId: 'usr_dora', merchantId: MC, amountMinor: 1000 });
-    const a = await stack.service.createIntent(MC, k, wallet(token2, 1000));
-    const b = await stack.service.createIntent(MC, k, wallet(token2, 1000));
+    const a = await stack.service.createIntent(MC, 'test', k, wallet(token2, 1000));
+    const b = await stack.service.createIntent(MC, 'test', k, wallet(token2, 1000));
     expect(b.body).toEqual(a.body);
     await waitFor(async () => (balance() === 45000 ? true : undefined), 20_000, 'un solo débito');
   });
@@ -100,7 +100,7 @@ describe('P3.H3.M4 · saldo AloVida: solo con `wallet_authorization` válida (un
     stack.ledger.setBalance('user:usr_eva:wallet', 9000);
     stack.ledger.setBalance('user:usr_fer:wallet', 9000);
     const token = stack.wallet.issue({ userId: 'usr_eva', merchantId: MC, amountMinor: 2000 });
-    const result = await stack.service.createIntent(MC, key(), { ...wallet(token, 2000), payment_method: { type: 'wallet', wallet_authorization: token, user_id: 'usr_fer' } }).catch((e: { status: number }) => ({ status: e.status }));
+    const result = await stack.service.createIntent(MC, 'test', key(), { ...wallet(token, 2000), payment_method: { type: 'wallet', wallet_authorization: token, user_id: 'usr_fer' } }).catch((e: { status: number }) => ({ status: e.status }));
     expect(result.status).toBe(422); // user_id no es un campo del contrato (mass assignment)
     expect(stack.ledger.balance('user:usr_fer:wallet')).toBe(9000);
     expect(stack.ledger.balance('user:usr_eva:wallet')).toBe(9000);
@@ -109,7 +109,7 @@ describe('P3.H3.M4 · saldo AloVida: solo con `wallet_authorization` válida (un
   it('en producción mientras Q-20 siga abierta el saldo AloVida está DESHABILITADO: todo token es 403', async () => {
     const disabled = new PaymentsService({ ...stack.deps, wallet: new DisabledWalletAuthorizer() }, stack.orchestrator);
     const token = stack.wallet.issue({ userId: 'usr_gina', merchantId: MC, amountMinor: 1500 });
-    const result = await disabled.createIntent(MC, key(), wallet(token, 1500));
+    const result = await disabled.createIntent(MC, 'test', key(), wallet(token, 1500));
     expect(result.status).toBe(403);
     expect(stack.ledger.balance('user:usr_gina:wallet')).toBe(0);
   });

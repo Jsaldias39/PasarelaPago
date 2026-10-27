@@ -27,12 +27,14 @@ export interface LedgerTestContext {
   readonly invariant: InvariantService;
   readonly holds: HoldService;
   /** Cliente HTTP con la identidad de servicio ya puesta. */
-  as(service: string): {
+  as(service: string, mode?: string | null): {
     get(path: string): request.Test;
     post(path: string, body?: object): request.Test;
   };
   close(): Promise<void>;
 }
+
+const withMode = (req: request.Test, mode: string | null): request.Test => (mode === null ? req : req.set('x-pay-mode', mode));
 
 /** Identificadores únicos por prueba: TigerBeetle es compartido por todas las corridas y no se limpia. */
 export const unique = () => randomBytes(6).toString('hex');
@@ -76,9 +78,10 @@ export async function createLedgerContext(): Promise<LedgerTestContext> {
     contract,
     invariant: moduleRef.get(InvariantService),
     holds: moduleRef.get(HoldService),
-    as: (service) => ({
-      get: (path) => request(baseUrl).get(path).set('x-service-id', service),
-      post: (path, body) => request(baseUrl).post(path).set('x-service-id', service).send(body ?? {}),
+    // Por defecto `test` (D-28); `null` no manda la cabecera, para probar el 403.
+    as: (service, mode = 'test') => ({
+      get: (path) => withMode(request(baseUrl).get(path).set('x-service-id', service), mode),
+      post: (path, body) => withMode(request(baseUrl).post(path).set('x-service-id', service).send(body ?? {}), mode),
     }),
     async close() {
       await app.close();
@@ -88,31 +91,9 @@ export async function createLedgerContext(): Promise<LedgerTestContext> {
   };
 }
 
-/**
- * Divergencias CONOCIDAS entre el contrato y el servicio: el contrato declara 400 para un cuerpo, ruta o consulta inválidos pero el
- * catálogo de `@pay/problem` no tiene un código de 400 genérico, así que el servicio responde 422 `validation_failed` (como en el resto
- * del contrato). Ver PROPUESTAS.md #4. El cuerpo se valida igual como `Problem`; la lista es exacta (otra prueba la sostiene) para que
- * una divergencia nueva falle y una corregida obligue a borrar la entrada.
- */
-export const KNOWN_422_GAPS = new Set(['GET /balances', 'GET /statements', 'POST /holds/{id}/void', 'GET /transactions/{business_ref}', 'GET /holds/{id}']);
-export const usedGaps = new Set<string>();
-
 /** Valida la respuesta contra el contrato y la devuelve, para que cada prueba la use ya validada. */
 export function checked(ctx: LedgerTestContext, method: string, path: string, res: request.Response): request.Response {
   const input = { method, path: path.split('?')[0], status: res.status, body: res.body };
-  const errors = ctx.contract.validateResponse(input);
-  if (errors.length === 0) return res;
-  const template = ctx.contract.operations().find((op) => {
-    const [m, t] = op.split(' ');
-    return m === method.toUpperCase() && new RegExp(`^${t.replace(/\{[^}]+\}/g, '[^/]+')}$`).test(input.path);
-  });
-  if (res.status === 422 && template && KNOWN_422_GAPS.has(template) && ctx.contract.validateResponse({ ...input, status: 400 }).length === 0) {
-    usedGaps.add(template);
-    return res;
-  }
-  // PROPUESTAS.md #17: el patrón `Account` del contrato todavía no incluye `merchant:{id}:debt`. Solo se tolera ESE desvío: cualquier otro error
-  // del contrato en una respuesta que menciona la deuda sigue fallando.
-  if (JSON.stringify(res.body).includes(':debt') && errors.every((e) => /account must match pattern/.test(e))) return res;
   ctx.contract.assertResponse(input);
   return res;
 }

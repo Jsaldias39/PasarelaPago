@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import { PG_POOL } from '../database.module';
 import { TB_ENGINE, TigerBeetleEngine } from './tb-engine';
 import { accountTbId } from './ids';
+import type { PayMode } from './mode';
 
 export interface InvariantReport {
   readonly ok: boolean;
@@ -12,7 +13,7 @@ export interface InvariantReport {
   readonly totalDebitsPending: string;
   readonly totalCreditsPending: string;
   /** Cuentas cuyo acumulado en TigerBeetle no coincide con la suma de sus líneas de extracto en Postgres. */
-  readonly mismatches: readonly { account: string; field: 'debits_posted' | 'credits_posted'; tigerbeetle: string; postgres: string }[];
+  readonly mismatches: readonly { mode: PayMode; account: string; field: 'debits_posted' | 'credits_posted'; tigerbeetle: string; postgres: string }[];
   readonly checkedAt: string;
 }
 
@@ -35,11 +36,12 @@ export class InvariantService {
   ) {}
 
   async check(): Promise<InvariantReport> {
-    const known = await this.pool.query<{ account: string; tb_id: string }>('SELECT account, tb_id FROM ledger_accounts ORDER BY account');
-    const sums = await this.pool.query<{ account: string; direction: 'debit' | 'credit'; total: string }>(
-      'SELECT account, direction, SUM(amount_minor)::text AS total FROM ledger_statement_lines GROUP BY account, direction',
+    const known = await this.pool.query<{ mode: PayMode; account: string; tb_id: string }>('SELECT mode, account, tb_id FROM ledger_accounts ORDER BY mode, account');
+    const sums = await this.pool.query<{ mode: PayMode; account: string; direction: 'debit' | 'credit'; total: string }>(
+      'SELECT mode, account, direction, SUM(amount_minor)::text AS total FROM ledger_statement_lines GROUP BY mode, account, direction',
     );
-    const pg = new Map(sums.rows.map((r) => [`${r.account}|${r.direction}`, BigInt(r.total)]));
+    // Las cuentas de `test` y de `live` se verifican por separado: el nombre de la cuenta se repite entre modos, su id de TigerBeetle no.
+    const pg = new Map(sums.rows.map((r) => [`${r.mode}|${r.account}|${r.direction}`, BigInt(r.total)]));
 
     let debitsPosted = 0n;
     let creditsPosted = 0n;
@@ -48,21 +50,21 @@ export class InvariantService {
     const mismatches: InvariantReport['mismatches'][number][] = [];
     for (let i = 0; i < known.rows.length; i += 1000) {
       const batch = known.rows.slice(i, i + 1000);
-      const found = new Map((await this.tb.lookupAccounts(batch.map((r) => accountTbId(r.account)))).map((a) => [a.id, a]));
+      const found = new Map((await this.tb.lookupAccounts(batch.map((r) => accountTbId(r.mode, r.account)))).map((a) => [a.id, a]));
       for (const row of batch) {
-        const account = found.get(accountTbId(row.account));
+        const account = found.get(accountTbId(row.mode, row.account));
         if (!account) {
-          mismatches.push({ account: row.account, field: 'debits_posted', tigerbeetle: 'ausente', postgres: String(pg.get(`${row.account}|debit`) ?? 0n) });
+          mismatches.push({ mode: row.mode, account: row.account, field: 'debits_posted', tigerbeetle: 'ausente', postgres: String(pg.get(`${row.mode}|${row.account}|debit`) ?? 0n) });
           continue;
         }
         debitsPosted += account.debits_posted;
         creditsPosted += account.credits_posted;
         debitsPending += account.debits_pending;
         creditsPending += account.credits_pending;
-        const expectedDebits = pg.get(`${row.account}|debit`) ?? 0n;
-        const expectedCredits = pg.get(`${row.account}|credit`) ?? 0n;
-        if (account.debits_posted !== expectedDebits) mismatches.push({ account: row.account, field: 'debits_posted', tigerbeetle: String(account.debits_posted), postgres: String(expectedDebits) });
-        if (account.credits_posted !== expectedCredits) mismatches.push({ account: row.account, field: 'credits_posted', tigerbeetle: String(account.credits_posted), postgres: String(expectedCredits) });
+        const expectedDebits = pg.get(`${row.mode}|${row.account}|debit`) ?? 0n;
+        const expectedCredits = pg.get(`${row.mode}|${row.account}|credit`) ?? 0n;
+        if (account.debits_posted !== expectedDebits) mismatches.push({ mode: row.mode, account: row.account, field: 'debits_posted', tigerbeetle: String(account.debits_posted), postgres: String(expectedDebits) });
+        if (account.credits_posted !== expectedCredits) mismatches.push({ mode: row.mode, account: row.account, field: 'credits_posted', tigerbeetle: String(account.credits_posted), postgres: String(expectedCredits) });
       }
     }
 

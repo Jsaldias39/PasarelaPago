@@ -110,6 +110,15 @@ describe('check-breaking', () => {
     assert.match(out, /ERROR\s+a-v1\.yaml/);
   });
 
+  it('una referencia que existe pero todavía no tiene contratos (el primer cambio que los introduce) sale con 0 y lo dice', () => {
+    const first = spawnSync('git', ['rev-list', '--max-parents=0', 'HEAD'], { cwd: resolve(dirname(script), '../..'), encoding: 'utf8' }).stdout.trim().split('\n')[0];
+    const probe = spawnSync('git', ['cat-file', '-e', `${first}:contracts/openapi`], { cwd: resolve(dirname(script), '../..') });
+    if (probe.status === 0) return; // el primer commit ya tiene contratos: nada que probar acá
+    const result = spawnSync('node', [script, '--base', first], { encoding: 'utf8', env: process.env });
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /no tiene contracts\/openapi/);
+  });
+
   it('una referencia de git inexistente sale con 2', () => {
     const result = spawnSync('node', [script, '--base', 'no-existe-esta-rama'], { encoding: 'utf8' });
     assert.equal(result.status, 2);

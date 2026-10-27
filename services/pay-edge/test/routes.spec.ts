@@ -14,7 +14,7 @@ describe('tabla de rutas vs contrato public-v1.yaml', () => {
     const contract = await loadContract(PUBLIC_CONTRACT);
     const fromRoutes = ROUTES.map((r) => `${r.method} ${r.template}`).sort();
     expect(fromRoutes).toEqual([...contract.operations()].sort());
-    expect(fromRoutes).toHaveLength(19);
+    expect(fromRoutes).toHaveLength(20);
   });
 
   it.each(ROUTES.map((r) => [`${r.method} ${r.template}`, r] as const))('%s: Idempotency-Key y consulta coinciden con el contrato', (_name, route) => {

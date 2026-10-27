@@ -37,7 +37,8 @@ export class EventsModule implements OnModuleInit, OnApplicationShutdown {
   }
 
   async onApplicationShutdown(): Promise<void> {
-    this.relay?.stop();
+    // stop() espera el ciclo en curso: no se cierra la conexión con una publicación a medias.
+    await this.relay?.stop();
     await this.connection?.drain();
   }
 }

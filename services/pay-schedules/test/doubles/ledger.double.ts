@@ -12,7 +12,6 @@ import { loadContract, type ContractValidator } from '@pay/testing';
  * Fiel a lo contratado: idempotencia por `business_ref` + `attempt` (repetir = `exists`; contenido distinto = 422
  * `idempotency_key_reused`), un `attempt` nuevo solo tras un rechazo (409 si ya hay uno aceptado), saldos que no pueden quedar en
  * negativo (422 `insufficient_funds`), retenciones que se resuelven una sola vez, saldo separado por modo (D-28).
- * Extensión PROPUESTA (PR-09): la respuesta de `POST /transactions` trae `transfer_ids` (`tf_…`).
  */
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
 const rand = (prefix: string): string => {
@@ -68,8 +67,6 @@ export interface LedgerDouble {
   holds(): Hold[];
   /** Fallas a pedido; cada una se usa UNA vez, en orden. */
   faults: Fault[];
-  /** Si es `false`, `POST /transactions` no devuelve `transfer_ids` (como el libro mayor real hoy). */
-  includeTransferIds: boolean;
   close(): Promise<void>;
 }
 
@@ -90,7 +87,6 @@ export async function startLedgerDouble(contractPath: string): Promise<LedgerDou
     calls: [],
     violations: [],
     faults: [],
-    includeTransferIds: true,
     fund: (mode, account, amount) => balances.set(`${mode}|${account}`, (balances.get(`${mode}|${account}`) ?? 0) + amount),
     balanceOf: (mode, account) => balances.get(`${mode}|${account}`) ?? 0,
     holds: () => [...holds.values()],
@@ -201,7 +197,6 @@ export async function startLedgerDouble(contractPath: string): Promise<LedgerDou
       const response = {
         id: rand('tx'), object: 'transaction', result: 'created', business_ref: b.business_ref, attempt: b.attempt, status: 'posted', reject_code: null, currency: b.currency, legs: b.legs,
         created_at: new Date().toISOString(),
-        ...(double.includeTransferIds && { transfer_ids: b.legs.map(() => rand('tf')) }),
       };
       list.push({ kind: 'tx', attempt: b.attempt, fingerprint, rejected: false, response });
       attempts.set(key, list);

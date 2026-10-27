@@ -7,7 +7,7 @@ import type { ConnectorRegistry } from '../domain/registry';
 import { CLOCK, REGISTRY, type Clock } from './tokens';
 import { HealthService } from './health.service';
 
-type Operation = 'create_charge' | 'get_status' | 'cancel' | 'refund' | 'create_transfer' | 'get_transfer';
+type Operation = 'create_charge' | 'get_status' | 'cancel' | 'refund' | 'get_refund' | 'create_transfer' | 'get_transfer';
 
 /**
  * Única puerta hacia los adaptadores: registra cada intento (sin cuerpos) y alimenta la salud del conector.
@@ -29,6 +29,11 @@ export class ProviderGateway {
     const connector = this.registry.get(code);
     if (!connector) throw new ConnectorUnavailableError('unreachable'); // registrado en la base pero no cargado en este modo
     return connector;
+  }
+
+  /** El adaptador si está cargado en este modo; `undefined` si no. */
+  connectorOrNull(code: ConnectorCode): Connector | undefined {
+    return this.registry.get(code);
   }
 
   async call<T>(code: ConnectorCode, subjectId: string, operation: Operation, work: (connector: Connector) => Promise<T>): Promise<T> {

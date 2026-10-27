@@ -61,12 +61,22 @@ export class BankTransferConnector implements Connector {
     readonly mode: Mode,
     private readonly references: TransferReferenceStore,
     private readonly source: StatementSource,
+    /** Cuenta recaudadora que ESTE conector informa al pagador (con dos bancos en el ruteo, solo el conector sabe cuál). Opcional hasta T-03. */
+    private readonly account?: { readonly bankName: string; readonly accountHolder: string; readonly accountNumber: string },
   ) {}
 
   async createCharge(request: ProviderChargeRequest): Promise<ProviderChargeResult> {
     if (request.method !== 'bank_transfer') throw new ConnectorRejectedError('validation_failed', 'medio no soportado');
     const stored = await this.references.getOrCreate(request.reference, request.expiresAt);
-    return { providerReference: stored.reference, status: 'pending', nextAction: { type: 'bank_transfer_instructions', reference: stored.reference } };
+    return {
+      providerReference: stored.reference,
+      status: 'pending',
+      nextAction: {
+        type: 'bank_transfer_instructions',
+        reference: stored.reference,
+        ...(this.account && { bank_name: this.account.bankName, account_holder: this.account.accountHolder, account_number: this.account.accountNumber }),
+      },
+    };
   }
 
   async getStatus(reference: string, now: Date): Promise<ProviderStatusResult> {

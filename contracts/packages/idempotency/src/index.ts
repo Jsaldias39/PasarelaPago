@@ -11,6 +11,10 @@ import { ProblemError, type ProblemDetails } from '@pay/problem';
  *   compare-and-set desde su último punto de recuperación.
  * - Un error de negocio determinista (`ProblemError` < 500) se guarda y se repite. Un error inesperado o 5xx
  *   libera el bloqueo para que el reintento pueda continuar.
+ *
+ * ATENCIÓN con los errores transitorios: **todo `ProblemError` con estado < 500 se guarda y se repite para siempre (24 h)**, aunque
+ * la causa fuera pasajera. Un fallo que el cliente deba poder reintentar con la misma clave tiene que ser un `5xx` (que NO se guarda);
+ * si se lanza como `4xx`, la clave queda inutilizable hasta que venza y el cliente tiene que usar otra.
  */
 
 /** Lo mínimo que se le pide a un cliente de `pg` (o a un `Pool`). */

@@ -39,6 +39,7 @@ export const SAMPLES: Readonly<Record<string, Sample>> = {
   'GET /payment_intents/{id}': { status: 200, body: intent },
   'POST /payment_intents/{id}/cancel': { status: 200, body: { ...intent, status: 'canceled' } },
   'POST /payment_intents/{id}/refunds': { status: 201, body: { id: 're_abcdefghij12', object: 'refund', payment_intent: 'pi_abcdefghij12', amount_minor: 1000, currency: 'BOB', status: 'pending', created_at: '2026-10-27T15:00:00Z' } },
+  'GET /refunds/{id}': { status: 200, body: { id: 're_abcdefghij12', object: 'refund', payment_intent: 'pi_abcdefghij12', amount_minor: 1000, currency: 'BOB', status: 'succeeded', created_at: '2026-10-27T15:00:00Z' } },
   'GET /merchants/me': { status: 200, body: { id: MERCHANT, object: 'merchant', status: 'active', display_name: 'Comercio de prueba (sintético)', fee_schedule: { version: 1, channels: [{ channel: 'qr', percent: '2.5' }] } } },
   'POST /api_keys': { status: 201, body: { ...apiKey, secret: 'sk_test_abcdefghijklmnop_abcdefghijklmnopqrstuvwxyz234567' } },
   'GET /api_keys': { status: 200, body: list([apiKey]) },

@@ -55,7 +55,7 @@ describe('POST /callbacks/mock — camino feliz', () => {
     const events = await statusEvents();
     expect(events).toHaveLength(1);
     expect(validateEvent(MESSAGES.status, events[0]?.envelope)).toEqual([]);
-    expect(events[0]?.envelope.data).toMatchObject({ status: 'captured', observed_via: 'callback', kind: 'charge', connector: 'simulator', amount_minor: 10000, currency: 'BOB' });
+    expect(events[0]?.envelope.data).toMatchObject({ status: 'captured', observed_via: 'callback', kind: 'charge', connector: 'mock', amount_minor: 10000, currency: 'BOB' });
     expect(events[0]?.envelope.merchantid).toBe('mc_clinicasantacruz1');
   });
 
@@ -68,7 +68,7 @@ describe('POST /callbacks/mock — camino feliz', () => {
     expect(row).toEqual({ provider_status: 'failed', failure_code: 'card_declined' });
     const [event] = await statusEvents();
     expect(validateEvent(MESSAGES.status, event?.envelope)).toEqual([]);
-    expect(event?.envelope.data).toMatchObject({ status: 'failed', failure_code: 'validation_failed' }); // el catálogo de eventos no tiene `card_declined` (PROPUESTAS.md)
+    expect(event?.envelope.data).toMatchObject({ status: 'failed', failure_code: 'card_declined' }); // el catálogo de eventos ya admite card_declined
   });
 });
 

@@ -15,8 +15,3 @@ export function newTransferReference(): string {
   for (const byte of randomBytes(10)) body += ALPHABET[byte % 32].toUpperCase();
   return `TR${body}`;
 }
-
-/** `ch_x…` → `ct_x…`: el id de transacción del conector que usan los eventos (determinista, sin columna extra). */
-export function connectorTransactionId(internalId: string): string {
-  return `ct_${internalId.slice(internalId.indexOf('_') + 1)}`;
-}

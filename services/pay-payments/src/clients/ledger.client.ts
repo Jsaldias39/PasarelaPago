@@ -1,4 +1,7 @@
+import type { PayMode } from './connectors.client';
 import { HttpClient, UpstreamRejection, problemCode } from './upstream';
+
+const modeHeader = (mode: PayMode): Record<string, string> => ({ 'x-pay-mode': mode });
 
 export interface Leg {
   readonly debit_account: string;
@@ -35,10 +38,11 @@ export type LedgerResult<T> =
 export class LedgerClient {
   constructor(private readonly http: HttpClient) {}
 
-  async createTransaction(input: { businessRef: string; attempt: number; currency: string; legs: readonly Leg[] }): Promise<LedgerResult<Transaction>> {
+  async createTransaction(input: { mode: PayMode; businessRef: string; attempt: number; currency: string; legs: readonly Leg[] }): Promise<LedgerResult<Transaction>> {
     const response = await this.http.request<Transaction>({
       method: 'POST',
       path: '/transactions',
+      headers: modeHeader(input.mode),
       idempotencyKey: `${input.businessRef}:${input.attempt}`,
       body: { business_ref: input.businessRef, attempt: input.attempt, currency: input.currency, legs: input.legs },
     });
@@ -49,10 +53,11 @@ export class LedgerClient {
     return this.failure(response.status, response.body);
   }
 
-  async createHold(input: { businessRef: string; attempt: number; debitAccount: string; creditAccount: string; amountMinor: number; currency: string; expiresInSeconds: number }): Promise<LedgerResult<Hold>> {
+  async createHold(input: { mode: PayMode; businessRef: string; attempt: number; debitAccount: string; creditAccount: string; amountMinor: number; currency: string; expiresInSeconds: number }): Promise<LedgerResult<Hold>> {
     const response = await this.http.request<Hold>({
       method: 'POST',
       path: '/holds',
+      headers: modeHeader(input.mode),
       idempotencyKey: `${input.businessRef}:${input.attempt}`,
       body: {
         business_ref: input.businessRef,
@@ -68,20 +73,20 @@ export class LedgerClient {
     return this.failure(response.status, response.body);
   }
 
-  async postHold(holdId: string, key: string): Promise<LedgerResult<Hold>> {
-    const response = await this.http.request<Hold>({ method: 'POST', path: `/holds/${holdId}/post`, idempotencyKey: key, body: {} });
+  async postHold(holdId: string, key: string, mode: PayMode): Promise<LedgerResult<Hold>> {
+    const response = await this.http.request<Hold>({ method: 'POST', path: `/holds/${holdId}/post`, headers: modeHeader(mode), idempotencyKey: key, body: {} });
     if (response.status === 200) return { kind: 'ok', value: response.body };
     return this.failure(response.status, response.body);
   }
 
-  async voidHold(holdId: string, key: string): Promise<LedgerResult<Hold>> {
-    const response = await this.http.request<Hold>({ method: 'POST', path: `/holds/${holdId}/void`, idempotencyKey: key, body: {} });
+  async voidHold(holdId: string, key: string, mode: PayMode): Promise<LedgerResult<Hold>> {
+    const response = await this.http.request<Hold>({ method: 'POST', path: `/holds/${holdId}/void`, headers: modeHeader(mode), idempotencyKey: key, body: {} });
     if (response.status === 200) return { kind: 'ok', value: response.body };
     return this.failure(response.status, response.body);
   }
 
-  async getHold(holdId: string): Promise<Hold> {
-    const response = await this.http.request<Hold>({ method: 'GET', path: `/holds/${holdId}` });
+  async getHold(holdId: string, mode: PayMode): Promise<Hold> {
+    const response = await this.http.request<Hold>({ method: 'GET', path: `/holds/${holdId}`, headers: modeHeader(mode) });
     if (response.status === 200) return response.body;
     throw new UpstreamRejection('pay-ledger', response.status, problemCode(response.body));
   }

@@ -136,7 +136,7 @@ describe('salud de los conectores (P4.H2.M2)', () => {
     const degraded = await outboxEvents(t.db.pool, 'connector.health.degraded');
     expect(degraded).toHaveLength(1);
     expect(validateEvent(MESSAGES.degraded, degraded[0]?.envelope)).toEqual([]);
-    expect(degraded[0]?.envelope.data).toMatchObject({ connector: 'simulator', reason: 'unreachable', consecutive_failures: 3 });
+    expect(degraded[0]?.envelope.data).toMatchObject({ connector: 'mock', reason: 'unreachable', consecutive_failures: 3 });
     expect(degraded[0]?.envelope.merchantid).toBeUndefined();
 
     // Caído y sin otro conector para el medio: el cobro se rechaza con connector_unavailable, sin tocar al proveedor.

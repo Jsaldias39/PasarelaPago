@@ -61,16 +61,19 @@ export function parseCreateCharge(body: unknown, now: Date): CreateCharge {
   };
 }
 
-/** Valida el cuerpo de `POST /charges/{id}/refunds`. */
-export function parseCreateRefund(body: unknown): { amountMinor: bigint } {
+const REFUND_ID = /^re_[a-z0-9]{10,40}$/;
+
+/** Valida el cuerpo de `POST /charges/{id}/refunds`. `refund_id` (`re_…` de pay-payments) es opcional. */
+export function parseCreateRefund(body: unknown): { amountMinor: bigint; refundId?: string } {
   const errors: FieldError[] = [];
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     throw new ProblemError('validation_failed', { errors: [{ field: '/', code: 'not_an_object' }] });
   }
   const b = body as Record<string, unknown>;
-  for (const key of Object.keys(b)) if (key !== 'amount_minor' && key !== 'reason') errors.push({ field: fieldName(key), code: 'unknown_field' });
+  for (const key of Object.keys(b)) if (key !== 'amount_minor' && key !== 'reason' && key !== 'refund_id') errors.push({ field: fieldName(key), code: 'unknown_field' });
   if (typeof b.amount_minor !== 'number' || !Number.isSafeInteger(b.amount_minor) || b.amount_minor < 1) errors.push({ field: 'amount_minor', code: 'invalid' });
   if (b.reason !== undefined && (typeof b.reason !== 'string' || b.reason.length > 200)) errors.push({ field: 'reason', code: 'invalid' });
+  if (b.refund_id !== undefined && (typeof b.refund_id !== 'string' || !REFUND_ID.test(b.refund_id))) errors.push({ field: 'refund_id', code: 'invalid' });
   if (errors.length > 0) throw new ProblemError('validation_failed', { errors });
-  return { amountMinor: BigInt(b.amount_minor as number) };
+  return { amountMinor: BigInt(b.amount_minor as number), ...(b.refund_id !== undefined && { refundId: b.refund_id as string }) };
 }

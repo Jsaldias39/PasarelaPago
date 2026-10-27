@@ -47,3 +47,5 @@ los números de pruebas son de prueba y están marcados como tales.
 | D5-36 | Un periodo `failed` NO deja al mandato pausado: vuelve a `active` para los periodos siguientes. Un pago con dinero ya retenido se completa aunque se cancele el mandato. Un mandato pausado no materializa periodos nuevos hasta resolver el pendiente (se ponen al día de a uno por corrida). | Negocio |
 | D5-37 | `mandate.created` etc. llevan solo ids y montos (la descripción libre no sale por el bus). El aviso al médico/proveedor es el evento; el webhook lo arma `pay-webhooks`. | P1 |
 | D5-38 | Un `executed` sin `tf_…` del libro mayor ⇒ el pago queda `executed` con `needs_review` y sin evento (PR-09). | P2 |
+
+> **Ola 2:** D5-38 queda sin efecto. `ledger_transfer_id` cita el `tx_…` de `Transaction.id` (docs/trabajo/ola-2/CONTRATOS.md §3 fila 1), el asiento inverso usa `code: adjustment` y los eventos de mandatos llevan `mode`.

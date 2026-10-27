@@ -20,7 +20,7 @@ export const SQL = [
   join(SERVICE, 'sql/001_merchants.sql'),
 ];
 export const CONTRACT_PUBLIC = join(REPO, 'contracts/openapi/public-v1.yaml');
-export const CONTRACT_BACKOFFICE = join(REPO, 'docs/trabajo/ola-1/P5/propuestas/internal-merchants-v1.yaml');
+export const CONTRACT_BACKOFFICE = join(REPO, 'contracts/openapi/internal-merchants-v1.yaml');
 export const EVENTS = join(REPO, 'contracts/asyncapi/merchants-schedules.yaml');
 
 export interface TestContext {

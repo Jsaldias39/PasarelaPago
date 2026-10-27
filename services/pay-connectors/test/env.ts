@@ -14,3 +14,7 @@ process.env.HEALTH_INTERVAL_MS ??= '0';
 // [DEV] secreto del simulador (Standard Webhooks). Solo vale para el conector `mock`; en producción lo entrega OpenBao.
 process.env.PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET ??= 'whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==';
 process.env.RECONCILE_INTERVAL_MS ??= '0';
+// Cuenta recaudadora SINTÉTICA de sandbox (no existe la real: T-03).
+process.env.BANK_TRANSFER_BANK_NAME ??= 'BANCO SIMULADO (SANDBOX)';
+process.env.BANK_TRANSFER_ACCOUNT_HOLDER ??= 'ALOVIDA PAY (SANDBOX)';
+process.env.BANK_TRANSFER_ACCOUNT_NUMBER ??= 'SANDBOX-0000-0001';

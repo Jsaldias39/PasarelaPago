@@ -28,7 +28,11 @@ const idOf = (prefix: string, seed: string) => `${prefix}_${createHash('sha1').u
 export class ConnectorsDouble {
   scenario: ConnectorScenario = 'ok';
   readonly charges = new Map<string, ChargeRecord>();
-  readonly refunds = new Map<string, { id: string; charge_id: string; amount_minor: number; status: 'pending' | 'succeeded' | 'failed' }>();
+  readonly refunds = new Map<string, { id: string; charge_id: string; refund_id: string | null; amount_minor: number; status: 'pending' | 'succeeded' | 'failed'; failure_code?: string }>();
+  /** Si está, `bank_transfer_instructions` trae la cuenta recaudadora (lo que el conector real informa; mientras no exista, T-03, no la trae). */
+  bankAccount: { bank_name: string; account_holder: string; account_number: string } | null = null;
+  /** `GET /refunds/{id}?refresh=true` no puede consultar al proveedor: devuelve lo último que sabía con `stale: true`. */
+  refundInquiryStale = false;
   /** Cuántos cargos DISTINTOS se crearon por intento (debe ser 1 aunque la llamada se repita). */
   readonly chargeCreations = new Map<string, number>();
   readonly server: DoubleServer;
@@ -57,7 +61,7 @@ export class ConnectorsDouble {
         : charge.method === 'qr'
           ? { type: 'display_qr', payload: `00020101021226[doble]${charge.id}6304ABCD`, expires_at: charge.expires_at }
           : charge.method === 'bank_transfer'
-            ? { type: 'bank_transfer_instructions', reference: `REF${charge.id.slice(3, 13).toUpperCase()}` }
+            ? { type: 'bank_transfer_instructions', reference: `REF${charge.id.slice(3, 13).toUpperCase()}`, ...(this.bankAccount ?? {}) }
             : { type: 'redirect_to_card_form', url: `https://pagos.example.test/card/${charge.id}` };
     return {
       id: charge.id,
@@ -75,6 +79,18 @@ export class ConnectorsDouble {
       created_at: new Date().toISOString(),
       expires_at: charge.expires_at,
     };
+  }
+
+  /** El pagador/banco resuelve un reembolso `pending` (lo que en producción llega por el callback o se averigua con la consulta). */
+  setRefundStatus(connectorRefundId: string, status: 'pending' | 'succeeded' | 'failed', failureCode?: string): void {
+    const record = this.refunds.get(connectorRefundId);
+    if (!record) throw new Error(`reembolso desconocido ${connectorRefundId}`);
+    record.status = status;
+    if (failureCode) record.failure_code = failureCode;
+  }
+
+  private refundView(record: { id: string; charge_id: string; refund_id: string | null; amount_minor: number; status: 'pending' | 'succeeded' | 'failed'; failure_code?: string }) {
+    return { id: record.id, object: 'connector_refund', charge_id: record.charge_id, refund_id: record.refund_id, amount_minor: record.amount_minor, currency: 'BOB', status: record.status, failure_code: record.failure_code ?? null, created_at: new Date().toISOString() };
   }
 
   private handle(req: DoubleRequest): DoubleResponse {
@@ -123,11 +139,18 @@ export class ConnectorsDouble {
       if (this.scenario === 'refund_fails') return problem('validation_failed', 422);
       const key = String(req.headers['idempotency-key']);
       const id = idOf('cr', key);
-      const body = req.body as { amount_minor: number };
+      const body = req.body as { amount_minor: number; refund_id?: string };
       const status = this.scenario === 'refund_pending' ? 'pending' : 'succeeded';
-      const record = this.refunds.get(id) ?? { id, charge_id: charge.id, amount_minor: body.amount_minor, status: status as 'pending' | 'succeeded' };
+      const record = this.refunds.get(id) ?? { id, charge_id: charge.id, refund_id: body.refund_id ?? null, amount_minor: body.amount_minor, status: status as 'pending' | 'succeeded' };
       this.refunds.set(id, record);
-      return { status: 201, body: { id, object: 'connector_refund', charge_id: charge.id, amount_minor: record.amount_minor, currency: 'BOB', status: record.status, failure_code: null, created_at: new Date().toISOString() } };
+      return { status: 201, body: this.refundView(record) };
+    }
+    const refundGet = /^\/refunds\/(cr_[a-z0-9]+)$/.exec(path);
+    if (method === 'GET' && refundGet) {
+      const record = this.refunds.get(refundGet[1] as string);
+      if (!record) return problem('resource_not_found', 404);
+      const stale = req.query.get('refresh') === 'true' && this.refundInquiryStale;
+      return { status: 200, body: { ...this.refundView(record), ...(stale ? { status: 'pending' as const, failure_code: null, stale: true } : {}) } };
     }
     return problem('resource_not_found', 404);
   }

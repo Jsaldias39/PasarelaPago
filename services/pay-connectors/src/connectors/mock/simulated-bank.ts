@@ -1,5 +1,5 @@
 import { ConnectorAmbiguousError, ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError } from '../../domain/connector';
-import type { Method, ProviderRefundResult, ProviderStatus, ProviderTransferResult, StatementLine, TransferStatus } from '../../domain/connector';
+import type { Method, ProviderRefundResult, ProviderRefundStatusResult, ProviderStatus, ProviderTransferResult, StatementLine, TransferStatus } from '../../domain/connector';
 import { scenarioFor, seededRandom, transferAmbiguity, type Scenario } from './scenarios';
 
 /**
@@ -180,6 +180,16 @@ export class SimulatedBank {
     const providerReference = `SIM-R-${String(++this.seq).padStart(6, '0')}`;
     charge.refunds.set(input.reference, { providerReference, amountMinor: input.amountMinor });
     return { providerReference, status: 'captured' };
+  }
+
+  /** Consulta de un reembolso por su referencia (`cr_…`). El banco responde `not_found` de forma explícita si no lo conoce. */
+  refundStatus(reference: string): ProviderRefundStatusResult {
+    if (this.down) throw new ConnectorUnavailableError('unreachable');
+    for (const charge of this.charges.values()) {
+      const found = charge.refunds.get(reference);
+      if (found) return { status: 'captured', providerReference: found.providerReference };
+    }
+    return { status: 'not_found' };
   }
 
   /**

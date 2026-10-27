@@ -5,6 +5,8 @@
 CREATE TABLE IF NOT EXISTS payment_intents (
   id                      text        NOT NULL,
   merchant_id             text        NOT NULL,
+  -- Modo de la CLAVE que originó el cobro (D-28): lo fija pay-edge (X-Pay-Mode), nunca el cliente. Todo acceso filtra por (comercio, modo).
+  mode                    text        NOT NULL,
   amount_minor            bigint      NOT NULL,
   currency                text        NOT NULL DEFAULT 'BOB',
   method                  text        NOT NULL,
@@ -30,6 +32,7 @@ CREATE TABLE IF NOT EXISTS payment_intents (
   succeeded_at            timestamptz,
   completed_at            timestamptz,
   CONSTRAINT payment_intents_pkey PRIMARY KEY (id),
+  CONSTRAINT payment_intents_mode_chk CHECK (mode IN ('test', 'live')),
   CONSTRAINT payment_intents_amount_positive_chk CHECK (amount_minor > 0),
   CONSTRAINT payment_intents_fee_net_sum_chk CHECK (fee_minor >= 0 AND net_minor >= 0 AND fee_minor + net_minor = amount_minor),
   CONSTRAINT payment_intents_method_chk CHECK (method IN ('qr', 'card', 'bank_transfer', 'wallet')),
@@ -39,7 +42,7 @@ CREATE TABLE IF NOT EXISTS payment_intents (
   CONSTRAINT payment_intents_terminal_completed_chk CHECK ((status IN ('succeeded', 'failed', 'canceled', 'expired')) = (completed_at IS NOT NULL))
 );
 -- Listado por comercio: orden determinista (created_at desc, id desc) para paginar por cursor.
-CREATE INDEX IF NOT EXISTS payment_intents_merchant_created_idx ON payment_intents (merchant_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS payment_intents_merchant_created_idx ON payment_intents (merchant_id, mode, created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS payment_intents_merchant_status_idx ON payment_intents (merchant_id, status);
 -- Un mandato paga cada periodo una sola vez (idempotencia de negocio de los cobros programados).
 CREATE UNIQUE INDEX IF NOT EXISTS payment_intents_mandate_period_uidx
@@ -50,6 +53,7 @@ CREATE TABLE IF NOT EXISTS refunds (
   id                  text        NOT NULL,
   payment_intent_id   text        NOT NULL,
   merchant_id         text        NOT NULL,
+  mode                text        NOT NULL,                        -- el del cobro que se reembolsa (D-28)
   amount_minor        bigint      NOT NULL,
   currency            text        NOT NULL DEFAULT 'BOB',
   status              text        NOT NULL DEFAULT 'pending',
@@ -57,21 +61,24 @@ CREATE TABLE IF NOT EXISTS refunds (
   failure_code        text,
   ledger_hold_id      text,                                        -- retención de la primera fase (hd_…)
   ledger_transfer_id  text,
+  connector_refund_id text,                                        -- cr_… que devolvió el conector: con él se consulta GET /refunds/{id}
   metadata            jsonb       NOT NULL DEFAULT '{}'::jsonb,
   created_at          timestamptz NOT NULL DEFAULT now(),
   completed_at        timestamptz,
   CONSTRAINT refunds_pkey PRIMARY KEY (id),
   CONSTRAINT refunds_intent_fk FOREIGN KEY (payment_intent_id) REFERENCES payment_intents (id),
+  CONSTRAINT refunds_mode_chk CHECK (mode IN ('test', 'live')),
   CONSTRAINT refunds_amount_positive_chk CHECK (amount_minor > 0),
   CONSTRAINT refunds_status_chk CHECK (status IN ('pending', 'succeeded', 'failed'))
 );
 CREATE INDEX IF NOT EXISTS refunds_intent_idx ON refunds (payment_intent_id);
-CREATE INDEX IF NOT EXISTS refunds_merchant_created_idx ON refunds (merchant_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS refunds_merchant_created_idx ON refunds (merchant_id, mode, created_at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS disputes (
   id                  text        NOT NULL,
   payment_intent_id   text        NOT NULL,
   merchant_id         text        NOT NULL,
+  mode                text        NOT NULL,                        -- el del cobro disputado (D-28)
   amount_minor        bigint      NOT NULL,
   currency            text        NOT NULL DEFAULT 'BOB',
   status              text        NOT NULL DEFAULT 'open',
@@ -80,6 +87,7 @@ CREATE TABLE IF NOT EXISTS disputes (
   opened_at           timestamptz NOT NULL DEFAULT now(),
   resolved_at         timestamptz,
   CONSTRAINT disputes_pkey PRIMARY KEY (id),
+  CONSTRAINT disputes_mode_chk CHECK (mode IN ('test', 'live')),
   CONSTRAINT disputes_intent_fk FOREIGN KEY (payment_intent_id) REFERENCES payment_intents (id),
   CONSTRAINT disputes_amount_positive_chk CHECK (amount_minor > 0),
   CONSTRAINT disputes_status_chk CHECK (status IN ('open', 'won', 'lost'))

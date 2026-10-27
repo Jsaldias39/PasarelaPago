@@ -5,7 +5,7 @@ import { disputeIdFor, intentIdFor, refundIdFor } from '../domain/ids';
 import { quoteFee } from '../domain/quote';
 import { emitDisputeEvent, emitIntentEvent, emitRefundEvent } from '../events/emit';
 import { disputesRepo, type DisputeRow } from '../persistence/disputes.repo';
-import { encodeCursor, intentsRepo, type IntentRow } from '../persistence/intents.repo';
+import { encodeCursor, intentsRepo, type IntentRow, type PayMode } from '../persistence/intents.repo';
 import { refundsRepo, type RefundRow } from '../persistence/refunds.repo';
 import { replicasRepo } from '../persistence/replicas.repo';
 import type { PaymentOrchestrator } from './orchestrator';
@@ -29,19 +29,16 @@ export class PaymentsService {
 
   // ───────────────────────────── cobros ─────────────────────────────
 
-  async createIntent(merchantId: string, idempotencyKey: string, body: unknown): Promise<IdempotencyResult<Record<string, unknown>>> {
+  async createIntent(merchantId: string, mode: PayMode, idempotencyKey: string, body: unknown): Promise<IdempotencyResult<Record<string, unknown>>> {
     const input = parseCreateIntent(body);
-    const request = { scope: `payments:create:${merchantId}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/payment_intents', body }) };
+    const request = { scope: `payments:create:${merchantId}:${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/payment_intents', body }) };
     return this.idempotency.execute(request, async (context) => {
-      const id = intentIdFor(merchantId, idempotencyKey);
+      const id = intentIdFor(merchantId, `${mode}:${idempotencyKey}`);
       if (context.recoveryPoint === 'started') {
         await this.assertMerchantMayCharge(merchantId);
         const schedule = await replicasRepo.effectiveFeeSchedule(this.deps.pool, merchantId, this.deps.now());
         if (!schedule) throw new ProblemError('validation_failed', { detail: 'El comercio no tiene tarifa publicada', errors: [{ field: 'payment_method.type', code: 'fee_schedule_missing' }] });
         const split = quoteFee(schedule.channels, input.method, input.amountMinor);
-        if (input.method === 'bank_transfer' && !this.deps.config.policy.bankTransfer) {
-          throw new ProblemError('validation_failed', { detail: 'La transferencia bancaria no está habilitada', errors: [{ field: 'payment_method.type', code: 'payment_method_unavailable' }] });
-        }
         let walletUserRef: string | undefined;
         let authorizationId: string | undefined;
         if (input.method === 'wallet' && input.walletAuthorization) {
@@ -58,7 +55,7 @@ export class PaymentsService {
             if ((used.rowCount ?? 0) !== 1) throw new ProblemError('forbidden', { detail: 'La autorización de billetera ya se usó' });
           }
           const { inserted } = await intentsRepo.insert(db, {
-            id, merchantId, amountMinor: input.amountMinor, method: input.method, feeMinor: Number(split.feeMinor), netMinor: Number(split.netMinor),
+            id, merchantId, mode, amountMinor: input.amountMinor, method: input.method, feeMinor: Number(split.feeMinor), netMinor: Number(split.netMinor),
             description: input.description, metadata: input.metadata, expiresAt, cardToken: input.cardToken, walletUserRef,
           });
           if (inserted) {
@@ -69,17 +66,21 @@ export class PaymentsService {
       }
       await this.orchestrator.startPayment(id);
       const row = await this.waitForAction(id);
+      // Ni el conector ni la configuración (T-03) informaron la cuenta recaudadora: no hay adónde transferir. El cargo ya se anuló.
+      if (row.status === 'failed' && row.failureCode === 'payment_method_unavailable') {
+        throw new ProblemError('validation_failed', { detail: 'La transferencia bancaria no está habilitada', errors: [{ field: 'payment_method.type', code: 'payment_method_unavailable' }] });
+      }
       return { status: 201, body: toPublicIntent(row) };
     });
   }
 
-  async getIntent(merchantId: string, id: string): Promise<Record<string, unknown>> {
-    return toPublicIntent(await intentsRepo.forMerchant(this.deps.pool, merchantId, id));
+  async getIntent(merchantId: string, mode: PayMode, id: string): Promise<Record<string, unknown>> {
+    return toPublicIntent(await intentsRepo.forMerchant(this.deps.pool, merchantId, mode, id));
   }
 
-  async listIntents(merchantId: string, query: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async listIntents(merchantId: string, mode: PayMode, query: Record<string, unknown>): Promise<Record<string, unknown>> {
     const input = parseList(query);
-    const page = await intentsRepo.list(this.deps.pool, merchantId, input);
+    const page = await intentsRepo.list(this.deps.pool, merchantId, mode, input);
     const last = page.rows[page.rows.length - 1];
     return { object: 'list', has_more: page.hasMore, next_cursor: page.hasMore && last ? encodeCursor(last) : null, data: page.rows.map(toPublicIntent) };
   }
@@ -88,14 +89,14 @@ export class PaymentsService {
    * Cancela un cobro que todavía espera al pagador. Si el conector ya lo cobró (409) es demasiado tarde: el cobro sigue su
    * camino y la respuesta es 409. La transición exige `requires_action` en la escritura: un cobro ya capturado no se cancela.
    */
-  async cancelIntent(merchantId: string, id: string, idempotencyKey: string): Promise<IdempotencyResult<Record<string, unknown>>> {
-    const request = { scope: `payments:cancel:${merchantId}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/payment_intents/${id}/cancel` }) };
+  async cancelIntent(merchantId: string, mode: PayMode, id: string, idempotencyKey: string): Promise<IdempotencyResult<Record<string, unknown>>> {
+    const request = { scope: `payments:cancel:${merchantId}:${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/payment_intents/${id}/cancel` }) };
     return this.idempotency.execute(request, async () => {
-      const intent = await intentsRepo.forMerchant(this.deps.pool, merchantId, id);
+      const intent = await intentsRepo.forMerchant(this.deps.pool, merchantId, mode, id);
       if (intent.status === 'canceled') return { status: 200, body: toPublicIntent(intent) };
       if (intent.status !== 'requires_action') throw new ProblemError('invalid_state_transition', { detail: `Un cobro ${intent.status} no se puede cancelar` });
       if (intent.chargeId) {
-        const cancel = await this.deps.clients.connectors.cancelCharge(intent.chargeId, `${id}:cancel`);
+        const cancel = await this.deps.clients.connectors.cancelCharge(intent.chargeId, `${id}:cancel`, intent.mode);
         if (!cancel.ok) {
           await this.deps.pool.query("INSERT INTO payment_cancellation_requests (payment_intent_id, outcome) VALUES ($1, 'too_late')", [id]);
           throw new ProblemError('invalid_state_transition', { detail: 'El cobro ya no se puede cancelar' });
@@ -114,23 +115,23 @@ export class PaymentsService {
 
   // ───────────────────────────── reembolsos ─────────────────────────────
 
-  async createRefund(merchantId: string, intentId: string, idempotencyKey: string, body: unknown): Promise<IdempotencyResult<Record<string, unknown>>> {
+  async createRefund(merchantId: string, mode: PayMode, intentId: string, idempotencyKey: string, body: unknown): Promise<IdempotencyResult<Record<string, unknown>>> {
     const input = parseCreateRefund(body);
-    const request = { scope: `payments:refund:${merchantId}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/payment_intents/${intentId}/refunds`, body }) };
+    const request = { scope: `payments:refund:${merchantId}:${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/payment_intents/${intentId}/refunds`, body }) };
     return this.idempotency.execute(request, async (context) => {
-      const refundId = refundIdFor(merchantId, idempotencyKey);
+      const refundId = refundIdFor(merchantId, `${mode}:${idempotencyKey}`);
       if (context.recoveryPoint === 'started') {
-        await intentsRepo.forMerchant(this.deps.pool, merchantId, intentId); // otro comercio ⇒ 404
+        await intentsRepo.forMerchant(this.deps.pool, merchantId, mode, intentId); // otro comercio u otro modo ⇒ 404
         await context.atomic('created', async (db) => {
           // Se serializan los reembolsos del mismo cobro con bloqueo de fila: dos reembolsos que juntos pasan el total no caben.
           const intent = await intentsRepo.byId(db, intentId, { forUpdate: true });
-          if (!intent || intent.merchantId !== merchantId) throw new ProblemError('resource_not_found');
+          if (!intent || intent.merchantId !== merchantId || intent.mode !== mode) throw new ProblemError('resource_not_found');
           if (intent.status !== 'succeeded') throw new ProblemError('invalid_state_transition', { detail: `Un cobro ${intent.status} no se puede reembolsar` });
           const committed = await refundsRepo.committedAmount(db, intentId);
           if (committed + input.amountMinor > intent.amountMinor) {
             throw new ProblemError('validation_failed', { detail: 'El reembolso supera lo que queda por reembolsar', errors: [{ field: 'amount_minor', code: 'exceeds_refundable' }] });
           }
-          const inserted = await refundsRepo.insert(db, { id: refundId, paymentIntentId: intentId, merchantId, amountMinor: input.amountMinor, reason: input.reason, metadata: input.metadata });
+          const inserted = await refundsRepo.insert(db, { id: refundId, paymentIntentId: intentId, merchantId, mode, amountMinor: input.amountMinor, reason: input.reason, metadata: input.metadata });
           if (inserted) {
             const row = await refundsRepo.byId(db, refundId);
             if (row) await emitRefundEvent(db, 'refund.created', row);
@@ -143,27 +144,28 @@ export class PaymentsService {
     });
   }
 
-  async getRefund(merchantId: string, id: string): Promise<Record<string, unknown>> {
-    return toPublicRefund(await refundsRepo.forMerchant(this.deps.pool, merchantId, id));
+  async getRefund(merchantId: string, mode: PayMode, id: string): Promise<Record<string, unknown>> {
+    return toPublicRefund(await refundsRepo.forMerchant(this.deps.pool, merchantId, mode, id));
   }
 
   // ───────────────────────────── cobros de servicios internos ─────────────────────────────
 
   /** Cobro por mandato (pay-schedules). Idempotente por `source` + `period`: el mismo mandato y periodo no crea otro intento. */
-  async createInternalIntent(idempotencyKey: string, body: unknown): Promise<IdempotencyResult<Record<string, unknown>>> {
+  async createInternalIntent(mode: PayMode, idempotencyKey: string, body: unknown): Promise<IdempotencyResult<Record<string, unknown>>> {
     const input = parseInternalIntent(body);
-    const request = { scope: `payments:internal:${input.payerMerchantId}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/intents', body }) };
+    const request = { scope: `payments:internal:${input.payerMerchantId}:${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/intents', body }) };
     return this.idempotency.execute(request, async (context) => {
       const existing = await intentsRepo.byMandatePeriod(this.deps.pool, input.source.id, input.source.period);
+      if (existing && existing.mode !== mode) throw new ProblemError('resource_not_found');
       if (existing) return { status: 200, body: toInternalIntent(await this.waitForAction(existing.id)) };
-      const id = intentIdFor(input.payerMerchantId, `${input.source.id}:${input.source.period}`);
+      const id = intentIdFor(input.payerMerchantId, `${mode}:${input.source.id}:${input.source.period}`);
       if (context.recoveryPoint === 'started') {
         await this.assertMerchantMayCharge(input.payerMerchantId);
         const expiresAt = new Date(this.deps.now().getTime() + 3600_000);
         // Sin comisión sobre pagos programados hasta que el acuerdo comercial lo defina (x-open-question del contrato): D-P3-7.
         await context.atomic('created', async (db) => {
           const { inserted } = await intentsRepo.insert(db, {
-            id, merchantId: input.payerMerchantId, amountMinor: input.amountMinor, method: 'wallet', feeMinor: 0, netMinor: input.amountMinor, description: input.description,
+            id, merchantId: input.payerMerchantId, mode, amountMinor: input.amountMinor, method: 'wallet', feeMinor: 0, netMinor: input.amountMinor, description: input.description,
             metadata: {}, expiresAt, source: input.source, kind: input.kind, beneficiaryMerchantId: input.beneficiaryMerchantId,
           });
           if (inserted) {
@@ -181,9 +183,9 @@ export class PaymentsService {
     });
   }
 
-  async getInternalIntent(id: string): Promise<Record<string, unknown>> {
+  async getInternalIntent(mode: PayMode, id: string): Promise<Record<string, unknown>> {
     const row = await intentsRepo.byId(this.deps.pool, id);
-    if (!row || !row.source) throw new ProblemError('resource_not_found');
+    if (!row || !row.source || row.mode !== mode) throw new ProblemError('resource_not_found');
     return toInternalIntent(row);
   }
 
@@ -196,7 +198,7 @@ export class PaymentsService {
     if (intent.status !== 'succeeded') throw new ProblemError('invalid_state_transition', { detail: 'Solo se disputa un cobro exitoso' });
     const id = disputeIdFor(intent.id, input.openedKey);
     const created = await this.deps.tx(async (db) => {
-      const inserted = await disputesRepo.insert(db, { id, paymentIntentId: intent.id, merchantId: intent.merchantId, amountMinor: intent.amountMinor });
+      const inserted = await disputesRepo.insert(db, { id, paymentIntentId: intent.id, merchantId: intent.merchantId, mode: intent.mode, amountMinor: intent.amountMinor });
       if (inserted) {
         const row = await disputesRepo.byId(db, id);
         if (row) await emitDisputeEvent(db, 'dispute.opened', row);

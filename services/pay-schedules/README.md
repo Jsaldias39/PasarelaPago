@@ -25,7 +25,7 @@ Ver `.env.example`. Obligatorias y sin valor por defecto: `LEDGER_URL`, `RETRY_D
 
 - **`pay-ledger` es un [DOBLE] en las pruebas** (`test/doubles/ledger.double.ts`, valida cada llamada contra `internal-ledger-v1.yaml`). Falta correr el flujo contra el libro mayor real de P2.
 - El consumidor NATS de `merchant.*` (`replica.consumer.ts`) no se probó contra un NATS real; sí el parseo, el orden y el inbox.
-- `scheduled_payment.executed` exige `ledger_transfer_id` (`tf_…`) y el libro mayor hoy no lo devuelve (PR-09).
+- `scheduled_payment.executed.ledger_transfer_id` cita el asiento `tx_…` que devuelve el libro mayor (contrato de la ola 2); los eventos llevan el `mode` del mandato.
 
 ## Comandos
 

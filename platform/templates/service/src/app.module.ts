@@ -8,6 +8,7 @@ import { ServiceConfigModule } from './config.module';
 import { DatabaseModule } from './database.module';
 import { EventsModule } from './events.module';
 import { HealthController } from './health.controller';
+import { safeUrl } from './log-safe';
 import { ProblemFilter } from './problem.filter';
 
 const config = loadConfig();
@@ -26,7 +27,7 @@ const config = loadConfig();
         },
         // Nunca credenciales ni cuerpos en los logs (regla 90.2.1).
         redact: { paths: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-api-key"]'], remove: true },
-        serializers: { req: (req) => ({ id: req.id, method: req.method, url: String(req.url).split('?')[0] }), res: (res) => ({ statusCode: res.statusCode }) },
+        serializers: { req: (req) => ({ id: req.id, method: req.method, url: safeUrl(String(req.url)) }), res: (res) => ({ statusCode: res.statusCode }) },
         autoLogging: { ignore: (req) => String(req.url).startsWith('/health') },
       },
     }),

@@ -33,7 +33,7 @@ export type DoubleHandler = (request: DoubleRequest) => DoubleResponse | Promise
  * NUNCA es el colaborador real: cada doble se nombra `[DOBLE]` en sus pruebas.
  */
 export class DoubleServer {
-  readonly calls: RecordedCall[] = [];
+  readonly calls: DoubleRequest[] = [];
   /** Peticiones que NO cumplen el contrato del servicio simulado. Las pruebas exigen que esté vacío. */
   readonly violations: string[] = [];
   private server: Server | undefined;
@@ -60,7 +60,7 @@ export class DoubleServer {
     this.server = undefined;
   }
 
-  callsTo(method: string, pathPattern: RegExp): RecordedCall[] {
+  callsTo(method: string, pathPattern: RegExp): DoubleRequest[] {
     return this.calls.filter((c) => c.method === method && pathPattern.test(c.path));
   }
 

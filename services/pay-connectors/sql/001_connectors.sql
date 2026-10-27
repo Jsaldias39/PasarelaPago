@@ -41,6 +41,8 @@ CREATE INDEX IF NOT EXISTS connector_charges_poll_idx ON connector_charges (next
 CREATE TABLE IF NOT EXISTS connector_refunds (
   id                 text        PRIMARY KEY CHECK (id ~ '^cr_[a-z0-9]{10,40}$'),
   charge_id          text        NOT NULL REFERENCES connector_charges (id),
+  -- `re_…` de pay-payments, si el pedido lo trajo: distingue varios reembolsos del mismo cobro y se copia al evento.
+  refund_id          text        CHECK (refund_id IS NULL OR refund_id ~ '^re_[a-z0-9]{10,40}$'),
   caller             text        NOT NULL,
   idempotency_key    text        NOT NULL,
   amount_minor       bigint      NOT NULL CHECK (amount_minor > 0),
@@ -55,6 +57,8 @@ CREATE TABLE IF NOT EXISTS connector_refunds (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS connector_refunds_caller_key_uidx ON connector_refunds (caller, idempotency_key);
 CREATE INDEX IF NOT EXISTS connector_refunds_charge_idx ON connector_refunds (charge_id);
+-- Un `refund_id` de pay-payments se reembolsa UNA vez: otro pedido (con otra Idempotency-Key) del mismo `refund_id` no genera un segundo `cr_…`.
+CREATE UNIQUE INDEX IF NOT EXISTS connector_refunds_refund_id_uidx ON connector_refunds (refund_id) WHERE refund_id IS NOT NULL AND status <> 'failed';
 
 -- Todo hecho que un proveedor informó (por callback o por consulta). `UNIQUE (connector, provider_event_id)` es la deduplicación.
 -- No se guarda el cuerpo crudo del callback: puede traer datos del pagador.
@@ -77,7 +81,7 @@ CREATE TABLE IF NOT EXISTS connector_api_attempts (
   id         bigserial   PRIMARY KEY,
   subject_id text        NOT NULL,                                    -- id del cobro (`ch_…`) o de la transferencia (`tr_…`)
   connector  text        NOT NULL,
-  operation  text        NOT NULL CHECK (operation IN ('create_charge', 'get_status', 'cancel', 'refund', 'create_transfer', 'get_transfer')),
+  operation  text        NOT NULL CHECK (operation IN ('create_charge', 'get_status', 'cancel', 'refund', 'get_refund', 'create_transfer', 'get_transfer')),
   outcome    text        NOT NULL CHECK (outcome IN ('ok', 'unavailable', 'timeout', 'rejected')),
   latency_ms integer     NOT NULL CHECK (latency_ms >= 0),
   created_at timestamptz NOT NULL DEFAULT now()

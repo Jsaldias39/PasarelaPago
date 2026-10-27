@@ -60,7 +60,7 @@ CREATE TABLE scheduled_payments (
   ledger_attempt      integer     NOT NULL DEFAULT 1,        -- `attempt` del libro mayor: sube SOLO tras un rechazo definitivo
   hold_id             text,
   ledger_transaction_id text,
-  ledger_transfer_id  text,
+  ledger_transfer_id  text,                                  -- sin uso: el evento cita ledger_transaction_id (tx_…); se conserva por compatibilidad
   next_attempt_at     timestamptz NOT NULL,
   lease_until         timestamptz,
   last_failure_code   text,
@@ -74,7 +74,7 @@ CREATE TABLE scheduled_payments (
   CONSTRAINT scheduled_payments_period_format CHECK (period ~ '^\d{4}-(0[1-9]|1[0-2])$'),
   CONSTRAINT scheduled_payments_status_valid CHECK (status IN ('due', 'waiting_funds', 'executed', 'failed', 'canceled')),
   CONSTRAINT scheduled_payments_phase_valid CHECK (phase IN ('hold', 'post', 'release', 'void', 'reverse', 'done')),
-  -- El dinero se movió: un `executed` siempre tiene su asiento. El id `tf_` del evento puede faltar (needs_review) si el libro mayor no lo devuelve.
+  -- El dinero se movió: un `executed` siempre tiene su asiento (`tx_…`), que es lo que cita `scheduled_payment.executed.ledger_transfer_id`.
   CONSTRAINT scheduled_payments_executed_has_transaction CHECK (status <> 'executed' OR (ledger_transaction_id IS NOT NULL AND executed_at IS NOT NULL))
 );
 CREATE INDEX scheduled_payments_due_idx ON scheduled_payments (next_attempt_at) WHERE status IN ('due', 'waiting_funds');

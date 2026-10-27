@@ -11,6 +11,7 @@ import {
 import { ProblemError } from '@pay/problem';
 import type { AccountInfo, AccountKind } from './accounts';
 import { accountTbId } from './ids';
+import type { PayMode } from './mode';
 import type { LedgerConfig } from './ledger.config';
 
 /** Ledger 1 de TigerBeetle = bolivianos (D-06: solo BOB en v1). */
@@ -132,10 +133,10 @@ export class TigerBeetleEngine {
   }
 
   /** Crea las cuentas que falten. Es idempotente: una cuenta que ya existe con las mismas banderas no es un error. */
-  async ensureAccounts(accounts: readonly AccountInfo[]): Promise<void> {
+  async ensureAccounts(mode: PayMode, accounts: readonly AccountInfo[]): Promise<void> {
     if (accounts.length === 0) return;
     const batch: Account[] = accounts.map((info) => ({
-      id: accountTbId(info.name),
+      id: accountTbId(mode, info.name),
       debits_pending: 0n,
       debits_posted: 0n,
       credits_pending: 0n,

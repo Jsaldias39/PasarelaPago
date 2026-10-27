@@ -39,6 +39,7 @@ export const MESSAGES = {
   status: 'ConnectorTransactionStatusChanged',
   degraded: 'ConnectorHealthDegraded',
   recovered: 'ConnectorHealthRecovered',
+  transfer: 'ConnectorTransferStatusChanged',
 } as const;
 
 /** Eventos del outbox, del más viejo al más nuevo. */

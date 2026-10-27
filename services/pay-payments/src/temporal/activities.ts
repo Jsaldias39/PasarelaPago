@@ -4,7 +4,7 @@ import type { ChargeStatusValue } from '../clients/connectors.client';
 import { toPublicNextAction } from '../domain/next-action';
 import { businessRef } from '../domain/ids';
 import { decideConnectorEvent, isTerminal, type IntentStatus } from '../domain/state';
-import { emitIntentEvent, type IntentEventType } from '../events/emit';
+import { emitIntentEvent, normalizeFailureCode, type IntentEventType } from '../events/emit';
 import { settleIntent } from '../payments/settle';
 import { contradictionsRepo } from '../persistence/contradictions.repo';
 import type { Db } from '../persistence/db';
@@ -76,7 +76,7 @@ export function createActivities(deps: Deps) {
         await intentsRepo.setChargeStatus(db, intentId, intent.chargeStatus, signal.status);
         if (signal.status === 'failed' || signal.status === 'canceled' || signal.status === 'expired') {
           const to = signal.status;
-          const row = await intentsRepo.transition(db, intentId, ['processing', 'requires_action'], to, { ...(to === 'failed' ? { failureCode: signal.failureCode ?? 'internal_error' } : {}), nextAction: null });
+          const row = await intentsRepo.transition(db, intentId, ['processing', 'requires_action'], to, { ...(to === 'failed' ? { failureCode: normalizeFailureCode(signal.failureCode) } : {}), nextAction: null });
           if (row) await emitIntentEvent(db, EVENT_FOR[to], row);
           return 'done';
         }
@@ -95,10 +95,10 @@ export function createActivities(deps: Deps) {
 
   const inquire = async (intent: IntentRow): Promise<ChargeSignal> => {
     if (!intent.chargeId) return { status: 'pending' };
-    const state = await clients.connectors.getChargeStatus(intent.chargeId);
+    const state = await clients.connectors.getChargeStatus(intent.chargeId, intent.mode);
     // Un dato viejo del conector (`stale`) no es una novedad: se trata como «sin cambios».
     if (state.stale) return { status: 'pending' };
-    return { status: chargeNameOf(state.status), failureCode: state.failure_code ?? undefined };
+    return { status: chargeNameOf(state.status), failureCode: state.failure_code ? normalizeFailureCode(state.failure_code) : undefined };
   };
 
   return nonRetryableRejections({
@@ -127,7 +127,7 @@ export function createActivities(deps: Deps) {
         const assessment = await clients.risk.assess({ merchantId: intent.merchantId, paymentIntentId: intent.id, amountMinor: intent.amountMinor, currency: intent.currency, method: intent.method });
         if (assessment.decision === 'allow') return { proceed: true };
         // D4: `review` se trata como `deny` hasta que exista cola de revisión manual.
-        await settle(intentId, 'failed', { failureCode: 'validation_failed' });
+        await settle(intentId, 'failed', { failureCode: 'risk_denied' });
         return { proceed: false };
       } catch (error) {
         if (isUpstreamError(error)) {
@@ -150,6 +150,7 @@ export function createActivities(deps: Deps) {
       if (intent.chargeId) return { state: intent.chargeStatus === 'captured' ? 'captured' : 'waiting' };
 
       const outcome = await clients.connectors.createCharge({
+        mode: intent.mode,
         paymentIntentId: intent.id,
         merchantId: intent.merchantId,
         amountMinor: intent.amountMinor,
@@ -163,16 +164,23 @@ export function createActivities(deps: Deps) {
         // `502 connector_unavailable` exacto: el conector garantiza que NO se envió nada; se reintenta y, agotados los
         // reintentos, el workflow cierra el cobro. Los demás rechazos (4xx declarados) son de negocio: el cobro no se puede hacer.
         if (outcome.status === 502) throw ApplicationFailure.retryable('El conector no está disponible (sin efecto)', 'ConnectorUnavailable');
-        await settle(intentId, 'failed', { failureCode: outcome.code });
+        await settle(intentId, 'failed', { failureCode: outcome.status === 422 || outcome.code === 'card_declined' ? 'payment_declined' : normalizeFailureCode(outcome.code) });
         return { state: 'settled' };
       }
       const charge = outcome.value;
       const name = chargeNameOf(charge.status);
       if (name === 'failed' || name === 'canceled' || name === 'expired') {
-        await settle(intentId, name, name === 'failed' ? { failureCode: charge.failure_code ?? 'internal_error' } : {});
+        await settle(intentId, name, name === 'failed' ? { failureCode: normalizeFailureCode(charge.failure_code) } : {});
         return { state: 'settled' };
       }
       const nextAction = charge.next_action ? toPublicNextAction(charge.next_action, intent.expiresAt, config.policy.bankTransfer) : null;
+      if (charge.next_action?.type === 'bank_transfer_instructions' && !nextAction) {
+        // El conector no informó la cuenta y no hay respaldo (T-03): no se puede mostrar al pagador adónde transferir. Se anula el
+        // cargo (con clave estable; si el conector no contesta, Temporal reintenta) y el POST responde 422 payment_method_unavailable.
+        await clients.connectors.cancelCharge(charge.id, `${intentId}:cancel`, intent.mode);
+        await settle(intentId, 'failed', { failureCode: 'payment_method_unavailable' });
+        return { state: 'settled' };
+      }
       return deps.tx(async (db) => {
         const patch = { connector: charge.connector, chargeId: charge.id, chargeStatus: name === 'captured' ? 'captured' : 'pending' };
         if (nextAction && name !== 'captured') {
@@ -207,7 +215,7 @@ export function createActivities(deps: Deps) {
       }
       const first = await inquire(intent);
       if (first.status !== 'pending' && first.status !== 'authorized') return applySignal(intentId, first);
-      const cancel = await clients.connectors.cancelCharge(intent.chargeId, `${intentId}:cancel`);
+      const cancel = await clients.connectors.cancelCharge(intent.chargeId, `${intentId}:cancel`, intent.mode);
       if (!cancel.ok) {
         const again = await inquire(await load(intentId));
         if (again.status === 'captured') return applySignal(intentId, again);
@@ -229,7 +237,7 @@ export function createActivities(deps: Deps) {
         { debit_account: source, credit_account: target, amount_minor: intent.netMinor, code: 'charge' as const },
         ...(intent.feeMinor > 0 ? [{ debit_account: source, credit_account: 'platform:fees', amount_minor: intent.feeMinor, code: 'fee' as const }] : []),
       ];
-      const result = await clients.ledger.createTransaction({ businessRef: businessRef.capture(intentId), attempt: intent.ledgerAttempt, currency: intent.currency, legs });
+      const result = await clients.ledger.createTransaction({ mode: intent.mode, businessRef: businessRef.capture(intentId), attempt: intent.ledgerAttempt, currency: intent.currency, legs });
       if (result.kind === 'ok') return { transferId: result.value.id };
       if (result.kind === 'rejected') return { rejected: result.code };
       throw ApplicationFailure.nonRetryable('El ledger ya tiene un intento aceptado para este cobro y no se pudo leer', 'LedgerConflict');
@@ -249,7 +257,7 @@ export function createActivities(deps: Deps) {
     async compensateCapture(intentId: string): Promise<{ compensated: boolean }> {
       const intent = await load(intentId);
       if (!intent.chargeId) return { compensated: true };
-      const refund = await clients.connectors.createRefund(intent.chargeId, intent.amountMinor, `${intentId}:compensation`, 'duplicate');
+      const refund = await clients.connectors.createRefund(intent.chargeId, intent.amountMinor, `${intentId}:compensation`, intent.mode, { reason: 'duplicate' });
       if (refund.ok) return { compensated: true };
       await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.chargeStatus, incomingStatus: 'compensation_failed', sourceEventId: 'compensation', kind: 'compensation_failed', reason: refund.code }));
       return { compensated: false };

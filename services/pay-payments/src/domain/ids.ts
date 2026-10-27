@@ -16,6 +16,3 @@ export const businessRef = {
   refund: (refundId: string) => `${refundId}:refund`,
   chargeback: (disputeId: string) => `${disputeId}:chargeback`,
 };
-
-/** El ledger identifica el asiento con `tx_…`; el contrato de eventos pide `tf_…` (PROP-2): se conserva el cuerpo del id. */
-export const transferIdForEvent = (ledgerTxId: string): string => `tf_${ledgerTxId.replace(/^[a-z]+_/, '')}`;

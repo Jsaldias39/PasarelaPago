@@ -14,8 +14,8 @@ import { routesOf } from './support/routes';
 
 const REPO = join(process.cwd(), '../..');
 const SQL = [join(process.cwd(), 'sql/001_qr_codes.sql'), join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql')];
-// Contrato PROPUESTO (P4 no puede editar contracts/); la integración lo mueve.
-const SPEC = join(REPO, 'docs/trabajo/ola-1/P4/propuesta/internal-qr-v1.yaml');
+// Contrato OFICIAL en contracts/ (la propuesta de la ola 1 ya se integró).
+const SPEC = join(REPO, 'contracts/openapi/internal-qr-v1.yaml');
 
 let db: IsolatedDatabase;
 let appPool: Pool;

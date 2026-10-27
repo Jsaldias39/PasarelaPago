@@ -1,15 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { hashRequest, IdempotencyStore, type HandlerResult, type IdempotencyResult } from '@pay/idempotency';
-import type { Queryable } from '@pay/outbox';
+import { enqueue, type Queryable } from '@pay/outbox';
 import { ProblemError, type FieldError } from '@pay/problem';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../database.module';
 import { ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError, type ConnectorCode, type TransferStatus } from '../domain/connector';
 import type { ConnectorRegistry } from '../domain/registry';
 import { newId } from '../ids';
+import { transferFailureCode } from '../domain/status-map';
 import { badRequest } from '../raw-problem';
 import { withSendLock } from './send-lock';
 import { inTransaction } from './db';
+import { transferStatusChangedEvent, type ObservedVia } from './events';
 import { ProviderGateway } from './provider-gateway';
 import { CLOCK, LOCK_POOL, REGISTRY, type Clock } from './tokens';
 
@@ -203,11 +205,16 @@ export class TransfersService {
           // «No se envió nada» solo si ESTE envío fue el único que reclamó la fila (send_claims = mine) y ningún intento previo pudo llegar,
           // evaluado en la misma sentencia que el cambio de estado. El flag NO se toca (es monótono): `failed` + `connector_unavailable`
           // es la prueba de que nada salió.
-          const failed = await this.pool.query(
-            `UPDATE connector_transfers SET status = 'failed', failure_code = 'connector_unavailable', updated_at = $3
-              WHERE id = $1 AND status = 'pending' AND provider_reference IS NULL AND send_claims = $2`,
-            [fresh.id, mine, this.clock.now()],
-          );
+          const failed = await inTransaction(this.pool, async (client) => {
+            const updated = await client.query(
+              `UPDATE connector_transfers SET status = 'failed', failure_code = 'connector_unavailable', updated_at = $3
+                WHERE id = $1 AND status = 'pending' AND provider_reference IS NULL AND send_claims = $2
+                RETURNING *`,
+              [fresh.id, mine, this.clock.now()],
+            );
+            if (updated.rows[0]) await this.announce(client, toRow(updated.rows[0]), 'status_inquiry');
+            return updated;
+          });
           if (failed.rowCount === 1) throw new ProblemError('connector_unavailable', { detail: 'El proveedor no está disponible; no se envió ninguna orden' });
           throw new ProblemError('internal_error', { detail: 'Resultado ambiguo: consultá GET /transfers/{reference} antes de decidir' });
         }
@@ -217,7 +224,7 @@ export class TransfersService {
         }
         if (error instanceof ConnectorRejectedError && !prior) {
           // Rechazo explícito del proveedor en la primera llamada: confirma que no se pagó.
-          return await ctx.atomic('transfer_sent', (client) => this.settle(client, fresh.id, 'failed', null, error.code));
+          return await ctx.atomic('transfer_sent', (client) => this.settle(client, fresh.id, 'failed', null, error.code === 'validation_failed' ? 'validation_failed' : 'rejected_by_provider'));
         }
         if (error instanceof ConnectorRejectedError) {
           throw new ProblemError('internal_error', { detail: 'Resultado ambiguo: consultá GET /transfers/{reference} antes de decidir' });
@@ -227,16 +234,39 @@ export class TransfersService {
     });
   }
 
-  private async settle(client: Queryable, id: string, status: TransferStatus, providerReference: string | null, failureCode: string | null): Promise<TransferRow> {
+  /** `connector.transfer.status_changed` en la MISMA transacción que el cambio de estado (outbox). Señal: la fuente autoritativa es GET /transfers/{reference}. */
+  private async announce(client: Queryable, row: TransferRow, via: ObservedVia): Promise<void> {
+    await enqueue(
+      client,
+      transferStatusChangedEvent({
+        transferId: row.id,
+        reference: `${row.business_ref}:${row.attempt}`,
+        connector: row.connector,
+        status: row.status,
+        amountMinor: row.amount_minor,
+        occurredAt: row.updated_at,
+        observedVia: via,
+        failureCode: row.failure_code,
+      }),
+      { aggregateType: 'connector_transfer', aggregateId: row.id },
+    );
+  }
+
+  private async settle(client: Queryable, id: string, status: TransferStatus, providerReference: string | null, failureCode: string | null, via: ObservedVia = 'status_inquiry'): Promise<TransferRow> {
+    const before = (await client.query('SELECT status FROM connector_transfers WHERE id = $1 FOR UPDATE', [id])).rows[0]?.status as TransferStatus | undefined;
     const updated = await client.query(
       `UPDATE connector_transfers
           SET status = $2, provider_reference = COALESCE($3, provider_reference),
-              failure_code = CASE WHEN $2 = 'failed' THEN COALESCE($4, 'rejected_by_provider') ELSE $4 END, updated_at = $5
+              failure_code = CASE WHEN $2 = 'failed' THEN $4 ELSE $5 END, updated_at = $6
         WHERE id = $1 AND status NOT IN ('paid', 'failed')
         RETURNING *`,
-      [id, status, providerReference, failureCode, this.clock.now()],
+      [id, status, providerReference, status === 'failed' ? transferFailureCode(failureCode) : null, failureCode, this.clock.now()],
     );
-    if (updated.rows[0]) return toRow(updated.rows[0]);
+    if (updated.rows[0]) {
+      const row = toRow(updated.rows[0]);
+      if (before !== row.status) await this.announce(client, row, via); // solo si cambió de estado: pending→pending no anuncia nada
+      return row;
+    }
     return toRow((await client.query('SELECT * FROM connector_transfers WHERE id = $1', [id])).rows[0]); // ya era terminal: no se retrocede
   }
 

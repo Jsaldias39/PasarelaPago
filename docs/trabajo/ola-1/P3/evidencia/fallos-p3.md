@@ -7,11 +7,11 @@ Generado por `services/pay-payments/test/failures.matrix.spec.ts` contra Postgre
 | # | Dependencia | Fallo inyectado | Clase | Esperado | Observado | Asientos del ledger | Escalado a una persona |
 |---|---|---|---|---|---|---|---|
 | 1 | pay-risk | 503 Service Unavailable | fail-closed (no mueve dinero) | failed risk_unavailable, sin cargo | failed (risk_unavailable), cargo creado: no | 0 | no |
-| 2 | pay-risk | no responde (timeout 300 ms) | fail-closed (no mueve dinero) | failed risk_unavailable en pocos segundos | failed en 876 ms | 0 | no |
+| 2 | pay-risk | no responde (timeout 300 ms) | fail-closed (no mueve dinero) | failed risk_unavailable en pocos segundos | failed en 975 ms | 0 | no |
 | 3 | pay-risk | respuesta lenta (150 ms < 300 ms) | sin fallo | el cobro sigue | requires_action | 0 | no |
 | 4 | pay-connectors | 502 problem+json connector_unavailable (crear cargo) | definitivo (no se envió nada) | reintenta y cierra failed connector_unavailable | failed (connector_unavailable); POST /charges: 9 llamadas en total | 0 | no |
 | 5 | pay-connectors | 500 al crear el cargo, luego vuelve | ambiguo | processing + escalado; al volver, 1 solo cargo y succeeded | processing → requires_action → succeeded; cargos creados: 1 | 1 | charge_outcome_unknown |
-| 6 | pay-connectors | 422 validation_failed (rechazo del proveedor) | definitivo | failed, sin asiento | failed (validation_failed) | 0 | no |
+| 6 | pay-connectors | 422 validation_failed (rechazo del proveedor) | definitivo | failed, sin asiento | failed (payment_declined) | 0 | no |
 | 7 | pay-ledger | 3 respuestas 500 seguidas | ambiguo | se reintenta con la misma clave; 1 asiento | succeeded | 1 | no |
 | 8 | pay-ledger | 500 sostenido tras el cobro del banco, luego vuelve | ambiguo | processing, sin devolver el dinero, escalado; al volver 1 asiento | processing (devoluciones al banco: 0) → succeeded | 1 | ledger_outcome_unknown |
 | 9 | pay-ledger | 422 insufficient_funds al registrar el cobro | definitivo | compensa: devuelve el dinero en el conector y cierra failed | failed (insufficient_funds); devoluciones al banco: 1 | 0 | no |

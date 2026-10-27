@@ -15,7 +15,7 @@ export interface QrRow {
   created_at: Date;
 }
 
-/** Cuerpo de respuesta de un QR (el contrato propuesto está en docs/trabajo/ola-1/P4/propuesta/internal-qr-v1.yaml). */
+/** Cuerpo de respuesta de un QR (contrato: contracts/openapi/internal-qr-v1.yaml). */
 export interface QrView {
   id: string;
   object: 'qr';

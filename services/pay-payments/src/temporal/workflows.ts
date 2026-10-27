@@ -158,15 +158,26 @@ export async function RefundWorkflow(input: { refundId: string }): Promise<{ sta
     }
     let result = await must('refund_outcome_unknown', () => a.refundAtConnector(refundId));
     if (result.status === 'pending') {
-      const arrived = await condition(() => events.length > 0, plan.waitMs);
-      if (!arrived) {
-        // No se sabe si el conector devolvió el dinero y no hay forma de consultarlo: NO se libera la retención ni se da por
-        // fallido. Se escala y se sigue esperando el aviso del conector, sin plazo.
-        await must('refund_pending_timeout', () => a.escalateRefund(refundId, 'refund_pending_timeout'));
-        await condition(() => events.length > 0);
+      // El aviso del conector puede no llegar: se espera `waitMs`, se escala UNA vez y luego se CONSULTA al conector
+      // (`GET /refunds/{id}`, solo lectura) cada ciclo. Mientras no responda algo definitivo no se libera la retención ni se
+      // da el reembolso por fallido (CLAUDE.md regla 11).
+      let settled = await condition(() => events.length > 0, plan.waitMs);
+      if (!settled) await must('refund_pending_timeout', () => a.escalateRefund(refundId, 'refund_pending_timeout'));
+      while (!settled) {
+        try {
+          const state = await a.inquireRefund(refundId);
+          if (state.status !== 'pending') {
+            result = state;
+            break;
+          }
+        } catch (error) {
+          if (isNonRetryable(error)) throw error;
+          // El conector no contestó: es una consulta; se vuelve a intentar en el próximo ciclo.
+        }
+        settled = await condition(() => events.length > 0, plan.inquiryIntervalMs);
       }
       const event = events[0];
-      result = { status: event?.status ?? 'failed', ...(event?.failureCode ? { failureCode: event.failureCode } : {}) };
+      if (result.status === 'pending' && event) result = { status: event.status, ...(event.failureCode ? { failureCode: event.failureCode } : {}) };
     }
     if (result.status === 'succeeded') {
       await must('post_outcome_unknown', () => a.finishRefund(refundId));

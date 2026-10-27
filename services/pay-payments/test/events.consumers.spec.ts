@@ -105,10 +105,10 @@ describe('réplica del comercio: merchant.* (P3.H1.M5)', () => {
   it('un suspendido deja de poder cobrar (REQ-P3-8 de punta a punta: evento → réplica → 403)', async () => {
     const id = 'mc_consumer00003';
     await seedMerchant(stack, id);
-    expect((await stack.service.createIntent(id, key(), QR)).status).toBe(201);
+    expect((await stack.service.createIntent(id, 'test', key(), QR)).status).toBe(201);
     await publish(`${prefix}.merchant.suspended`, merchantEvent('merchant.suspended', id, new Date()));
     await waitFor(async () => ((await replicasRepo.merchantStatus(stack.deps.pool, id)) === 'suspended' ? true : undefined), 10_000, 'suspendido');
-    const blocked = await stack.service.createIntent(id, key(), QR);
+    const blocked = await stack.service.createIntent(id, 'test', key(), QR);
     expect(blocked.status).toBe(403);
     expect(blocked.body).toMatchObject({ code: 'merchant_suspended' });
   });
@@ -126,7 +126,7 @@ describe('réplica de la tarifa: fee_schedule.published', () => {
     await publish(`${prefix}.fee_schedule.published`, event);
     await waitFor(async () => (await replicasRepo.effectiveFeeSchedule(stack.deps.pool, id, new Date())) ?? undefined, 10_000, 'tarifa replicada');
     await waitFor(async () => ((await replicasRepo.merchantStatus(stack.deps.pool, id)) === 'active' ? true : undefined), 10_000, 'activo');
-    const intent = await stack.service.createIntent(id, key(), QR);
+    const intent = await stack.service.createIntent(id, 'test', key(), QR);
     expect(intent.body).toMatchObject({ fee_minor: 400, net_minor: 9600 });
   });
 
@@ -155,7 +155,7 @@ describe('réplica de la tarifa: fee_schedule.published', () => {
 
 describe('connector.transaction.status_changed (P3.H2.M3 / M4)', () => {
   it('callback duplicado 3 veces + reordenado (authorized tarde): un solo asiento y un solo succeeded', async () => {
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     stack.connectors.setChargeStatus(stack.connectors.chargeFor(id)!.id, 'succeeded');
     const captured = connectorEvent(id, 'captured');
     expect(connectorValidators.get('connector.transaction.status_changed')?.(captured)).toEqual([]);
@@ -171,7 +171,7 @@ describe('connector.transaction.status_changed (P3.H2.M3 / M4)', () => {
   });
 
   it('el mismo evento (mismo id) entregado dos veces: el inbox lo procesa una vez', async () => {
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     stack.connectors.setChargeStatus(stack.connectors.chargeFor(id)!.id, 'succeeded');
     const event = connectorEvent(id, 'captured');
     const calls = flaky.signalCalls;
@@ -185,7 +185,7 @@ describe('connector.transaction.status_changed (P3.H2.M3 / M4)', () => {
   });
 
   it('si el efecto falla (Temporal no responde) el evento se REENTREGA y no se pierde; al final el efecto ocurre una vez', async () => {
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     stack.connectors.setChargeStatus(stack.connectors.chargeFor(id)!.id, 'succeeded');
     flaky.failNextSignals = 2;
     const event = connectorEvent(id, 'captured');
@@ -208,14 +208,14 @@ describe('connector.transaction.status_changed (P3.H2.M3 / M4)', () => {
 
   it('un evento de un cobro que este servicio no conoce se ignora (ack) y no bloquea la cola', async () => {
     await publish(subjects.connectorStatus, connectorEvent('pi_desconocido0001', 'captured'));
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     stack.connectors.setChargeStatus(stack.connectors.chargeFor(id)!.id, 'succeeded');
     await publish(subjects.connectorStatus, connectorEvent(id, 'captured'));
     await waitFor(async () => ((await statusOf(stack, id)) === 'succeeded' ? true : undefined), 20_000, 'succeeded detrás del desconocido');
   });
 
   it('un fallo del banco cierra el cobro como failed con su código y sin asiento', async () => {
-    const id = (await stack.service.createIntent(MC, key(), QR)).body.id as string;
+    const id = (await stack.service.createIntent(MC, 'test', key(), QR)).body.id as string;
     await publish(subjects.connectorStatus, connectorEvent(id, 'failed', { failure_code: 'insufficient_funds' }));
     await waitFor(async () => ((await statusOf(stack, id)) === 'failed' ? true : undefined), 20_000, 'failed');
     expect((await intentsRepo.byId(stack.deps.pool, id))?.failureCode).toBe('insufficient_funds');

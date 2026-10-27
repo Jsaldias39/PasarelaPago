@@ -1,10 +1,12 @@
 import { ProblemError } from '@pay/problem';
 import { num, type Db } from './db';
+import type { PayMode } from './intents.repo';
 
 export interface RefundRow {
   readonly id: string;
   readonly paymentIntentId: string;
   readonly merchantId: string;
+  readonly mode: PayMode;
   readonly amountMinor: number;
   readonly currency: string;
   readonly status: 'pending' | 'succeeded' | 'failed';
@@ -12,18 +14,20 @@ export interface RefundRow {
   readonly failureCode: string | null;
   readonly ledgerHoldId: string | null;
   readonly ledgerTransferId: string | null;
+  readonly connectorRefundId: string | null;
   readonly metadata: Record<string, string>;
   readonly createdAt: Date;
   readonly completedAt: Date | null;
 }
 
-const COLUMNS = 'id, payment_intent_id, merchant_id, amount_minor, currency, status, reason, failure_code, ledger_hold_id, ledger_transfer_id, metadata, created_at, completed_at';
+const COLUMNS = 'id, payment_intent_id, merchant_id, mode, amount_minor, currency, status, reason, failure_code, ledger_hold_id, ledger_transfer_id, connector_refund_id, metadata, created_at, completed_at';
 
 function map(r: Record<string, unknown>): RefundRow {
   return {
     id: r.id as string,
     paymentIntentId: r.payment_intent_id as string,
     merchantId: r.merchant_id as string,
+    mode: r.mode as PayMode,
     amountMinor: num(r.amount_minor),
     currency: r.currency as string,
     status: r.status as RefundRow['status'],
@@ -31,6 +35,7 @@ function map(r: Record<string, unknown>): RefundRow {
     failureCode: (r.failure_code as string | null) ?? null,
     ledgerHoldId: (r.ledger_hold_id as string | null) ?? null,
     ledgerTransferId: (r.ledger_transfer_id as string | null) ?? null,
+    connectorRefundId: (r.connector_refund_id as string | null) ?? null,
     metadata: (r.metadata as Record<string, string>) ?? {},
     createdAt: new Date(r.created_at as string),
     completedAt: r.completed_at ? new Date(r.completed_at as string) : null,
@@ -38,10 +43,10 @@ function map(r: Record<string, unknown>): RefundRow {
 }
 
 export const refundsRepo = {
-  async insert(db: Db, r: { id: string; paymentIntentId: string; merchantId: string; amountMinor: number; reason?: string | undefined; metadata: Record<string, string> }): Promise<boolean> {
+  async insert(db: Db, r: { id: string; paymentIntentId: string; merchantId: string; mode: PayMode; amountMinor: number; reason?: string | undefined; metadata: Record<string, string> }): Promise<boolean> {
     const result = await db.query(
-      `INSERT INTO refunds (id, payment_intent_id, merchant_id, amount_minor, reason, metadata) VALUES ($1, $2, $3, $4, $5, $6::jsonb) ON CONFLICT (id) DO NOTHING`,
-      [r.id, r.paymentIntentId, r.merchantId, r.amountMinor, r.reason ?? null, JSON.stringify(r.metadata)],
+      `INSERT INTO refunds (id, payment_intent_id, merchant_id, mode, amount_minor, reason, metadata) VALUES ($1, $2, $3, $7, $4, $5, $6::jsonb) ON CONFLICT (id) DO NOTHING`,
+      [r.id, r.paymentIntentId, r.merchantId, r.amountMinor, r.reason ?? null, JSON.stringify(r.metadata), r.mode],
     );
     return (result.rowCount ?? 0) === 1;
   },
@@ -49,8 +54,8 @@ export const refundsRepo = {
     const { rows } = await db.query(`SELECT ${COLUMNS} FROM refunds WHERE id = $1`, [id]);
     return rows[0] ? map(rows[0]) : null;
   },
-  async forMerchant(db: Db, merchantId: string, id: string): Promise<RefundRow> {
-    const { rows } = await db.query(`SELECT ${COLUMNS} FROM refunds WHERE id = $1 AND merchant_id = $2`, [id, merchantId]);
+  async forMerchant(db: Db, merchantId: string, mode: PayMode, id: string): Promise<RefundRow> {
+    const { rows } = await db.query(`SELECT ${COLUMNS} FROM refunds WHERE id = $1 AND merchant_id = $2 AND mode = $3`, [id, merchantId, mode]);
     if (!rows[0]) throw new ProblemError('resource_not_found');
     return map(rows[0]);
   },
@@ -58,6 +63,10 @@ export const refundsRepo = {
   async committedAmount(db: Db, paymentIntentId: string): Promise<number> {
     const { rows } = await db.query("SELECT COALESCE(SUM(amount_minor), 0) AS total FROM refunds WHERE payment_intent_id = $1 AND status IN ('pending', 'succeeded')", [paymentIntentId]);
     return num(rows[0]?.total ?? 0);
+  },
+  /** Guarda el `cr_…` del conector (la clave para consultar `GET /refunds/{id}`). */
+  async setConnectorRefund(db: Db, id: string, connectorRefundId: string): Promise<void> {
+    await db.query('UPDATE refunds SET connector_refund_id = COALESCE(connector_refund_id, $2) WHERE id = $1', [id, connectorRefundId]);
   },
   async setHold(db: Db, id: string, holdId: string): Promise<void> {
     await db.query('UPDATE refunds SET ledger_hold_id = $2 WHERE id = $1', [id, holdId]);

@@ -26,7 +26,7 @@ describe('POST /mandates (REQ-P5-6, P5.H3.M2)', () => {
     expect(body.schedule).toEqual({ frequency: 'monthly', day_of_month: 20, start_date: '2026-04-01', end_date: '2026-12-31' });
     const [event] = await eventsOf(ctx, 'mandate.created', body.id);
     expect(event.data).toEqual({
-      mandate_id: body.id, merchant_id: payer, status: 'active', kind: 'pay_obligation', beneficiary_merchant_id: beneficiary, amount_minor: 123_456, currency: 'BOB',
+      mandate_id: body.id, merchant_id: payer, mode: 'test', status: 'active', kind: 'pay_obligation', beneficiary_merchant_id: beneficiary, amount_minor: 123_456, currency: 'BOB',
       frequency: 'monthly', day_of_month: 20, start_date: '2026-04-01', end_date: '2026-12-31',
     });
     expect(JSON.stringify(event)).not.toContain('Obligación'); // la descripción libre no sale por el bus

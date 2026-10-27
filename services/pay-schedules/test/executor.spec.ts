@@ -35,7 +35,7 @@ describe('kill-test del carril y flujo E5 (REQ-P5-6, P5.H3.M3 y M5)', () => {
 
     const [notice] = await eventsOf(ctx, 'scheduled_payment.insufficient_funds', sp.id);
     expect(notice.data).toEqual({
-      scheduled_payment_id: sp.id, mandate_id: m.mandateId, merchant_id: m.payer, period: '2026-03', amount_minor: 100_000, currency: 'BOB',
+      scheduled_payment_id: sp.id, mandate_id: m.mandateId, merchant_id: m.payer, mode: 'test', period: '2026-03', amount_minor: 100_000, currency: 'BOB',
       required_minor: 100_000, available_minor: 50_000, attempt: 1, retry_at: new Date(ctx.clock.now.getTime() + HOUR).toISOString(),
     });
     expect(await eventsOf(ctx, 'scheduled_payment.executed')).toHaveLength(0);
@@ -56,7 +56,7 @@ describe('kill-test del carril y flujo E5 (REQ-P5-6, P5.H3.M3 y M5)', () => {
     expect(await ctx.executor.runOnce()).toMatchObject({ processed: 1, executed: 1 });
     const [sp] = await payments(m.mandateId);
     expect(sp).toMatchObject({ id: waiting.id, status: 'executed', phase: 'done', attempts: 2, ledger_attempt: 2, needs_review: false, last_failure_code: null });
-    expect(sp.ledger_transfer_id).toMatch(/^tf_[a-z0-9]{10,40}$/);
+    expect(sp.ledger_transaction_id).toMatch(/^tx_[a-z0-9]{10,40}$/);
     expect(payerBalance(m.payer)).toBe(10_000);
     expect(ctx.ledger.balanceOf('test', `merchant:${m.beneficiary}:available`)).toBe(100_000);
     expect(ctx.ledger.balanceOf('test', `schedule:${m.mandateId}:reserve`)).toBe(0);
@@ -64,7 +64,7 @@ describe('kill-test del carril y flujo E5 (REQ-P5-6, P5.H3.M3 y M5)', () => {
 
     const executed = await eventsOf(ctx, 'scheduled_payment.executed', sp.id);
     expect(executed).toHaveLength(1);
-    expect(executed[0].data).toMatchObject({ scheduled_payment_id: sp.id, mandate_id: m.mandateId, merchant_id: m.payer, period: '2026-03', amount_minor: 100_000, currency: 'BOB', ledger_transfer_id: sp.ledger_transfer_id });
+    expect(executed[0].data).toMatchObject({ scheduled_payment_id: sp.id, mandate_id: m.mandateId, merchant_id: m.payer, period: '2026-03', amount_minor: 100_000, currency: 'BOB', mode: 'test', ledger_transfer_id: sp.ledger_transaction_id });
     // El segundo intento usó un `attempt` nuevo del libro mayor y claves distintas; el primero no se reutilizó.
     const holdCalls = ctx.ledger.calls.filter((c) => c.method === 'POST' && c.path === '/holds');
     expect(holdCalls.map((c) => [c.body.attempt, c.headers['idempotency-key']])).toEqual([[1, `${sp.id}:reserve:1`], [2, `${sp.id}:reserve:2`]]);
@@ -419,7 +419,7 @@ describe('beneficiario suspendido, cerrado o inexistente: no se le acredita nada
     expect(ctx.ledger.balanceOf('test', `schedule:${m.mandateId}:reserve`)).toBe(0);
     expect(payerBalance(m.payer)).toBe(100_000);
     const reversal = ctx.ledger.calls.find((c) => c.path === '/transactions' && c.body.business_ref.endsWith(':reverse'));
-    expect(reversal?.body.legs).toEqual([{ debit_account: `schedule:${m.mandateId}:reserve`, credit_account: `merchant:${m.payer}:available`, amount_minor: 100_000, code: 'release' }]);
+    expect(reversal?.body.legs).toEqual([{ debit_account: `schedule:${m.mandateId}:reserve`, credit_account: `merchant:${m.payer}:available`, amount_minor: 100_000, code: 'adjustment' }]);
   });
 
   it('resultado AMBIGUO del void ⇒ no se asume nada: se reintenta con la MISMA clave y termina anulada una sola vez', async () => {
@@ -556,7 +556,7 @@ describe('aviso (P5.H3.M6): solo ids y montos, nada sensible', () => {
     expect(all.map((r) => r.type)).toEqual(['mandate.created', 'scheduled_payment.insufficient_funds', 'scheduled_payment.executed', 'mandate.canceled']);
     for (const { type, e } of all) {
       expect({ type, leaks: /Obligación|descripci|nombre|document|cuenta/i.test(e) }).toEqual({ type, leaks: false });
-      expect(Object.keys(JSON.parse(e).data).every((k) => /(_id|_minor|_at|_on|period|currency|status|kind|frequency|day_of_month|attempt|date)$/.test(k))).toBe(true);
+      expect(Object.keys(JSON.parse(e).data).every((k) => /(_id|_minor|_at|_on|period|currency|mode|status|kind|frequency|day_of_month|attempt|date)$/.test(k))).toBe(true);
     }
     await eventsOf(ctx, 'mandate.created');
     await eventsOf(ctx, 'scheduled_payment.insufficient_funds');
@@ -565,12 +565,29 @@ describe('aviso (P5.H3.M6): solo ids y montos, nada sensible', () => {
     expect(ctx.logs.join('\n')).not.toMatch(/Obligación|merchant:mc_|schedule:md_/);
   });
 
-  it('si el libro mayor no devuelve el id de la transferencia: el dinero se mueve, el pago queda `executed` A REVISIÓN y no se emite un evento inválido', async () => {
-    ctx.ledger.includeTransferIds = false;
+  it('`scheduled_payment.executed.ledger_transfer_id` cita el asiento `tx_…` que el libro mayor devolvió (CONTRATOS.md §3, fila 1): siempre hay evento', async () => {
     const m = await dueMandate(ctx, { funds: 100_000, amount: 100_000 });
     expect(await ctx.executor.runOnce()).toMatchObject({ executed: 1 });
-    expect((await payments(m.mandateId))[0]).toMatchObject({ status: 'executed', needs_review: true, ledger_transfer_id: null });
-    expect(ctx.ledger.balanceOf('test', `merchant:${m.beneficiary}:available`)).toBe(100_000);
-    expect(await eventsOf(ctx, 'scheduled_payment.executed')).toHaveLength(0);
+    const [sp] = await payments(m.mandateId);
+    expect(sp).toMatchObject({ status: 'executed', needs_review: false });
+    const [event] = await eventsOf(ctx, 'scheduled_payment.executed', sp.id);
+    expect(event.data.ledger_transfer_id).toBe(sp.ledger_transaction_id);
+    expect(event.data.ledger_transfer_id).toMatch(/^(tx|hd)_[a-z0-9]{10,40}$/);
+  });
+
+  it('todos los eventos de mandatos y pagos programados llevan el `mode` del mandato (D-28)', async () => {
+    const live = await dueMandate(ctx, { funds: 10_000, amount: 100_000, mode: 'live' });
+    await ctx.executor.runOnce();
+    ctx.ledger.fund('live', `merchant:${live.payer}:available`, 100_000);
+    advance(HOUR);
+    await ctx.executor.runOnce();
+    await pub(ctx, 'delete', `/mandates/${live.mandateId}`, live.payer, 'live');
+    const types = ['mandate.created', 'scheduled_payment.insufficient_funds', 'scheduled_payment.executed', 'mandate.canceled'];
+    for (const type of types) {
+      const events = await eventsOf(ctx, type);
+      expect({ type, modes: events.map((e) => e.data.mode) }).toEqual({ type, modes: ['live'] });
+    }
+    const test = await dueMandate(ctx, { funds: 0, amount: 100_000 });
+    expect((await eventsOf(ctx, 'mandate.created', test.mandateId))[0].data.mode).toBe('test');
   });
 });

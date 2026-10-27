@@ -194,7 +194,7 @@ export class ExecutorService {
         const reversal = await this.ledger.createTransaction(mandate.mode, `${payment.id}:reverse`, {
           businessRef: `${payment.id}:reverse`,
           attempt: 1,
-          legs: [{ debit_account: reserve, credit_account: payerAccount, amount_minor: mandate.amount_minor, code: 'release' }],
+          legs: [{ debit_account: reserve, credit_account: payerAccount, amount_minor: mandate.amount_minor, code: 'adjustment' }],
         });
         if (reversal.kind === 'ok' && reversal.value.status === 'posted') return this.fail(payment, mandate, 'merchant_suspended', true);
         if (reversal.kind === 'ok' || reversal.kind === 'rejected' || reversal.kind === 'conflict') return this.fail(payment, mandate, 'invalid_state_transition', true);
@@ -231,7 +231,7 @@ export class ExecutorService {
         });
         if (tx.kind === 'ok') {
           if (tx.value.status !== 'posted') return this.fail(payment, mandate, 'internal_error', true);
-          return this.executed(payment, mandate, tx.value.id, tx.value.transferIds[0] ?? null);
+          return this.executed(payment, mandate, tx.value.id);
         }
         if (tx.kind === 'rejected' || tx.kind === 'conflict') return this.fail(payment, mandate, tx.kind === 'rejected' ? 'internal_error' : 'invalid_state_transition', true);
         return this.unresolved(payment, mandate, tx, phase);
@@ -264,23 +264,17 @@ export class ExecutorService {
     );
   }
 
-  private async executed(payment: Claimed, mandate: MandateRow, transactionId: string, transferId: string | null): Promise<'executed'> {
+  private async executed(payment: Claimed, mandate: MandateRow, transactionId: string): Promise<'executed'> {
     const now = this.clock();
     await withTx(this.pool, async (client) => {
       await client.query(
-        `UPDATE scheduled_payments SET status = 'executed', phase = 'done', ledger_transaction_id = $2, ledger_transfer_id = $3, executed_at = $4, lease_until = NULL,
-                needs_review = $5, last_failure_code = NULL, attempts = attempts + 1
+        `UPDATE scheduled_payments SET status = 'executed', phase = 'done', ledger_transaction_id = $2, executed_at = $3, lease_until = NULL,
+                needs_review = false, last_failure_code = NULL, attempts = attempts + 1
           WHERE id = $1`,
-        [payment.id, transactionId, transferId, now, transferId === null],
+        [payment.id, transactionId, now],
       );
       await this.markMandateActive(client, mandate.id);
       await this.completeIfFinished(client, mandate.id);
-      if (transferId === null) {
-        // El dinero SE MOVIÓ (la verdad es el libro mayor), pero no hay id `tf_…` para el evento: queda a revisión y no se emite
-        // un evento inválido. PR-09 pide al libro mayor que lo devuelva.
-        this.logger.warn({ scheduled_payment_id: payment.id }, 'El libro mayor no devolvió el id de la transferencia: pago ejecutado sin evento, a revisión');
-        return;
-      }
       await emit(client, {
         type: 'scheduled_payment.executed',
         merchantId: mandate.merchant_id,
@@ -291,10 +285,11 @@ export class ExecutorService {
           scheduled_payment_id: payment.id,
           mandate_id: mandate.id,
           merchant_id: mandate.merchant_id,
+          mode: mandate.mode,
           period: payment.period,
           amount_minor: mandate.amount_minor,
           currency: 'BOB',
-          ledger_transfer_id: transferId,
+          ledger_transfer_id: transactionId,
           executed_at: now.toISOString(),
         },
       });
@@ -329,6 +324,7 @@ export class ExecutorService {
           scheduled_payment_id: payment.id,
           mandate_id: mandate.id,
           merchant_id: mandate.merchant_id,
+          mode: mandate.mode,
           period: payment.period,
           amount_minor: mandate.amount_minor,
           currency: 'BOB',
@@ -382,6 +378,7 @@ export class ExecutorService {
           scheduled_payment_id: payment.id,
           mandate_id: mandate.id,
           merchant_id: mandate.merchant_id,
+          mode: mandate.mode,
           period: payment.period,
           amount_minor: mandate.amount_minor,
           currency: 'BOB',

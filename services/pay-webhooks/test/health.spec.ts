@@ -22,6 +22,12 @@ describe('pay-webhooks (arranque real contra su base)', () => {
     await h.http().get('/v1/webhook_endpoints').expect(403);
   });
 
+  it('el `instance` de un error no repite segmentos de la URL que parezcan datos del cliente', async () => {
+    const res = await h.http().get('/v1/4111111111111111/ana@correo.com?x=1').expect(404);
+    expect(res.body.instance).toBe('/v1/:x/:x');
+    expect(JSON.stringify(res.body)).not.toMatch(/4111|ana@|correo/);
+  });
+
   it('un x-request-id mal formado se reemplaza por uno nuevo y no se anuncia el framework', async () => {
     const response = await h.http().get('/health/live').set('x-request-id', 'a b<script>').expect(200);
     expect(response.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);

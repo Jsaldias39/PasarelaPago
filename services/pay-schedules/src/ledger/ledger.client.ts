@@ -25,8 +25,6 @@ export interface LedgerHold {
 export interface LedgerTransaction {
   id: string;
   status: 'posted' | 'rejected';
-  /** PROPUESTA (PR-09): ids `tf_…` de las transferencias del asiento, que `scheduled_payment.executed` exige. */
-  transferIds: string[];
 }
 
 export interface HoldRequest {
@@ -139,8 +137,9 @@ export class HttpLedgerClient implements LedgerClient {
       res,
       (json) => {
         if (typeof json.id !== 'string' || (json.status !== 'posted' && json.status !== 'rejected')) return null;
-        const ids = Array.isArray(json.transfer_ids) ? json.transfer_ids.filter((v): v is string => typeof v === 'string' && /^tf_[a-z0-9]{10,40}$/.test(v)) : [];
-        return { id: json.id, status: json.status, transferIds: ids };
+        // `scheduled_payment.executed.ledger_transfer_id` cita el asiento (`tx_…`) que el libro mayor devuelve (CONTRATOS.md §3, fila 1).
+        if (!/^tx_[a-z0-9]{10,40}$/.test(json.id)) return null;
+        return { id: json.id, status: json.status };
       },
       [200, 201],
     );

@@ -13,6 +13,7 @@ import { decideAttempt } from './attempts';
 import { type BalanceDto, type LegDto, type TransactionDto, balanceOf } from './dto';
 import { type PostedLeg, emitTransferPosted } from './ledger-events';
 import { accountTbId, publicId } from './ids';
+import type { PayMode } from './mode';
 import { parseOrThrow, accountQuery, statementQuery, transactionCreate, merchantId } from './schemas';
 import { CreateTransferStatus, TB_ENGINE, TigerBeetleEngine, isConflictStatus, plainTransfer, sameTransfer, transferStatusName } from './tb-engine';
 import { inTransaction } from './unit-of-work';
@@ -68,7 +69,7 @@ export class LedgerService {
    * `POST /transactions`. Todas las patas o ninguna (lote enlazado de TigerBeetle). Idempotente por (business_ref, attempt) y con la
    * regla de intentos hecha cumplir acá (H-TB1). Un rechazo de negocio queda registrado y se responde 422.
    */
-  async createTransaction(rawBody: unknown, caller: string): Promise<{ created: boolean; body: TransactionDto }> {
+  async createTransaction(rawBody: unknown, caller: string, mode: PayMode): Promise<{ created: boolean; body: TransactionDto }> {
     const input = parseOrThrow(transactionCreate, rawBody);
     const legs: LegDto[] = input.legs.map((leg) => ({ ...leg, code: leg.code ?? 'adjustment' }));
     const infos = resolveAccounts(legs, caller);
@@ -78,10 +79,10 @@ export class LedgerService {
 
     const outcome = await inTransaction(this.pool, async (client): Promise<Outcome> => {
       // Serializa a quienes operan sobre la misma operación de negocio: la decisión de intento y la escritura son una sola unidad.
-      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ledger:tx:${input.business_ref}`]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ledger:tx:${mode}:${input.business_ref}`]);
       const { rows } = await client.query<TransactionRow>(
-        'SELECT id, attempt, status, content_hash, reject_code, currency, legs, created_at FROM ledger_transactions WHERE business_ref = $1 ORDER BY attempt',
-        [input.business_ref],
+        'SELECT id, attempt, status, content_hash, reject_code, currency, legs, created_at FROM ledger_transactions WHERE mode = $1 AND business_ref = $2 ORDER BY attempt',
+        [mode, input.business_ref],
       );
       const decision = decideAttempt(rows, input.attempt);
       if (decision.kind === 'conflict') {
@@ -97,19 +98,19 @@ export class LedgerService {
       // Dos contracargos del mismo comercio no se parten a la vez sobre el mismo saldo pendiente.
       const plan = await (async () => {
         const merchants = legs.filter(isChargeback).map((leg) => parseAccount(leg.debit_account)?.merchantId as string);
-        for (const merchant of [...new Set(merchants)].sort()) await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ledger:chargeback:${merchant}`]);
-        return planLegs(this.tb, input.business_ref, input.attempt, legs);
+        for (const merchant of [...new Set(merchants)].sort()) await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ledger:chargeback:${mode}:${merchant}`]);
+        return planLegs(this.tb, mode, input.business_ref, input.attempt, legs);
       })();
       const settled = plan.legs; // lo que se asienta de verdad (con el contracargo ya partido)
       const settledInfos = new Map(infos);
       for (const leg of settled) for (const name of [leg.debit_account, leg.credit_account]) if (!settledInfos.has(name)) settledInfos.set(name, parseAccount(name) as AccountInfo);
-      await this.accounts.register(client, [...settledInfos.values()]);
+      await this.accounts.register(client, mode, [...settledInfos.values()]);
       const batch = settled.map((leg, index) =>
         plainTransfer(
           {
             id: plan.tbIds[index],
-            debit: accountTbId(leg.debit_account),
-            credit: accountTbId(leg.credit_account),
+            debit: accountTbId(mode, leg.debit_account),
+            credit: accountTbId(mode, leg.credit_account),
             amount: BigInt(leg.amount_minor),
             code: leg.code,
           },
@@ -131,20 +132,20 @@ export class LedgerService {
       }
       const verdict = interpretTransfers(statuses);
       if (verdict.kind === 'conflict') return { kind: 'problem', error: reusedKey() };
-      const txId = publicId('tx', input.business_ref, input.attempt);
+      const txId = publicId('tx', mode, input.business_ref, input.attempt);
       const now = new Date();
 
       if (verdict.kind === 'rejected') {
-        await this.insertTransaction(client, { txId, input, contentHash, status: 'rejected', rejectCode: verdict.code, legs });
+        await this.insertTransaction(client, { mode, txId, input, contentHash, status: 'rejected', rejectCode: verdict.code, legs });
         await client.query(
-          'INSERT INTO ledger_rejections (kind, business_ref, attempt, reject_code, tb_status, caller) VALUES ($1, $2, $3, $4, $5, $6)',
-          ['transaction', input.business_ref, input.attempt, verdict.code, verdict.tbStatus, caller],
+          'INSERT INTO ledger_rejections (mode, kind, business_ref, attempt, reject_code, tb_status, caller) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [mode, 'transaction', input.business_ref, input.attempt, verdict.code, verdict.tbStatus, caller],
         );
         return { kind: 'problem', error: new ProblemError(verdict.code, { detail: 'Saldo insuficiente; reintentar exige attempt + 1' }) };
       }
 
-      const row = await this.insertTransaction(client, { txId, input, contentHash, status: 'posted', rejectCode: null, legs: settled });
-      await this.recordLegs(client, { source: 'transaction', sourceId: txId, businessRef: input.business_ref, attempt: input.attempt, legs: settled, postedAt: now });
+      const row = await this.insertTransaction(client, { mode, txId, input, contentHash, status: 'posted', rejectCode: null, legs: settled });
+      await this.recordLegs(client, { mode, source: 'transaction', sourceId: txId, businessRef: input.business_ref, attempt: input.attempt, legs: settled, postedAt: now });
       return { kind: 'ok', created: true, row };
     });
 
@@ -154,13 +155,13 @@ export class LedgerService {
 
   private async insertTransaction(
     client: PoolClient,
-    p: { txId: string; input: { business_ref: string; attempt: number; currency: 'BOB' }; contentHash: string; status: 'posted' | 'rejected'; rejectCode: string | null; legs: LegDto[] },
+    p: { mode: PayMode; txId: string; input: { business_ref: string; attempt: number; currency: 'BOB' }; contentHash: string; status: 'posted' | 'rejected'; rejectCode: string | null; legs: LegDto[] },
   ): Promise<TransactionRow> {
     const { rows } = await client.query<TransactionRow>(
-      `INSERT INTO ledger_transactions (id, business_ref, attempt, content_hash, status, reject_code, currency, legs)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+      `INSERT INTO ledger_transactions (id, mode, business_ref, attempt, content_hash, status, reject_code, currency, legs)
+       VALUES ($1, $9, $2, $3, $4, $5, $6, $7, $8::jsonb)
        RETURNING id, attempt, status, content_hash, reject_code, currency, legs, created_at`,
-      [p.txId, p.input.business_ref, p.input.attempt, p.contentHash, p.status, p.rejectCode, p.input.currency, JSON.stringify(p.legs)],
+      [p.txId, p.input.business_ref, p.input.attempt, p.contentHash, p.status, p.rejectCode, p.input.currency, JSON.stringify(p.legs), p.mode],
     );
     return rows[0];
   }
@@ -168,24 +169,24 @@ export class LedgerService {
   /** Guarda las patas asentadas, sus líneas de extracto y encola `ledger.transfer.posted` — todo en la transacción del llamador. */
   async recordLegs(
     client: PoolClient,
-    p: { source: 'transaction' | 'hold'; sourceId: string; businessRef: string; attempt: number; legs: readonly LegDto[]; postedAt: Date },
+    p: { mode: PayMode; source: 'transaction' | 'hold'; sourceId: string; businessRef: string; attempt: number; legs: readonly LegDto[]; postedAt: Date },
   ): Promise<string[]> {
     const ids: string[] = [];
     for (const [index, leg] of p.legs.entries()) {
       const legId = publicId('tf', p.sourceId, index);
       ids.push(legId);
       await client.query(
-        `INSERT INTO ledger_legs (id, source, source_id, business_ref, attempt, leg_index, debit_account, credit_account, amount_minor, code, posted_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [legId, p.source, p.sourceId, p.businessRef, p.attempt, index, leg.debit_account, leg.credit_account, leg.amount_minor, leg.code, p.postedAt],
+        `INSERT INTO ledger_legs (id, mode, source, source_id, business_ref, attempt, leg_index, debit_account, credit_account, amount_minor, code, posted_at)
+         VALUES ($1, $12, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [legId, p.source, p.sourceId, p.businessRef, p.attempt, index, leg.debit_account, leg.credit_account, leg.amount_minor, leg.code, p.postedAt, p.mode],
       );
       for (const side of ['debit', 'credit'] as const) {
         const account = side === 'debit' ? leg.debit_account : leg.credit_account;
         const counterparty = side === 'debit' ? leg.credit_account : leg.debit_account;
         await client.query(
-          `INSERT INTO ledger_statement_lines (id, account, leg_id, business_ref, attempt, leg_index, direction, counterparty_account, amount_minor, code, posted_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-          [publicId('sl', legId, side), account, legId, p.businessRef, p.attempt, index, side, counterparty, leg.amount_minor, leg.code, p.postedAt],
+          `INSERT INTO ledger_statement_lines (id, mode, account, leg_id, business_ref, attempt, leg_index, direction, counterparty_account, amount_minor, code, posted_at)
+           VALUES ($1, $12, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [publicId('sl', legId, side), account, legId, p.businessRef, p.attempt, index, side, counterparty, leg.amount_minor, leg.code, p.postedAt, p.mode],
         );
       }
       const event: PostedLeg = {
@@ -219,31 +220,31 @@ export class LedgerService {
   }
 
   /** `GET /transactions/{business_ref}` — todos los intentos, del más nuevo al más viejo, incluidos los rechazados. */
-  async getTransaction(businessRef: string): Promise<{ business_ref: string; attempts: TransactionDto[] }> {
+  async getTransaction(businessRef: string, mode: PayMode): Promise<{ business_ref: string; attempts: TransactionDto[] }> {
     const { rows } = await this.pool.query<TransactionRow>(
-      'SELECT id, attempt, status, content_hash, reject_code, currency, legs, created_at FROM ledger_transactions WHERE business_ref = $1 ORDER BY attempt DESC',
-      [businessRef],
+      'SELECT id, attempt, status, content_hash, reject_code, currency, legs, created_at FROM ledger_transactions WHERE mode = $1 AND business_ref = $2 ORDER BY attempt DESC',
+      [mode, businessRef],
     );
     if (rows.length === 0) throw new ProblemError('resource_not_found');
     return { business_ref: businessRef, attempts: rows.map((row) => this.toTransactionDto(row, 'exists', businessRef)) };
   }
 
   /** `GET /balances?account=` */
-  async getBalance(rawQuery: unknown): Promise<BalanceDto> {
+  async getBalance(rawQuery: unknown, mode: PayMode): Promise<BalanceDto> {
     const { account } = parseOrThrow(accountQuery, rawQuery);
     const info = parseAccount(account) as AccountInfo;
-    const known = await this.pool.query('SELECT 1 FROM ledger_accounts WHERE account = $1', [account]);
+    const known = await this.pool.query('SELECT 1 FROM ledger_accounts WHERE mode = $1 AND account = $2', [mode, account]);
     if (known.rowCount === 0) throw new ProblemError('resource_not_found');
-    const [tbAccount] = await this.tb.lookupAccounts([accountTbId(account)]);
+    const [tbAccount] = await this.tb.lookupAccounts([accountTbId(mode, account)]);
     return balanceOf(info, tbAccount, new Date());
   }
 
   /** `GET /balance` público: saldo del comercio autenticado. Una cuenta que nunca se movió vale 0. */
-  async getMerchantBalance(rawMerchantId: unknown): Promise<{ object: 'balance'; currency: 'BOB'; pending_minor: number; available_minor: number; as_of: string }> {
+  async getMerchantBalance(rawMerchantId: unknown, mode: PayMode): Promise<{ object: 'balance'; currency: 'BOB'; pending_minor: number; available_minor: number; as_of: string }> {
     const id = merchantId.safeParse(rawMerchantId);
     if (!id.success) throw new ProblemError('unauthorized');
-    const pendingId = accountTbId(`merchant:${id.data}:pending`);
-    const availableId = accountTbId(`merchant:${id.data}:available`);
+    const pendingId = accountTbId(mode, `merchant:${id.data}:pending`);
+    const availableId = accountTbId(mode, `merchant:${id.data}:available`);
     const net = (a: { credits_posted: bigint; debits_posted: bigint; debits_pending: bigint } | undefined) =>
       a ? toSafeNumber(a.credits_posted - a.debits_posted - a.debits_pending) : 0;
     // `lookupAccounts` omite las cuentas inexistentes: hay que asociar por id, no por posición.
@@ -258,21 +259,21 @@ export class LedgerService {
   }
 
   /** `GET /statements` — orden estable (posted_at desc, id desc) para que la paginación no cambie entre páginas. */
-  async listStatement(rawQuery: unknown) {
+  async listStatement(rawQuery: unknown, mode: PayMode) {
     const q = parseOrThrow(statementQuery, rawQuery);
-    const known = await this.pool.query('SELECT 1 FROM ledger_accounts WHERE account = $1', [q.account]);
+    const known = await this.pool.query('SELECT 1 FROM ledger_accounts WHERE mode = $1 AND account = $2', [mode, q.account]);
     if (known.rowCount === 0) throw new ProblemError('resource_not_found');
     const cursor = q.starting_after ? decodeCursor(q.starting_after) : null;
     const { rows } = await this.pool.query(
       `SELECT id, business_ref, attempt, leg_index, direction, counterparty_account, amount_minor, code, posted_at
          FROM ledger_statement_lines
-        WHERE account = $1
+        WHERE mode = $7 AND account = $1
           AND ($2::timestamptz IS NULL OR posted_at >= $2)
           AND ($3::timestamptz IS NULL OR posted_at < $3)
           AND ($4::timestamptz IS NULL OR (posted_at, id) < ($4, $5))
         ORDER BY posted_at DESC, id DESC
         LIMIT $6`,
-      [q.account, q.from ?? null, q.to ?? null, cursor?.at ?? null, cursor?.id ?? null, q.limit + 1],
+      [q.account, q.from ?? null, q.to ?? null, cursor?.at ?? null, cursor?.id ?? null, q.limit + 1, mode],
     );
     const page = rows.slice(0, q.limit);
     const last = page[page.length - 1];

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { PayMode } from './mode';
 
 /**
  * Ids deterministas (P2.H1.M3 y H-TB1 del spike de TigerBeetle).
@@ -32,20 +33,23 @@ export function hash128(...parts: (string | number)[]): bigint {
   return value === 0n || value === MAX_U128 ? 1n : value;
 }
 
-/** Id de una cuenta lógica. */
-export function accountTbId(name: string): bigint {
-  return hash128('account', name);
+/**
+ * Id de una cuenta lógica EN UN MODO (D-28). `merchant:X:pending` de `test` y de `live` son dos cuentas distintas de TigerBeetle: una
+ * etiqueta sola no separaría los saldos, y un asiento no puede mezclar cuentas de dos modos porque ambas patas se resuelven con el mismo.
+ */
+export function accountTbId(mode: PayMode, name: string): bigint {
+  return hash128('account', mode, name);
 }
 
 /** Id de la transferencia de la pata `legIndex` del asiento (business_ref, attempt). */
-export function legTbId(businessRef: string, attempt: number, legIndex: number, part: 'main' | 'debt' = 'main'): bigint {
-  // `main` conserva el id de siempre; `debt` es la segunda mitad de un contracargo partido (ver `chargeback.ts`).
-  return part === 'main' ? hash128('tx', businessRef, attempt, legIndex) : hash128('tx', businessRef, attempt, legIndex, part);
+export function legTbId(mode: PayMode, businessRef: string, attempt: number, legIndex: number, part: 'main' | 'debt' = 'main'): bigint {
+  // `debt` es la segunda mitad de un contracargo partido (ver `chargeback.ts`).
+  return part === 'main' ? hash128('tx', mode, businessRef, attempt, legIndex) : hash128('tx', mode, businessRef, attempt, legIndex, part);
 }
 
 /** Id de la retención (primera fase) de (business_ref, attempt). */
-export function holdTbId(businessRef: string, attempt: number): bigint {
-  return hash128('hold', businessRef, attempt);
+export function holdTbId(mode: PayMode, businessRef: string, attempt: number): bigint {
+  return hash128('hold', mode, businessRef, attempt);
 }
 
 /** Id de la segunda fase (post/void) de una retención. Es único por retención: se resuelve una sola vez. */
@@ -58,7 +62,7 @@ export function toHex128(value: bigint): string {
   return value.toString(16).padStart(32, '0');
 }
 
-/** Identificador público estable (`tx_…`, `hd_…`, `tf_…`, `sl_…`): 20 caracteres base32 minúsculas del hash. */
+/** Identificador público estable (`tx_…`, `hd_…`, `tf_…`, `sl_…`): 20 caracteres base32 minúsculas del hash. `tx_` y `hd_` incluyen el modo en `parts`. */
 export function publicId(prefix: 'tx' | 'hd' | 'tf' | 'sl', ...parts: (string | number)[]): string {
   const bytes = digest(prefix, ...parts);
   let out = '';

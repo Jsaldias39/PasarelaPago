@@ -8,6 +8,7 @@ import type {
   ProviderEvent,
   ProviderRefundRequest,
   ProviderRefundResult,
+  ProviderRefundStatusResult,
   ProviderStatus,
   ProviderStatusResult,
   ProviderTransferRequest,
@@ -74,6 +75,10 @@ export class MockConnector implements Connector {
 
   async refund(request: ProviderRefundRequest, now: Date): Promise<ProviderRefundResult> {
     return this.options.bank.refund(request, now);
+  }
+
+  async getRefund(reference: string): Promise<ProviderRefundStatusResult> {
+    return this.options.bank.refundStatus(reference);
   }
 
   async createTransfer(request: ProviderTransferRequest, now: Date): Promise<ProviderTransferResult> {

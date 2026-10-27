@@ -5,6 +5,7 @@ import { PROBLEM_CONTENT_TYPE } from '@pay/problem';
 import { LEDGER_CALLERS } from './accounts';
 import { HoldService } from './hold.service';
 import { LedgerService } from './ledger.service';
+import { requirePayMode } from './mode';
 import { requireIdempotencyKey } from './schemas';
 
 /** API interna (`contracts/openapi/internal-ledger-v1.yaml`). Solo llaman los servicios de la política de cuentas. */
@@ -21,58 +22,77 @@ export class LedgerController {
   async createTransaction(
     @Body() body: unknown,
     @Headers('x-service-id') caller: string,
+    @Headers('x-pay-mode') payMode: string | undefined,
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const mode = requirePayMode(payMode);
     requireIdempotencyKey(key);
-    const result = await this.ledger.createTransaction(body, caller);
+    const result = await this.ledger.createTransaction(body, caller, mode);
     res.status(result.created ? 201 : 200);
     return result.body;
   }
 
   @Get('transactions/:businessRef')
-  getTransaction(@Param('businessRef') businessRef: string) {
-    return this.ledger.getTransaction(businessRef);
+  getTransaction(@Param('businessRef') businessRef: string, @Headers('x-pay-mode') payMode: string | undefined) {
+    return this.ledger.getTransaction(businessRef, requirePayMode(payMode));
   }
 
   @Post('holds')
   async createHold(
     @Body() body: unknown,
     @Headers('x-service-id') caller: string,
+    @Headers('x-pay-mode') payMode: string | undefined,
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const mode = requirePayMode(payMode);
     requireIdempotencyKey(key);
-    const result = await this.holds.createHold(body, caller);
+    const result = await this.holds.createHold(body, caller, mode);
     res.status(result.created ? 201 : 200);
     return result.body;
   }
 
   @Get('holds/:id')
-  getHold(@Param('id') id: string) {
-    return this.holds.getHold(id);
+  getHold(@Param('id') id: string, @Headers('x-pay-mode') payMode: string | undefined) {
+    return this.holds.getHold(id, requirePayMode(payMode));
   }
 
   @Post('holds/:id/post')
   @HttpCode(200)
-  async postHold(@Param('id') id: string, @Body() body: unknown, @Headers('x-service-id') caller: string, @Headers('idempotency-key') key: string | undefined, @Res({ passthrough: true }) res: Response) {
-    return this.sendStored(res, await this.holds.postHold(id, body, caller, requireIdempotencyKey(key)));
+  async postHold(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Headers('x-service-id') caller: string,
+    @Headers('x-pay-mode') payMode: string | undefined,
+    @Headers('idempotency-key') key: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const mode = requirePayMode(payMode);
+    return this.sendStored(res, await this.holds.postHold(id, body, caller, mode, requireIdempotencyKey(key)));
   }
 
   @Post('holds/:id/void')
   @HttpCode(200)
-  async voidHold(@Param('id') id: string, @Headers('x-service-id') caller: string, @Headers('idempotency-key') key: string | undefined, @Res({ passthrough: true }) res: Response) {
-    return this.sendStored(res, await this.holds.voidHold(id, caller, requireIdempotencyKey(key)));
+  async voidHold(
+    @Param('id') id: string,
+    @Headers('x-service-id') caller: string,
+    @Headers('x-pay-mode') payMode: string | undefined,
+    @Headers('idempotency-key') key: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const mode = requirePayMode(payMode);
+    return this.sendStored(res, await this.holds.voidHold(id, caller, mode, requireIdempotencyKey(key)));
   }
 
   @Get('balances')
-  getBalance(@Query() query: unknown) {
-    return this.ledger.getBalance(query);
+  getBalance(@Query() query: unknown, @Headers('x-pay-mode') payMode: string | undefined) {
+    return this.ledger.getBalance(query, requirePayMode(payMode));
   }
 
   @Get('statements')
-  listStatement(@Query() query: unknown) {
-    return this.ledger.listStatement(query);
+  listStatement(@Query() query: unknown, @Headers('x-pay-mode') payMode: string | undefined) {
+    return this.ledger.listStatement(query, requirePayMode(payMode));
   }
 
   /** Respuesta que pasó por la tabla de idempotencia: puede ser un error de negocio guardado (se repite tal cual). */
@@ -92,7 +112,7 @@ export class PublicLedgerController {
   constructor(private readonly ledger: LedgerService) {}
 
   @Get('balance')
-  getMerchantBalance(@Headers('x-merchant-id') merchantId: string | undefined) {
-    return this.ledger.getMerchantBalance(merchantId);
+  getMerchantBalance(@Headers('x-merchant-id') merchantId: string | undefined, @Headers('x-pay-mode') payMode: string | undefined) {
+    return this.ledger.getMerchantBalance(merchantId, requirePayMode(payMode));
   }
 }

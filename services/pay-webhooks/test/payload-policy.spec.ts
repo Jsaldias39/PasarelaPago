@@ -66,6 +66,19 @@ describe('payload público — contra los ejemplos reales de los contratos Async
   });
 });
 
+describe('contratos de la ola 2', () => {
+  it('el enum WebhookEventType de public-v1.yaml es EXACTAMENTE «*» + los 21 tipos que entrega el servicio', () => {
+    const doc = parse(readFileSync(join(process.cwd(), '../../contracts/openapi/public-v1.yaml'), 'utf8')) as { components: { schemas: { WebhookEventType: { enum: string[] } } } };
+    expect([...doc.components.schemas.WebhookEventType.enum].sort()).toEqual(['*', ...PUBLIC_EVENT_TYPES].sort());
+  });
+
+  it('un evento que ya lleva `mode` (D-28) lo conserva dentro de data.object y el `mode` del sobre sigue siendo el del servicio', () => {
+    const { payload, dropped } = buildPublicPayload({ id: 'x', type: 'payment_intent.succeeded', time: '2026-10-27T15:00:00.000Z', merchantId: 'mc_abcdefghij12', data: { payment_intent_id: 'pi_abcdefghij12', mode: 'live', status: 'succeeded' } }, 'test');
+    expect(dropped).toEqual([]);
+    expect(JSON.parse(payload)).toMatchObject({ mode: 'test', data: { object: { mode: 'live' } } });
+  });
+});
+
 describe('filterEventData — niveles', () => {
   it('CORRECTO: ids con dígitos, fechas ISO e importes no se confunden con teléfonos ni tarjetas', () => {
     const data = { payment_intent_id: 'pi_c92215200m49', ledger_transfer_id: 'tr_0123456789abcdef', amount_minor: 10000, currency: 'BOB', succeeded_at: '2026-10-27T15:00:00.000Z', period_from: '2026-10-01', status: 'succeeded', merchant_id: 'mc_5c048c31m1fb', refund_id: '6f1f0a52-0d1c-4f4a-9a52-1f5a8c2f3a10' };

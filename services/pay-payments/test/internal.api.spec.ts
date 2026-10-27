@@ -12,7 +12,7 @@ let contract: ContractValidator;
 // Temporal conserva los workflows entre corridas y el id del intento sale de (comercio, mandato, periodo): sin un mandato nuevo por corrida
 // el `start` chocaría con el workflow ya completado de una corrida anterior.
 const RUN = randomBytes(5).toString('hex');
-const SCHEDULES = { 'x-service-id': 'pay-schedules' } as const;
+const SCHEDULES = { 'x-service-id': 'pay-schedules', 'x-pay-mode': 'test' } as const;
 const body = (over: Record<string, unknown> = {}) => ({
   source: { kind: 'mandate', id: `md_${RUN}000001`, period: '2026-10' },
   kind: 'obligation',
@@ -98,7 +98,7 @@ describe('internal-payments-v1 · cobro por mandato (pay-schedules)', () => {
   });
 
   it('GET de un intento que no es de mandato (público) o inexistente es 404', async () => {
-    const publicIntent = (await stack.service.createIntent(MC, key(), { amount_minor: 1000, currency: 'BOB', payment_method: { type: 'qr' } })).body.id as string;
+    const publicIntent = (await stack.service.createIntent(MC, 'test', key(), { amount_minor: 1000, currency: 'BOB', payment_method: { type: 'qr' } })).body.id as string;
     expect((await request(app.getHttpServer()).get(`/intents/${publicIntent}`).set(SCHEDULES)).status).toBe(404);
     expect((await request(app.getHttpServer()).get('/intents/pi_doesnotexist00').set(SCHEDULES)).status).toBe(404);
   });

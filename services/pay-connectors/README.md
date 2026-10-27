@@ -24,7 +24,7 @@ Contrato: `contracts/openapi/internal-connectors-v1.yaml`; eventos: `contracts/a
 | Secretos (`SecretProvider`, [DEV] por entorno, un espacio por conector) | `src/domain/secrets.ts` |
 | Simulador [DOBLE] | `src/connectors/mock/` |
 | Transferencia bancaria + conciliación | `src/connectors/bank-transfer/`, `src/core/statements.service.ts` |
-| Cobros, reembolsos, transferencias | `src/core/{charges,refunds,transfers}.service.ts` |
+| Cobros, reembolsos (`POST /charges/{id}/refunds`, `GET /refunds/{id}`), transferencias | `src/core/{charges,refunds,transfers}.service.ts` |
 | Callbacks / poller / salud | `src/core/{callbacks,poller,health}.service.ts` |
 
 ## Reglas que el código hace cumplir
@@ -66,6 +66,14 @@ Reproducible por semilla (`SimulatedBank({ seed })`). `SimulatedBank.reset()` lo
 
 En sandbox, `MockPumpService` firma los callbacks que programa el simulador y los entrega a `CallbacksService`, que los verifica como
 a los de un proveedor real (cada `MOCK_PUMP_INTERVAL_MS`).
+
+## Contratos de la ola 2
+
+- **`GET /refunds/{id}`** (`cr_…`, solo `pay-payments`): con `refresh=true` y el reembolso `pending`, pregunta al proveedor (`Connector.getRefund`); `captured` ⇒ `succeeded`, `failed` ⇒ `failed`. Sin respuesta, con rechazo, sin `getRefund` o con `not_found` explícito ⇒ lo último que se sabe (`stale: true` salvo `not_found`); **nunca** se toca la fila ni la reserva por un silencio. `404` solo si este servicio no tiene la fila.
+- **`refund_id`** (`re_…`) opcional en el pedido: se guarda, vuelve en `ConnectorRefund` y se copia al evento. Un mismo `refund_id` con otra `Idempotency-Key` ⇒ `409` (jamás un segundo `cr_…`).
+- **Eventos:** el conector sale como `mock` (no `simulator`); `connector_transaction_id` y `subject` son el `ch_…`/`cr_…` de la API (sin `ct_…`); `failure_code` admite `card_declined`. `connector.transfer.status_changed` se publica por outbox, en la misma transacción que el cambio de estado de la transferencia (señal; la fuente autoritativa sigue siendo `GET /transfers/{reference}`).
+- **`bank_transfer_instructions`** lleva `bank_name`, `account_holder` y `account_number` desde `BANK_TRANSFER_*` (los tres o ninguno). Sin cuenta (T-03) NO se inventa: salen solo `type` y `reference` y `pay-payments` responde `422 payment_method_unavailable`.
+- Pendiente: `X-Pay-Mode` (D-28) y el adaptador del Mercantil.
 
 ## Variables de entorno
 
