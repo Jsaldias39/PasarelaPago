@@ -8,7 +8,8 @@ port=${2:?uso: new-service.sh <pay-nombre> <puerto>}
 [[ "$port" =~ ^[0-9]{4,5}$ ]] || { echo "Puerto inválido: $port" >&2; exit 1; }
 root=$(cd "$(dirname "$0")/../.." && pwd)
 dest="$root/services/$name"
-[ ! -e "$dest" ] || { echo "Ya existe $dest" >&2; exit 1; }
+# Una carpeta con solo el README de marcador cuenta como vacía; con cualquier otra cosa, se niega.
+if [ -e "$dest" ] && [ -n "$(find "$dest" -mindepth 1 ! -name README.md -print -quit)" ]; then echo "Ya existe $dest con contenido" >&2; exit 1; fi
 db=${name//-/_}
 suffix=${name#pay-}
 mkdir -p "$dest"

@@ -5,6 +5,7 @@ const path = require('node:path');
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
+  setupFiles: ['<rootDir>/test/env.ts'],
   testRegex: '(src|test)/.*\\.spec\\.ts$',
   testTimeout: 20000,
   extensionsToTreatAsEsm: ['.ts'],

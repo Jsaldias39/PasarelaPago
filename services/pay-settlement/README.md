@@ -1,7 +1,13 @@
 # pay-settlement
 
-> Dueño: **P2** · Base propia: `pay_settlement` · Plan: [`docs/plan/PLAN-MAESTRO.md`](../../docs/plan/PLAN-MAESTRO.md)
+Servicio de la pasarela de pagos ALOVIDA, generado con `platform/scripts/new-service.sh`. Ver `docs/plan/PLAN-MAESTRO.md` y tu carril.
 
-Corte semanal, payouts, abono mensual y comisiones, conciliación y excepciones.
+- **Base propia:** `pay_settlement`. No leas la base de ningún otro servicio.
+- **Salud:** `GET /health/live` (el proceso) y `GET /health/ready` (la base propia).
+- **Errores:** RFC 9457 (`application/problem+json`) con `code` estable y `request_id`.
+- **Eventos:** outbox + relé hacia NATS JetStream (stream `PAY_<NOMBRE>`). Los consumidores usan `processOnce` (inbox).
+- **Entorno:** ver `.env.example`. Sin variable obligatoria, el servicio no arranca.
+- **Imagen:** `docker build -f services/pay-settlement/Dockerfile -t pay-settlement .` desde la raíz del repo.
 
-Este servicio no lee la base de ningún otro y no importa código de otro servicio: solo `contracts/` y las librerías `@pay/*`. Se crea desde la plantilla de `platform/` (P1.H1.M2).
+Pendiente en la plantilla: un adaptador que exponga la transacción de MikroORM como `Queryable`, para escribir una
+entidad y encolar su evento en **la misma** transacción. Se resuelve con el primer servicio que lo necesite (P2/P3).

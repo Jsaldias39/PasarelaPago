@@ -2,7 +2,7 @@
 # Crea UN rol y UNA base por servicio, sin permisos cruzados (regla de separación #1 del plan maestro).
 # Credenciales SOLO de desarrollo local. Producción las toma de OpenBao / Coolify, nunca de este archivo.
 set -eu
-for svc in edge payments connectors qr ledger settlement merchants risk schedules; do
+for svc in edge payments connectors qr ledger settlement merchants risk schedules webhooks vault mockbank; do
   role="pay_${svc}"
   psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres <<SQL
 CREATE ROLE ${role} LOGIN PASSWORD 'dev_only_${svc}';

@@ -12,10 +12,14 @@
   "scripts": {
     "build": "yarn run -T tsc -p tsconfig.build.json",
     "typecheck": "yarn run -T tsc -p tsconfig.json --noEmit",
-    "test": "echo 'sin pruebas propias: se ejercita desde los demás paquetes'"
+    "test": "yarn run -T jest --config jest.config.cjs"
   },
   "dependencies": {
-    "pg": "^8.22.0"
+    "@apidevtools/json-schema-ref-parser": "^11.7.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "pg": "^8.22.0",
+    "yaml": "^2.6.0"
   },
   "devDependencies": {
     "@types/pg": "^8"

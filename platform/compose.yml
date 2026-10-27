@@ -17,6 +17,10 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: pay
+      # Crear una base por servicio es lento en discos de CI/VM; sin esto `pg_ctl` se rinde a los 60 s al apagar la inicialización.
+      PGCTLTIMEOUT: "300"
+    # SOLO desarrollo local: sin fsync el stack arranca rápido y un corte de luz puede corromper los datos (son descartables).
+    command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
     ports: ["127.0.0.1:54321:5432"]
     volumes:
       - pg_data:/var/lib/postgresql/data

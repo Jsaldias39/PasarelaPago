@@ -4,7 +4,7 @@
 # Uso: platform/scripts/check-db-separation.sh [host] [puerto]
 set -uo pipefail
 HOST=${1:-127.0.0.1}; PORT=${2:-54321}
-services=(edge payments connectors qr ledger settlement merchants risk schedules)
+services=(edge payments connectors qr ledger settlement merchants risk schedules webhooks vault mockbank)
 ok=0; bad=0
 for a in "${services[@]}"; do
   for b in "${services[@]}"; do
