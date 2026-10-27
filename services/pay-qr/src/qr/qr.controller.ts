@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { hashRequest, IdempotencyStore, type HandlerResult } from '@pay/idempotency';
 import { PROBLEM_CONTENT_TYPE, ProblemError } from '@pay/problem';
 import { AllowedServices } from '@pay/service-auth';
+import { ModeGate } from './pay-mode';
 import { renderQr } from './qr-image';
 import { parseCreateQr } from './qr.dto';
 import { QrService } from './qr.service';
@@ -17,6 +18,7 @@ export class QrController {
   constructor(
     private readonly qr: QrService,
     private readonly idempotency: IdempotencyStore,
+    private readonly mode: ModeGate,
   ) {}
 
   private id(raw: string): string {
@@ -26,15 +28,17 @@ export class QrController {
 
   @Post('qr')
   async create(
+    @Headers('x-pay-mode') payMode: string | undefined,
     @Headers('idempotency-key') key: string | undefined,
     @Headers('x-service-id') caller: string,
     @Body() body: unknown,
     @Res({ passthrough: true }) res: Response,
   ): Promise<unknown> {
+    const mode = this.mode.require(payMode); // primero el modo: sin modo válido no hay efecto alguno
     if (!key) throw new ProblemError('idempotency_key_required');
     const input = parseCreateQr(body);
-    const result = await this.idempotency.execute({ scope: caller, key, requestHash: hashRequest({ method: 'POST', path: '/qr', body }) }, async (): Promise<HandlerResult> => {
-      const { qr, created } = await this.qr.create(input);
+    const result = await this.idempotency.execute({ scope: `${caller}|${mode}`, key, requestHash: hashRequest({ method: 'POST', path: '/qr', body }) }, async (): Promise<HandlerResult> => {
+      const { qr, created } = await this.qr.create(input, mode);
       return { status: created ? 201 : 200, body: this.qr.toView(qr) };
     });
     return send(res, result);
@@ -42,7 +46,8 @@ export class QrController {
 
   @Post('qr/decode')
   @HttpCode(200)
-  decode(@Body() body: { payload?: unknown }) {
+  decode(@Headers('x-pay-mode') payMode: string | undefined, @Body() body: { payload?: unknown }) {
+    this.mode.require(payMode); // utilidad sin estado, pero igual exige el modo: toda ruta interna de qr lo pide
     if (typeof body?.payload !== 'string') throw new ProblemError('validation_failed', { errors: [{ field: 'payload', code: 'invalid' }] });
     const parsed = this.qr.decode(body.payload);
     return {
@@ -58,29 +63,33 @@ export class QrController {
   }
 
   @Get('qr-references/:reference')
-  async byReference(@Param('reference') reference: string) {
+  async byReference(@Headers('x-pay-mode') payMode: string | undefined, @Param('reference') reference: string) {
+    const mode = this.mode.require(payMode);
     if (!REFERENCE.test(reference)) throw new ProblemError('resource_not_found');
-    return this.qr.toView(await this.qr.getByReference(reference));
+    return this.qr.toView(await this.qr.getByReference(reference, mode));
   }
 
   @Get('qr/:id')
-  async get(@Param('id') id: string) {
-    return this.qr.toView(await this.qr.get(this.id(id)));
+  async get(@Headers('x-pay-mode') payMode: string | undefined, @Param('id') id: string) {
+    const mode = this.mode.require(payMode);
+    return this.qr.toView(await this.qr.get(this.id(id), mode));
   }
 
   @Get('qr/:id/image')
-  async image(@Param('id') id: string, @Query('format') format: string | undefined, @Res() res: Response): Promise<void> {
+  async image(@Headers('x-pay-mode') payMode: string | undefined, @Param('id') id: string, @Query('format') format: string | undefined, @Res() res: Response): Promise<void> {
+    const mode = this.mode.require(payMode);
     const kind = format ?? 'svg';
     if (kind !== 'svg' && kind !== 'png') throw new ProblemError('validation_failed', { errors: [{ field: 'format', code: 'invalid' }] });
-    const row = await this.qr.get(this.id(id));
+    const row = await this.qr.get(this.id(id), mode);
     const image = await renderQr(row.payload, kind);
     res.status(200).type(kind === 'svg' ? 'image/svg+xml' : 'image/png').set('Cache-Control', 'no-store').send(image);
   }
 
   @Post('qr/:id/cancel')
   @HttpCode(200)
-  async cancel(@Param('id') id: string) {
-    return this.qr.toView(await this.qr.cancel(this.id(id)));
+  async cancel(@Headers('x-pay-mode') payMode: string | undefined, @Param('id') id: string) {
+    const mode = this.mode.require(payMode);
+    return this.qr.toView(await this.qr.cancel(this.id(id), mode));
   }
 }
 

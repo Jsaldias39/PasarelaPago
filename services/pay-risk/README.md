@@ -5,6 +5,7 @@ Evaluación de riesgo de un cobro antes de mandarlo al proveedor (carril P5, `P5
 - **Base propia:** `pay_risk`. No leas la base de ningún otro servicio.
 - **Esquema:** `sql/001_risk.sql` es **SQL de referencia, a mover a `mantra-core-health-model`** (D-18).
 - **API:** `POST /assessments` (idempotente por `Idempotency-Key`: 201 la primera vez, 200 con la misma decisión al repetir) y `GET /assessments/{id}`; solo las llama `pay-payments`. Contrato: `contracts/openapi/internal-risk-v1.yaml`. Carga de límites (`POST /rule_sets`, `GET /rule_sets/current`, solo `pay-backoffice` con rol `risk_admin`): PROPUESTA en `docs/trabajo/ola-1/P5/propuestas/internal-risk-rule-sets-v1.yaml`.
+- **Contrato vigente** (`internal-risk-v1.yaml`, ola 2): implementa sus 4 operaciones y todos sus campos (`screening.entity_type`, `/rule_sets`); `test/contract-conformance.spec.ts` lo comprueba. Un nombre en blanco y una huella vacía (válidos para el contrato) se tratan como ausentes. El `503` queda reservado: nunca se devuelve.
 - **Sin eventos:** no hay eventos de riesgo en el AsyncAPI.
 
 ## Decisión
@@ -19,6 +20,7 @@ Evaluación de riesgo de un cobro antes de mandarlo al proveedor (carril P5, `P5
 - **Sin límites por defecto (D-23):** la versión 1 del conjunto de reglas es «sin límites» (todo `NULL`). Los límites los carga el negocio o el banco.
 - **Los umbrales de sanciones no tienen valor por defecto** (`SANCTIONS_DENY_SCORE`, `SANCTIONS_REVIEW_SCORE`): los fija cumplimiento; sin ellos el servicio no arranca. Se decide por umbral, nunca por «hubo resultados».
 - **Datos personales:** el nombre se manda a Watchman (solo nombre y tipo) y **no se guarda ni se registra**; el pagador se guarda como HMAC (`PAYER_HASH_KEY`). El rastro es inmutable (triggers).
+- **Latencia:** la prueba de carga real (2× el volumen objetivo, T-01) es de la ola 3; `test/latency.spec.ts` mide en la máquina compartida y es sensible a la carga externa (P5.H2.M4 sigue A MEDIAS).
 - **Watchman en el entorno local es `v2-static` con listas de 2019, SOLO sandbox.** Nunca se presenta como el cribado real.
 
 ## Entorno

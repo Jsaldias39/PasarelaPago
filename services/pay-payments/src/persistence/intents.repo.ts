@@ -19,6 +19,8 @@ export interface IntentRow {
   readonly metadata: Record<string, string>;
   readonly nextAction: Record<string, unknown> | null;
   readonly failureCode: string | null;
+  /** Motivo fino (no del catálogo) de un fallo; sale en el `detail` de la respuesta y nunca como `code`. */
+  readonly failureReason: string | null;
   readonly connector: string | null;
   readonly chargeId: string | null;
   readonly chargeStatus: string;
@@ -54,7 +56,7 @@ export interface NewIntent {
 }
 
 const COLUMNS = `id, merchant_id, mode, amount_minor, currency, method, status, fee_minor, net_minor, description, metadata, next_action,
-  failure_code, connector, charge_id, charge_status, ledger_attempt, ledger_transfer_id, card_token, wallet_user_ref, source, kind,
+  failure_code, failure_reason, connector, charge_id, charge_status, ledger_attempt, ledger_transfer_id, card_token, wallet_user_ref, source, kind,
   beneficiary_merchant_id, created_at, expires_at, succeeded_at, completed_at`;
 
 function map(r: Record<string, unknown>): IntentRow {
@@ -72,6 +74,7 @@ function map(r: Record<string, unknown>): IntentRow {
     metadata: (r.metadata as Record<string, string>) ?? {},
     nextAction: (r.next_action as Record<string, unknown> | null) ?? null,
     failureCode: (r.failure_code as string | null) ?? null,
+    failureReason: (r.failure_reason as string | null) ?? null,
     connector: (r.connector as string | null) ?? null,
     chargeId: (r.charge_id as string | null) ?? null,
     chargeStatus: r.charge_status as string,
@@ -158,13 +161,14 @@ export const intentsRepo = {
     id: string,
     from: readonly IntentStatus[],
     to: IntentStatus,
-    patch: { failureCode?: string; nextAction?: Record<string, unknown> | null; connector?: string; chargeId?: string; chargeStatus?: string; ledgerTransferId?: string } = {},
+    patch: { failureCode?: string; failureReason?: string; nextAction?: Record<string, unknown> | null; connector?: string; chargeId?: string; chargeStatus?: string; ledgerTransferId?: string } = {},
   ): Promise<IntentRow | null> {
     const terminal = ['succeeded', 'failed', 'canceled', 'expired'].includes(to);
     const { rows } = await db.query(
       `UPDATE payment_intents SET
          status = $3,
          failure_code = COALESCE($4, failure_code),
+         failure_reason = COALESCE($12, failure_reason),
          next_action = CASE WHEN $5::boolean THEN $6::jsonb ELSE next_action END,
          connector = COALESCE($7, connector),
          charge_id = COALESCE($8, charge_id),
@@ -176,7 +180,7 @@ export const intentsRepo = {
        RETURNING ${COLUMNS}`,
       [
         id, from, to, patch.failureCode ?? null, patch.nextAction !== undefined, patch.nextAction === undefined ? null : JSON.stringify(patch.nextAction),
-        patch.connector ?? null, patch.chargeId ?? null, patch.chargeStatus ?? null, patch.ledgerTransferId ?? null, terminal,
+        patch.connector ?? null, patch.chargeId ?? null, patch.chargeStatus ?? null, patch.ledgerTransferId ?? null, terminal, patch.failureReason ?? null,
       ],
     );
     return rows[0] ? map(rows[0]) : null;

@@ -8,6 +8,7 @@ import type { ConnectorRegistry } from '../domain/registry';
 import { toCamt053, toCsv } from '../domain/statement-formats';
 import { recordAndApply } from './apply';
 import { inTransaction } from './db';
+import type { PayMode } from './pay-mode';
 import { REGISTRY, CLOCK, type Clock } from './tokens';
 
 const CODES = new Set<string>(['mock', 'mercantil_qr', 'mercantil_card', 'bank_transfer']);
@@ -41,13 +42,17 @@ export class StatementsService {
   ) {}
 
   /** Empareja cada línea con un cobro: por `ch_…` directo o, si es una referencia de transferencia, por su tabla. */
-  private async match(connector: ConnectorCode, lines: readonly StatementLine[]): Promise<MatchedLine[]> {
+  private async match(connector: ConnectorCode, lines: readonly StatementLine[], mode?: PayMode): Promise<MatchedLine[]> {
     const refs = [...new Set(lines.map((l) => l.ourReference).filter((r): r is string => r !== null))];
     const byRef = new Map<string, string>();
     if (refs.length > 0) {
-      const direct = await this.pool.query('SELECT id FROM connector_charges WHERE id = ANY($1) AND connector = $2', [refs, connector]);
+      // Con modo en la petición, solo se emparejan cobros de ESE modo; la conciliación interna (sin petición) usa el modo del registro del cobro.
+      const direct = await this.pool.query('SELECT id FROM connector_charges WHERE id = ANY($1) AND connector = $2 AND ($3::text IS NULL OR pay_mode = $3)', [refs, connector, mode ?? null]);
       for (const r of direct.rows) byRef.set(r.id as string, r.id as string);
-      const transfers = await this.pool.query('SELECT reference, charge_id FROM bank_transfer_references WHERE reference = ANY($1)', [refs]);
+      const transfers = await this.pool.query(
+        'SELECT r.reference, r.charge_id FROM bank_transfer_references r JOIN connector_charges c ON c.id = r.charge_id WHERE r.reference = ANY($1) AND ($2::text IS NULL OR c.pay_mode = $2)',
+        [refs, mode ?? null],
+      );
       for (const r of transfers.rows) byRef.set(r.reference as string, r.charge_id as string);
     }
     return lines.map((l) => ({ ...l, chargeId: l.ourReference ? (byRef.get(l.ourReference) ?? null) : null }));
@@ -55,7 +60,7 @@ export class StatementsService {
 
   // ───────────────────────── GET /statements ─────────────────────────
 
-  async get(query: { connector?: string; from?: string; to?: string; limit?: string; startingAfter?: string }, format: StatementFormat): Promise<{ contentType: string; body: unknown }> {
+  async get(query: { connector?: string; from?: string; to?: string; limit?: string; startingAfter?: string }, format: StatementFormat, mode?: PayMode): Promise<{ contentType: string; body: unknown }> {
     const errors: FieldError[] = [];
     if (!query.connector || !CODES.has(query.connector)) errors.push({ field: 'connector', code: 'invalid' });
     const from = query.from ? new Date(query.from) : null;
@@ -93,7 +98,7 @@ export class StatementsService {
     }
     const page = sorted.slice(start, start + limit);
     const hasMore = start + limit < sorted.length;
-    const matched = await this.match(code, page);
+    const matched = await this.match(code, page, mode);
     // La glosa del banco no sale de este servicio: puede traer nombres o cuentas. Se reabre cuando el formato del banco esté revisado (PROPUESTAS.md).
     const safe = matched.map((l) => ({ ...l, description: null }));
 

@@ -23,7 +23,7 @@ import { SimulatedBank, type ScheduledCallback } from './simulated-bank';
 
 /** Genera el payload del QR de un cobro. En producción es el cliente HTTP de `pay-qr`; en pruebas, un doble declarado. */
 export interface QrPort {
-  issue(input: { chargeId: string; paymentIntentId: string; merchantId: string; amountMinor: bigint; expiresAt: Date }): Promise<{ payload: string; expiresAt: Date }>;
+  issue(input: { chargeId: string; paymentIntentId: string; merchantId: string; payMode: 'test' | 'live'; amountMinor: bigint; expiresAt: Date }): Promise<{ payload: string; expiresAt: Date }>;
 }
 
 const EMV_PAYLOAD = /^000201.*6304[0-9A-F]{4}$/;
@@ -56,7 +56,7 @@ export class MockConnector implements Connector {
     const result = this.options.bank.charge(request, now);
     if (result.status === 'failed') return { providerReference: result.providerReference, status: 'failed', failureCode: result.failureCode };
     if (request.method === 'qr') {
-      const qr = await this.options.qr.issue({ chargeId: request.reference, paymentIntentId: request.paymentIntentId, merchantId: request.merchantId, amountMinor: request.amountMinor, expiresAt: request.expiresAt });
+      const qr = await this.options.qr.issue({ chargeId: request.reference, paymentIntentId: request.paymentIntentId, merchantId: request.merchantId, payMode: request.payMode, amountMinor: request.amountMinor, expiresAt: request.expiresAt });
       // Lo que devuelve pay-qr se valida: si no parece un payload EMV, es un fallo interno, no algo que mostrarle al pagador.
       if (!EMV_PAYLOAD.test(qr.payload)) throw new ConnectorRejectedError('internal_error', 'payload de QR inválido');
       return { providerReference: result.providerReference, status: result.status, nextAction: { type: 'display_qr', payload: qr.payload, expires_at: qr.expiresAt.toISOString() } };

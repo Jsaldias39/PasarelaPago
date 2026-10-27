@@ -1,0 +1,29 @@
+=== pay-merchants corrida 1 (19:54:37, load 9.95) ===
+Test Suites: 8 passed, 8 total
+Tests:       91 passed, 91 total
+=== pay-merchants corrida 2 (19:54:49, load 9.40) ===
+Test Suites: 8 passed, 8 total
+Tests:       91 passed, 91 total
+=== pay-schedules corrida 1 (19:55:02, load 8.62) ===
+Test Suites: 9 passed, 9 total
+Tests:       153 passed, 153 total
+=== pay-schedules corrida 2 (19:55:27, load 7.71) ===
+Test Suites: 9 passed, 9 total
+Tests:       153 passed, 153 total
+=== pay-risk corrida 1 (19:56:00, load 7.99) ===
+LATENCIA {"label":"secuencial-1-busqueda","n":200,"p50":91.7,"p95":223,"p99":270.5,"max":294.4}
+LATENCIA {"label":"secuencial-2-busquedas","n":200,"p50":97.2,"p95":227.6,"p99":259.5,"max":285.3}
+LATENCIA {"label":"concurrente-4","n":400,"p50":110.5,"p95":234.8,"p99":274.7,"max":294.4}
+LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":12.8,"p95":34.8,"p99":68.9,"max":112.4}
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 1 búsqueda en Watchman (entity_type conocido): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 2 búsquedas en Watchman (tipo desconocido: persona y empresa): ≥ 200 llamadas
+Test Suites: 1 failed, 8 passed, 9 total
+Tests:       2 failed, 153 passed, 155 total
+=== pay-risk corrida 2 (19:57:00, load 10.72) ===
+LATENCIA {"label":"secuencial-1-busqueda","n":200,"p50":61.9,"p95":164.8,"p99":218.5,"max":245.7}
+LATENCIA {"label":"secuencial-2-busquedas","n":200,"p50":120.3,"p95":261.8,"p99":309.6,"max":322.4}
+LATENCIA {"label":"concurrente-4","n":400,"p50":173.1,"p95":287,"p99":335.6,"max":423.3}
+LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":16.3,"p95":38.1,"p99":78.1,"max":97.8}
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 2 búsquedas en Watchman (tipo desconocido: persona y empresa): ≥ 200 llamadas
+Test Suites: 1 failed, 8 passed, 9 total
+Tests:       1 failed, 154 passed, 155 total

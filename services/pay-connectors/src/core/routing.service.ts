@@ -5,6 +5,7 @@ import type { ConnectorCode, Method } from '../domain/connector';
 import type { ConnectorRegistry } from '../domain/registry';
 import { DEFAULT_RULE_SET, parseRuleSet, selectCandidates, type RoutingChoice, type RuleSet } from '../domain/routing';
 import { HealthService } from './health.service';
+import { deploymentModeOf, type PayMode } from './pay-mode';
 import { REGISTRY } from './tokens';
 
 /** Ruteo declarativo: reglas versionadas en la base (una activa), disponibilidad = registrado + sano + soporta el medio. */
@@ -29,11 +30,12 @@ export class RoutingService implements OnModuleInit {
     return parseRuleSet({ version: row.rows[0].version, rules: row.rows[0].rules });
   }
 
-  async choose(request: { method: Method; amountMinor: bigint; preferred?: ConnectorCode }): Promise<RoutingChoice> {
+  /** Solo son candidatos los conectores cuyo modo corresponde al de la clave: una clave `test` jamás llega a un conector `live`, ni al revés. */
+  async choose(request: { method: Method; amountMinor: bigint; payMode: PayMode; preferred?: ConnectorCode }): Promise<RoutingChoice> {
     const [ruleSet, down] = await Promise.all([this.activeRuleSet(), this.health.downSet()]);
     return selectCandidates(ruleSet, request, (code) => {
       const connector = this.registry.get(code);
-      return { registered: connector !== undefined, down: down.has(code), methods: connector?.methods ?? [] };
+      return { registered: connector !== undefined && connector.mode === deploymentModeOf(request.payMode), down: down.has(code), methods: connector?.methods ?? [] };
     });
   }
 }

@@ -8,6 +8,8 @@ import { PG_POOL } from '../../src/database.module';
 import { ExecutorService } from '../../src/executor/executor.service';
 import { logSink, type LogTarget } from '../../src/logging.sink';
 import { CLOCK } from '../../src/mandates/mandates.service';
+import { SERVICE_CONFIG, loadConfig } from '../../src/config';
+import { HttpLedgerClient, LEDGER_CLIENT, type LedgerClient } from '../../src/ledger/ledger.client';
 import { SCHEDULE_SETTINGS, loadScheduleSettings, type ScheduleSettings } from '../../src/settings';
 import { startLedgerDouble, type LedgerDouble } from '../doubles/ledger.double';
 import { loadEventContract } from './event-contract';
@@ -39,6 +41,10 @@ export interface TestContext {
 }
 
 export interface TestOptions {
+  /** URL de un NATS REAL: enciende el consumidor de `merchant.*` y el relé del outbox. Por defecto, sin NATS. */
+  natsUrl?: string;
+  /** Envuelve al cliente real del libro mayor (por ejemplo, para quitarle el modo). */
+  wrapLedger?: (inner: LedgerClient) => LedgerClient;
   settings?: Partial<ScheduleSettings>;
   /** Hora inicial del reloj; por defecto 2026-03-10 18:00 UTC = 14:00 en La Paz. */
   now?: Date;
@@ -56,14 +62,19 @@ export async function createTestContext(options: TestOptions = {}): Promise<Test
   const previous = logSink.target;
   logSink.target = capture;
   const clock = { now: options.now ?? new Date('2026-03-10T18:00:00Z') };
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+  const builder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(PG_POOL)
     .useValue(new Proxy(db.pool, { get: (target, prop) => (prop === 'end' ? async () => undefined : (typeof target[prop as keyof typeof target] === 'function' ? (target[prop as keyof typeof target] as (...a: unknown[]) => unknown).bind(target) : target[prop as keyof typeof target])) }))
     .overrideProvider(SCHEDULE_SETTINGS)
     .useValue({ ...loadScheduleSettings(), ledgerUrl: ledger.url, platformMerchantId: PLATFORM_MERCHANT, ...options.settings })
     .overrideProvider(CLOCK)
-    .useValue(() => new Date(clock.now))
-    .compile();
+    .useValue(() => new Date(clock.now));
+  if (options.natsUrl) builder.overrideProvider(SERVICE_CONFIG).useValue({ ...loadConfig(), natsUrl: options.natsUrl });
+  if (options.wrapLedger) {
+    const wrap = options.wrapLedger;
+    builder.overrideProvider(LEDGER_CLIENT).useFactory({ factory: (settings: ScheduleSettings) => wrap(new HttpLedgerClient(settings)), inject: [SCHEDULE_SETTINGS] });
+  }
+  const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication({ bufferLogs: true });
   app.useLogger(app.get(Logger));
   await app.init();

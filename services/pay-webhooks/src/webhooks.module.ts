@@ -1,4 +1,5 @@
-import { type DynamicModule, Module } from '@nestjs/common';
+import { readFileSync } from 'node:fs';
+import { type DynamicModule, Logger, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import type { Pool } from 'pg';
 import { IdempotencyStore } from '@pay/idempotency';
@@ -33,10 +34,21 @@ export class WebhooksModule {
         { provide: APP_GUARD, useClass: ServiceIdentityGuard },
         { provide: CLOCK, useValue: systemClock },
         { provide: RESOLVER, useClass: DnsResolver },
-        { provide: TRANSPORT, useValue: new HttpsTransport() },
+        {
+          provide: TRANSPORT,
+          inject: [SERVICE_CONFIG],
+          useFactory: (config: ServiceConfig) => new HttpsTransport(config.sandboxCaFile ? { ca: readFileSync(config.sandboxCaFile, 'utf8') } : {}),
+        },
         { provide: 'PAY_MODE', inject: [SERVICE_CONFIG], useFactory: (config: ServiceConfig) => (config.payMode === 'live' ? 'live' : 'test') },
         { provide: SECRET_BOX, inject: [SERVICE_CONFIG], useFactory: (config: ServiceConfig) => new SecretBox(config.secretKek) },
-        { provide: TARGET_GUARD, inject: [RESOLVER], useFactory: (resolver: Resolver) => new TargetGuard(resolver) },
+        {
+          provide: TARGET_GUARD,
+          inject: [RESOLVER, SERVICE_CONFIG],
+          useFactory: (resolver: Resolver, config: ServiceConfig) => {
+            if (config.sandboxTargets.length > 0) new Logger('WebhooksModule').warn({ targets: config.sandboxTargets }, 'SANDBOX: se permiten entregas a estos destinos locales exactos');
+            return new TargetGuard(resolver, { allowTargets: new Set(config.sandboxTargets) });
+          },
+        },
         { provide: IDEMPOTENCY, inject: [PG_POOL], useFactory: (pool: Pool) => new IdempotencyStore(pool) },
         {
           provide: DELIVERY_ENGINE,

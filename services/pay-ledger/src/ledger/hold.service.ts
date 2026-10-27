@@ -142,7 +142,7 @@ export class HoldService {
          VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11) RETURNING ${COLUMNS}`,
         base,
       );
-      await emitHoldCreated(client, { holdId: hdId, businessRef: input.business_ref, account: input.debit_account, creditAccount: input.credit_account }, {
+      await emitHoldCreated(client, { mode, holdId: hdId, businessRef: input.business_ref, account: input.debit_account, creditAccount: input.credit_account }, {
         attempt: input.attempt,
         amountMinor: input.amount_minor,
         expiresAt,
@@ -229,7 +229,7 @@ export class HoldService {
         throw new Error(`TigerBeetle devolvió un estado inesperado al ${action === 'post' ? 'confirmar' : 'anular'} la retención: ${transferStatusName(status)}`);
       }
 
-      const base = { holdId: row.id, businessRef: row.business_ref, account: row.debit_account, creditAccount: row.credit_account };
+      const base = { mode, holdId: row.id, businessRef: row.business_ref, account: row.debit_account, creditAccount: row.credit_account };
       if (action === 'post') {
         const updated = await client.query<HoldRow>(
           `UPDATE ledger_holds SET status = 'posted', posted_amount_minor = $2, resolved_at = $3 WHERE id = $1 RETURNING ${COLUMNS}`,
@@ -254,7 +254,7 @@ export class HoldService {
 
   private async markExpired(client: PoolClient, row: HoldRow, now: Date): Promise<void> {
     await client.query(`UPDATE ledger_holds SET status = 'expired', resolved_at = $2 WHERE id = $1 AND status = 'pending'`, [row.id, now]);
-    await emitHoldExpired(client, { holdId: row.id, businessRef: row.business_ref, account: row.debit_account, creditAccount: row.credit_account }, { amountMinor: Number(row.amount_minor), at: now });
+    await emitHoldExpired(client, { mode: row.mode, holdId: row.id, businessRef: row.business_ref, account: row.debit_account, creditAccount: row.credit_account }, { amountMinor: Number(row.amount_minor), at: now });
   }
 
   /**

@@ -30,7 +30,7 @@ beforeEach(() => {
   seen.length = 0;
 });
 
-const input = { chargeId: 'ch_aaaaaaaaaaaaaaaa', paymentIntentId: 'pi_aaaaaaaaaaaaaaaa', merchantId: 'mc_aaaaaaaaaaaaaaaa', amountMinor: 12345n, expiresAt: new Date('2026-10-27T13:00:00Z') };
+const input = { chargeId: 'ch_aaaaaaaaaaaaaaaa', paymentIntentId: 'pi_aaaaaaaaaaaaaaaa', merchantId: 'mc_aaaaaaaaaaaaaaaa', payMode: 'test' as const, amountMinor: 12345n, expiresAt: new Date('2026-10-27T13:00:00Z') };
 const json = (res: ServerResponse, status: number, body: unknown) => {
   res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body));
 };
@@ -42,6 +42,7 @@ describe('HttpQrClient [DOBLE de pay-qr] — correcto, límite, inválido', () =
     expect(result).toEqual({ payload: '000201...6304ABCD', expiresAt: new Date('2026-10-27T12:59:00.000Z') });
     expect(seen[0]?.url).toBe('/qr');
     expect(seen[0]?.headers['x-service-id']).toBe('pay-connectors');
+    expect(seen[0]?.headers['x-pay-mode']).toBe('test'); // D-28: el modo de la clave viaja a pay-qr
     expect(seen[0]?.headers['idempotency-key']).toBe('qr-ch_aaaaaaaaaaaaaaaa');
     expect(seen[0]?.body).toMatchObject({ kind: 'dynamic', merchant_id: 'mc_aaaaaaaaaaaaaaaa', currency: 'BOB', amount_minor: 12345, payment_intent_id: 'pi_aaaaaaaaaaaaaaaa', expires_at: '2026-10-27T13:00:00.000Z' });
   });
@@ -77,4 +78,11 @@ describe('HttpQrClient [DOBLE de pay-qr] — correcto, límite, inválido', () =
     const error = await new HttpQrClient(baseUrl).issue(input).catch((e: Error) => e);
     expect(JSON.stringify([(error as Error).message, (error as Error).stack])).not.toMatch(/4111|Juan/);
   });
+
+  it.each(['test', 'live'] as const)('propaga el modo de la clave (%s) en la llamada saliente, y jamás otro', async (mode) => {
+    handler = (_req, _body, res) => json(res, 201, { payload: 'P' });
+    await new HttpQrClient(baseUrl).issue({ ...input, payMode: mode });
+    expect(seen[0]?.headers['x-pay-mode']).toBe(mode);
+  });
 });
+

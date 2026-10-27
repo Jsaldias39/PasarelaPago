@@ -4,13 +4,14 @@ import { NatsEventPublisher, OutboxRelay, ensureStream } from '@pay/outbox';
 import type { Pool } from 'pg';
 import { SERVICE_CONFIG, type ServiceConfig } from './config';
 import { PG_POOL } from './database.module';
-import { CONSUMER_FEES, CONSUMER_LEDGER, SettlementConsumers } from './settlement/consumers';
+import { CONSUMER_CONTRADICTION, CONSUMER_FEES, CONSUMER_LEDGER, SettlementConsumers } from './settlement/consumers';
 import { SettlementModule } from './settlement/settlement.module';
 
 /** Suscripciones durables que pay-settlement necesita (contratos: ledger-settlement.yaml y merchants-schedules.yaml). */
 const SUBSCRIPTIONS = [
   { stream: 'PAY_LEDGER', subjects: ['pay-ledger.>'], subject: 'pay-ledger.ledger.transfer.posted', durable: CONSUMER_LEDGER },
   { stream: 'PAY_MERCHANTS', subjects: ['pay-merchants.>'], subject: 'pay-merchants.fee_schedule.published', durable: CONSUMER_FEES },
+  { stream: 'PAY_PAYMENTS', subjects: ['pay-payments.>'], subject: 'pay-payments.payment_intent.contradiction_detected', durable: CONSUMER_CONTRADICTION },
 ] as const;
 
 /**

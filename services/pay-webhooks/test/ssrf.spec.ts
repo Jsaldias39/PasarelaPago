@@ -162,6 +162,30 @@ describe('TargetGuard — registrar y entregar', () => {
   });
 });
 
+describe('TargetGuard — destinos de sandbox (solo e2e)', () => {
+  const guard = new TargetGuard(new FakeResolver({}), { allowTargets: new Set(['127.0.0.1:41234']) });
+
+  it('CORRECTO: el destino loopback EXACTO de la lista se acepta (https)', async () => {
+    expect(await guard.check('https://127.0.0.1:41234/hook?x=1')).toEqual({ hostname: '127.0.0.1', port: 41234, path: '/hook?x=1', ip: '127.0.0.1', family: 4 });
+  });
+
+  it.each([
+    ['otro puerto del mismo loopback', 'https://127.0.0.1:41235/hook', 'port_not_allowed'],
+    ['el puerto 443 de loopback', 'https://127.0.0.1/hook', 'private_address'],
+    ['localhost aunque sea el mismo puerto', 'https://localhost:41234/hook', 'port_not_allowed'],
+    ['otra IP privada con ese puerto', 'https://10.0.0.5:41234/hook', 'port_not_allowed'],
+    ['metadatos de nube con ese puerto', 'https://169.254.169.254:41234/x', 'port_not_allowed'],
+    ['http plano al destino permitido', 'http://127.0.0.1:41234/hook', 'https_required'],
+    ['credenciales en la URL del destino permitido', 'https://u:p@127.0.0.1:41234/hook', 'credentials_in_url'],
+  ])('INVÁLIDO: %s', async (_name, url, expected) => {
+    expect(await reason(guard, url)).toBe(expected);
+  });
+
+  it('sin lista, el mismo destino se rechaza (producción)', async () => {
+    expect(await reason(new TargetGuard(new FakeResolver({})), 'https://127.0.0.1:41234/hook')).toBe('port_not_allowed');
+  });
+});
+
 describe('HttpsTransport — conexión real fijada a la IP validada', () => {
   let cert: TestCertificate;
   let server: Server;

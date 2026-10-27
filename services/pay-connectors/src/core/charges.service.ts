@@ -9,6 +9,7 @@ import { newId } from '../ids';
 import { lockCharge, recordAndApply } from './apply';
 import { parseCreateCharge, type CreateCharge } from './charge.dto';
 import { inTransaction, uniqueViolation } from './db';
+import type { PayMode } from './pay-mode';
 import { ProviderGateway } from './provider-gateway';
 import { withSendLock } from './send-lock';
 import { chargeView, publicStatus, TERMINAL, toChargeRow, type ChargeRow } from './rows';
@@ -29,15 +30,16 @@ export class ChargesService {
     private readonly gateway: ProviderGateway,
   ) {}
 
-  async byId(id: string): Promise<ChargeRow> {
+  /** Lee un cobro por (id, modo): un id del OTRO modo da 404, igual que uno inexistente (no revela que existe). */
+  async byId(id: string, mode: PayMode): Promise<ChargeRow> {
     if (!ID.test(id)) throw new ProblemError('resource_not_found');
-    const found = await this.pool.query('SELECT * FROM connector_charges WHERE id = $1', [id]);
+    const found = await this.pool.query('SELECT * FROM connector_charges WHERE id = $1 AND pay_mode = $2', [id, mode]);
     if (found.rows.length === 0) throw new ProblemError('resource_not_found');
     return toChargeRow(found.rows[0]);
   }
 
-  private async byKey(caller: string, key: string): Promise<ChargeRow> {
-    const found = await this.pool.query('SELECT * FROM connector_charges WHERE caller = $1 AND idempotency_key = $2', [caller, key]);
+  private async byKey(caller: string, mode: PayMode, key: string): Promise<ChargeRow> {
+    const found = await this.pool.query('SELECT * FROM connector_charges WHERE caller = $1 AND pay_mode = $2 AND idempotency_key = $3', [caller, mode, key]);
     if (found.rows.length === 0) throw new Error('Punto de recuperación sin cobro: la tabla y la Idempotency-Key se desincronizaron');
     return toChargeRow(found.rows[0]);
   }
@@ -50,23 +52,23 @@ export class ChargesService {
    *  2. `charge_recorded → charge_sent`: se llama al proveedor FUERA de toda transacción de base y el resultado se guarda.
    * Si el proceso muere entre una y otra, el reintento con la misma clave retoma en la fase 2 con la MISMA referencia (`ch_…`).
    */
-  async create(caller: string, key: string, body: unknown): Promise<IdempotencyResult> {
+  async create(caller: string, mode: PayMode, key: string, body: unknown): Promise<IdempotencyResult> {
     const input = parseCreateCharge(body, this.clock.now());
-    return this.idempotency.execute({ scope: caller, key, requestHash: hashRequest({ method: 'POST', path: '/charges', body }) }, async (ctx): Promise<HandlerResult> => {
+    return this.idempotency.execute({ scope: `${caller}|${mode}`, key, requestHash: hashRequest({ method: 'POST', path: '/charges', body }) }, async (ctx): Promise<HandlerResult> => {
       let row: ChargeRow;
       if (ctx.recoveryPoint === 'started') {
         row = await ctx.atomic('charge_recorded', async (client) => {
-          const choice = await this.routing.choose({ method: input.method, amountMinor: input.amountMinor, ...(input.preferred && { preferred: input.preferred }) });
+          const choice = await this.routing.choose({ method: input.method, amountMinor: input.amountMinor, payMode: mode, ...(input.preferred && { preferred: input.preferred }) });
           const first = choice.candidates[0];
           if (!first) throw new ProblemError('connector_unavailable', { detail: 'Ningún conector disponible para este medio de pago' });
           const connector = this.gateway.connector(first);
           const id = newId('ch');
           try {
             const inserted = await client.query(
-              `INSERT INTO connector_charges (id, caller, idempotency_key, payment_intent_id, merchant_id, connector, mode, method, amount_minor, currency,
+              `INSERT INTO connector_charges (id, caller, idempotency_key, payment_intent_id, merchant_id, pay_mode, connector, connector_mode, method, amount_minor, currency,
                                               routing_version, routing_rule, expires_at, next_poll_at, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'BOB', $10, $11, $12, $13, $13, $13) RETURNING *`,
-              [id, caller, key, input.paymentIntentId, input.merchantId, first, connector.mode, input.method, input.amountMinor.toString(), choice.version, choice.ruleId, input.expiresAt, this.nextPoll(this.clock.now(), 0)],
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'BOB', $11, $12, $13, $14, $14, $14) RETURNING *`,
+              [id, caller, key, input.paymentIntentId, input.merchantId, mode, first, connector.mode, input.method, input.amountMinor.toString(), choice.version, choice.ruleId, input.expiresAt, this.nextPoll(this.clock.now(), 0)],
             );
             return toChargeRow(inserted.rows[0]);
           } catch (error) {
@@ -77,7 +79,7 @@ export class ChargesService {
           }
         });
       } else {
-        row = await this.byKey(caller, key);
+        row = await this.byKey(caller, mode, key);
       }
       if (ctx.recoveryPoint === 'charge_recorded') row = await this.send(ctx, row, input);
       return { status: 201, body: chargeView(row) };
@@ -95,7 +97,7 @@ export class ChargesService {
    */
   private async send(ctx: IdempotencyContext, initial: ChargeRow, input: CreateCharge): Promise<ChargeRow> {
     return withSendLock(this.lockPool, initial.id, async () => {
-      const row = await this.byId(initial.id);
+      const row = await this.byId(initial.id, initial.pay_mode);
       if (row.provider_reference !== null || row.provider_status !== 'pending') return row;
       return this.sendLocked(ctx, row, input);
     });
@@ -105,14 +107,14 @@ export class ChargesService {
     // Un intento anterior pudo haber llegado al proveedor sin que supiéramos el resultado: solo se reintenta ese conector.
     const candidates: ConnectorCode[] = row.ambiguous
       ? [row.connector]
-      : [...(await this.routing.choose({ method: input.method, amountMinor: input.amountMinor, ...(input.preferred && { preferred: input.preferred }) })).candidates];
+      : [...(await this.routing.choose({ method: input.method, amountMinor: input.amountMinor, payMode: row.pay_mode, ...(input.preferred && { preferred: input.preferred }) })).candidates];
     if (candidates.length === 0) throw new ProblemError('connector_unavailable', { detail: 'Ningún conector disponible para este medio de pago' });
     // Si ya hubo una llamada en vuelo, lo que pase ahora NO prueba que el proveedor no tenga el cobro (regla 11 del CLAUDE.md).
     const priorAmbiguous = row.ambiguous;
 
     for (const code of candidates) {
       // Marca «llamada en vuelo» ANTES de llamar: si el proceso muere ahora, el reintento no cambia de conector.
-      const claimed = await this.pool.query('UPDATE connector_charges SET connector = $2, mode = $3, ambiguous = true, send_claims = send_claims + 1, updated_at = $4 WHERE id = $1 RETURNING send_claims AS mine', [row.id, code, this.gateway.connector(code).mode, this.clock.now()]);
+      const claimed = await this.pool.query('UPDATE connector_charges SET connector = $2, connector_mode = $3, ambiguous = true, send_claims = send_claims + 1, updated_at = $4 WHERE id = $1 RETURNING send_claims AS mine', [row.id, code, this.gateway.connector(code).mode, this.clock.now()]);
       const mine = (claimed.rows[0] as { mine: number }).mine;
       try {
         const result = await this.gateway.callIdempotent(code, row.id, 'create_charge', (connector) =>
@@ -121,6 +123,7 @@ export class ChargesService {
               reference: row.id,
               paymentIntentId: row.payment_intent_id,
               merchantId: row.merchant_id,
+              payMode: row.pay_mode,
               amountMinor: row.amount_minor,
               currency: 'BOB',
               method: row.method,
@@ -134,7 +137,7 @@ export class ChargesService {
         return await ctx.atomic('charge_sent', async (client) => {
           const updated = await client.query(
             `UPDATE connector_charges
-                SET connector = $2, mode = $3, ambiguous = false, provider_status = $4, provider_reference = $5, next_action = $6::jsonb, failure_code = $7, updated_at = $8
+                SET connector = $2, connector_mode = $3, ambiguous = false, provider_status = $4, provider_reference = $5, next_action = $6::jsonb, failure_code = $7, updated_at = $8
               WHERE id = $1 RETURNING *`,
             [row.id, code, this.gateway.connector(code).mode, result.status, result.providerReference, result.nextAction ? JSON.stringify(result.nextAction) : null, result.failureCode ?? null, this.clock.now()],
           );
@@ -171,8 +174,8 @@ export class ChargesService {
 
   // ───────────────────────── GET /charges/{id}/status ─────────────────────────
 
-  async status(id: string, refresh: boolean): Promise<Record<string, unknown>> {
-    let row = await this.byId(id);
+  async status(id: string, refresh: boolean, mode: PayMode): Promise<Record<string, unknown>> {
+    let row = await this.byId(id, mode);
     let stale = false;
     if (refresh && !TERMINAL.has(row.provider_status) && row.provider_reference !== null) {
       try {
@@ -181,7 +184,7 @@ export class ChargesService {
           await inTransaction(this.pool, (client) =>
             recordAndApply(client, row.connector, { providerEventId: `inquiry:${row.id}:${observed.status}`, chargeReference: row.id, status: observed.status, occurredAt: observed.occurredAt, ...(observed.failureCode && { failureCode: observed.failureCode }) }, 'status_inquiry', this.clock.now()),
           );
-          row = await this.byId(id);
+          row = await this.byId(id, mode);
         }
       } catch (error) {
         if (!(error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError)) throw error;
@@ -192,7 +195,7 @@ export class ChargesService {
       charge_id: row.id,
       status: publicStatus(row),
       connector: row.connector,
-      mode: row.mode,
+      mode: row.connector_mode,
       failure_code: row.failure_code,
       stale,
       checked_at: this.clock.now().toISOString(),
@@ -201,10 +204,10 @@ export class ChargesService {
 
   // ───────────────────────── POST /charges/{id}/cancel ─────────────────────────
 
-  async cancel(caller: string, key: string, id: string): Promise<IdempotencyResult> {
+  async cancel(caller: string, mode: PayMode, key: string, id: string): Promise<IdempotencyResult> {
     if (!ID.test(id)) throw new ProblemError('resource_not_found');
-    return this.idempotency.execute({ scope: caller, key, requestHash: hashRequest({ method: 'POST', path: `/charges/${id}/cancel` }) }, async (): Promise<HandlerResult> => {
-      const row = await this.byId(id);
+    return this.idempotency.execute({ scope: `${caller}|${mode}`, key, requestHash: hashRequest({ method: 'POST', path: `/charges/${id}/cancel` }) }, async (): Promise<HandlerResult> => {
+      const row = await this.byId(id, mode);
       if (row.provider_status === 'canceled') return { status: 200, body: chargeView(row) }; // ya anulado: idempotente
       if (TERMINAL.has(row.provider_status)) throw new ProblemError('invalid_state_transition', { detail: 'El cobro ya terminó' });
       if (row.provider_reference !== null) {

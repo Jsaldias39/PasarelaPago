@@ -67,8 +67,10 @@ export class PaymentsService {
       await this.orchestrator.startPayment(id);
       const row = await this.waitForAction(id);
       // Ni el conector ni la configuración (T-03) informaron la cuenta recaudadora: no hay adónde transferir. El cargo ya se anuló.
-      if (row.status === 'failed' && row.failureCode === 'payment_method_unavailable') {
-        throw new ProblemError('validation_failed', { detail: 'La transferencia bancaria no está habilitada', errors: [{ field: 'payment_method.type', code: 'payment_method_unavailable' }] });
+      // `payment_method_unavailable` todavía no es un código del catálogo (PROP-15): la respuesta y el evento usan el MISMO `validation_failed`
+      // y el motivo va en `detail` y en el código de CAMPO (que sí está documentado en problem.schema.json).
+      if (row.status === 'failed' && row.failureReason === 'payment_method_unavailable') {
+        throw new ProblemError('validation_failed', { detail: 'payment_method_unavailable: la cuenta recaudadora de la transferencia bancaria no está disponible', errors: [{ field: 'payment_method.type', code: 'payment_method_unavailable' }] });
       }
       return { status: 201, body: toPublicIntent(row) };
     });

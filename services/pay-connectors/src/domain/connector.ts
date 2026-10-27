@@ -18,6 +18,8 @@ export interface ProviderChargeRequest {
   readonly reference: string;
   readonly paymentIntentId: string;
   readonly merchantId: string;
+  /** Modo de la CLAVE del pedido (D-28): viaja a toda llamada saliente que mueve dinero. */
+  readonly payMode: 'test' | 'live';
   readonly amountMinor: bigint;
   readonly currency: 'BOB';
   readonly method: Method;

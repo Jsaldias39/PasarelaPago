@@ -24,6 +24,8 @@ export interface SettlementConfig {
   readonly stuckAfterMs: number;
   /** Formato en que cada conector entrega el extracto (`SETTLEMENT_STATEMENT_FORMATS=mercantil_qr:camt053,bank_transfer:csv`); el resto, JSON. */
   readonly statementFormats: Readonly<Record<string, 'json' | 'camt053' | 'csv'>>;
+  /** Emitir `mode` en `settlement.batch.closed` y `reconciliation.exception.opened`. Apagado hasta que el AsyncAPI lo declare (ver `event-mode.ts`). */
+  readonly eventsCarryMode: boolean;
   readonly operator: { readonly publicKeyPem: string; readonly issuer: string; readonly audience: string };
 }
 
@@ -78,6 +80,7 @@ export function loadSettlementConfig(env: NodeJS.ProcessEnv = process.env): Sett
     sweepIntervalMs: integer(env, 'SETTLEMENT_SWEEP_INTERVAL_MS', 0, 0),
     stuckAfterMs: integer(env, 'SETTLEMENT_STUCK_AFTER_MS', 60_000, 0),
     statementFormats: statementFormats(env.SETTLEMENT_STATEMENT_FORMATS),
+    eventsCarryMode: flag(env, 'EVENTS_CARRY_MODE'),
     operator: {
       publicKeyPem: required(env, 'OPERATOR_TOKEN_PUBLIC_KEY').replace(/\\n/g, '\n'),
       issuer: required(env, 'OPERATOR_TOKEN_ISSUER'),
@@ -101,4 +104,11 @@ function transferConnector(raw: string | undefined, payMode: PayMode): Settlemen
   if (raw !== 'mock' && raw !== 'mercantil_qr' && raw !== 'mercantil_card' && raw !== 'bank_transfer') throw new Error(`SETTLEMENT_TRANSFER_CONNECTOR inválido: ${raw}`);
   if (raw === 'mock' && payMode === 'live') throw new Error('SETTLEMENT_TRANSFER_CONNECTOR=mock no puede correr con PAY_MODE=live');
   return raw;
+}
+
+function flag(env: NodeJS.ProcessEnv, name: string): boolean {
+  const raw = env[name];
+  if (raw === undefined || raw === '' || raw === 'false') return false;
+  if (raw === 'true') return true;
+  throw new Error(`${name} inválido: ${raw} (true | false)`);
 }

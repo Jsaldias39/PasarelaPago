@@ -273,6 +273,7 @@ export class BatchService {
       if (failed === 0) {
         await emitBatchClosed(client, {
           batchId: batch.id,
+          mode: batch.mode,
           periodFrom: batch.period_from,
           periodTo: batch.release_before,
           merchantsCount: Number(t.merchants),

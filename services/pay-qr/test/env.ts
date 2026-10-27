@@ -8,3 +8,4 @@ process.env.DB_PASSWORD ??= 'dev_only_qr';
 process.env.NATS_URL ??= 'nats://127.0.0.1:54222';
 // GUID PROVISIONAL de pruebas: el real lo asigna el banco o el regulador (Q-01, Q-11).
 process.env.QR_ACCOUNT_GUID ??= 'guid.provisional';
+process.env.PAY_MODE ??= 'sandbox';

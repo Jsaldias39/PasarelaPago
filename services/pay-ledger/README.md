@@ -38,6 +38,17 @@ Cómo se separa, sin reglas de negocio nuevas:
 - El invariante global verifica cada `(modo, cuenta)` por separado.
 - Los eventos `ledger.*` NO llevan `mode`: el AsyncAPI es `additionalProperties: false` y no lo declara (propuesta en `docs/trabajo/ola-2/P2/PROPUESTAS.md`).
 
+## Cambiar la derivación de ids (migración obligatoria)
+
+Los ids de TigerBeetle (cuentas y transferencias) y los públicos (`tx_`, `hd_`, `tf_`, `sl_`) **no se guardan como un contador: se derivan** con SHA-256 de
+`namespace | tipo | modo | business_ref | intento | índice` (`src/ledger/ids.ts`). Por eso son **deterministas y estables** entre reinicios y entre réplicas: no dependen del reloj,
+del azar, del idioma ni de la zona horaria (`test/ids.spec.ts` lo prueba con valores fijados y con procesos aparte).
+
+Esa estabilidad es lo que une cada fila de Postgres con su cuenta o transferencia en TigerBeetle. **Cambiar la derivación en un ledger con datos** —el algoritmo, el orden de las partes,
+el modo, `LEDGER_ID_NAMESPACE` o `BASE_NAMESPACE`— hace que los ids nuevos no coincidan con los ya asentados: el dinero registrado queda huérfano (las cuentas «nuevas» arrancan en cero
+y los asientos repetidos no se reconocen como repetición). **Exige una migración** (recalcular y reasignar, o transferir saldos con asientos de apertura), nunca un despliegue sin más.
+La ola 2 la cambió una vez al agregar el modo (D-28): solo era posible porque no había un ledger con datos.
+
 ## Probar
 
 ```bash

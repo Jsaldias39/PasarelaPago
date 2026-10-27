@@ -275,7 +275,7 @@ describe('POST /transfers', () => {
     it('`not_found` EXPLÍCITO del proveedor ⇒ 404 transfer_not_found, y la fila igual se conserva', async () => {
       const b = body();
       await t.db.pool.query(
-        "INSERT INTO connector_transfers (id, business_ref, attempt, caller, connector, mode, amount_minor, currency, destination_ref, may_have_reached_provider) VALUES ('tr_ghostghostghost1', $1, 1, 'pay-settlement', 'mock', 'sandbox', 1000, 'BOB', 'dest', true)",
+        "INSERT INTO connector_transfers (id, business_ref, attempt, pay_mode, caller, connector, connector_mode, amount_minor, currency, destination_ref, may_have_reached_provider) VALUES ('tr_ghostghostghost1', $1, 1, 'test', 'pay-settlement', 'mock', 'sandbox', 1000, 'BOB', 'dest', true)",
         [b.business_ref],
       );
       const response = await getTransfer(`${b.business_ref}:1`);

@@ -19,7 +19,7 @@ export async function settleIntent(
   deps: Pick<Deps, 'tx'>,
   intentId: string,
   to: 'succeeded' | 'failed' | 'canceled' | 'expired',
-  patch: { failureCode?: string; ledgerTransferId?: string } = {},
+  patch: { failureCode?: string; failureReason?: string; ledgerTransferId?: string } = {},
   from: readonly IntentStatus[] = ['processing', 'requires_action'],
 ): Promise<{ intent: IntentRow; changed: boolean }> {
   return deps.tx(async (db) => {

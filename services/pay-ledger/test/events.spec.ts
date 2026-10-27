@@ -101,3 +101,51 @@ describe('eventos del ledger (outbox, en la misma transacción)', () => {
     expect(parseAccount('merchant:mc_k3m9x2q7ab:pending')?.merchantId).toBe('mc_k3m9x2q7ab');
   });
 });
+
+describe('`mode` en los eventos (D-28): apagado hasta que el AsyncAPI lo declare, listo para encenderse', () => {
+  const all = async () => (await ctx.db.pool.query('SELECT type, envelope FROM outbox_events ORDER BY seq')).rows as { type: string; envelope: { data: Record<string, unknown> } }[];
+  const exercise = async (mode: 'test' | 'live') => {
+    const m = merchantId();
+    const tx = (legs: object[], caller = 'pay-payments') => ctx.as(caller, mode).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    await tx([leg(CLEARING, `merchant:${m}:pending`, 900, 'charge')]);
+    await tx([leg(`merchant:${m}:pending`, `merchant:${m}:available`, 900, 'release')], 'pay-settlement');
+    const hold = (amount: number) => ctx.as('pay-settlement', mode).post('/holds', { business_ref: businessRef('payout'), attempt: 1, debit_account: `merchant:${m}:available`, credit_account: 'payout:clearing', amount_minor: amount, currency: 'BOB', expires_in_seconds: 60 }).set('idempotency-key', key());
+    const h1 = await hold(100);
+    await ctx.as('pay-settlement', mode).post(`/holds/${h1.body.id}/post`).set('idempotency-key', key());
+    const h2 = await hold(100);
+    await ctx.as('pay-settlement', mode).post(`/holds/${h2.body.id}/void`).set('idempotency-key', key());
+    await hold(100);
+    await ctx.holds.sweepExpired(0, new Date(Date.now() + 120_000));
+  };
+  const TYPES = ['ledger.transfer.posted', 'ledger.hold.created', 'ledger.hold.posted', 'ledger.hold.voided', 'ledger.hold.expired'];
+
+  it('por defecto NO sale `mode` y todos los eventos validan contra el contrato de hoy', async () => {
+    const before = (await all()).length;
+    await exercise('live');
+    const fresh = (await all()).slice(before);
+    expect(new Set(fresh.map((e) => e.type))).toEqual(new Set(TYPES));
+    for (const e of fresh) {
+      expect(e.envelope.data).not.toHaveProperty('mode');
+      expect((validators.get(e.type) as EventValidator)(e.envelope)).toEqual([]);
+    }
+  });
+
+  it.each(['test', 'live'] as const)('encendido (EVENTS_CARRY_MODE) cada evento lleva el modo %s de su asiento o retención; contra el contrato solo puede diferir en `mode`', async (mode) => {
+    const { setEventsCarryMode } = await import('../src/ledger/event-mode');
+    setEventsCarryMode(true);
+    try {
+      const before = (await all()).length;
+      await exercise(mode);
+      const fresh = (await all()).slice(before);
+      expect(new Set(fresh.map((e) => e.type))).toEqual(new Set(TYPES));
+      for (const e of fresh) {
+        expect(e.envelope.data.mode).toBe(mode);
+        // Mientras el contrato no lo declare, el ÚNICO error es `mode`; cuando lo declare, no habrá ninguno (esta prueba sirve de canario).
+        const errors = (validators.get(e.type) as EventValidator)(e.envelope);
+        expect(errors.filter((x) => !/additional propert|\bmode\b/i.test(x))).toEqual([]);
+      }
+    } finally {
+      setEventsCarryMode(false);
+    }
+  });
+});

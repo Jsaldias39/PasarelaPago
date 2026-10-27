@@ -48,9 +48,9 @@ export function crc16(text: string): string {
 
 /** [DOBLE] pay-qr: devuelve un payload con forma de EMVCo MPM y CRC válido. NO es el QR real (ese lo genera pay-qr). */
 export class FakeQr implements QrPort {
-  readonly issued: Array<{ chargeId: string; amountMinor: bigint }> = [];
-  async issue(input: { chargeId: string; amountMinor: bigint; expiresAt: Date }): Promise<{ payload: string; expiresAt: Date }> {
-    this.issued.push({ chargeId: input.chargeId, amountMinor: input.amountMinor });
+  readonly issued: Array<{ chargeId: string; amountMinor: bigint; payMode: 'test' | 'live' }> = [];
+  async issue(input: { chargeId: string; amountMinor: bigint; payMode: 'test' | 'live'; expiresAt: Date }): Promise<{ payload: string; expiresAt: Date }> {
+    this.issued.push({ chargeId: input.chargeId, amountMinor: input.amountMinor, payMode: input.payMode });
     const body = `000201010212540${String(input.amountMinor).length}${input.amountMinor}5802BO6304`;
     return { payload: `${body}${crc16(body)}`, expiresAt: input.expiresAt };
   }
@@ -111,7 +111,10 @@ export async function createTestApp(options: { controllers?: Array<new (...args:
   };
 }
 
-const as = (service: string) => ({ 'x-service-id': service });
+/** Todas las llamadas de las pruebas llevan el modo de la CLAVE (`test`, D-28) salvo que la prueba lo quite a propósito. */
+const as = (service: string, mode: 'test' | 'live' = 'test') => ({ 'x-service-id': service, 'x-pay-mode': mode });
+export const asPaymentsIn = (mode: 'test' | 'live') => as('pay-payments', mode);
+export const asSettlementIn = (mode: 'test' | 'live') => as('pay-settlement', mode);
 export const asPayments = as('pay-payments');
 export const asSettlement = as('pay-settlement');
 

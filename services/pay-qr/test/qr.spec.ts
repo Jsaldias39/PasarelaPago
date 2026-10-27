@@ -21,7 +21,8 @@ let db: IsolatedDatabase;
 let appPool: Pool;
 let app: INestApplication;
 let contract: ContractValidator;
-const as = (service = 'pay-connectors') => ({ 'x-service-id': service });
+/** Todas las llamadas llevan el modo de la CLAVE (`test`, D-28) salvo que la prueba lo quite a propósito. */
+const as = (service = 'pay-connectors', mode: string | undefined = 'test') => ({ 'x-service-id': service, ...(mode !== undefined && { 'x-pay-mode': mode }) });
 let seq = 0;
 const uniqueKey = () => `key-${process.pid}-${(seq += 1)}-padding`;
 const intentId = () => `pi_${String(Date.now()).slice(-8)}${String((seq += 1)).padStart(4, '0')}xyz`;

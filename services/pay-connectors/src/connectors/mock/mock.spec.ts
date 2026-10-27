@@ -20,6 +20,7 @@ const request = (cents: number, over: Partial<ProviderChargeRequest> = {}): Prov
   reference: `ch_ref${String((n += 1)).padStart(12, '0')}`,
   paymentIntentId: 'pi_aaaaaaaaaaaaaaaa',
   merchantId: 'mc_aaaaaaaaaaaaaaaa',
+  payMode: 'test',
   amountMinor: 10000n + BigInt(cents),
   currency: 'BOB',
   method: 'qr',

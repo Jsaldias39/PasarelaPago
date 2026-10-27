@@ -33,6 +33,11 @@ export class ConnectorsDouble {
   bankAccount: { bank_name: string; account_holder: string; account_number: string } | null = null;
   /** `GET /refunds/{id}?refresh=true` no puede consultar al proveedor: devuelve lo último que sabía con `stale: true`. */
   refundInquiryStale = false;
+  /** `GET /refunds/{id}` tarda tanto (ms) en contestar: prueba un conector lento y, si supera el timeout del cliente, un resultado ambiguo. */
+  refundInquiryDelayMs = 0;
+  /** `GET /refunds/{id}` y `GET /charges/{id}/status` responden `404` con el cuerpo exacto: «este servicio no tiene eso». */
+  refundInquiryNotFound = false;
+  chargeStatusNotFound = false;
   /** Cuántos cargos DISTINTOS se crearon por intento (debe ser 1 aunque la llamada se repita). */
   readonly chargeCreations = new Map<string, number>();
   readonly server: DoubleServer;
@@ -118,7 +123,7 @@ export class ConnectorsDouble {
     const status = /^\/charges\/(ch_[a-z0-9]+)\/status$/.exec(path);
     if (method === 'GET' && status) {
       const charge = this.charges.get(status[1]);
-      if (!charge) return problem('resource_not_found', 404);
+      if (!charge || this.chargeStatusNotFound) return problem('resource_not_found', 404);
       return { status: 200, body: { charge_id: charge.id, status: charge.status, connector: 'mock', mode: 'sandbox', failure_code: null, checked_at: new Date().toISOString() } };
     }
     const cancel = /^\/charges\/(ch_[a-z0-9]+)\/cancel$/.exec(path);
@@ -148,9 +153,9 @@ export class ConnectorsDouble {
     const refundGet = /^\/refunds\/(cr_[a-z0-9]+)$/.exec(path);
     if (method === 'GET' && refundGet) {
       const record = this.refunds.get(refundGet[1] as string);
-      if (!record) return problem('resource_not_found', 404);
+      if (!record || this.refundInquiryNotFound) return problem('resource_not_found', 404);
       const stale = req.query.get('refresh') === 'true' && this.refundInquiryStale;
-      return { status: 200, body: { ...this.refundView(record), ...(stale ? { status: 'pending' as const, failure_code: null, stale: true } : {}) } };
+      return { status: 200, ...(this.refundInquiryDelayMs ? { delayMs: this.refundInquiryDelayMs } : {}), body: { ...this.refundView(record), ...(stale ? { status: 'pending' as const, failure_code: null, stale: true } : {}) } };
     }
     return problem('resource_not_found', 404);
   }

@@ -5,8 +5,8 @@ import type { IntentRow, PayMode } from '../persistence/intents.repo';
 /** Forma de cada evento: `contracts/asyncapi/payments.yaml`. `data` lleva SOLO ids, estados e importes (x-pii: none). */
 
 const INTENT_FAILURE_CODES = new Set(['insufficient_funds', 'connector_unavailable', 'risk_unavailable', 'risk_denied', 'payment_declined', 'ledger_unavailable', 'merchant_suspended', 'validation_failed', 'internal_error']);
-/** Códigos de otros contratos que se publican con el nombre del catálogo (`card_declined` del conector, `payment_method_unavailable` de este servicio). */
-const FAILURE_ALIASES: Record<string, string> = { card_declined: 'payment_declined', payment_method_unavailable: 'validation_failed' };
+/** Códigos de otros contratos que se publican con el nombre del catálogo (`card_declined` del conector). */
+const FAILURE_ALIASES: Record<string, string> = { card_declined: 'payment_declined' };
 const REFUND_FAILURE_CODES = new Set(['insufficient_funds', 'connector_unavailable', 'ledger_unavailable', 'invalid_state_transition', 'internal_error']);
 /** El id del asiento (`tx_…`) o de la retención (`hd_…`) tal como lo devolvió el ledger: sin él no hay evento de éxito. */
 function required(value: string | null | undefined, name: string): string {

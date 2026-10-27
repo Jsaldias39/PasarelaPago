@@ -13,12 +13,12 @@ export class HttpQrClient implements QrPort {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
-  async issue(input: { chargeId: string; paymentIntentId: string; merchantId: string; amountMinor: bigint; expiresAt: Date }): Promise<{ payload: string; expiresAt: Date }> {
+  async issue(input: { chargeId: string; paymentIntentId: string; merchantId: string; payMode: 'test' | 'live'; amountMinor: bigint; expiresAt: Date }): Promise<{ payload: string; expiresAt: Date }> {
     let response: Response;
     try {
       response = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, '')}/qr`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'idempotency-key': `qr-${input.chargeId}`, ...serviceHeaders('pay-connectors') },
+        headers: { 'content-type': 'application/json', 'idempotency-key': `qr-${input.chargeId}`, ...serviceHeaders('pay-connectors', { 'x-pay-mode': input.payMode }) }, // D-28: el modo de la clave viaja a pay-qr
         body: JSON.stringify({
           kind: 'dynamic',
           merchant_id: input.merchantId,

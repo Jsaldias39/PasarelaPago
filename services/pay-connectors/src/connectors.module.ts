@@ -8,6 +8,7 @@ import { HttpQrClient } from './connectors/qr-http.client';
 import { CallbacksService } from './core/callbacks.service';
 import { ChargesService } from './core/charges.service';
 import { HealthService } from './core/health.service';
+import { ModeGate } from './core/pay-mode';
 import { MockPumpService, SIMULATED_BANK } from './core/mock-pump.service';
 import { PollerService } from './core/poller.service';
 import { ProviderGateway } from './core/provider-gateway';
@@ -80,6 +81,7 @@ const unconfiguredQr: QrPort = {
       },
     },
     { provide: IdempotencyStore, inject: [PG_POOL], useFactory: (pool: Pool) => new IdempotencyStore(pool) },
+    ModeGate,
     HealthService,
     RoutingService,
     ProviderGateway,

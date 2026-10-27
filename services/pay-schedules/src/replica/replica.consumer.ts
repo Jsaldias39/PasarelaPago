@@ -13,7 +13,7 @@ const NAK_DELAY_MS = 2_000;
 /**
  * Consumidor durable de JetStream de `merchant.activated|suspended|closed`. Entrega al menos una vez; `processOnce` (inbox) hace
  * que cada evento tenga un solo efecto. Un evento mal formado se descarta con `term`; un fallo de base hace `nak` con demora.
- * NO se probó contra un NATS real (ver el reporte): sí `parseMerchantEvent`, `applyMerchantEvent` y el inbox.
+ * Probado contra un NATS real con eventos del AsyncAPI vigente (test/nats-replica.spec.ts).
  */
 @Injectable()
 export class MerchantReplicaConsumer implements OnModuleInit, OnApplicationShutdown {
@@ -21,6 +21,11 @@ export class MerchantReplicaConsumer implements OnModuleInit, OnApplicationShutd
   private connection: NatsConnection | undefined;
   private messages: ConsumerMessages | undefined;
   private stopped = false;
+  private resolveReady!: () => void;
+  /** Se resuelve cuando el consumidor ya está leyendo del stream (las pruebas esperan esto antes de publicar). */
+  readonly ready = new Promise<void>((resolve) => {
+    this.resolveReady = resolve;
+  });
 
   constructor(
     @Inject(SERVICE_CONFIG) private readonly config: ServiceConfig,
@@ -60,11 +65,12 @@ export class MerchantReplicaConsumer implements OnModuleInit, OnApplicationShutd
     try {
       await manager.consumers.info(stream, durable);
     } catch {
-      const filters = ['merchant.activated', 'merchant.suspended', 'merchant.closed'].map((t) => `pay-merchants.${t}`);
+      const filters = ['merchant.activated', 'merchant.suspended', 'merchant.closed'].map((t) => `${this.settings.merchantsSubjectPrefix}.${t}`);
       await manager.consumers.add(stream, { durable_name: durable, ack_policy: AckPolicy.Explicit, deliver_policy: DeliverPolicy.All, filter_subjects: filters, max_deliver: 20 });
     }
     const consumer = await this.connection.jetstream().consumers.get(stream, durable);
     this.messages = await consumer.consume({ max_messages: 50 });
+    this.resolveReady();
     for await (const message of this.messages) await this.handle(message);
   }
 

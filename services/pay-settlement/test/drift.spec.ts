@@ -97,5 +97,11 @@ describe('deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2)', () => {
     expect(await bad(ex, ['rx_a', 'open', 'dismiss', 'a'.repeat(64)])).toBe('23514');
     expect(await bad(ex, ['rx_b', 'open', null, 'b'.repeat(64)])).toBe('aceptó');
     expect(await bad(ex, ['rx_c', 'open', null, 'b'.repeat(64)])).toBe('23505');
+    // forma de la excepción según su origen: una contradicción de pay-payments no tiene corrida ni conector; las de una corrida sí, y siempre con modo
+    const contradiction = (columns: string, values: string) => `INSERT INTO settlement_exceptions (id, kind, difference_minor, statement_line_ref, status, dedupe_key, ${columns}) VALUES ($1, 'payment_contradiction', 0, 'c', 'open', $2, ${values})`;
+    expect(await bad(contradiction('source_detail', `'{"kind":"status_conflict"}'::jsonb`), ['rx_d', 'd'.repeat(64)])).toBe('aceptó'); // modo desconocido (NULL) permitido
+    expect(await bad(contradiction('source_detail, run_id', `'{}'::jsonb, 'rr_a'`), ['rx_e', 'e'.repeat(64)])).toBe('23514'); // no tiene corrida
+    expect(await bad(contradiction('mode', `'test'`), ['rx_f', 'f'.repeat(64)])).toBe('23514'); // sin detalle de origen
+    expect(await bad(`INSERT INTO settlement_exceptions (id, run_id, connector, kind, difference_minor, statement_line_ref, status, dedupe_key, mode) VALUES ('rx_g','rr_a','mock','amount_mismatch',1,'l','open','${'g'.repeat(64)}', NULL)`)).toBe('23514'); // una de corrida exige modo
   });
 });

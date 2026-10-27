@@ -176,12 +176,15 @@ CREATE TABLE settlement_statement_lines (
 
 -- Diferencias que una persona tiene que mirar. El ledger NO se ajusta solo (REQ-P2-6). `dedupe_key` evita reabrir la misma
 -- diferencia en cada corrida.
+-- `payment_contradiction` NO sale de una corrida: la abre el consumidor de `payment_intent.contradiction_detected` (pay-payments), por eso
+-- no tiene corrida ni conector (`run_id` y `connector` NULL), y `mode` puede ser NULL si el productor no lo informó (visible desde los dos
+-- modos hasta que una persona la resuelva). Las demás exigen corrida, conector y modo.
 CREATE TABLE settlement_exceptions (
   id                     text        NOT NULL,          -- rx_<base>
-  mode                   text        NOT NULL CHECK (mode IN ('test', 'live')),
-  run_id                 text        NOT NULL REFERENCES settlement_reconciliation_runs (id),
-  connector              text        NOT NULL,
-  kind                   text        NOT NULL CHECK (kind IN ('missing_in_ledger', 'missing_in_statement', 'amount_mismatch', 'duplicate_in_statement', 'unknown_reference')),
+  mode                   text        CHECK (mode IN ('test', 'live')),
+  run_id                 text        REFERENCES settlement_reconciliation_runs (id),
+  connector              text,
+  kind                   text        NOT NULL CHECK (kind IN ('missing_in_ledger', 'missing_in_statement', 'amount_mismatch', 'duplicate_in_statement', 'unknown_reference', 'payment_contradiction')),
   provider_reference     text,
   business_ref           text,
   statement_amount_minor bigint      CHECK (statement_amount_minor >= 0),
@@ -190,6 +193,7 @@ CREATE TABLE settlement_exceptions (
   statement_line_ref     text        NOT NULL,
   merchant_id            text,
   payment_intent_id      text,
+  source_detail          jsonb,                         -- solo payment_contradiction: {kind, current_status, incoming_status, detected_at}; sin datos personales
   status                 text        NOT NULL CHECK (status IN ('open', 'resolved', 'dismissed')),
   resolution             text        CHECK (resolution IN ('request_adjustment', 'dismiss')),
   resolved_by            text,
@@ -199,6 +203,10 @@ CREATE TABLE settlement_exceptions (
   created_at             timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT settlement_exceptions_pkey PRIMARY KEY (id),
   CONSTRAINT settlement_exceptions_dedupe_unique UNIQUE (dedupe_key),
+  CONSTRAINT settlement_exceptions_origin_shape CHECK (
+    (kind = 'payment_contradiction' AND run_id IS NULL AND connector IS NULL AND source_detail IS NOT NULL)
+    OR (kind <> 'payment_contradiction' AND run_id IS NOT NULL AND connector IS NOT NULL AND mode IS NOT NULL AND source_detail IS NULL)
+  ),
   CONSTRAINT settlement_exceptions_resolution_consistency CHECK ((status = 'open') = (resolution IS NULL))
 );
 CREATE INDEX settlement_exceptions_page ON settlement_exceptions (mode, created_at DESC, id DESC);

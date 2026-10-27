@@ -43,7 +43,7 @@ export class HealthService {
     const now = this.clock.now();
     await inTransaction(this.pool, async (client) => {
       await client.query(
-        `INSERT INTO connector_health (connector, mode, status, checked_at) VALUES ($1, $2, 'up', $3) ON CONFLICT (connector) DO NOTHING`,
+        `INSERT INTO connector_health (connector, connector_mode, status, checked_at) VALUES ($1, $2, 'up', $3) ON CONFLICT (connector) DO NOTHING`,
         [code, connector?.mode ?? this.registry.mode, now],
       );
       const found = await client.query('SELECT connector, status, consecutive_failures, degraded_since FROM connector_health WHERE connector = $1 FOR UPDATE', [code]);

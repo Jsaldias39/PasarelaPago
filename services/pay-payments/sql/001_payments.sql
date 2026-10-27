@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS payment_intents (
   metadata                jsonb       NOT NULL DEFAULT '{}'::jsonb,
   next_action             jsonb,
   failure_code            text,
+  -- Motivo fino de un fallo, para el `detail` de la respuesta; el `failure_code` siempre es del catálogo (@pay/problem). Ej.: payment_method_unavailable.
+  failure_reason          text,
   connector               text,                                    -- conector que tomó el cobro (mock, mercantil_qr, …)
   charge_id               text,                                    -- id del cargo en pay-connectors
   charge_status           text        NOT NULL DEFAULT 'pending',  -- último estado del cargo que APLICAMOS (máquina decideCallback)

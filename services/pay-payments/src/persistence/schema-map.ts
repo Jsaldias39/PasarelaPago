@@ -64,6 +64,7 @@ export const PAYMENTS_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<string
     metadata: { type: 'jsonb', nullable: false },
     next_action: { type: 'jsonb', nullable: true },
     failure_code: { type: 'text', nullable: true },
+    failure_reason: { type: 'text', nullable: true },
     connector: { type: 'text', nullable: true },
     charge_id: { type: 'text', nullable: true },
     charge_status: { type: 'text', nullable: false },

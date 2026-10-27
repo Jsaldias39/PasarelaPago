@@ -4,6 +4,7 @@ export type QrStatus = 'active' | 'expired' | 'canceled';
 export interface QrRow {
   id: string;
   kind: QrKind;
+  pay_mode: 'test' | 'live';
   merchant_id: string;
   payment_intent_id: string | null;
   reference: string;

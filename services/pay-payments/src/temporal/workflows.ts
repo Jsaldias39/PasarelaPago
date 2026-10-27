@@ -54,6 +54,7 @@ export async function PaymentWorkflow(input: { intentId: string }): Promise<Paym
   const { intentId } = input;
   const inbox: ChargeSignal[] = [];
   let woken = false;
+  let notFoundEscalated = false;
   setHandler(connectorEventSignal, (signal) => {
     inbox.push(signal);
   });
@@ -112,7 +113,11 @@ export async function PaymentWorkflow(input: { intentId: string }): Promise<Paym
         // Nadie avisó: se pregunta al conector (un evento perdido no puede dejar el cobro colgado, REQ-P3-7).
         try {
           const state = await a.inquireCharge(intentId);
-          if (state.status !== 'pending') step = await must('state_update_unknown', () => a.applyChargeSignal(intentId, state));
+          if (state.notFound && !notFoundEscalated) {
+            // El conector dice no conocer un cargo que él creó: no es prueba de que no se pagó. Se escala y se sigue esperando.
+            await must('charge_not_found_at_connector', () => a.escalate(intentId, 'charge_not_found_at_connector'));
+            notFoundEscalated = true;
+          } else if (state.status !== 'pending') step = await must('state_update_unknown', () => a.applyChargeSignal(intentId, state));
         } catch (error) {
           if (isNonRetryable(error)) throw error;
           // El conector no contestó: es una consulta de solo lectura; se vuelve a preguntar en el próximo ciclo.
@@ -161,12 +166,17 @@ export async function RefundWorkflow(input: { refundId: string }): Promise<{ sta
       // El aviso del conector puede no llegar: se espera `waitMs`, se escala UNA vez y luego se CONSULTA al conector
       // (`GET /refunds/{id}`, solo lectura) cada ciclo. Mientras no responda algo definitivo no se libera la retención ni se
       // da el reembolso por fallido (CLAUDE.md regla 11).
+      let notFoundEscalated = false;
       let settled = await condition(() => events.length > 0, plan.waitMs);
       if (!settled) await must('refund_pending_timeout', () => a.escalateRefund(refundId, 'refund_pending_timeout'));
       while (!settled) {
         try {
           const state = await a.inquireRefund(refundId);
-          if (state.status !== 'pending') {
+          if (state.notFound && !notFoundEscalated) {
+            // El conector dice no conocer un reembolso que él mismo creó: una persona tiene que mirarlo. La retención queda puesta.
+            await must('refund_not_found_at_connector', () => a.escalateRefund(refundId, 'refund_not_found_at_connector'));
+            notFoundEscalated = true;
+          } else if (state.status !== 'pending') {
             result = state;
             break;
           }

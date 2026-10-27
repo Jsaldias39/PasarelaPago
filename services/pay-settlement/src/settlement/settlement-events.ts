@@ -1,4 +1,5 @@
 import { enqueue, newCloudEvent, type Queryable } from '@pay/outbox';
+import { eventModeField } from './event-mode';
 import type { PayMode } from './mode';
 
 /**
@@ -89,7 +90,7 @@ export async function emitPayoutFailed(client: Queryable, p: PayoutEventBase & {
 
 export async function emitBatchClosed(
   client: Queryable,
-  b: { batchId: string; periodFrom: Date; periodTo: Date; merchantsCount: number; payoutsCount: number; releasedMinor: number; closedAt: Date },
+  b: { batchId: string; mode: PayMode; periodFrom: Date; periodTo: Date; merchantsCount: number; payoutsCount: number; releasedMinor: number; closedAt: Date },
 ): Promise<void> {
   await enqueue(
     client,
@@ -99,6 +100,7 @@ export async function emitBatchClosed(
       subject: b.batchId,
       time: b.closedAt,
       data: {
+        ...eventModeField(b.mode),
         settlement_batch_id: b.batchId,
         period_from: b.periodFrom.toISOString(),
         period_to: b.periodTo.toISOString(),
@@ -120,6 +122,7 @@ export async function emitExceptionOpened(
   client: Queryable,
   e: {
     exceptionId: string;
+    mode: PayMode | null;
     connector: string;
     kind: string;
     differenceMinor: number;
@@ -138,6 +141,7 @@ export async function emitExceptionOpened(
       ...(e.merchantId && { merchantId: e.merchantId }),
       time: e.openedAt,
       data: {
+        ...eventModeField(e.mode),
         exception_id: e.exceptionId,
         connector: e.connector,
         kind: EVENT_EXCEPTION_KIND[e.kind] ?? e.kind,

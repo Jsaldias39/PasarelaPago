@@ -24,6 +24,8 @@ export interface ScheduleSettings {
   /** Stream y consumidor durable de los eventos `merchant.*` de pay-merchants. */
   readonly merchantsStream: string;
   readonly merchantsDurable: string;
+  /** Prefijo de los temas de pay-merchants (`<prefijo>.merchant.activated`…). Solo las pruebas lo cambian. */
+  readonly merchantsSubjectPrefix: string;
 }
 
 export const SCHEDULE_SETTINGS = Symbol('SCHEDULE_SETTINGS');
@@ -67,5 +69,6 @@ export function loadScheduleSettings(env: NodeJS.ProcessEnv = process.env): Sche
     backgroundJobsEnabled: env.DISABLE_BACKGROUND_JOBS !== '1',
     merchantsStream: env.MERCHANTS_STREAM || 'PAY_MERCHANTS',
     merchantsDurable: env.MERCHANTS_DURABLE || 'pay-schedules.merchant-replica',
+    merchantsSubjectPrefix: env.MERCHANTS_SUBJECT_PREFIX || 'pay-merchants',
   };
 }

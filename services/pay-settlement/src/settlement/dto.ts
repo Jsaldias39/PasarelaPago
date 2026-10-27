@@ -136,10 +136,11 @@ export function runDto(row: RunRow) {
 
 export interface ExceptionRow {
   id: string;
-  mode: PayMode;
-  run_id: string;
-  connector: string;
-  kind: 'missing_in_ledger' | 'missing_in_statement' | 'amount_mismatch' | 'duplicate_in_statement' | 'unknown_reference';
+  mode: PayMode | null;
+  run_id: string | null;
+  connector: string | null;
+  kind: 'missing_in_ledger' | 'missing_in_statement' | 'amount_mismatch' | 'duplicate_in_statement' | 'unknown_reference' | 'payment_contradiction';
+  source_detail: { kind: string; current_status: string; incoming_status: string; detected_at: string } | null;
   provider_reference: string | null;
   business_ref: string | null;
   statement_amount_minor: string | null;
@@ -155,12 +156,13 @@ export interface ExceptionRow {
 }
 
 export const EXCEPTION_COLUMNS =
-  'id, mode, run_id, connector, kind, provider_reference, business_ref, statement_amount_minor, ledger_amount_minor, difference_minor, statement_line_ref, merchant_id, payment_intent_id, status, resolved_by, resolution_note, created_at';
+  'id, mode, run_id, connector, kind, source_detail, provider_reference, business_ref, statement_amount_minor, ledger_amount_minor, difference_minor, statement_line_ref, merchant_id, payment_intent_id, status, resolved_by, resolution_note, created_at';
 
 export function exceptionDto(row: ExceptionRow) {
   return {
     id: row.id,
     object: 'reconciliation_exception' as const,
+    // `run_id: null` y `kind: payment_contradiction` NO están en el contrato todavía (PROPUESTAS.md #8): esas excepciones las abre un evento, no una corrida.
     run_id: row.run_id,
     kind: row.kind,
     provider_reference: row.provider_reference,
@@ -171,5 +173,6 @@ export function exceptionDto(row: ExceptionRow) {
     resolved_by: row.resolved_by,
     resolution_note: row.resolution_note,
     created_at: row.created_at.toISOString(),
+    ...(row.kind === 'payment_contradiction' && { payment_intent_id: row.payment_intent_id, merchant_id: row.merchant_id, detail: row.source_detail }),
   };
 }

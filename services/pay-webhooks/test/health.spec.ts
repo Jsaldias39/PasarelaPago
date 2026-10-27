@@ -8,7 +8,7 @@ describe('pay-webhooks (arranque real contra su base)', () => {
   });
   afterAll(async () => h.stop());
 
-  it('GET /health/live responde ok sin identidad de servicio y fuera del prefijo /v1', async () => {
+  it('GET /health/live responde ok sin identidad de servicio y ', async () => {
     await h.http().get('/health/live').expect(200, { status: 'ok' });
   });
 
@@ -19,12 +19,12 @@ describe('pay-webhooks (arranque real contra su base)', () => {
   });
 
   it('una ruta de negocio sin identidad de servicio es 403 (seguro por defecto)', async () => {
-    await h.http().get('/v1/webhook_endpoints').expect(403);
+    await h.http().get('/webhook_endpoints').expect(403);
   });
 
   it('el `instance` de un error no repite segmentos de la URL que parezcan datos del cliente', async () => {
-    const res = await h.http().get('/v1/4111111111111111/ana@correo.com?x=1').expect(404);
-    expect(res.body.instance).toBe('/v1/:x/:x');
+    const res = await h.http().get('/4111111111111111/ana@correo.com?x=1').expect(404);
+    expect(res.body.instance).toBe('/:x/:x');
     expect(JSON.stringify(res.body)).not.toMatch(/4111|ana@|correo/);
   });
 
@@ -50,6 +50,13 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
     expect(config.delivery.scheduleMs).toEqual([0, 5_000, 300_000, 1_800_000, 7_200_000, 18_000_000, 36_000_000, 36_000_000]);
   });
 
+  it('los destinos de sandbox se leen en sandbox y NO se admiten con PAY_MODE=live (ni la CA)', () => {
+    expect(loadConfig({ ...base, WEBHOOKS_SANDBOX_TARGETS: '127.0.0.1:41234, 127.0.0.1:41235' }).sandboxTargets).toEqual(['127.0.0.1:41234', '127.0.0.1:41235']);
+    expect(loadConfig(base).sandboxTargets).toEqual([]);
+    expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_SANDBOX_TARGETS: '127.0.0.1:41234' })).toThrow(/PAY_MODE=live/);
+    expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_SANDBOX_CA_FILE: '/tmp/ca.pem' })).toThrow(/PAY_MODE=live/);
+  });
+
   it.each(['PAY_MODE', 'WEBHOOKS_SECRET_KEK', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'])('falta %s ⇒ no arranca', (name) => {
     expect(() => loadConfig(without(name))).toThrow();
   });
@@ -65,6 +72,9 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
     ['WEBHOOKS_RETRY_JITTER_PERCENT', '90'],
     ['DB_SCHEMA', 'x; DROP TABLE y'],
     ['PORT', '70000'],
+    ['WEBHOOKS_SANDBOX_TARGETS', '10.0.0.5:8443'],
+    ['WEBHOOKS_SANDBOX_TARGETS', '127.0.0.1'],
+    ['WEBHOOKS_SANDBOX_TARGETS', 'localhost:8443'],
   ])('%s=%p inválido ⇒ no arranca', (name, value) => {
     expect(() => loadConfig({ ...base, [name]: value })).toThrow();
   });

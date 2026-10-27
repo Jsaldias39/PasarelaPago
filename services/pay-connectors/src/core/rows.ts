@@ -1,4 +1,5 @@
 import type { ConnectorCode, Method, Mode, NextAction, ProviderStatus } from '../domain/connector';
+import type { PayMode } from './pay-mode';
 import { chargeStatusOf, type ChargeStatus } from '../domain/status-map';
 
 export interface ChargeRow {
@@ -7,8 +8,11 @@ export interface ChargeRow {
   idempotency_key: string;
   payment_intent_id: string;
   merchant_id: string;
+  /** Modo de la CLAVE del pedido (D-28). */
+  pay_mode: PayMode;
   connector: ConnectorCode;
-  mode: Mode;
+  /** Modo de despliegue del conector (D-26): es el `mode` que muestra la API. */
+  connector_mode: Mode;
   method: Method;
   amount_minor: bigint;
   currency: 'BOB';
@@ -46,7 +50,7 @@ export function chargeView(row: ChargeRow): Record<string, unknown> {
     object: 'charge',
     payment_intent_id: row.payment_intent_id,
     connector: row.connector,
-    mode: row.mode,
+    mode: row.connector_mode,
     method: row.method,
     amount_minor: Number(row.amount_minor),
     currency: row.currency,
@@ -63,6 +67,7 @@ export function chargeView(row: ChargeRow): Record<string, unknown> {
 export interface RefundRow {
   id: string;
   charge_id: string;
+  pay_mode: PayMode;
   refund_id: string | null;
   caller: string;
   idempotency_key: string;

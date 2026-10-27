@@ -99,9 +99,9 @@ export async function startWebhooks(options: StartOptions = {}): Promise<Webhook
     as: (merchantId) => {
       const withIdentity = (req: supertest.Test) => req.set('X-Service-Id', 'pay-edge').set('X-Merchant-Id', merchantId);
       return {
-        get: (path) => withIdentity(http().get(`/v1${path}`)),
-        post: (path) => withIdentity(http().post(`/v1${path}`)),
-        delete: (path) => withIdentity(http().delete(`/v1${path}`)),
+        get: (path) => withIdentity(http().get(path)),
+        post: (path) => withIdentity(http().post(path)),
+        delete: (path) => withIdentity(http().delete(path)),
       };
     },
     async stop() {

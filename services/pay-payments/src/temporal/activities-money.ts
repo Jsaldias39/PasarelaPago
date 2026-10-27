@@ -70,10 +70,18 @@ export function createRefundActivities(deps: Deps) {
      * Consulta autoritativa al conector (`GET /refunds/{id}?refresh=true`) de un reembolso `pending` cuyo aviso no llegó. `stale` o
      * `pending` = sigue sin saberse. Es de solo lectura: un fallo se reintenta en el próximo ciclo, nunca cierra el reembolso.
      */
-    async inquireRefund(refundId: string): Promise<{ status: 'pending' | 'succeeded' | 'failed'; failureCode?: string }> {
+    async inquireRefund(refundId: string): Promise<{ status: 'pending' | 'succeeded' | 'failed'; failureCode?: string; notFound?: true }> {
       const { refund } = await loadBoth(refundId);
       if (!refund.connectorRefundId) return { status: 'pending' };
-      const state = await clients.connectors.getRefund(refund.connectorRefundId, refund.mode, true);
+      let state;
+      try {
+        state = await clients.connectors.getRefund(refund.connectorRefundId, refund.mode, true);
+      } catch (error) {
+        // `404` exacto = «este servicio no tiene ese reembolso». Pero el `cr_…` salió de SU propia respuesta: es una anomalía, no una
+        // prueba de que no se devolvió el dinero. NO anula la retención ni da el reembolso por fallido (regla 11): se señala y se escala.
+        if (error instanceof Error && error.name === 'UpstreamRejection' && (error as { status?: number }).status === 404) return { status: 'pending', notFound: true };
+        throw error;
+      }
       if (state.stale || state.status === 'pending') return { status: 'pending' };
       return { status: state.status, ...(state.failure_code ? { failureCode: state.failure_code } : {}) };
     },

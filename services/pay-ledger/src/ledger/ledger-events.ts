@@ -1,5 +1,7 @@
 import { enqueue, newCloudEvent, type Queryable } from '@pay/outbox';
 import { parseAccount } from './accounts';
+import { eventModeField } from './event-mode';
+import type { PayMode } from './mode';
 import type { LegCode } from './tb-engine';
 
 /**
@@ -27,6 +29,7 @@ function merchantOf(debit: string, credit: string): string | undefined {
 }
 
 export interface PostedLeg {
+  readonly mode: PayMode;
   readonly transferId: string;
   readonly businessRef: string;
   readonly attempt: number;
@@ -49,6 +52,7 @@ export async function emitTransferPosted(client: Queryable, leg: PostedLeg): Pro
     ...(merchantId && { merchantId }),
     time: leg.postedAt,
     data: {
+      ...eventModeField(leg.mode),
       transfer_id: leg.transferId,
       ledger_ref: leg.businessRef,
       attempt: leg.attempt,
@@ -65,6 +69,7 @@ export async function emitTransferPosted(client: Queryable, leg: PostedLeg): Pro
 }
 
 interface HoldBase {
+  readonly mode: PayMode;
   readonly holdId: string;
   readonly businessRef: string;
   readonly account: string;
@@ -79,7 +84,7 @@ async function emitHold(client: Queryable, type: string, base: HoldBase, at: Dat
     subject: base.holdId,
     ...(merchantId && { merchantId }),
     time: at,
-    data: { hold_id: base.holdId, ledger_ref: base.businessRef, account: base.account, currency: 'BOB', ...data },
+    data: { ...eventModeField(base.mode), hold_id: base.holdId, ledger_ref: base.businessRef, account: base.account, currency: 'BOB', ...data },
   });
   await enqueue(client, event, { aggregateType: 'ledger_hold', aggregateId: base.holdId });
 }

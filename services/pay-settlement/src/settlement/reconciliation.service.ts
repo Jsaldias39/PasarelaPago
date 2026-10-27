@@ -132,7 +132,7 @@ export class ReconciliationService implements OnApplicationShutdown {
         );
         // Solo una diferencia NUEVA avisa: repetir la corrida sobre el mismo periodo no reabre ni vuelve a notificar lo ya conocido.
         if (inserted.rows.length === 1) {
-          await emitExceptionOpened(client, { exceptionId, connector: run.connector, kind: draft.kind, differenceMinor: draft.differenceMinor, paymentIntentId: draft.paymentIntentId, statementLineRef: draft.statementLineRef, merchantId: draft.merchantId, openedAt: now });
+          await emitExceptionOpened(client, { exceptionId, mode: run.mode, connector: run.connector, kind: draft.kind, differenceMinor: draft.differenceMinor, paymentIntentId: draft.paymentIntentId, statementLineRef: draft.statementLineRef, merchantId: draft.merchantId, openedAt: now });
         }
       }
       await client.query(
@@ -185,7 +185,7 @@ export class ReconciliationService implements OnApplicationShutdown {
     const cursor = q.starting_after ? decodeCursor(q.starting_after) : null;
     const { rows } = await this.pool.query<ExceptionRow>(
       `SELECT ${EXCEPTION_COLUMNS} FROM settlement_exceptions
-        WHERE mode = $5 AND ($1::text IS NULL OR status = $1) AND ($2::timestamptz IS NULL OR (created_at, id) < ($2, $3))
+        WHERE (mode = $5 OR mode IS NULL) AND ($1::text IS NULL OR status = $1) AND ($2::timestamptz IS NULL OR (created_at, id) < ($2, $3))
         ORDER BY created_at DESC, id DESC LIMIT $4`,
       [q.status ?? null, cursor?.at ?? null, cursor?.id ?? null, q.limit + 1, mode],
     );
@@ -215,7 +215,7 @@ export class ReconciliationService implements OnApplicationShutdown {
       { scope: `${caller}:${operator.sub}:${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/reconciliation_exceptions/${id.data}/resolve`, body: input }) },
       async () => {
         const row = await inTransaction(this.pool, async (client) => {
-          const found = await client.query<ExceptionRow & { difference_minor: string }>(`SELECT ${EXCEPTION_COLUMNS} FROM settlement_exceptions WHERE id = $1 AND mode = $2 FOR UPDATE`, [id.data, mode]);
+          const found = await client.query<ExceptionRow & { difference_minor: string }>(`SELECT ${EXCEPTION_COLUMNS} FROM settlement_exceptions WHERE id = $1 AND (mode = $2 OR mode IS NULL) FOR UPDATE`, [id.data, mode]);
           const current = found.rows[0];
           if (!current) throw new ProblemError('resource_not_found');
           if (current.status !== 'open') throw new ProblemError('invalid_state_transition', { detail: 'La excepción ya está cerrada' });

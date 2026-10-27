@@ -11,8 +11,11 @@ CREATE TABLE IF NOT EXISTS connector_charges (
   idempotency_key        text        NOT NULL,
   payment_intent_id      text        NOT NULL CHECK (payment_intent_id ~ '^pi_[a-z0-9]{10,40}$'),
   merchant_id            text        NOT NULL CHECK (merchant_id ~ '^mc_[a-z0-9]{10,40}$'),
+  -- Modo de la CLAVE que hizo el pedido (D-28, `X-Pay-Mode`): lo fija pay-edge. NO es el modo del conector.
+  pay_mode               text        NOT NULL CHECK (pay_mode IN ('test', 'live')),
   connector              text        NOT NULL CHECK (connector IN ('mock', 'mercantil_qr', 'mercantil_card', 'bank_transfer')),
-  mode                   text        NOT NULL CHECK (mode IN ('sandbox', 'live')),
+  -- Modo de DESPLIEGUE del conector que atiende el cobro (D-26): `sandbox` nunca mueve dinero real. Es el `mode` que muestra la API.
+  connector_mode         text        NOT NULL CHECK (connector_mode IN ('sandbox', 'live')),
   method                 text        NOT NULL CHECK (method IN ('qr', 'card', 'bank_transfer')),
   amount_minor           bigint      NOT NULL CHECK (amount_minor > 0),
   currency               text        NOT NULL CHECK (currency = 'BOB'),
@@ -31,11 +34,14 @@ CREATE TABLE IF NOT EXISTS connector_charges (
   poll_attempts          integer     NOT NULL DEFAULT 0,
   next_poll_at           timestamptz NOT NULL,
   created_at             timestamptz NOT NULL DEFAULT now(),
-  updated_at             timestamptz NOT NULL DEFAULT now()
+  updated_at             timestamptz NOT NULL DEFAULT now(),
+  -- Una clave `test` solo opera con un conector `sandbox` y una `live` con uno `live`: jamás se cae en `live` por defecto.
+  CONSTRAINT connector_charges_mode_match_ck CHECK ((pay_mode = 'test' AND connector_mode = 'sandbox') OR (pay_mode = 'live' AND connector_mode = 'live'))
 );
-CREATE UNIQUE INDEX IF NOT EXISTS connector_charges_caller_key_uidx ON connector_charges (caller, idempotency_key);
+-- La misma Idempotency-Key en `test` y en `live` son dos operaciones distintas.
+CREATE UNIQUE INDEX IF NOT EXISTS connector_charges_caller_key_uidx ON connector_charges (caller, pay_mode, idempotency_key);
 -- Un solo cobro vivo (o cobrado) por intento de pago: un segundo cobro solo es posible cuando el anterior falló, se anuló o venció.
-CREATE UNIQUE INDEX IF NOT EXISTS connector_charges_live_intent_uidx ON connector_charges (payment_intent_id) WHERE provider_status IN ('pending', 'authorized', 'captured');
+CREATE UNIQUE INDEX IF NOT EXISTS connector_charges_live_intent_uidx ON connector_charges (pay_mode, payment_intent_id) WHERE provider_status IN ('pending', 'authorized', 'captured');
 CREATE INDEX IF NOT EXISTS connector_charges_poll_idx ON connector_charges (next_poll_at) WHERE provider_status IN ('pending', 'authorized');
 
 CREATE TABLE IF NOT EXISTS connector_refunds (
@@ -43,6 +49,7 @@ CREATE TABLE IF NOT EXISTS connector_refunds (
   charge_id          text        NOT NULL REFERENCES connector_charges (id),
   -- `re_…` de pay-payments, si el pedido lo trajo: distingue varios reembolsos del mismo cobro y se copia al evento.
   refund_id          text        CHECK (refund_id IS NULL OR refund_id ~ '^re_[a-z0-9]{10,40}$'),
+  pay_mode           text        NOT NULL CHECK (pay_mode IN ('test', 'live')),   -- modo de la clave del pedido (D-28)
   caller             text        NOT NULL,
   idempotency_key    text        NOT NULL,
   amount_minor       bigint      NOT NULL CHECK (amount_minor > 0),
@@ -55,10 +62,10 @@ CREATE TABLE IF NOT EXISTS connector_refunds (
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS connector_refunds_caller_key_uidx ON connector_refunds (caller, idempotency_key);
+CREATE UNIQUE INDEX IF NOT EXISTS connector_refunds_caller_key_uidx ON connector_refunds (caller, pay_mode, idempotency_key);
 CREATE INDEX IF NOT EXISTS connector_refunds_charge_idx ON connector_refunds (charge_id);
 -- Un `refund_id` de pay-payments se reembolsa UNA vez: otro pedido (con otra Idempotency-Key) del mismo `refund_id` no genera un segundo `cr_…`.
-CREATE UNIQUE INDEX IF NOT EXISTS connector_refunds_refund_id_uidx ON connector_refunds (refund_id) WHERE refund_id IS NOT NULL AND status <> 'failed';
+CREATE UNIQUE INDEX IF NOT EXISTS connector_refunds_refund_id_uidx ON connector_refunds (pay_mode, refund_id) WHERE refund_id IS NOT NULL AND status <> 'failed';
 
 -- Todo hecho que un proveedor informó (por callback o por consulta). `UNIQUE (connector, provider_event_id)` es la deduplicación.
 -- No se guarda el cuerpo crudo del callback: puede traer datos del pagador.
@@ -67,6 +74,8 @@ CREATE TABLE IF NOT EXISTS connector_callback_events (
   connector         text        NOT NULL,
   provider_event_id text        NOT NULL CHECK (length(provider_event_id) BETWEEN 1 AND 200),
   charge_id         text,                                              -- null si la referencia no es nuestra
+  -- Modo del COBRO al que se refiere (sale del registro del cobro, NUNCA del callback: el banco no manda X-Pay-Mode). Nulo si la referencia no es nuestra.
+  pay_mode          text        CHECK (pay_mode IS NULL OR pay_mode IN ('test', 'live')),
   status            text        NOT NULL,
   result            text        NOT NULL CHECK (result IN ('applied', 'duplicate', 'stale', 'contradiction')),
   observed_via      text        NOT NULL CHECK (observed_via IN ('callback', 'status_inquiry')),
@@ -90,7 +99,7 @@ CREATE INDEX IF NOT EXISTS connector_api_attempts_subject_idx ON connector_api_a
 
 CREATE TABLE IF NOT EXISTS connector_health (
   connector            text        PRIMARY KEY,
-  mode                 text        NOT NULL CHECK (mode IN ('sandbox', 'live')),
+  connector_mode       text        NOT NULL CHECK (connector_mode IN ('sandbox', 'live')),
   status               text        NOT NULL CHECK (status IN ('up', 'degraded', 'down')),
   consecutive_failures integer     NOT NULL DEFAULT 0 CHECK (consecutive_failures >= 0),
   last_reason          text        CHECK (last_reason IS NULL OR last_reason IN ('timeout', 'error_rate', 'unreachable', 'auth_failed')),
@@ -149,9 +158,10 @@ CREATE TABLE IF NOT EXISTS connector_transfers (
   id                 text        PRIMARY KEY CHECK (id ~ '^tr_[a-z0-9]{10,40}$'),
   business_ref       text        NOT NULL CHECK (business_ref ~ '^[A-Za-z0-9:._-]{3,150}$'),
   attempt            integer     NOT NULL CHECK (attempt >= 1),
+  pay_mode           text        NOT NULL CHECK (pay_mode IN ('test', 'live')),   -- modo de la clave del pedido (D-28)
   caller             text        NOT NULL,
   connector          text        NOT NULL CHECK (connector IN ('mock', 'mercantil_qr', 'mercantil_card', 'bank_transfer')),
-  mode               text        NOT NULL CHECK (mode IN ('sandbox', 'live')),
+  connector_mode     text        NOT NULL CHECK (connector_mode IN ('sandbox', 'live')),   -- modo de despliegue del conector (D-26); es el `mode` de la API
   amount_minor       bigint      NOT NULL CHECK (amount_minor > 0),
   currency           text        NOT NULL CHECK (currency = 'BOB'),
   destination_ref    text        NOT NULL CHECK (length(destination_ref) BETWEEN 1 AND 100),
@@ -166,11 +176,12 @@ CREATE TABLE IF NOT EXISTS connector_transfers (
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now(),
   -- Registro de dinero de solo-agregar: `failed` solo con explicación (la confirmó el proveedor o el conector garantiza que no envió).
-  CONSTRAINT connector_transfers_failed_reason_ck CHECK (status <> 'failed' OR failure_code IS NOT NULL)
+  CONSTRAINT connector_transfers_failed_reason_ck CHECK (status <> 'failed' OR failure_code IS NOT NULL),
+  CONSTRAINT connector_transfers_mode_match_ck CHECK ((pay_mode = 'test' AND connector_mode = 'sandbox') OR (pay_mode = 'live' AND connector_mode = 'live'))
 );
-CREATE UNIQUE INDEX IF NOT EXISTS connector_transfers_ref_attempt_uidx ON connector_transfers (business_ref, attempt);
+CREATE UNIQUE INDEX IF NOT EXISTS connector_transfers_ref_attempt_uidx ON connector_transfers (pay_mode, business_ref, attempt);
 -- Una operación de negocio se paga una sola vez, aunque se ordenen intentos distintos.
-CREATE UNIQUE INDEX IF NOT EXISTS connector_transfers_one_paid_uidx ON connector_transfers (business_ref) WHERE status = 'paid';
+CREATE UNIQUE INDEX IF NOT EXISTS connector_transfers_one_paid_uidx ON connector_transfers (pay_mode, business_ref) WHERE status = 'paid';
 
 -- `may_have_reached_provider` y `send_claims` son MONÓTONOS: una vez que una orden pudo haber llegado, ningún camino (ni una
 -- corrección a mano) puede volver a decir que no. Se hace cumplir en la base, no solo en el código.

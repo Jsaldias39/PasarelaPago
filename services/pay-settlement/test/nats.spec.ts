@@ -84,6 +84,30 @@ describe('consumidores durables sobre NATS JetStream real', () => {
     expect(await merchantRow(m)).toHaveLength(1);
   });
 
+  it('payment_intent.contradiction_detected de pay-payments (stream PAY_PAYMENTS) abre una excepción; entregado dos veces, una sola', async () => {
+    const paymentIntent = `pi_${Math.random().toString(36).slice(2, 14).padEnd(12, 'n')}`;
+    const merchant = merchantId();
+    const event = newCloudEvent({
+      source: '/pay-payments',
+      type: 'payment_intent.contradiction_detected',
+      subject: paymentIntent,
+      merchantId: merchant,
+      data: { payment_intent_id: paymentIntent, merchant_id: merchant, kind: 'status_conflict', current_status: 'failed', incoming_status: 'captured', mode: 'live', detected_at: new Date().toISOString() },
+    });
+    const js = nc.jetstream();
+    const body = new TextEncoder().encode(JSON.stringify(event));
+    await js.publish('pay-payments.payment_intent.contradiction_detected', body);
+    await js.publish('pay-payments.payment_intent.contradiction_detected', body);
+    const row = await waitFor(async () => (await db.pool.query('SELECT kind, mode, status FROM settlement_exceptions WHERE payment_intent_id = $1', [paymentIntent])).rows[0], 30_000, 100);
+    expect(row).toEqual({ kind: 'payment_contradiction', mode: 'live', status: 'open' });
+    await waitFor(async () => {
+      const info = await nc.jetstreamManager().then((jsm) => jsm.consumers.info('PAY_PAYMENTS', 'pay-settlement_payment_intent_contradiction_detected'));
+      return info.num_pending === 0 && info.num_ack_pending === 0;
+    }, 30_000, 100);
+    expect((await db.pool.query('SELECT count(*)::int AS n FROM settlement_exceptions WHERE payment_intent_id = $1', [paymentIntent])).rows[0].n).toBe(1);
+    expect((await db.pool.query('SELECT count(*)::int AS n FROM inbox_events WHERE event_id = $1', [event.id])).rows[0].n).toBe(1);
+  });
+
   it('basura, JSON inválido, sobres inválidos y eventos ajenos no traban el consumidor ni se reintentan sin fin; el siguiente evento válido pasa', async () => {
     const js = nc.jetstream();
     const bytes = (value: unknown) => new TextEncoder().encode(typeof value === 'string' ? value : JSON.stringify(value));

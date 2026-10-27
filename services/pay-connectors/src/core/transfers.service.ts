@@ -9,6 +9,7 @@ import type { ConnectorRegistry } from '../domain/registry';
 import { newId } from '../ids';
 import { transferFailureCode } from '../domain/status-map';
 import { badRequest } from '../raw-problem';
+import { deploymentModeOf, type PayMode } from './pay-mode';
 import { withSendLock } from './send-lock';
 import { inTransaction } from './db';
 import { transferStatusChangedEvent, type ObservedVia } from './events';
@@ -28,7 +29,8 @@ interface TransferRow {
   attempt: number;
   caller: string;
   connector: ConnectorCode;
-  mode: 'sandbox' | 'live';
+  pay_mode: PayMode;
+  connector_mode: 'sandbox' | 'live';
   amount_minor: bigint;
   currency: 'BOB';
   destination_ref: string;
@@ -64,7 +66,7 @@ function view(row: TransferRow): Record<string, unknown> {
     object: 'transfer',
     reference: `${row.business_ref}:${row.attempt}`,
     connector: row.connector,
-    mode: row.mode,
+    mode: row.connector_mode,
     amount_minor: Number(row.amount_minor),
     currency: row.currency,
     status: row.status,
@@ -123,15 +125,16 @@ export class TransfersService {
     private readonly gateway: ProviderGateway,
   ) {}
 
-  private async findByRef(businessRef: string, attempt: number): Promise<TransferRow | null> {
-    const found = await this.pool.query('SELECT * FROM connector_transfers WHERE business_ref = $1 AND attempt = $2', [businessRef, attempt]);
+  /** Lee por (modo, business_ref, attempt): la transferencia del OTRO modo no existe. */
+  private async findByRef(mode: PayMode, businessRef: string, attempt: number): Promise<TransferRow | null> {
+    const found = await this.pool.query('SELECT * FROM connector_transfers WHERE pay_mode = $1 AND business_ref = $2 AND attempt = $3', [mode, businessRef, attempt]);
     return found.rows[0] ? toRow(found.rows[0]) : null;
   }
 
-  private async record(client: Queryable, caller: string, input: CreateTransfer): Promise<{ row: TransferRow; existed: boolean }> {
+  private async record(client: Queryable, caller: string, mode: PayMode, input: CreateTransfer): Promise<{ row: TransferRow; existed: boolean }> {
     // Serializa los pedidos de una misma operación de negocio: dos intentos simultáneos no pueden coexistir.
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`transfer:${input.businessRef}`]);
-    const all = (await client.query('SELECT * FROM connector_transfers WHERE business_ref = $1 ORDER BY attempt', [input.businessRef])).rows.map(toRow);
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`transfer:${mode}:${input.businessRef}`]);
+    const all = (await client.query('SELECT * FROM connector_transfers WHERE pay_mode = $1 AND business_ref = $2 ORDER BY attempt', [mode, input.businessRef])).rows.map(toRow);
     const same = all.find((r) => r.attempt === input.attempt);
     if (same) {
       if (same.connector !== input.connector || same.amount_minor !== input.amountMinor || same.destination_ref !== input.destinationRef) {
@@ -147,23 +150,25 @@ export class TransfersService {
 
     const connector = this.registry.get(input.connector);
     if (!connector) throw new ProblemError('validation_failed', { errors: [{ field: 'connector', code: 'not_available' }] });
+    // Una clave `test` solo opera con un conector `sandbox` y una `live` con uno `live`: nunca se cae en `live` por defecto.
+    if (connector.mode !== deploymentModeOf(mode)) throw new ProblemError('forbidden', { detail: 'El conector no opera en el modo de la operación' });
     if (!connector.createTransfer || !connector.getTransfer) throw new ProblemError('validation_failed', { errors: [{ field: 'connector', code: 'transfers_not_supported' }] });
 
     const inserted = await client.query(
-      `INSERT INTO connector_transfers (id, business_ref, attempt, caller, connector, mode, amount_minor, currency, destination_ref, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'BOB', $8, $9, $9) RETURNING *`,
-      [newId('tr'), input.businessRef, input.attempt, caller, input.connector, connector.mode, input.amountMinor.toString(), input.destinationRef, this.clock.now()],
+      `INSERT INTO connector_transfers (id, business_ref, attempt, pay_mode, caller, connector, connector_mode, amount_minor, currency, destination_ref, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'BOB', $9, $10, $10) RETURNING *`,
+      [newId('tr'), input.businessRef, input.attempt, mode, caller, input.connector, connector.mode, input.amountMinor.toString(), input.destinationRef, this.clock.now()],
     );
     return { row: toRow(inserted.rows[0]), existed: false };
   }
 
-  async create(caller: string, key: string, body: unknown): Promise<IdempotencyResult> {
+  async create(caller: string, mode: PayMode, key: string, body: unknown): Promise<IdempotencyResult> {
     const input = parse(body);
-    return this.idempotency.execute({ scope: caller, key, requestHash: hashRequest({ method: 'POST', path: '/transfers', body }) }, async (ctx): Promise<HandlerResult> => {
-      let row = ctx.recoveryPoint === 'started' ? null : await this.findByRef(input.businessRef, input.attempt);
+    return this.idempotency.execute({ scope: `${caller}|${mode}`, key, requestHash: hashRequest({ method: 'POST', path: '/transfers', body }) }, async (ctx): Promise<HandlerResult> => {
+      let row = ctx.recoveryPoint === 'started' ? null : await this.findByRef(mode, input.businessRef, input.attempt);
       let created = false;
       if (!row) {
-        const recorded = await ctx.atomic('transfer_recorded', (client) => this.record(client, caller, input));
+        const recorded = await ctx.atomic('transfer_recorded', (client) => this.record(client, caller, mode, input));
         row = recorded.row;
         created = !recorded.existed;
       }
@@ -270,7 +275,7 @@ export class TransfersService {
     return toRow((await client.query('SELECT * FROM connector_transfers WHERE id = $1', [id])).rows[0]); // ya era terminal: no se retrocede
   }
 
-  async get(reference: string): Promise<Record<string, unknown>> {
+  async get(reference: string, mode: PayMode): Promise<Record<string, unknown>> {
     if (!REFERENCE.test(reference)) throw badRequest('Referencia mal formada');
     const cut = reference.lastIndexOf(':');
     const attempt = cut > 0 ? Number(reference.slice(cut + 1)) : NaN;
@@ -278,7 +283,7 @@ export class TransfersService {
     const businessRef = reference.slice(0, cut);
     if (!BUSINESS_REF.test(businessRef)) throw badRequest('Referencia mal formada');
 
-    let row = await this.findByRef(businessRef, attempt);
+    let row = await this.findByRef(mode, businessRef, attempt);
     // Todo registro se escribe ANTES de llamar al proveedor: sin fila, el proveedor nunca recibió esa orden.
     if (!row) throw new ProblemError('transfer_not_found');
     if (TERMINAL.has(row.status)) return view(row);

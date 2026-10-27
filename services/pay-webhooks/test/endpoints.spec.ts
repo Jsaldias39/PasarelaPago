@@ -205,17 +205,17 @@ describe('[DOBLE de DNS] API de webhook_endpoints', () => {
 
   describe('autorización negativa (regla 80.2.3)', () => {
     it('sin identidad de servicio: 403', async () => {
-      const res = await h.http().get('/v1/webhook_endpoints').set('X-Merchant-Id', newMerchantId());
+      const res = await h.http().get('/webhook_endpoints').set('X-Merchant-Id', newMerchantId());
       expect(res.status).toBe(403);
     });
 
     it.each(['pay-payments', 'pay-ledger', 'pay-vault', 'pay-webhooks'])('un servicio que no es pay-edge (%s): 403', async (service) => {
-      const res = await h.http().get('/v1/webhook_endpoints').set('X-Service-Id', service).set('X-Merchant-Id', newMerchantId());
+      const res = await h.http().get('/webhook_endpoints').set('X-Service-Id', service).set('X-Merchant-Id', newMerchantId());
       expect(res.status).toBe(403);
     });
 
     it.each([undefined, 'mc_corto', "mc_x'; DROP TABLE webhook_endpoints;--", 'otra-cosa'])('pay-edge sin comercio válido (%p): 401', async (merchant) => {
-      let req = h.http().get('/v1/webhook_endpoints').set('X-Service-Id', 'pay-edge');
+      let req = h.http().get('/webhook_endpoints').set('X-Service-Id', 'pay-edge');
       if (merchant !== undefined) req = req.set('X-Merchant-Id', merchant);
       expect((await req).status).toBe(401);
     });

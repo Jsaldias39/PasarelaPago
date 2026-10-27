@@ -4,7 +4,7 @@ import { ConnectorHealthController } from '../src/http/connector-health.controll
 import { RefundsController } from '../src/http/refunds.controller';
 import { StatementsController } from '../src/http/statements.controller';
 import { TransfersController } from '../src/http/transfers.controller';
-import { createTestApp, get, post, SPEC, type TestApp } from './support/app';
+import { asPaymentsIn, createTestApp, get, post, SPEC, type TestApp } from './support/app';
 import { routesOf } from './support/routes';
 import request from 'supertest';
 
@@ -61,14 +61,14 @@ describe('matriz de identidad: ruta × servicio llamador (denegado por defecto)'
   for (const m of MATRIX) {
     describe(m.op, () => {
       it.each(SERVICES.filter((s) => !m.allowed.includes(s)))('%s ⇒ 403 forbidden', async (service) => {
-        const response = await request(t.app.getHttpServer())[m.method](m.path).set('x-service-id', service).set('idempotency-key', 'k'.repeat(20)).send({});
+        const response = await request(t.app.getHttpServer())[m.method](m.path).set('x-service-id', service).set('x-pay-mode', 'test').set('idempotency-key', 'k'.repeat(20)).send({});
         expect(response.status).toBe(403);
         expect(response.body.code).toBe('forbidden');
         t.contract.assertResponse({ method: m.method.toUpperCase(), path: m.path.replace(/\?.*/, ''), status: 403, body: response.body });
       });
 
       it.each(m.allowed)('%s ⇒ pasa la identidad (cualquier cosa menos 403)', async (service) => {
-        const response = await request(t.app.getHttpServer())[m.method](m.path).set('x-service-id', service).set('idempotency-key', 'k'.repeat(20)).send({});
+        const response = await request(t.app.getHttpServer())[m.method](m.path).set('x-service-id', service).set('x-pay-mode', 'test').set('idempotency-key', 'k'.repeat(20)).send({});
         expect(response.status).not.toBe(403);
       });
 
@@ -81,7 +81,7 @@ describe('matriz de identidad: ruta × servicio llamador (denegado por defecto)'
         ['un nombre cualquiera', 'admin'],
         ['inyección de cabecera', 'pay-payments\r\nx-evil: 1'],
       ])('identidad inválida (%s) ⇒ 403', async (_name, value) => {
-        const req = request(t.app.getHttpServer())[m.method](m.path).set('idempotency-key', 'k'.repeat(20));
+        const req = request(t.app.getHttpServer())[m.method](m.path).set('x-pay-mode', 'test').set('idempotency-key', 'k'.repeat(20));
         if (value !== undefined) req.set('x-service-id', value);
         let status: number;
         try {
@@ -113,10 +113,10 @@ describe('modo live (D-26)', () => {
   it('con PAY_MODE=live el simulador no se carga: sin conectores, los cobros se rechazan y no hay callbacks de mock', async () => {
     const live = await createTestApp({ config: { mode: 'live' } });
     try {
-      const health = await get(live.app, '/connectors/health');
+      const health = await get(live.app, '/connectors/health', asPaymentsIn('live'));
       expect(health.status).toBe(200);
       expect(health.body.data).toEqual([]); // ni mock ni bank_transfer: sin adaptadores reales todavía
-      const charge = await post(live.app, '/charges', { payment_intent_id: 'pi_aaaaaaaaaaaaaaaa', merchant_id: 'mc_aaaaaaaaaaaaaaaa', amount_minor: 10000, currency: 'BOB', method: 'qr', expires_at: new Date(Date.now() + 3_600_000).toISOString() });
+      const charge = await post(live.app, '/charges', { payment_intent_id: 'pi_aaaaaaaaaaaaaaaa', merchant_id: 'mc_aaaaaaaaaaaaaaaa', amount_minor: 10000, currency: 'BOB', method: 'qr', expires_at: new Date(Date.now() + 3_600_000).toISOString() }, asPaymentsIn('live'));
       expect(charge.status).toBe(502);
       expect(charge.body.code).toBe('connector_unavailable');
       expect((await request(live.app.getHttpServer()).post('/callbacks/mock').send('{}')).status).toBe(404);

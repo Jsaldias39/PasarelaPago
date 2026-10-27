@@ -61,6 +61,8 @@ export interface LedgerDouble {
   url: string;
   calls: Recorded[];
   violations: string[];
+  /** Peticiones rechazadas por no traer `X-Pay-Mode` válido (no aplican ningún efecto). */
+  rejectedForMode: string[];
   /** Saldo disponible por modo y cuenta. */
   fund(mode: string, account: string, amountMinor: number): void;
   balanceOf(mode: string, account: string): number;
@@ -86,6 +88,7 @@ export async function startLedgerDouble(contractPath: string): Promise<LedgerDou
     url: '',
     calls: [],
     violations: [],
+    rejectedForMode: [],
     faults: [],
     fund: (mode, account, amount) => balances.set(`${mode}|${account}`, (balances.get(`${mode}|${account}`) ?? 0) + amount),
     balanceOf: (mode, account) => balances.get(`${mode}|${account}`) ?? 0,
@@ -103,8 +106,13 @@ export async function startLedgerDouble(contractPath: string): Promise<LedgerDou
   };
 
   function handle(req: Recorded, res: ServerResponse): void {
-    const mode = req.headers['x-pay-mode'] ?? 'test';
     if (req.headers['x-service-id'] !== 'pay-schedules') return problem(res, 403, 'forbidden');
+    // D-28: sin `X-Pay-Mode` válido (test|live) NO se aplica nada y se responde 403 (nunca se cae en un modo por defecto).
+    const mode = req.headers['x-pay-mode'];
+    if (mode !== 'test' && mode !== 'live') {
+      double.rejectedForMode.push(`${req.method} ${req.path.replace(/hd_[a-z0-9]+/, 'hd_*')}`);
+      return problem(res, 403, 'forbidden');
+    }
     // Validación de la petición contra el contrato.
     if (req.method === 'POST' && req.body !== undefined && req.body !== null) {
       const errors = contract.validateRequest({ method: 'post', path: req.path, body: req.body });
@@ -236,7 +244,11 @@ export async function startLedgerDouble(contractPath: string): Promise<LedgerDou
         // `GET /balances?account=…` se resuelve acá porque necesita la query.
         if (recorded.method === 'GET' && recorded.path === '/balances') {
           const account = url.searchParams.get('account') ?? '';
-          const mode = recorded.headers['x-pay-mode'] ?? 'test';
+          const mode = recorded.headers['x-pay-mode'];
+          if (recorded.headers['x-service-id'] !== 'pay-schedules' || (mode !== 'test' && mode !== 'live')) {
+            if (mode !== 'test' && mode !== 'live') double.rejectedForMode.push('GET /balances');
+            return problem(res, 403, 'forbidden');
+          }
           return send(recorded, res, 200, {
             object: 'balance', account, currency: 'BOB', balance_minor: Math.max(0, available(mode, account)), pending_debits_minor: pending.get(`${mode}|${account}`) ?? 0,
             pending_credits_minor: 0, nature: 'credit', as_of: new Date().toISOString(),

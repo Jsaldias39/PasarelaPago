@@ -22,6 +22,7 @@ export async function lockCharge(client: Queryable, id: string): Promise<ChargeR
  * `(connector, provider_event_id)`), se decide con la máquina de estados y, solo si avanza, se actualiza el cobro y se encola el
  * evento — todo o nada.
  *
+ * - El MODO sale del registro del cobro (`pay_mode`), nunca del callback: el banco no manda `X-Pay-Mode` y, si lo mandara, se ignora.
  * - Referencia desconocida o de otro conector ⇒ `contradiction` registrada (sin cobro que tocar).
  * - Importe informado distinto del cobrado ⇒ `contradiction`: el estado no se mueve y queda para conciliación humana.
  */
@@ -39,11 +40,11 @@ export async function recordAndApply(client: Queryable, connector: ConnectorCode
   }
 
   const inserted = await client.query(
-    `INSERT INTO connector_callback_events (connector, provider_event_id, charge_id, status, result, observed_via, occurred_at, received_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO connector_callback_events (connector, provider_event_id, charge_id, pay_mode, status, result, observed_via, occurred_at, received_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (connector, provider_event_id) DO NOTHING
      RETURNING 1`,
-    [connector, event.providerEventId, charge?.id ?? null, event.status, result, via, event.occurredAt, now],
+    [connector, event.providerEventId, charge?.id ?? null, charge?.pay_mode ?? null, event.status, result, via, event.occurredAt, now],
   );
   // Misma clave ya registrada: es una reentrega. No se vuelve a decidir ni a publicar nada.
   if (inserted.rows.length === 0) return { result: 'duplicate', chargeId: charge?.id ?? null };

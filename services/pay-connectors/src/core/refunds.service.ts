@@ -10,6 +10,7 @@ import { parseCreateRefund } from './charge.dto';
 import { inTransaction, uniqueViolation } from './db';
 import { statusChangedEvent } from './events';
 import { ChargesService } from './charges.service';
+import type { PayMode } from './pay-mode';
 import { ProviderGateway } from './provider-gateway';
 import { withSendLock } from './send-lock';
 import { refundView, toChargeRow, toRefundRow, type RefundRow } from './rows';
@@ -30,10 +31,10 @@ export class RefundsService {
    * Fases: `started → refund_recorded` (se valida y se RESERVA el importe en una transacción, con el cobro bloqueado: dos reembolsos
    * simultáneos no pueden sumar más que lo cobrado) y `refund_recorded → refund_sent` (se llama al proveedor con `cr_…` como referencia).
    */
-  async create(caller: string, key: string, chargeId: string, body: unknown): Promise<IdempotencyResult> {
+  async create(caller: string, mode: PayMode, key: string, chargeId: string, body: unknown): Promise<IdempotencyResult> {
     const input = parseCreateRefund(body);
-    await this.charges.byId(chargeId); // 404 antes de tocar la idempotencia
-    return this.idempotency.execute({ scope: caller, key, requestHash: hashRequest({ method: 'POST', path: `/charges/${chargeId}/refunds`, body }) }, async (ctx): Promise<HandlerResult> => {
+    await this.charges.byId(chargeId, mode); // 404 (también para un cobro del OTRO modo) antes de tocar la idempotencia
+    return this.idempotency.execute({ scope: `${caller}|${mode}`, key, requestHash: hashRequest({ method: 'POST', path: `/charges/${chargeId}/refunds`, body }) }, async (ctx): Promise<HandlerResult> => {
       let refund: RefundRow;
       if (ctx.recoveryPoint === 'started') {
         refund = await ctx.atomic('refund_recorded', async (client) => {
@@ -48,9 +49,9 @@ export class RefundsService {
           let inserted;
           try {
             inserted = await client.query(
-            `INSERT INTO connector_refunds (id, charge_id, refund_id, caller, idempotency_key, amount_minor, currency, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, 'BOB', $7, $7) RETURNING *`,
-            [newId('cr'), chargeId, input.refundId ?? null, caller, key, input.amountMinor.toString(), this.clock.now()],
+            `INSERT INTO connector_refunds (id, charge_id, refund_id, pay_mode, caller, idempotency_key, amount_minor, currency, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'BOB', $8, $8) RETURNING *`,
+            [newId('cr'), chargeId, input.refundId ?? null, mode, caller, key, input.amountMinor.toString(), this.clock.now()],
             );
           } catch (error) {
             if (uniqueViolation(error)?.constraint === 'connector_refunds_refund_id_uidx') {
@@ -62,7 +63,7 @@ export class RefundsService {
           return toRefundRow(inserted.rows[0]);
         });
       } else {
-        const found = await this.pool.query('SELECT * FROM connector_refunds WHERE caller = $1 AND idempotency_key = $2', [caller, key]);
+        const found = await this.pool.query('SELECT * FROM connector_refunds WHERE caller = $1 AND pay_mode = $2 AND idempotency_key = $3', [caller, mode, key]);
         if (found.rows.length === 0) throw new Error('Punto de recuperación sin reembolso: la tabla y la Idempotency-Key se desincronizaron');
         refund = toRefundRow(found.rows[0]);
       }
@@ -79,14 +80,14 @@ export class RefundsService {
    * responde, rechaza la consulta, no sabe consultar reembolsos, o dice `not_found`, devuelve lo último que se sabe (la fila y su reserva
    * NO se tocan: un silencio del proveedor no prueba que el reembolso no se ejecutó) con `stale: true` salvo `not_found`, que es explícito.
    */
-  async status(id: string, refresh: boolean): Promise<Record<string, unknown>> {
+  async status(id: string, refresh: boolean, mode: PayMode): Promise<Record<string, unknown>> {
     if (!/^cr_[a-z0-9]{10,40}$/.test(id)) throw new ProblemError('resource_not_found');
-    const found = await this.pool.query('SELECT * FROM connector_refunds WHERE id = $1', [id]);
+    const found = await this.pool.query('SELECT * FROM connector_refunds WHERE id = $1 AND pay_mode = $2', [id, mode]); // un id del OTRO modo no existe
     if (found.rows.length === 0) throw new ProblemError('resource_not_found');
     let refund = toRefundRow(found.rows[0]);
     let stale = false;
     if (refresh && refund.status === 'pending') {
-      const charge = await this.charges.byId(refund.charge_id);
+      const charge = await this.charges.byId(refund.charge_id, refund.pay_mode);
       const connector = this.gateway.connectorOrNull(charge.connector);
       if (!connector?.getRefund) {
         stale = true; // este conector no sabe consultar reembolsos
@@ -115,7 +116,7 @@ export class RefundsService {
     return withSendLock(this.lockPool, initial.id, async () => {
       let refund = toRefundRow((await this.pool.query('SELECT * FROM connector_refunds WHERE id = $1', [initial.id])).rows[0]);
       if (refund.status === 'succeeded' || (refund.status === 'failed' && refund.failure_code !== 'connector_unavailable')) return refund; // ya lo resolvió otro envío
-      const charge = await this.charges.byId(refund.charge_id);
+      const charge = await this.charges.byId(refund.charge_id, refund.pay_mode);
       if (!charge.provider_reference) throw new ProblemError('invalid_state_transition');
       if (refund.status === 'failed') {
         // Reintento de un reembolso que quedó sin efecto por un proveedor caído: se vuelve a reservar el importe, revalidando.

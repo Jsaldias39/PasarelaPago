@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { parseAccount } from '../src/ledger/accounts';
 import { hash128, holdResolveTbId, publicId, toHex128 } from '../src/ledger/ids';
@@ -89,5 +90,64 @@ describe('plan de cuentas', () => {
   it('extrae el comercio dueño', () => {
     expect(parseAccount('merchant:mc_k3m9x2q7ab:pending')?.merchantId).toBe('mc_k3m9x2q7ab');
     expect(parseAccount('platform:fees')?.merchantId).toBeUndefined();
+  });
+});
+
+describe('los ids con el modo son deterministas y estables entre reinicios y entre réplicas (D-28)', () => {
+  const REF = 'pi_abcdefghij1k:capture';
+  // VALORES FIJADOS. Si esta tabla cambia, todo ledger con datos pierde la correspondencia entre sus filas de Postgres y sus cuentas y
+  // transferencias de TigerBeetle: cambiar la derivación exige una migración (README del ledger, «Cambiar la derivación de ids»).
+  const GOLDEN = {
+    acct_test: '41bda7c00ea9b23771a88b4483d5463e',
+    acct_live: 'ea95f847af21d92d9e06dab1a8d5a998',
+    leg: '25eb009ed9d85040bb59101e812bb84d',
+    legdebt: '85cbaf5fb4d1c454e72e777a7ca5bbe4',
+    hold: '6080f5b5967d46d770d7800d77be4cdf',
+    tx_test: 'tx_6dgzaawf56hpf3zfekxs',
+    tx_live: 'tx_c4yrjqyn6ioi7wplu5mj',
+    hd_live: 'hd_jdjuxyof5cjwi27mykym',
+    tf: 'tf_jyj6y5mu3ulgqdssynpb',
+    sl: 'sl_vgp4lzyhmm4zd5ci33mz',
+  };
+  const compute = (m: typeof import('../src/ledger/ids')) => {
+    const txTest = m.publicId('tx', 'test', REF, 1);
+    return {
+      acct_test: m.accountTbId('test', 'platform:fees').toString(16),
+      acct_live: m.accountTbId('live', 'platform:fees').toString(16),
+      leg: m.legTbId('test', REF, 1, 0).toString(16),
+      legdebt: m.legTbId('live', REF, 2, 3, 'debt').toString(16),
+      hold: m.holdTbId('live', REF, 1).toString(16),
+      tx_test: txTest,
+      tx_live: m.publicId('tx', 'live', REF, 1),
+      hd_live: m.publicId('hd', 'live', REF, 1),
+      tf: m.publicId('tf', txTest, 0),
+      sl: m.publicId('sl', m.publicId('tf', txTest, 0), 'debit'),
+    };
+  };
+
+  it('valores fijados: la derivación de hoy da exactamente estos ids', async () => {
+    expect(compute(await import('../src/ledger/ids'))).toEqual(GOLDEN);
+  });
+
+  it('un reinicio y dos réplicas (procesos nuevos y aparte, con otra zona horaria, otro idioma y otro entorno) calculan los mismos ids que este proceso', () => {
+    const script = `const m = await import(${JSON.stringify(`${process.cwd()}/src/ledger/ids.ts`)});
+      const REF = ${JSON.stringify(REF)}; const tx = m.publicId('tx','test',REF,1);
+      console.log(JSON.stringify({acct_test:m.accountTbId('test','platform:fees').toString(16),acct_live:m.accountTbId('live','platform:fees').toString(16),leg:m.legTbId('test',REF,1,0).toString(16),legdebt:m.legTbId('live',REF,2,3,'debt').toString(16),hold:m.holdTbId('live',REF,1).toString(16),tx_test:tx,tx_live:m.publicId('tx','live',REF,1),hd_live:m.publicId('hd','live',REF,1),tf:m.publicId('tf',tx,0),sl:m.publicId('sl',m.publicId('tf',tx,0),'debit')}));`;
+    const replica = (env: NodeJS.ProcessEnv) => {
+      const out = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', '--input-type=module', '-e', script], { env: { PATH: process.env.PATH, ...env }, encoding: 'utf8' });
+      expect(out.status).toBe(0);
+      return JSON.parse(out.stdout.trim().split('\n').pop() as string) as typeof GOLDEN;
+    };
+    expect(replica({ TZ: 'America/La_Paz', LANG: 'es_BO.UTF-8' })).toEqual(GOLDEN);
+    expect(replica({ TZ: 'Pacific/Kiritimati', LANG: 'tr_TR.UTF-8', NODE_ENV: 'production', HOSTNAME: 'replica-2' })).toEqual(GOLDEN);
+  });
+
+  it('el modo, el business_ref y el intento cambian el id; nada más (sin reloj, sin azar, sin dependencia del entorno)', () => {
+    const base = legTbId(REF, 1, 0);
+    const again = Array.from({ length: 50 }, () => legTbId(REF, 1, 0));
+    expect(new Set(again)).toEqual(new Set([base]));
+    expect(legTbId(REF, 1, 0, 'main', 'live')).not.toBe(base);
+    expect(legTbId(REF, 2, 0)).not.toBe(base);
+    expect(legTbId(`${REF}x`, 1, 0)).not.toBe(base);
   });
 });

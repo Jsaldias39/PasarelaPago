@@ -15,7 +15,8 @@ const SECRET_BODY = SECRET.replace(/^whsec_/, '');
 const CARD_TOKEN = 'tok_sentinelcardtoken0123456789';
 const PAYER = 'Juan Perez Quispe CI 7654321';
 const PAN = '4111111111111111';
-const FORBIDDEN = [SECRET, SECRET_BODY, CARD_TOKEN, PAYER, 'Juan Perez', PAN, '7654321'];
+// Centinelas LARGOS o con palabras: un trozo corto de dígitos (p. ej. 7654321) puede aparecer por azar en un timestamp o en un UUID de los logs.
+const FORBIDDEN = [SECRET, SECRET_BODY, CARD_TOKEN, PAYER, 'Juan Perez', PAN, 'CI 7654321'];
 
 let t: TestApp;
 const logs: string[] = [];

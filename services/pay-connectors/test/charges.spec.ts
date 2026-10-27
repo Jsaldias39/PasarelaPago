@@ -37,7 +37,7 @@ describe('POST /charges', () => {
     expect(response.body.next_action.type).toBe('display_qr');
     expect(response.body.next_action.payload).toMatch(/^000201.*6304[0-9A-F]{4}$/);
     expect(response.body.provider_reference).toMatch(/^SIM-\d{6}$/);
-    expect(t.qr.issued).toEqual([{ chargeId: response.body.id, amountMinor: 10000n }]);
+    expect(t.qr.issued).toEqual([{ chargeId: response.body.id, amountMinor: 10000n, payMode: 'test' }]); // el modo de la clave viaja a pay-qr
     const row = await rowOf(response.body.id);
     expect(row).toMatchObject({ connector: 'mock', ambiguous: false, provider_status: 'pending', routing_version: 1, routing_rule: 'qr' });
   });

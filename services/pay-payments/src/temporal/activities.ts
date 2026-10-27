@@ -52,7 +52,7 @@ export function createActivities(deps: Deps) {
     return row;
   };
 
-  const settle = async (intentId: string, to: 'succeeded' | 'failed' | 'canceled' | 'expired', patch: { failureCode?: string; ledgerTransferId?: string } = {}): Promise<IntentRow> => {
+  const settle = async (intentId: string, to: 'succeeded' | 'failed' | 'canceled' | 'expired', patch: { failureCode?: string; failureReason?: string; ledgerTransferId?: string } = {}): Promise<IntentRow> => {
     try {
       return (await settleIntent(deps, intentId, to, patch)).intent;
     } catch (error) {
@@ -93,9 +93,20 @@ export function createActivities(deps: Deps) {
       return 'continue';
     });
 
-  const inquire = async (intent: IntentRow): Promise<ChargeSignal> => {
+  /**
+   * Consulta autoritativa del cargo. Un `404` exacto («el conector no conoce ese cargo», que el propio conector nos devolvió al
+   * crearlo) es una ANOMALÍA, no una prueba de que no hubo pago: no anula, no vence ni falla nada (regla 11); se señala con
+   * `notFound` para que quien llama escale y siga.
+   */
+  const inquire = async (intent: IntentRow): Promise<ChargeSignal & { notFound?: true }> => {
     if (!intent.chargeId) return { status: 'pending' };
-    const state = await clients.connectors.getChargeStatus(intent.chargeId, intent.mode);
+    let state;
+    try {
+      state = await clients.connectors.getChargeStatus(intent.chargeId, intent.mode);
+    } catch (error) {
+      if (isRejection(error) && (error as { status?: number }).status === 404) return { status: 'pending', notFound: true };
+      throw error;
+    }
     // Un dato viejo del conector (`stale`) no es una novedad: se trata como «sin cambios».
     if (state.stale) return { status: 'pending' };
     return { status: chargeNameOf(state.status), failureCode: state.failure_code ? normalizeFailureCode(state.failure_code) : undefined };
@@ -178,7 +189,7 @@ export function createActivities(deps: Deps) {
         // El conector no informó la cuenta y no hay respaldo (T-03): no se puede mostrar al pagador adónde transferir. Se anula el
         // cargo (con clave estable; si el conector no contesta, Temporal reintenta) y el POST responde 422 payment_method_unavailable.
         await clients.connectors.cancelCharge(charge.id, `${intentId}:cancel`, intent.mode);
-        await settle(intentId, 'failed', { failureCode: 'payment_method_unavailable' });
+        await settle(intentId, 'failed', { failureCode: 'validation_failed', failureReason: 'payment_method_unavailable' });
         return { state: 'settled' };
       }
       return deps.tx(async (db) => {
@@ -196,7 +207,7 @@ export function createActivities(deps: Deps) {
     },
 
     /** Consulta el estado del cargo al conector: atrapa los eventos perdidos (REQ-P3-7). */
-    async inquireCharge(intentId: string): Promise<ChargeSignal> {
+    async inquireCharge(intentId: string): Promise<ChargeSignal & { notFound?: true }> {
       return inquire(await load(intentId));
     },
 
@@ -214,6 +225,11 @@ export function createActivities(deps: Deps) {
         return 'done';
       }
       const first = await inquire(intent);
+      if (first.notFound) {
+        // No se puede verificar ni anular un cargo que el conector dice no conocer: el intento NO vence. Se escala y el workflow falla visible.
+        await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'ambiguous', sourceEventId: 'ambiguous:charge_not_found_at_connector', kind: 'charge_not_found_at_connector', reason: 'authoritative_query_not_found_keeps_state' }));
+        throw ApplicationFailure.nonRetryable('El conector no conoce el cargo al vencer; se conserva el estado', 'ChargeNotFoundAtConnector');
+      }
       if (first.status !== 'pending' && first.status !== 'authorized') return applySignal(intentId, first);
       const cancel = await clients.connectors.cancelCharge(intent.chargeId, `${intentId}:cancel`, intent.mode);
       if (!cancel.ok) {

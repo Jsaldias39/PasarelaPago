@@ -285,11 +285,9 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
       ['id de intento mal formado', { payment_intent_id: 'pi_' }],
       ['campo de más', { admin: true }],
       ['nombre vacío', { screening: { name: '' } }],
-      ['nombre solo espacios', { screening: { name: '    ' } }],
       ['nombre de 201 caracteres', { screening: { name: 'a'.repeat(201) } }],
       ['screening con campo de más', { screening: { name: 'x', dob: '1980-01-01' } }],
       ['huella de 129 caracteres', { payer_fingerprint: 'h'.repeat(129) }],
-      ['huella vacía', { payer_fingerprint: '' }],
     ])('inválido: %s ⇒ 422 sin rastro y sin repetir lo enviado', async (_name, override) => {
       const before = (await rows(ctx, 'SELECT count(*)::int AS n FROM risk_assessments'))[0].n;
       const res = await post(ctx, assessmentBody(override as never));
@@ -298,6 +296,21 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
       // El error nombra el campo, nunca el valor enviado.
       expect(JSON.stringify(res.body)).not.toMatch(/1980|aaaaaaaa|efectivo/);
       expect((await rows(ctx, 'SELECT count(*)::int AS n FROM risk_assessments'))[0].n).toBe(before);
+    });
+
+    it('el contrato admite un nombre en blanco y una huella vacía: no se rechazan, se tratan como ausentes (review conservador, nunca allow)', async () => {
+      const own = await createTestContext(); // reglas propias: v1 «sin límites»
+      try {
+        const ask = async (body: Record<string, unknown>) => verified(own.contract, 'post', '/assessments', await post(own, body), 201);
+        expect(await ask(assessmentBody({ screening: { name: '    ' } }))).toMatchObject({ decision: 'review', reason_code: 'screening_not_provided', screened: false });
+        const emptyPrint = await ask(assessmentBody({ payer_fingerprint: '' }));
+        expect(emptyPrint).toMatchObject({ decision: 'allow', reason_code: 'no_limits_configured', screened: true });
+        expect((await own.db.pool.query('SELECT payer_hash FROM risk_assessments WHERE id = $1', [emptyPrint.id])).rows[0].payer_hash).toBeNull();
+        await publishRules(own, { payer_velocity: { max: 5, window_seconds: 60 } });
+        expect(await ask(assessmentBody({ payer_fingerprint: '' }))).toMatchObject({ decision: 'review', reason_code: 'payer_unidentified' });
+      } finally {
+        await own.close();
+      }
     });
 
     it('faltan campos obligatorios ⇒ 422 con el campo señalado', async () => {

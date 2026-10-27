@@ -44,6 +44,8 @@ export interface TargetGuardOptions {
   readonly allowedPorts?: readonly number[];
   /** Sufijos de nombres internos que se rechazan sin resolver (además de los nombres sin punto). */
   readonly internalSuffixes?: readonly string[];
+  /** SOLO sandbox: pares `host:puerto` exactos que se aceptan sin las comprobaciones de red privada (el receptor local del e2e). */
+  readonly allowTargets?: ReadonlySet<string>;
 }
 
 const DEFAULT_INTERNAL_SUFFIXES = [
@@ -62,6 +64,7 @@ const DEFAULT_INTERNAL_SUFFIXES = [
 export class TargetGuard {
   private readonly allowedPorts: readonly number[];
   private readonly internalSuffixes: readonly string[];
+  private readonly allowTargets: ReadonlySet<string>;
 
   constructor(
     private readonly resolver: Resolver,
@@ -69,6 +72,7 @@ export class TargetGuard {
   ) {
     this.allowedPorts = options.allowedPorts ?? [443];
     this.internalSuffixes = options.internalSuffixes ?? DEFAULT_INTERNAL_SUFFIXES;
+    this.allowTargets = options.allowTargets ?? new Set();
   }
 
   async check(rawUrl: string): Promise<ResolvedTarget> {
@@ -81,6 +85,8 @@ export class TargetGuard {
     if (url.protocol !== 'https:') throw new TargetRejectedError('https_required');
     if (url.username !== '' || url.password !== '') throw new TargetRejectedError('credentials_in_url');
     const port = url.port === '' ? 443 : Number(url.port);
+    const exact = `${url.hostname}:${port}`;
+    if (this.allowTargets.has(exact)) return { hostname: url.hostname, port, path: `${url.pathname}${url.search}`, ip: url.hostname, family: 4 };
     if (!this.allowedPorts.includes(port)) throw new TargetRejectedError('port_not_allowed');
 
     // WHATWG URL ya normaliza 2130706433, 0x7f.1, 0177.0.0.1 y [::ffff:7f00:1] a su forma canónica antes de llegar acá.

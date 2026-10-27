@@ -64,6 +64,7 @@ export function testConfig(overrides: Partial<SettlementConfig> = {}): Settlemen
     sweepIntervalMs: 0,
     stuckAfterMs: 0,
     statementFormats: {},
+    eventsCarryMode: false,
     operator: { publicKeyPem: (process.env.OPERATOR_TOKEN_PUBLIC_KEY as string).replace(/\\n/g, '\n'), issuer: ISSUER, audience: AUDIENCE },
     ...overrides,
   };

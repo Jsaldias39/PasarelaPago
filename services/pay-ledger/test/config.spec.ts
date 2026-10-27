@@ -38,3 +38,12 @@ describe('namespace de ids de TigerBeetle', () => {
     expect(accountTbId('platform:fees')).toBe(uno);
   });
 });
+
+describe('EVENTS_CARRY_MODE', () => {
+  it('apagado por defecto; acepta true|false; cualquier otro valor falla al arrancar', () => {
+    expect(loadLedgerConfig({ TB_ADDRESS: 'x:1' }).eventsCarryMode).toBe(false);
+    expect(loadLedgerConfig({ TB_ADDRESS: 'x:1', EVENTS_CARRY_MODE: 'true' }).eventsCarryMode).toBe(true);
+    expect(loadLedgerConfig({ TB_ADDRESS: 'x:1', EVENTS_CARRY_MODE: 'false' }).eventsCarryMode).toBe(false);
+    expect(() => loadLedgerConfig({ TB_ADDRESS: 'x:1', EVENTS_CARRY_MODE: 'yes' })).toThrow(/EVENTS_CARRY_MODE/);
+  });
+});

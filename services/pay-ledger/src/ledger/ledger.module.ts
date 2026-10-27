@@ -5,6 +5,7 @@ import { HoldService } from './hold.service';
 import { InvariantService } from './invariant.service';
 import { LEDGER_CONFIG, type LedgerConfig, loadLedgerConfig } from './ledger.config';
 import { LedgerController, PublicLedgerController } from './ledger.controller';
+import { setEventsCarryMode } from './event-mode';
 import { useIdNamespace } from './ids';
 import { LedgerService } from './ledger.service';
 import { TB_ENGINE, TigerBeetleEngine } from './tb-engine';
@@ -23,6 +24,7 @@ class LedgerLifecycle implements OnModuleInit, OnApplicationShutdown {
   onModuleInit(): void {
     // Antes de la primera petición: ningún id se calcula hasta que el servicio escucha.
     if (this.config.idNamespace) useIdNamespace(this.config.idNamespace);
+    setEventsCarryMode(this.config.eventsCarryMode);
     this.invariant.start(this.config.invariantIntervalMs);
     if (this.config.holdSweepIntervalMs > 0) {
       this.sweep = setInterval(() => void this.holds.sweepExpired(this.config.holdExpirySkewMs).catch(() => undefined), this.config.holdSweepIntervalMs);

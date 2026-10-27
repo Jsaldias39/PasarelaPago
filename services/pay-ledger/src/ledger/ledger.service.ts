@@ -190,6 +190,7 @@ export class LedgerService {
         );
       }
       const event: PostedLeg = {
+        mode: p.mode,
         transferId: legId,
         businessRef: p.businessRef,
         attempt: p.attempt,

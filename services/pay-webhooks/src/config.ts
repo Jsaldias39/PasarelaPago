@@ -36,6 +36,13 @@ export interface ServiceConfig {
   /** Cuánto siguen firmándose las entregas con el secreto viejo después de rotarlo. */
   readonly rotationGraceMs: number;
   readonly maxEndpointsPerMerchant: number;
+  /**
+   * SOLO sandbox (e2e): destinos `127.0.0.1:<puerto>` EXACTOS a los que se puede entregar aunque sean de loopback. Con `PAY_MODE=live`
+   * el servicio no arranca si hay alguno. Cualquier otro destino privado sigue rechazado.
+   */
+  readonly sandboxTargets: readonly string[];
+  /** SOLO sandbox: CA en PEM en la que se confía para esos destinos (el receptor de prueba usa un certificado autofirmado). */
+  readonly sandboxCaFile?: string;
   /** `false` en pruebas y en réplicas que solo atienden la API: el trabajador de entregas no arranca solo. */
   readonly workerEnabled: boolean;
 }
@@ -83,6 +90,11 @@ function parseSchedule(text: string | undefined): readonly number[] {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {
   const payMode = env.PAY_MODE ?? '';
   if (payMode !== 'sandbox' && payMode !== 'live') throw new Error(`PAY_MODE inválido: ${payMode || '(vacío)'} (sandbox | live)`);
+  const sandboxTargets = (env.WEBHOOKS_SANDBOX_TARGETS ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+  for (const target of sandboxTargets) if (!/^127\.0\.0\.1:\d{2,5}$/.test(target)) throw new Error(`WEBHOOKS_SANDBOX_TARGETS inválido: ${target} (solo 127.0.0.1:<puerto>)`);
+  if (payMode === 'live' && (sandboxTargets.length > 0 || env.WEBHOOKS_SANDBOX_CA_FILE)) {
+    throw new Error('WEBHOOKS_SANDBOX_TARGETS y WEBHOOKS_SANDBOX_CA_FILE no pueden usarse con PAY_MODE=live: abren la entrega a la red local');
+  }
   const kek = Buffer.from(required(env, 'WEBHOOKS_SECRET_KEK'), 'base64');
   if (kek.length !== 32) throw new Error('WEBHOOKS_SECRET_KEK debe ser una clave de 32 bytes en base64');
   if (env.DB_SCHEMA && !SCHEMA.test(env.DB_SCHEMA)) throw new Error(`DB_SCHEMA inválido: ${env.DB_SCHEMA}`);
@@ -115,6 +127,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
     rotationGraceMs: integer(env, 'WEBHOOKS_ROTATION_GRACE_HOURS', 24, 0, 24 * 30) * HOUR,
     maxEndpointsPerMerchant: integer(env, 'WEBHOOKS_MAX_ENDPOINTS', 20, 1, 1000),
     workerEnabled: (env.WEBHOOKS_WORKER_ENABLED ?? 'true') !== 'false',
+    sandboxTargets,
+    ...(env.WEBHOOKS_SANDBOX_CA_FILE ? { sandboxCaFile: env.WEBHOOKS_SANDBOX_CA_FILE } : {}),
   };
 }
 

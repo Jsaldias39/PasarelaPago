@@ -16,13 +16,13 @@ const parseAssessment = compile<AssessmentInput>({
     amount_minor: { type: 'integer', minimum: 1, maximum: 9007199254740991 },
     currency: { type: 'string', enum: ['BOB'] },
     method: { type: 'string', enum: ['qr', 'card', 'bank_transfer', 'wallet'] },
-    payer_fingerprint: { type: 'string', minLength: 1, maxLength: 128 },
+    payer_fingerprint: { type: 'string', maxLength: 128 },
     screening: {
       type: 'object',
       required: ['name'],
       additionalProperties: false,
       properties: {
-        name: { type: 'string', minLength: 1, maxLength: 200, pattern: '\\S' },
+        name: { type: 'string', minLength: 1, maxLength: 200 },
         entity_type: { type: 'string', enum: ['person', 'business'] },
       },
     },

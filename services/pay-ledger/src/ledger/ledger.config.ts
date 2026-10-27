@@ -12,6 +12,8 @@ export interface LedgerConfig {
    * integración de otros servicios). Vacío en producción: cambiarlo en un ledger con datos huérfana el dinero ya registrado.
    */
   readonly idNamespace: string;
+  /** Emitir `mode` en los datos de los eventos `ledger.*`. Apagado hasta que el AsyncAPI lo declare (ver `event-mode.ts`). */
+  readonly eventsCarryMode: boolean;
 }
 
 export const LEDGER_CONFIG = Symbol('LEDGER_CONFIG');
@@ -33,6 +35,7 @@ export function loadLedgerConfig(env: NodeJS.ProcessEnv = process.env): LedgerCo
     holdSweepIntervalMs: integer(env, 'LEDGER_HOLD_SWEEP_INTERVAL_MS', 0, 0),
     holdExpirySkewMs: integer(env, 'LEDGER_HOLD_EXPIRY_SKEW_MS', 2000, 0),
     idNamespace: idNamespace(env.LEDGER_ID_NAMESPACE),
+    eventsCarryMode: flag(env, 'EVENTS_CARRY_MODE'),
   };
 }
 
@@ -40,4 +43,11 @@ function idNamespace(raw: string | undefined): string {
   if (raw === undefined || raw === '') return '';
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(raw)) throw new Error('LEDGER_ID_NAMESPACE inválido: 1 a 40 caracteres [A-Za-z0-9_-]');
   return raw;
+}
+
+function flag(env: NodeJS.ProcessEnv, name: string): boolean {
+  const raw = env[name];
+  if (raw === undefined || raw === '' || raw === 'false') return false;
+  if (raw === 'true') return true;
+  throw new Error(`${name} inválido: ${raw} (true | false)`);
 }

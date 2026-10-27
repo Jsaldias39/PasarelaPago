@@ -69,7 +69,8 @@ export class HttpLedgerClient implements LedgerClient {
         signal: AbortSignal.timeout(this.settings.ledgerTimeoutMs),
         headers: {
           'x-service-id': 'pay-schedules',
-          'x-pay-mode': mode,
+          // D-28: sin modo válido no se llama con uno inventado; el libro mayor responde 403 (ambiguo para el ejecutor, regla 11).
+          ...(mode && { 'x-pay-mode': mode }),
           accept: 'application/json',
           ...(body !== undefined && { 'content-type': 'application/json' }),
           ...(key !== undefined && { 'idempotency-key': key }),

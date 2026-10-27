@@ -9,6 +9,7 @@ import { JwtOperatorVerifier } from './operator-token';
 import { PayoutService, type RailMap } from './payout.service';
 import { CONNECTORS_PORT, type ConnectorsPort, LEDGER_PORT, OPERATOR_VERIFIER, PAYOUT_RAILS } from './ports';
 import { AcquirerSettlementRail, BankTransferRail } from './rails';
+import { setEventsCarryMode } from './event-mode';
 import { ReconciliationService } from './reconciliation.service';
 import { SETTLEMENT_CONFIG, type SettlementConfig, loadSettlementConfig } from './settlement.config';
 import { SettlementController } from './settlement.controller';
@@ -26,6 +27,7 @@ class SettlementLifecycle implements OnModuleInit, OnApplicationShutdown {
   ) {}
 
   async onModuleInit(): Promise<void> {
+    setEventsCarryMode(this.config.eventsCarryMode);
     if (this.config.mode === 'acquirer') {
       new Logger('SettlementMode').warn('settlement.mode=acquirer: el riel acquirer_settlement es un DOBLE declarado (D-02); los pagos salen marcados simulated=true y NO mueven dinero');
     }

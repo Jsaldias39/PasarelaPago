@@ -85,7 +85,9 @@ export class AssessmentsService {
       }
       const started = performance.now();
       // El cribado va FUERA de la transacción y de los candados: es una llamada de red.
-      const screening: ScreeningResult | 'not_provided' = input.screening ? await this.screener.screen(input.screening.name.trim(), input.screening.entity_type) : 'not_provided';
+      // Un nombre en blanco (válido para el contrato) equivale a no haber mandado nombre: no hay a quién cribar.
+      const name = input.screening?.name.trim();
+      const screening: ScreeningResult | 'not_provided' = input.screening && name ? await this.screener.screen(name, input.screening.entity_type) : 'not_provided';
       const view = await ctx.atomic('evaluated', (client) => this.decideAndRecord(client, callerService, idempotencyKey, input, screening, started));
       return { status: 201, body: view };
     });
@@ -136,6 +138,7 @@ export class AssessmentsService {
   ): Promise<AssessmentView> {
     const now = this.clock();
     const rules = await this.ruleSets.current(client, now);
+    // Una huella vacía (válida para el contrato) equivale a no haberla mandado.
     const payerHash = input.payer_fingerprint ? this.digest('payer', input.payer_fingerprint) : null;
     // Los límites cuentan lo ya evaluado: dos evaluaciones simultáneas del mismo comercio o pagador se serializan
     // (si no, ambas verían n-1 y pasarían). Solo se toma el candado si hay un límite que lo necesite; siempre en el mismo orden.
