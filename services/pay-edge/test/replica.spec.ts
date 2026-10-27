@@ -60,7 +60,9 @@ describe('[DOBLE] réplica de claves por eventos (NATS JetStream real)', () => {
   beforeAll(async () => {
     nc = await connect({ servers: NATS_URL, name: 'edge-replica-test' });
     await (await nc.jetstreamManager()).streams.add({ name: stream, subjects: [`${prefix}.>`], retention: RetentionPolicy.Limits, storage: StorageType.Memory, duplicate_window: 120_000_000_000 });
-    h = await startEdge({ env: { NATS_URL, REPLICA_STREAM: stream, REPLICA_SUBJECT_PREFIX: prefix, REPLICA_DURABLE: `edge-${suffix}` } });
+    // Esta suite consulta el borde en bucle (hasta 5 s cada 50 ms por caso) desde una sola IP: los topes de velocidad se suben para que midan
+    // la réplica y no el freno de abuso (que tiene sus pruebas en rate-limiter.spec.ts y authz.spec.ts).
+    h = await startEdge({ env: { NATS_URL, REPLICA_STREAM: stream, REPLICA_SUBJECT_PREFIX: prefix, REPLICA_DURABLE: `edge-${suffix}`, RATE_LIMIT_IP_PER_WINDOW: '1000000', RATE_LIMIT_KEY_PER_WINDOW: '1000000', RATE_LIMIT_AUTH_FAILURES_PER_WINDOW: '100000' } });
     await h.app.get(ReplicaConsumer).ready;
   });
   afterAll(async () => {
