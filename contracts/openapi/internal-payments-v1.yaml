@@ -13,6 +13,13 @@ info:
     Un intento iniciado por un mandato **usa el mismo ciclo de vida** que uno público (máquina de estados,
     riesgo, ledger y eventos `payment_intent.*`); solo cambia quién lo crea y el medio, que es el saldo AloVida.
     El intento termina en **un solo estado terminal** aunque el servicio caiga a mitad del proceso.
+
+    **Disputas.** Esta API no las expone. `pay-payments` las implementa (`DisputesService`, flujo `DisputeWorkflow`) y publica los
+    eventos `dispute.*`, pero quién las abre, con qué evidencia y quién las resuelve depende del proceso de contracargos del banco (Q-11)
+    y del recurso público `dispute` (Q-18): es una decisión pendiente del dueño, no un detalle técnico.
+
+    **Modo (D-28).** `X-Pay-Mode: test|live` (parámetro `PayMode` de `common.yaml`): el intento nace en el modo del mandato y toda
+    consulta filtra por `(comercio, modo)`. Su obligatoriedad es de la ola 2.
 servers:
   - url: http://pay-payments:3000
     description: Marcador de la red interna.
@@ -32,6 +39,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -57,6 +65,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - { name: id, in: path, required: true, schema: { type: string, pattern: '^pi_[a-z0-9]{10,40}$' } }
       responses:
         '200': { description: El intento., content: { application/json: { schema: { $ref: '#/components/schemas/InternalIntent' } } } }
@@ -134,6 +143,6 @@ components:
           type: string
           enum: [processing, succeeded, failed, canceled, expired]
           description: 'Terminales: `succeeded`, `failed`, `canceled`, `expired`.'
-        failure_code: { type: [string, 'null'], description: 'Código estable del catálogo de errores; por ejemplo `insufficient_funds`.' }
+        failure_code: { type: [string, 'null'], description: 'Código estable del catálogo de errores (`@pay/problem`). Los mismos de `payment_intent.failed`: `insufficient_funds`, `connector_unavailable`, `risk_unavailable`, `risk_denied`, `payment_declined`, `ledger_unavailable`, `merchant_suspended`, `validation_failed` o `internal_error`.' }
         created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
         completed_at: { oneOf: [{ $ref: 'common.yaml#/components/schemas/Timestamp' }, { type: 'null' }] }

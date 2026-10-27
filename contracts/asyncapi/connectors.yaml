@@ -25,6 +25,17 @@ info:
 
     El callback del proveedor se verifica (firma y endpoint registrado) ANTES de publicar; este evento nunca nace de un callback sin autenticar.
     Claves de deduplicación del lado del conector: `(connector, provider_event_id)`.
+
+    **Nombres.** El simulador se llama `mock` (como en `internal-connectors-v1.yaml`); `simulator` es un alias heredado que se sigue
+    aceptando mientras los productores migran. La transacción se cita con el id de la API (`ch_…` cobro, `cr_…` reembolso); el `ct_…`
+    histórico (el mismo cuerpo con otro prefijo) también se acepta.
+
+    **Salud.** `connector.health.degraded` se publica cuando el conector pasa a `down` (sale del ruteo, tras varios fallos seguidos), no
+    en el primer fallo; el estado intermedio `degraded` de `GET /connectors/health` no publica nada. `connector.health.recovered`, al
+    volver a `up`.
+
+    **Transferencias salientes.** `connector.transfer.status_changed` es una señal para `pay-settlement`; la consulta autoritativa sigue
+    siendo `GET /transfers/{reference}` (CLAUDE.md, regla 11): el evento nunca es la única prueba de que un pago no se ejecutó.
 servers:
   nats:
     host: nats.pay.internal:4222
@@ -54,6 +65,12 @@ channels:
     messages:
       ConnectorHealthRecovered:
         $ref: '#/components/messages/ConnectorHealthRecovered'
+  connectorTransferStatusChanged:
+    address: pay-connectors.connector.transfer.status_changed
+    description: Tema NATS JetStream `pay-connectors.connector.transfer.status_changed`. Lo publica `pay-connectors` por outbox.
+    messages:
+      ConnectorTransferStatusChanged:
+        $ref: '#/components/messages/ConnectorTransferStatusChanged'
 operations:
   publishConnectorTransactionStatusChanged:
     action: send
@@ -145,6 +162,25 @@ operations:
     x-inbox-consumer: pay-payments.connector.health.recovered
     messages:
     - $ref: '#/channels/connectorHealthRecovered/messages/ConnectorHealthRecovered'
+  publishConnectorTransferStatusChanged:
+    action: send
+    channel:
+      $ref: '#/channels/connectorTransferStatusChanged'
+    summary: pay-connectors publica connector.transfer.status_changed
+    x-publisher: pay-connectors
+    messages:
+    - $ref: '#/channels/connectorTransferStatusChanged/messages/ConnectorTransferStatusChanged'
+  consumeConnectorTransferStatusChangedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/connectorTransferStatusChanged'
+    summary: pay-settlement (P2) consume connector.transfer.status_changed
+    description: 'Confirma o falla un payout en tránsito sin esperar al barrido. Hasta que lo consuma (ola 2), `pay-settlement` consulta `GET /transfers/{reference}`, que sigue siendo la fuente autoritativa.'
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.connector.transfer.status_changed
+    messages:
+    - $ref: '#/channels/connectorTransferStatusChanged/messages/ConnectorTransferStatusChanged'
 components:
   messages:
     ConnectorTransactionStatusChanged:
@@ -283,6 +319,55 @@ components:
             connector: mercantil_qr
             degraded_since: '2026-10-27T15:00:00.000Z'
             recovered_at: '2026-10-27T15:05:00.000Z'
+    ConnectorTransferStatusChanged:
+      name: connector.transfer.status_changed
+      title: Cambió el estado de una transferencia saliente en el proveedor
+      summary: Cambió el estado de una transferencia saliente en el proveedor
+      description: |-
+        Cambió el estado de una transferencia saliente en el proveedor
+
+        Dinero que SALE hacia un comercio (payouts). Puede llegar duplicado o atrasado: el consumidor nunca retrocede un estado terminal
+        (`paid`, `failed`). `failed` siempre trae `failure_code` y prueba que NO se pagó; cualquier otra cosa (un evento que no llega, un
+        timeout) no prueba nada. No lleva `merchantid`: la transferencia se ata a su `reference` (`business_ref:attempt`).
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-connectors
+            type:
+              const: connector.transfer.status_changed
+            subject:
+              $ref: '#/components/schemas/TransferId'
+            data:
+              $ref: '#/components/schemas/ConnectorTransferStatusChangedData'
+      examples:
+      - name: connector.transfer.status_changed (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 9a4f6c52-7d3b-5e18-a0c4-6b1d2e8f3a77
+          source: /pay-connectors
+          type: connector.transfer.status_changed
+          subject: tr_q8971q4kc264
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            transfer_id: tr_q8971q4kc264
+            reference: po_c92215200m49:payout:1
+            connector: mock
+            status: paid
+            amount_minor: 9700
+            currency: BOB
+            failure_code: null
+            provider_occurred_at: '2026-10-27T15:00:00.000Z'
+            observed_via: callback
   schemas:
     AmountMinor:
       $ref: ../openapi/common.yaml#/components/schemas/AmountMinor
@@ -301,15 +386,22 @@ components:
       pattern: ^re_[a-z0-9]{10,40}$
     ConnectorTransactionId:
       type: string
-      pattern: ^ct_[a-z0-9]{10,40}$
+      pattern: ^(ch|cr|ct)_[a-z0-9]{10,40}$
+      description: 'Transacción del conector: `ch_…` (cobro) o `cr_…` (reembolso), los ids de `internal-connectors-v1.yaml`. `ct_…` es el
+        prefijo histórico del mismo cuerpo y se acepta por compatibilidad.'
+    TransferId:
+      type: string
+      pattern: ^tr_[a-z0-9]{10,40}$
     ConnectorCode:
       type: string
       enum:
+      - mock
       - simulator
       - mercantil_qr
       - mercantil_card
       - bank_transfer
-      description: Conector (D-16). Un banco nuevo agrega un valor; no se renombran los existentes.
+      description: Conector (D-16). `mock` es el simulador, con el mismo nombre que en `internal-connectors-v1.yaml`; `simulator` es un alias
+        heredado que se sigue aceptando mientras los productores migran. Un banco nuevo agrega un valor; no se renombran los existentes.
     ConnectorTransactionStatusChangedData:
       type: object
       additionalProperties: false
@@ -338,6 +430,8 @@ components:
         payment_intent_id:
           $ref: '#/components/schemas/PaymentIntentId'
         refund_id:
+          description: Id del reembolso en `pay-payments` (`re_…`) cuando `kind` es `refund` y el pedido lo trajo (`refund_id` de
+            `POST /charges/{id}/refunds`); nulo en un cobro o si el pedido no lo trajo.
           oneOf:
           - $ref: '#/components/schemas/RefundId'
           - type: 'null'
@@ -375,6 +469,7 @@ components:
             enum:
             - connector_unavailable
             - validation_failed
+            - card_declined
             - internal_error
           - type: 'null'
       description: Cambió el estado de una transacción en el proveedor
@@ -417,3 +512,55 @@ components:
         recovered_at:
           $ref: '#/components/schemas/Timestamp'
       description: Un conector volvió a responder y vuelve al ruteo
+    ConnectorTransferStatusChangedData:
+      type: object
+      additionalProperties: false
+      required:
+      - transfer_id
+      - reference
+      - connector
+      - status
+      - amount_minor
+      - currency
+      - provider_occurred_at
+      - observed_via
+      properties:
+        transfer_id:
+          $ref: '#/components/schemas/TransferId'
+        reference:
+          type: string
+          pattern: ^[A-Za-z0-9:._-]{3,200}$
+          description: '`business_ref:attempt` con el que se ordenó (por ejemplo `po_x:payout:1`); la clave de `GET /transfers/{reference}`.'
+        connector:
+          $ref: '#/components/schemas/ConnectorCode'
+        status:
+          type: string
+          enum:
+          - pending
+          - in_transit
+          - paid
+          - failed
+          description: '`paid` y `failed` son terminales.'
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        failure_code:
+          oneOf:
+          - type: string
+            enum:
+            - rejected_by_bank
+            - rejected_by_provider
+            - connector_unavailable
+            - validation_failed
+          - type: 'null'
+          description: No nulo cuando `status` es `failed`.
+        provider_occurred_at:
+          $ref: '#/components/schemas/Timestamp'
+        observed_via:
+          type: string
+          enum:
+          - callback
+          - status_inquiry
+          description: '`status_inquiry`: lo averiguó el barrido porque el callback no llegó.'
+      description: Cambió el estado de una transferencia saliente en el proveedor

@@ -16,6 +16,7 @@ export const PROBLEM_CATALOG = {
   resource_not_found: { status: 404, title: 'No existe el recurso' },
   // Forma de la petición
   validation_failed: { status: 422, title: 'La petición no es válida' },
+  bad_request: { status: 400, title: 'La petición está mal formada' },
   idempotency_key_required: { status: 400, title: 'Falta la cabecera Idempotency-Key' },
   idempotency_key_reused: { status: 422, title: 'La Idempotency-Key ya se usó con otra petición' },
   idempotency_request_in_progress: { status: 409, title: 'La petición con esta Idempotency-Key sigue en curso' },
@@ -23,12 +24,17 @@ export const PROBLEM_CATALOG = {
   // Dinero y estados
   insufficient_funds: { status: 422, title: 'Fondos insuficientes' },
   fee_exceeds_amount: { status: 422, title: 'La comisión supera el importe' },
+  risk_denied: { status: 422, title: 'El control de riesgo rechazó el cobro' },
+  payment_declined: { status: 422, title: 'El medio de pago fue rechazado' },
   invalid_state_transition: { status: 409, title: 'La operación no es válida en el estado actual' },
   transfer_not_found: { status: 404, title: 'No existe la transferencia' },
   // Dependencias
   risk_unavailable: { status: 503, title: 'El control de riesgo no está disponible' },
   connector_unavailable: { status: 502, title: 'El proveedor de pago no está disponible' },
   ledger_unavailable: { status: 503, title: 'El libro mayor no está disponible' },
+  upstream_error: { status: 502, title: 'El servicio de destino respondió algo inválido' },
+  upstream_unavailable: { status: 503, title: 'El servicio de destino no está disponible' },
+  upstream_timeout: { status: 504, title: 'El servicio de destino no respondió a tiempo' },
   internal_error: { status: 500, title: 'Error interno' },
 } as const satisfies Record<string, ProblemSpec>;
 

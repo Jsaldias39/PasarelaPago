@@ -27,6 +27,14 @@ info:
     Los temas llevan el prefijo del servicio y después el `type`, por eso `ledger.transfer.posted` sale en `pay-ledger.ledger.transfer.posted`.
     Los montos de asientos y retenciones son enteros ≥ 1; las cuentas son códigos lógicos del plan de cuentas, nunca números de cuenta bancaria.
     **Idempotencia del ledger:** el `transfer_id`/`hold_id` se deriva de `(ledger_ref, attempt)`. Un intento rechazado quema su id (spike TigerBeetle, `id_already_failed`); el reintento sube `attempt`.
+
+    **Ids.** `transfer_id` (`tf_…`) identifica UNA pata de un asiento; el asiento es `tx_…` y la retención `hd_…` (`internal-ledger-v1.yaml`).
+    Los eventos de otros servicios que citan el asiento (`ledger_transfer_id`) usan `tx_…` o `hd_…`, no `tf_…`.
+
+    **Qué NO se publica.** La liberación `pending → available` del corte (`release`) asienta pero no publica `ledger.transfer.posted`: el
+    corte lo informa `settlement.batch.closed`.
+
+    **Nombres.** El simulador se llama `mock` (como en las APIs); `simulator` es un alias heredado que se sigue aceptando.
 servers:
   nats:
     host: nats.pay.internal:4222
@@ -407,6 +415,18 @@ operations:
     x-inbox-consumer: pay-schedules.reconciliation.exception.opened
     messages:
     - $ref: '#/channels/reconciliationExceptionOpened/messages/ReconciliationExceptionOpened'
+  consumeLedgerTransferPostedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerTransferPosted'
+    summary: pay-settlement (P2) consume ledger.transfer.posted
+    description: Un crédito a `merchant:{id}:pending` le dice qué comercios tienen ventas por liberar, sin leer la base de nadie. Ignora lo que no
+      sea de esa cuenta.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.ledger-transfer-posted
+    messages:
+    - $ref: '#/channels/ledgerTransferPosted/messages/LedgerTransferPosted'
 components:
   messages:
     LedgerTransferPosted:
@@ -887,7 +907,8 @@ components:
     LedgerTransferId:
       type: string
       pattern: ^tf_[a-z0-9]{10,40}$
-      description: Id del asiento en pay-ledger.
+      description: Id de una PATA asentada en pay-ledger (se deriva del asiento `tx_…` o de la retención `hd_…` y del índice de la pata; un
+        asiento de N patas publica N eventos con N ids distintos).
     HoldId:
       type: string
       pattern: ^hd_[a-z0-9]{10,40}$
@@ -903,11 +924,13 @@ components:
     ConnectorCode:
       type: string
       enum:
+      - mock
       - simulator
       - mercantil_qr
       - mercantil_card
       - bank_transfer
-      description: Conector (D-16). Un banco nuevo agrega un valor; no se renombran los existentes.
+      description: Conector (D-16). `mock` es el simulador, con el mismo nombre que en las APIs; `simulator` es un alias heredado que se sigue
+        aceptando mientras los productores migran. Un banco nuevo agrega un valor; no se renombran los existentes.
     LedgerAccount:
       type: string
       pattern: ^(merchant|user|platform|connector|payout|schedule):[a-z0-9_.-]+(:[a-z_]+)?$|^platform:[a-z_]+$
@@ -942,6 +965,8 @@ components:
             spike TigerBeetle): el reintento usa attempt + 1.'
         kind:
           type: string
+          description: Tipo de movimiento (`code` de la pata en `internal-ledger-v1.yaml`). `release` (liberación `pending → available`) no tiene
+            `kind` porque no se publica.
           enum:
           - capture
           - fee
@@ -1096,18 +1121,20 @@ components:
       required:
       - payout_id
       - merchant_id
-      - settlement_batch_id
       - amount_minor
       - currency
       - status
       - period_from
       - period_to
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         payout_id:
           $ref: '#/components/schemas/PayoutId'
         merchant_id:
           $ref: '#/components/schemas/MerchantId'
         settlement_batch_id:
+          description: Corte del que nace el pago. Ausente en un pago suelto (`manual`, `mandate_obligation`, `mandate_commission`).
           $ref: '#/components/schemas/SettlementBatchId'
         amount_minor:
           allOf:
@@ -1133,6 +1160,8 @@ components:
       - status
       - paid_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         payout_id:
           $ref: '#/components/schemas/PayoutId'
         merchant_id:
@@ -1160,6 +1189,8 @@ components:
       - failure_code
       - failed_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         payout_id:
           $ref: '#/components/schemas/PayoutId'
         merchant_id:
@@ -1178,6 +1209,7 @@ components:
           - insufficient_funds
           - connector_unavailable
           - ledger_unavailable
+          - rail_rejected
           - internal_error
         failed_at:
           $ref: '#/components/schemas/Timestamp'
@@ -1239,6 +1271,7 @@ components:
           - missing_in_statement
           - amount_mismatch
           - duplicate_in_statement
+          - unknown_reference
         difference_minor:
           type: integer
           description: Extracto menos ledger, en centavos; con signo.
@@ -1256,3 +1289,11 @@ components:
         opened_at:
           $ref: '#/components/schemas/Timestamp'
       description: La conciliación encontró una diferencia; el ledger NO se ajusta solo
+    Mode:
+      type: string
+      enum:
+      - test
+      - live
+      description: Modo de la CLAVE que originó el hecho (D-28). Opcional mientras el productor no lo implemente (ola 2); los
+        eventos públicos lo llevan para que un consumidor distinga un hecho `test` de uno `live`. No es el modo del despliegue
+        (`sandbox|live`).

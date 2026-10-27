@@ -12,6 +12,40 @@ info:
     - **Habla con:** `pay-ledger` (retenciones y asientos) y `pay-connectors` (extractos). Nunca guarda saldos.
     - **Seguridad:** mTLS + `X-Service-Id`.
 
+    ## Quién llama a qué (supuesto de la ola 1, P2-D6: a confirmar con el dueño)
+
+    | `X-Service-Id` | Operaciones |
+    |---|---|
+    | `pay-schedules` | `POST /payouts`, `GET /payouts`, `GET /payouts/{id}`, `POST /charges` |
+    | `pay-payments` | `POST /charges` (deuda por contracargo, D-22) |
+    | `pay-edge` | `GET /payouts` (la forma pública, ver abajo) |
+    | `pay-console` (nombre PROVISORIO de la consola interna de operación, fuera de este plan) | todas, y es la única que corre cortes (`/batches`), concilia (`/reconciliation_*`) y exporta (`/exports/accounting`) |
+
+    Todo otro servicio recibe `403 forbidden`. (`pay-merchants` llama `pay-backoffice` a su equivalente: el nombre definitivo del
+    back-office es una decisión pendiente del dueño.)
+
+    ## `GET /payouts` tiene dos formas
+
+    `public-v1.yaml` también define `GET /payouts`. Es UNA sola ruta de este servicio con dos públicos: cuando llama `pay-edge`
+    devuelve la forma pública (`Payout` de `public-v1.yaml`), acotada al comercio de `X-Merchant-Id`, y solo admite `limit` y
+    `starting_after` (`merchant_id` y `status` no existen en la consulta pública: `422`); cuando llama un servicio interno devuelve el
+    `Payout` completo de este contrato y puede filtrar por `merchant_id` y `status`.
+
+    ## Credenciales y errores
+
+    Un servicio mal identificado es `403 forbidden`. Una operación que exige la credencial de una persona (`OperatorToken`) responde
+    `401 unauthorized` si la credencial falta, venció o no se puede verificar, y `403 forbidden` si es válida pero no tiene el rol; el
+    servicio no dice por qué falló la verificación. Todo cuerpo o parámetro inválido es `422 validation_failed` con un error por
+    campo; `400` queda para `idempotency_key_required` y `bad_request` (una petición ilegible).
+
+    Si `pay-ledger` no responde, la operación devuelve `503 ledger_unavailable` y no deja nada a medias: la MISMA `Idempotency-Key` la
+    retoma donde estaba.
+
+    ## Modo (D-28)
+
+    `X-Pay-Mode: test|live` (parámetro `PayMode` de `common.yaml`) llega de `pay-edge` y se propaga al ledger y a los conectores. La
+    obligatoriedad y el filtro por `(comercio, modo)` son de la ola 2.
+
     ## Corte semanal (D-08, D-19)
 
     El corte corre **los lunes**. Libera a `available` lo cobrado hasta **7 días antes** (T+7) y crea un payout por
@@ -36,6 +70,8 @@ tags:
   - { name: Payouts, description: Pagos a comercios }
   - { name: Batches, description: Corte de liquidación }
   - { name: Reconciliation, description: Conciliación y excepciones }
+  - { name: Charges, description: 'Cobros a comercios que se netean contra su saldo (7.8, D-22)' }
+  - { name: Exports, description: Exportación para contabilidad }
 paths:
   /payouts:
     post:
@@ -47,6 +83,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -58,6 +95,9 @@ paths:
         '409': { $ref: 'common.yaml#/components/responses/Conflict' }
         '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. No quedó nada a medias; la MISMA `Idempotency-Key` retoma la operación donde estaba.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
     get:
       operationId: settlementListPayouts
       tags: [Payouts]
@@ -66,6 +106,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: 'common.yaml#/components/parameters/Limit'
         - $ref: 'common.yaml#/components/parameters/StartingAfter'
         - { name: merchant_id, in: query, schema: { $ref: '#/components/schemas/MerchantId' } }
@@ -83,7 +124,11 @@ paths:
                     properties: { data: { type: array, items: { $ref: '#/components/schemas/Payout' } } }
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. Es una lectura: se reintenta.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /payouts/{id}:
     get:
       operationId: settlementGetPayout
@@ -93,13 +138,18 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - { name: id, in: path, required: true, schema: { type: string, pattern: '^po_[a-z0-9]{10,40}$' } }
       responses:
         '200': { description: El payout., content: { application/json: { schema: { $ref: '#/components/schemas/Payout' } } } }
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. Es una lectura: se reintenta.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /batches:
     post:
       operationId: settlementRunBatch
@@ -110,6 +160,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -121,6 +172,9 @@ paths:
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. No quedó nada a medias; la MISMA `Idempotency-Key` retoma la operación donde estaba.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
     get:
       operationId: settlementListBatches
       tags: [Batches]
@@ -129,6 +183,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: 'common.yaml#/components/parameters/Limit'
         - $ref: 'common.yaml#/components/parameters/StartingAfter'
       responses:
@@ -144,7 +199,11 @@ paths:
                     properties: { data: { type: array, items: { $ref: '#/components/schemas/Batch' } } }
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. Es una lectura: se reintenta.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /reconciliation_runs:
     post:
       operationId: settlementCreateReconciliationRun
@@ -155,6 +214,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -165,6 +225,9 @@ paths:
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. No quedó nada a medias; la MISMA `Idempotency-Key` retoma la operación donde estaba.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /reconciliation_runs/{id}:
     get:
       operationId: settlementGetReconciliationRun
@@ -174,13 +237,18 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - { name: id, in: path, required: true, schema: { type: string, pattern: '^rr_[a-z0-9]{10,40}$' } }
       responses:
         '200': { description: La corrida., content: { application/json: { schema: { $ref: '#/components/schemas/ReconciliationRun' } } } }
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. Es una lectura: se reintenta.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /reconciliation_exceptions:
     get:
       operationId: settlementListReconciliationExceptions
@@ -190,6 +258,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: 'common.yaml#/components/parameters/Limit'
         - $ref: 'common.yaml#/components/parameters/StartingAfter'
         - { name: status, in: query, schema: { type: string, enum: [open, resolved, dismissed] } }
@@ -206,7 +275,11 @@ paths:
                     properties: { data: { type: array, items: { $ref: '#/components/schemas/ReconciliationException' } } }
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. Es una lectura: se reintenta.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /reconciliation_exceptions/{id}/resolve:
     post:
       operationId: settlementResolveReconciliationException
@@ -218,13 +291,14 @@ paths:
         verifica un token de operador (`OperatorToken`), toma su `sub` como `resolved_by` y exige el rol `settlement_operator`
         para `dismiss` y `settlement_admin` para `request_adjustment`; la decisión queda en la auditoría. `request_adjustment`
         NO ajusta el ledger: solicita el asiento de ajuste por el flujo normal (`code: adjustment`) con su propia aprobación.
-      x-open-question: 'Quién puede aprobar un ajuste y con qué tope no lo define el stakeholder. Confirmar con el dueño y contabilidad antes de congelar.'
+      x-open-question: 'Quién puede aprobar un ajuste y con qué tope no lo define el stakeholder. Confirmar con el dueño y contabilidad antes de congelar. Los roles `settlement_operator` y `settlement_admin` tampoco existen todavía en el servicio de identidad (Q-21).'
       security:
         - mTLS: []
           OperatorToken: []
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - { name: id, in: path, required: true, schema: { type: string, pattern: '^rx_[a-z0-9]{10,40}$' } }
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       requestBody:
@@ -233,10 +307,79 @@ paths:
       responses:
         '200': { description: Excepción cerrada., content: { application/json: { schema: { $ref: '#/components/schemas/ReconciliationException' } } } }
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
         '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. No quedó nada a medias; la MISMA `Idempotency-Key` retoma la operación donde estaba.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+  /charges:
+    post:
+      operationId: settlementCreateCharge
+      tags: [Charges]
+      x-owner: P2
+      summary: Registra un cobro a un comercio que se netea contra su saldo
+      description: |
+        Dos usos: la comisión programada de un proveedor hacia ALOVIDA (`provider_commission`, proceso 7.8) y la deuda por un contracargo
+        perdido (`chargeback_debt`, D-22; exige `connector`, el conector al que se le devuelve el dinero). El monto se cobra del saldo
+        `available` del comercio hasta donde alcance; lo que falta queda **abierto** (`debt_minor`) y se netea en el próximo corte
+        (P2-D9). Sin interés ni recargo. Idempotente por `(comercio, kind, reference)` y por `Idempotency-Key`: repetir el cobro con otro
+        monto es `409 invalid_state_transition`. El abono mensual (`monthly_fee`) lo crea el corte, no esta operación.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ChargeCreate' } } }
+      responses:
+        '201': { description: 'Cobro registrado (también al repetir la misma `Idempotency-Key`, con `Idempotency-Replayed: true`).', content: { application/json: { schema: { $ref: '#/components/schemas/SettlementCharge' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. No quedó nada a medias; la MISMA `Idempotency-Key` retoma la operación.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+  /exports/accounting:
+    get:
+      operationId: settlementExportAccounting
+      tags: [Exports]
+      x-owner: P2
+      summary: Exporta los asientos de un periodo cerrado para contabilidad (M16)
+      description: |
+        Una factura por periodo y por comercio (D-21). Se arma solo con lo que el ledger y este servicio saben: por comercio, cada cobro
+        (bruto = neto + comisión) y cada abono, comisión programada o contracargo cobrado. `balanced` es `true` cuando la suma de comisiones
+        exportadas es igual al neto real de `platform:fees` en el periodo y ninguna comisión quedó sin comercio; si no cuadra se devuelve
+        igual, con la diferencia a la vista (no se maquilla). `409 invalid_state_transition` si el periodo todavía no cerró o hay cortes
+        del periodo sin completar. `format=csv` devuelve una fila por línea.
+      x-open-question: 'El formato exacto (JSON o CSV, columnas) lo tiene que confirmar M16 (contabilidad del monolito). Lo descrito es lo que el servicio entrega hoy.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - { name: period_from, in: query, required: true, schema: { $ref: 'common.yaml#/components/schemas/Timestamp' } }
+        - { name: period_to, in: query, required: true, schema: { $ref: 'common.yaml#/components/schemas/Timestamp' } }
+        - { name: format, in: query, schema: { type: string, enum: [json, csv], default: json } }
+      responses:
+        '200':
+          description: La exportación.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/AccountingExport' } }
+            text/csv: { schema: { type: string, description: 'Cabecera `merchant_id,kind,reference,gross_minor,fee_minor,net_minor,currency` y una fila por línea.' } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: el ledger no respondió. Es una lectura: se reintenta.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
 components:
   securitySchemes:
     mTLS:
@@ -299,7 +442,7 @@ components:
         status: { $ref: '#/components/schemas/PayoutStatus' }
         hold_id: { type: [string, 'null'], pattern: '^hd_[a-z0-9]{10,40}$', description: 'Retención del ledger que respalda el pago.' }
         batch_id: { type: [string, 'null'] }
-        failure_code: { type: [string, 'null'] }
+        failure_code: { type: [string, 'null'], description: 'Presente cuando `status` es `failed`: `insufficient_funds`, `connector_unavailable`, `ledger_unavailable`, `rail_rejected` (el riel rechazó el pago de forma definitiva) o `internal_error`.' }
         created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
         paid_at: { oneOf: [{ $ref: 'common.yaml#/components/schemas/Timestamp' }, { type: 'null' }] }
     BatchCreate:
@@ -371,3 +514,73 @@ components:
       properties:
         resolution: { type: string, enum: [request_adjustment, dismiss], description: '`dismiss` = falsa alarma; `request_adjustment` = pide un asiento de ajuste por el flujo normal.' }
         note: { type: string, minLength: 1, maxLength: 500, description: 'Motivo. Sin datos personales.' }
+    ChargeCreate:
+      type: object
+      required: [merchant_id, kind, reference, amount_minor, currency]
+      additionalProperties: false
+      properties:
+        merchant_id: { $ref: '#/components/schemas/MerchantId' }
+        kind: { type: string, enum: [provider_commission, chargeback_debt] }
+        reference: { type: string, pattern: '^[A-Za-z0-9_.:-]{3,80}$', description: 'Referencia estable del cobro, definida por el llamador (por ejemplo `md_x:2026-11`). Junto con el comercio y `kind` identifica el cobro.' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        connector: { type: string, pattern: '^[a-z_]{3,30}$', description: 'Conector al que se le devuelve el contracargo. Obligatorio para `chargeback_debt` y prohibido para `provider_commission`.' }
+    SettlementCharge:
+      type: object
+      required: [id, object, merchant_id, kind, reference, amount_minor, collected_minor, debt_minor, currency, status, created_at]
+      properties:
+        id: { type: string, pattern: '^cg_[a-z0-9]{10,40}$' }
+        object: { const: settlement_charge }
+        merchant_id: { $ref: '#/components/schemas/MerchantId' }
+        kind: { type: string, enum: [monthly_fee, provider_commission, chargeback_debt] }
+        reference: { type: string }
+        amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        collected_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        debt_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        status: { type: string, enum: [open, collected], description: '`collected` cuando `collected_minor` iguala a `amount_minor`.' }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        collected_at: { oneOf: [{ $ref: 'common.yaml#/components/schemas/Timestamp' }, { type: 'null' }] }
+    AccountingExportLine:
+      type: object
+      required: [kind, reference, gross_minor, fee_minor, net_minor]
+      properties:
+        kind: { type: string, enum: [charge, refund, monthly_fee, provider_commission, chargeback_debt] }
+        reference: { type: string, description: 'Referencia opaca; nunca lleva datos personales.' }
+        gross_minor: { type: integer }
+        fee_minor: { type: integer }
+        net_minor: { type: integer }
+    AccountingExport:
+      type: object
+      required: [schema, period_from, period_to, currency, generated_at, merchants, totals, ledger, balanced]
+      properties:
+        schema: { const: 'alovida-pay.accounting-export/v1' }
+        period_from: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        period_to: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        generated_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        merchants:
+          type: array
+          items:
+            type: object
+            required: [merchant_id, lines, total_fee_minor]
+            properties:
+              merchant_id: { $ref: '#/components/schemas/MerchantId' }
+              lines: { type: array, items: { $ref: '#/components/schemas/AccountingExportLine' } }
+              total_fee_minor: { type: integer }
+        totals:
+          type: object
+          required: [gross_minor, fee_minor, net_minor]
+          properties:
+            gross_minor: { type: integer }
+            fee_minor: { type: integer }
+            net_minor: { type: integer }
+        ledger:
+          type: object
+          description: Cuadre contra el ledger.
+          required: [platform_fees_minor, unassigned_minor, difference_minor]
+          properties:
+            platform_fees_minor: { type: integer, description: 'Neto real de `platform:fees` en el periodo.' }
+            unassigned_minor: { type: integer, description: Comisiones del ledger sin comercio. }
+            difference_minor: { type: integer }
+        balanced: { type: boolean }

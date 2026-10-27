@@ -25,7 +25,7 @@ describe('loadContract (contra public-v1.yaml)', () => {
     const ops = contract.operations();
     expect(ops).toContain('POST /payment_intents');
     expect(ops).toContain('GET /payment_intents/{id}');
-    expect(ops).toHaveLength(19); // conteo independiente del YAML: 19 operaciones
+    expect(ops).toHaveLength(20); // conteo independiente del YAML: 19 operaciones + GET /refunds/{id} (ola 2, P3 PROP-10)
   });
 
   it('acepta una respuesta que cumple el contrato', () => {

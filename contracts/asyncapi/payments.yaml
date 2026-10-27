@@ -26,6 +26,15 @@ info:
     **Estados.** Los de `status` coinciden con `PaymentIntentStatus`, `Refund.status` de `public-v1.yaml`; los de
     `failure_code`, con los `code` de `@pay/problem`. `succeeded`, `failed`, `canceled` y `expired` son terminales: un cobro
     termina en uno solo, pase lo que pase en el medio (REQ-P3). `dispute.status` (`open`, `won`, `lost`) no existe aún en la API pública.
+
+    **Asiento del ledger.** `ledger_transfer_id` cita el asiento (`tx_…`) o la retención confirmada (`hd_…`) que `pay-ledger` le devolvió
+    a `pay-payments` (`internal-ledger-v1.yaml`); no se fabrica un `tf_…`, que en el ledger identifica una pata. Se sigue aceptando `tf_…`
+    por compatibilidad.
+
+    **Modo (D-28).** Todo evento público puede llevar `mode` (`test|live`), el de la clave que originó el hecho. Es opcional hasta que
+    `pay-payments` lo implemente (ola 2).
+
+    **Evento interno.** `payment_intent.contradiction_detected` NO es público (no sale por webhooks): lo consume la conciliación humana.
 servers:
   nats:
     host: nats.pay.internal:4222
@@ -113,6 +122,12 @@ channels:
     messages:
       DisputeLost:
         $ref: '#/components/messages/DisputeLost'
+  paymentIntentContradictionDetected:
+    address: pay-payments.payment_intent.contradiction_detected
+    description: Tema NATS JetStream `pay-payments.payment_intent.contradiction_detected`. Lo publica `pay-payments` por outbox. Interno.
+    messages:
+      PaymentIntentContradictionDetected:
+        $ref: '#/components/messages/PaymentIntentContradictionDetected'
 operations:
   publishPaymentIntentCreated:
     action: send
@@ -647,6 +662,25 @@ operations:
     x-inbox-consumer: pay-schedules.dispute.lost
     messages:
     - $ref: '#/channels/disputeLost/messages/DisputeLost'
+  publishPaymentIntentContradictionDetected:
+    action: send
+    channel:
+      $ref: '#/channels/paymentIntentContradictionDetected'
+    summary: pay-payments publica payment_intent.contradiction_detected
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/paymentIntentContradictionDetected/messages/PaymentIntentContradictionDetected'
+  consumePaymentIntentContradictionDetectedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentContradictionDetected'
+    summary: pay-settlement (P2) consume payment_intent.contradiction_detected
+    description: 'Lo suma a las excepciones de conciliación para que una persona lo resuelva. Sin efecto automático. (Consumidor a implementar en la ola 2.)'
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.payment_intent.contradiction_detected
+    messages:
+    - $ref: '#/channels/paymentIntentContradictionDetected/messages/PaymentIntentContradictionDetected'
 components:
   messages:
     PaymentIntentCreated:
@@ -1244,6 +1278,54 @@ components:
             resolved_at: '2026-10-27T15:00:00.000Z'
             ledger_transfer_id: tf_q8971q4kc264
           merchantid: mc_5c048c31m1fb
+    PaymentIntentContradictionDetected:
+      name: payment_intent.contradiction_detected
+      title: El conector dijo algo incompatible con el estado del cobro, o un resultado de dinero quedó ambiguo
+      summary: El conector dijo algo incompatible con el estado del cobro, o un resultado de dinero quedó ambiguo
+      description: |-
+        El conector dijo algo incompatible con el estado del cobro, o un resultado de dinero quedó ambiguo
+
+        Interno: NO sale por webhooks. `pay-payments` no sobrescribe un estado terminal ni anula una retención por una duda (CLAUDE.md,
+        regla 11); lo deja registrado y lo publica para que una persona lo resuelva por conciliación (REQ-P3-3). Es único por
+        cobro y evento de origen: la reentrega no lo duplica.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: payment_intent.contradiction_detected
+            subject:
+              $ref: '#/components/schemas/PaymentIntentId'
+            data:
+              $ref: '#/components/schemas/PaymentIntentContradictionDetectedData'
+      examples:
+      - name: payment_intent.contradiction_detected (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 3b7c1d3e-5a0f-5f0e-9c43-2a3f7c9d1e11
+          source: /pay-payments
+          type: payment_intent.contradiction_detected
+          subject: pi_c92215200m49
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            kind: status_conflict
+            current_status: failed
+            incoming_status: captured
+            detected_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
   schemas:
     AmountMinor:
       $ref: ../openapi/common.yaml#/components/schemas/AmountMinor
@@ -1265,16 +1347,20 @@ components:
       pattern: ^dp_[a-z0-9]{10,40}$
     LedgerTransferId:
       type: string
-      pattern: ^tf_[a-z0-9]{10,40}$
-      description: Id del asiento en pay-ledger.
+      pattern: ^(tx|hd|tf)_[a-z0-9]{10,40}$
+      description: Id del asiento (`tx_…`) o de la retención confirmada (`hd_…`) en pay-ledger, tal como los devolvió `internal-ledger-v1.yaml`.
+        `tf_…` (una pata del asiento) se acepta por compatibilidad y no es lo recomendado.
     ConnectorCode:
       type: string
       enum:
+      - mock
       - simulator
       - mercantil_qr
       - mercantil_card
       - bank_transfer
-      description: Conector (D-16). Un banco nuevo agrega un valor; no se renombran los existentes.
+      description: Conector (D-16). `mock` es el simulador, con el mismo nombre que en `internal-connectors-v1.yaml`; `simulator` es un alias
+        heredado que se sigue aceptando mientras los productores migran y no se usa en ninguna API. Un banco nuevo agrega un valor; no se
+        renombran los existentes.
     PaymentMethodType:
       type: string
       enum:
@@ -1296,6 +1382,8 @@ components:
       - net_minor
       - expires_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         payment_intent_id:
           $ref: '#/components/schemas/PaymentIntentId'
         merchant_id:
@@ -1329,6 +1417,8 @@ components:
       - next_action_type
       - expires_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         payment_intent_id:
           $ref: '#/components/schemas/PaymentIntentId'
         merchant_id:
@@ -1352,6 +1442,8 @@ components:
       - merchant_id
       - status
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         payment_intent_id:
           $ref: '#/components/schemas/PaymentIntentId'
         merchant_id:
@@ -1376,6 +1468,8 @@ components:
       - ledger_transfer_id
       - succeeded_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         payment_intent_id:
           $ref: '#/components/schemas/PaymentIntentId'
         merchant_id:
@@ -1407,6 +1501,8 @@ components:
       - failure_code
       - failed_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         payment_intent_id:
           $ref: '#/components/schemas/PaymentIntentId'
         merchant_id:
@@ -1421,6 +1517,8 @@ components:
           - risk_unavailable
           - ledger_unavailable
           - merchant_suspended
+          - risk_denied
+          - payment_declined
           - validation_failed
           - internal_error
         failed_at:
@@ -1435,6 +1533,8 @@ components:
       - status
       - canceled_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         payment_intent_id:
           $ref: '#/components/schemas/PaymentIntentId'
         merchant_id:
@@ -1453,6 +1553,8 @@ components:
       - status
       - expired_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         payment_intent_id:
           $ref: '#/components/schemas/PaymentIntentId'
         merchant_id:
@@ -1473,6 +1575,8 @@ components:
       - currency
       - status
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         refund_id:
           $ref: '#/components/schemas/RefundId'
         payment_intent_id:
@@ -1505,6 +1609,8 @@ components:
       - status
       - ledger_transfer_id
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         refund_id:
           $ref: '#/components/schemas/RefundId'
         payment_intent_id:
@@ -1532,6 +1638,8 @@ components:
       - status
       - failure_code
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         refund_id:
           $ref: '#/components/schemas/RefundId'
         payment_intent_id:
@@ -1565,6 +1673,8 @@ components:
       - status
       - opened_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         dispute_id:
           $ref: '#/components/schemas/DisputeId'
         payment_intent_id:
@@ -1592,6 +1702,8 @@ components:
       - status
       - resolved_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         dispute_id:
           $ref: '#/components/schemas/DisputeId'
         payment_intent_id:
@@ -1620,6 +1732,8 @@ components:
       - resolved_at
       - ledger_transfer_id
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         dispute_id:
           $ref: '#/components/schemas/DisputeId'
         payment_intent_id:
@@ -1637,3 +1751,48 @@ components:
         ledger_transfer_id:
           $ref: '#/components/schemas/LedgerTransferId'
       description: 'La disputa se perdió: el importe se debita del comercio (D-22)'
+    Mode:
+      type: string
+      enum:
+      - test
+      - live
+      description: Modo de la CLAVE que originó el hecho (D-28). Opcional mientras el productor no lo implemente (ola 2); los
+        eventos públicos lo llevan para que un consumidor distinga un hecho `test` de uno `live`. No es el modo del despliegue
+        (`sandbox|live`).
+    PaymentIntentContradictionDetectedData:
+      type: object
+      additionalProperties: false
+      required:
+      - payment_intent_id
+      - merchant_id
+      - kind
+      - current_status
+      - incoming_status
+      - detected_at
+      properties:
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        kind:
+          type: string
+          pattern: ^[a-z][a-z_]{2,39}$
+          description: 'Qué se detectó. `status_conflict`: el conector informó un estado incompatible con el ya aplicado.
+            `compensation_failed` y `refund_pending_timeout`: una compensación o un reembolso quedaron sin resolver.
+            `<paso>_outcome_unknown` (por ejemplo `charge_outcome_unknown`, `ledger_outcome_unknown`, `refund_outcome_unknown`):
+            una orden que mueve dinero terminó en un resultado ambiguo. Se agregan valores; no se renombran.'
+        current_status:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: Estado que tenía el cobro (o el reembolso o la disputa, con prefijo) cuando se detectó.
+        incoming_status:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: Estado que informó el conector, o `ambiguous` / `compensation_failed` cuando no hay un estado ajeno.
+        mode:
+          $ref: '#/components/schemas/Mode'
+        detected_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se detectó una contradicción o un resultado ambiguo que requiere a una persona

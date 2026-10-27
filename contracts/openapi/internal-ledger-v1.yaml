@@ -33,8 +33,47 @@ info:
     ## Plan de cuentas (PLAN-MAESTRO §3.3)
 
     Las cuentas son lógicas y las crea el ledger la primera vez que se las nombra en una operación permitida.
-    Invariantes: `merchant:{id}:available` y `user:{id}:wallet` no pueden quedar en negativo
-    (`debits_must_not_exceed_credits`).
+    Invariantes impuestas por TigerBeetle: `merchant:{id}:pending`, `merchant:{id}:available`, `user:{id}:wallet` y
+    `schedule:{mandateId}:reserve` no pueden quedar en negativo (`debits_must_not_exceed_credits`).
+
+    **`merchant:{id}:debt` (deuda del comercio, D-22).** Cuenta *deudora* (naturaleza `debit`): lo que el comercio le debe a la
+    pasarela por un contracargo perdido que superó su saldo `pending`. No se puede pagar de más
+    (`credits_must_not_exceed_debits`). El reparto lo hace el servidor: ante una pata `adjustment` de `merchant:{id}:pending` hacia
+    la compensación de un conector (un contracargo), el ledger asienta en UN lote enlazado `min(bruto, pendiente)` desde `pending`
+    y el exceso desde `debt`, así que `legs` puede volver partida (una pata más que las pedidas). El llamador no cambia nada: sigue
+    mandando una sola pata `adjustment`. `pay-settlement` neta la deuda en el corte (P2-D9). (Supuesto vigente de la ola 1,
+    P2-D2.)
+
+    ## Quién puede tocar qué cuenta (supuesto de la ola 1, P2-D1: a confirmar con el dueño y contabilidad)
+
+    El ledger rechaza con `403 forbidden` una pata que toque un tipo de cuenta que el llamador no tiene permitido. La matriz vigente
+    (`services/pay-ledger/src/ledger/accounts.ts`) es la más estrecha que alcanza para los flujos del plan:
+
+    | `X-Service-Id` | Tipos de cuenta permitidos |
+    |---|---|
+    | `pay-payments` | `merchant:*:pending`, `merchant:*:available`, `merchant:*:debt`, `user:*:wallet`, `platform:fees`, `connector:*:clearing` |
+    | `pay-settlement` | `merchant:*:pending`, `merchant:*:available`, `merchant:*:debt`, `platform:fees`, `payout:clearing`, `connector:*:clearing` |
+    | `pay-schedules` | `schedule:*:reserve`, `merchant:*:available`, `platform:fees` |
+    | `pay-edge` | solo `GET /balance` (la ruta pública, con el comercio de `X-Merchant-Id`) |
+
+    Cualquier otro servicio no toca nada.
+
+    ## Ids que devuelve y publica el ledger
+
+    - `tx_…` identifica el **asiento** (`business_ref` + `attempt`); `hd_…`, la **retención**; `tf_…`, **cada pata** que se asienta
+      (se deriva de `tx_…`/`hd_…` y del índice de la pata: un asiento de N patas tiene N ids `tf_`, y no hay una operación para
+      consultarlos). `sl_…` es una línea de extracto.
+    - Cuando otro servicio necesita citar el asiento en un evento (`ledger_transfer_id` de `payment_intent.succeeded`,
+      `refund.succeeded`, `dispute.lost` o `scheduled_payment.executed`), cita el `tx_…` o el `hd_…` que ESTE contrato ya le devolvió. No
+      se fabrica un `tf_…` a partir de él: no correspondería a ninguna pata real. Los `tf_…` solo aparecen en los eventos `ledger.*`.
+    - `release` (liberación `pending → available` del corte) asienta pero NO publica `ledger.transfer.posted`: el corte lo informa
+      `settlement.batch.closed`.
+
+    ## Modo (D-28)
+
+    `X-Pay-Mode: test|live` (parámetro `PayMode` de `common.yaml`) viaja de `pay-edge` a los servicios dueños y de ahí a las llamadas
+    que mueven dinero. La obligatoriedad y el filtro por `(comercio, modo)` son de la ola 2; hasta entonces `pay-ledger` la ignora y
+    `pay-schedules` ya la envía.
 servers:
   - url: http://pay-ledger:3000
     description: Marcador de la red interna. El puerto real lo fija el despliegue.
@@ -58,6 +97,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -81,6 +121,9 @@ paths:
             `attempt`. Reintentar tras un rechazo exige `attempt + 1`.
           content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: TigerBeetle no respondió a tiempo. En una escritura el resultado es AMBIGUO (puede haberse aplicado): se reintenta con la MISMA `Idempotency-Key` (mismo `business_ref` + `attempt`) y nunca se asume que no se ejecutó.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /transactions/{business_ref}:
     get:
       operationId: ledgerGetTransaction
@@ -91,6 +134,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: '#/components/parameters/BusinessRefPath'
       responses:
         '200':
@@ -106,7 +150,11 @@ paths:
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: TigerBeetle no respondió a tiempo. Es una lectura: se reintenta.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /holds:
     post:
       operationId: ledgerCreateHold
@@ -120,6 +168,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -138,6 +187,9 @@ paths:
           description: '`insufficient_funds` o `validation_failed`. Definitivo para este `attempt`.'
           content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: TigerBeetle no respondió a tiempo. En una escritura el resultado es AMBIGUO (puede haberse aplicado): se reintenta con la MISMA `Idempotency-Key` (mismo `business_ref` + `attempt`) y nunca se asume que no se ejecutó.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /holds/{id}:
     get:
       operationId: ledgerGetHold
@@ -147,13 +199,18 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: '#/components/parameters/HoldId'
       responses:
         '200': { description: La retención., content: { application/json: { schema: { $ref: '#/components/schemas/Hold' } } } }
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: TigerBeetle no respondió a tiempo. Es una lectura: se reintenta.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /holds/{id}/post:
     post:
       operationId: ledgerPostHold
@@ -164,6 +221,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: '#/components/parameters/HoldId'
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       requestBody:
@@ -185,16 +243,23 @@ paths:
           content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
         '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: TigerBeetle no respondió a tiempo. En una escritura el resultado es AMBIGUO (puede haberse aplicado): se reintenta con la MISMA `Idempotency-Key` (mismo `business_ref` + `attempt`) y nunca se asume que no se ejecutó.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /holds/{id}/void:
     post:
       operationId: ledgerVoidHold
       tags: [Holds]
       x-owner: P2
       summary: Anula la retención (segunda fase)
-      description: Libera el monto retenido a la cuenta de origen. Una retención se resuelve una sola vez.
+      description: >-
+        Libera el monto retenido a la cuenta de origen. Una retención se resuelve una sola vez. Repetir la anulación con la MISMA
+        `Idempotency-Key` devuelve la respuesta guardada (`Idempotency-Replayed: true`); con otra clave sobre una retención ya
+        resuelta es `409 invalid_state_transition`.
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: '#/components/parameters/HoldId'
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       responses:
@@ -205,7 +270,11 @@ paths:
         '409':
           description: '`invalid_state_transition`: la retención ya se resolvió.'
           content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: TigerBeetle no respondió a tiempo. En una escritura el resultado es AMBIGUO (puede haberse aplicado): se reintenta con la MISMA `Idempotency-Key` (mismo `business_ref` + `attempt`) y nunca se asume que no se ejecutó.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /balances:
     get:
       operationId: ledgerGetBalance
@@ -215,13 +284,18 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: '#/components/parameters/AccountQuery'
       responses:
         '200': { description: Saldo., content: { application/json: { schema: { $ref: '#/components/schemas/Balance' } } } }
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: TigerBeetle no respondió a tiempo. Es una lectura: se reintenta.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
   /statements:
     get:
       operationId: ledgerListStatement
@@ -232,6 +306,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ServiceId'
         - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
         - $ref: '#/components/parameters/AccountQuery'
         - $ref: 'common.yaml#/components/parameters/Limit'
         - $ref: 'common.yaml#/components/parameters/StartingAfter'
@@ -251,7 +326,11 @@ paths:
         '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '503':
+          description: '`ledger_unavailable`: TigerBeetle no respondió a tiempo. Es una lectura: se reintenta.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
 components:
   securitySchemes:
     mTLS:
@@ -300,9 +379,9 @@ components:
       description: Número de intento del ledger para este `business_ref`. Empieza en 1 y sube solo tras un rechazo.
     Account:
       type: string
-      description: Cuenta lógica del plan de cuentas (PLAN-MAESTRO §3.3).
-      pattern: '^(merchant:mc_[a-z0-9]{10,40}:(pending|available)|user:[A-Za-z0-9_-]{3,60}:wallet|platform:fees|connector:[a-z_]{3,30}:clearing|payout:clearing|schedule:md_[a-z0-9]{10,40}:reserve)$'
-      examples: ['merchant:mc_k3m9x2q7ab:pending', 'platform:fees']
+      description: Cuenta lógica del plan de cuentas (PLAN-MAESTRO §3.3, más `merchant:{id}:debt` de D-22; ver la descripción del contrato).
+      pattern: '^(merchant:mc_[a-z0-9]{10,40}:(pending|available|debt)|user:[A-Za-z0-9_-]{3,60}:wallet|platform:fees|connector:[a-z_]{3,30}:clearing|payout:clearing|schedule:md_[a-z0-9]{10,40}:reserve)$'
+      examples: ['merchant:mc_k3m9x2q7ab:pending', 'merchant:mc_k3m9x2q7ab:debt', 'platform:fees']
     Leg:
       type: object
       required: [debit_account, credit_account, amount_minor]
@@ -314,7 +393,11 @@ components:
         code:
           type: string
           enum: [charge, fee, refund, payout, release, wallet_transfer, mandate, adjustment]
-          description: Tipo de movimiento, para el extracto y la contabilidad.
+          description: >-
+            Tipo de movimiento, para el extracto y la contabilidad. `release` es SOLO la liberación `pending → available` del corte;
+            el asiento inverso de un pago programado cuyo beneficiario se bloqueó y cualquier corrección usan `adjustment`.
+            En una retención (`HoldCreate`) no se manda: el ledger lo deduce del destino (`payout:clearing` ⇒ `payout`; reserva de
+            mandato ⇒ `mandate`; el resto ⇒ `adjustment`).
     TransactionCreate:
       type: object
       required: [business_ref, attempt, currency, legs]

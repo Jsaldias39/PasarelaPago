@@ -8,6 +8,31 @@ info:
     Todo cobro del ecosistema ALOVIDA pasa por esta API (proceso 7.4). Modo orquestador (D-02).
     Autenticación con clave de API del comercio (`Authorization: Bearer sk_test_…` o `sk_live_…`).
     Las claves `test` operan contra el sandbox y nunca mueven dinero real.
+
+    ## Errores uniformes
+
+    Toda operación puede responder, además de lo que declara en particular: `401 unauthorized` (clave ausente, mal formada, revocada,
+    de otro modo o con el secreto equivocado: siempre la misma respuesta), `403 forbidden` / `merchant_suspended`, `422` (cuerpo,
+    parámetro o campo inválido, parámetro de consulta desconocido, JSON ilegible o un número de tarjeta en el cuerpo:
+    `card_number_detected`), `429 rate_limited` (con `Retry-After`) y, cuando el servicio dueño no contesta, `502 upstream_error`,
+    `503 upstream_unavailable` (con `Retry-After`) o `504 upstream_timeout`. Las operaciones que mueven dinero y devuelven `5xx`,
+    `502`, `503` o `504` tienen un resultado **ambiguo**: no prueban que no se ejecutaron; se reintenta con la MISMA `Idempotency-Key`
+    o se consulta el recurso. Todo `POST` exige `Idempotency-Key` (`400 idempotency_key_required`) y puede responder `409
+    idempotency_request_in_progress`.
+
+    ## Modo
+
+    El modo de la petición lo fija la clave (`sk_test_…` o `sk_live_…`), no el cliente: `pay-edge` lo toma del registro de la clave y lo
+    reenvía a los servicios dueños en `X-Pay-Mode: test|live`, descartando cualquier `X-Pay-Mode`, `X-Merchant-Id` o `X-Service-Id` que
+    mande el cliente (D-28). Una clave `test` solo opera contra un despliegue `sandbox`, y una `live` contra uno `live`. En un despliegue
+    `sandbox` toda respuesta lleva además `X-Pay-Mode: sandbox` (cabecera `XPayModeSandbox` de `common.yaml`) y `Cache-Control: no-store`.
+
+    ## Repetición con la misma `Idempotency-Key`
+
+    Repetir una petición idéntica devuelve la respuesta guardada, con `Idempotency-Replayed: true` y el mismo estado. La excepción son
+    las respuestas que traen un secreto: `POST /api_keys` y `POST /api_keys/{id}/rotate` responden `200` **sin el secreto** (el secreto
+    se muestra una sola vez); `POST /webhook_endpoints` y `POST /webhook_endpoints/{id}/rotate_secret` repiten el mismo cuerpo, secreto
+    incluido (`pay-webhooks` lo guarda sellado durante las 24 h de la clave). Con otro cuerpo, `422 idempotency_key_reused`.
 servers:
   - url: https://api.pay.example/v1
     description: Marcador. El dominio real se define al desplegar (no se inventa acá).
@@ -47,6 +72,9 @@ paths:
         '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
     get:
       operationId: listPaymentIntents
       tags: [Payment intents]
@@ -76,8 +104,13 @@ paths:
                     required: [data]
                     properties: { data: { type: array, items: { $ref: '#/components/schemas/PaymentIntent' } } }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /payment_intents/{id}:
     get:
       operationId: getPaymentIntent
@@ -88,8 +121,14 @@ paths:
       responses:
         '200': { description: El cobro., content: { application/json: { schema: { $ref: '#/components/schemas/PaymentIntent' } } } }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /payment_intents/{id}/cancel:
     post:
       operationId: cancelPaymentIntent
@@ -101,10 +140,17 @@ paths:
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       responses:
         '200': { description: Cobro cancelado., content: { application/json: { schema: { $ref: '#/components/schemas/PaymentIntent' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
         '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /payment_intents/{id}/refunds:
     post:
       operationId: createRefund
@@ -119,11 +165,37 @@ paths:
         content: { application/json: { schema: { $ref: '#/components/schemas/RefundCreate' } } }
       responses:
         '201': { description: Reembolso creado., content: { application/json: { schema: { $ref: '#/components/schemas/Refund' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
         '409': { $ref: 'common.yaml#/components/responses/Conflict' }
         '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
+  /refunds/{id}:
+    get:
+      operationId: getRefund
+      tags: [Refunds]
+      x-owner: P3
+      summary: Consulta un reembolso
+      description: 'Un reembolso `pending` termina en `succeeded` o `failed`; el aviso llega por webhook (`refund.succeeded`, `refund.failed`), y esta consulta permite verificarlo sin esperarlo.'
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^re_[a-z0-9]{10,40}$' } }
+      responses:
+        '200': { description: El reembolso., content: { application/json: { schema: { $ref: '#/components/schemas/Refund' } } } }
+        '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /merchants/me:
     get:
       operationId: getMerchant
@@ -133,23 +205,37 @@ paths:
       responses:
         '200': { description: El comercio., content: { application/json: { schema: { $ref: '#/components/schemas/Merchant' } } } }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /api_keys:
     post:
       operationId: createApiKey
       tags: [Merchant]
       x-owner: P5
       summary: Crea una clave de API. El secreto se muestra UNA sola vez.
+      description: 'Una clave de un modo no crea claves del otro (`403 forbidden`, D-28), y no lista, rota ni revoca las del otro (`404`).'
       parameters: [{ $ref: 'common.yaml#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/ApiKeyCreate' } } }
       responses:
         '201': { description: Clave creada., content: { application/json: { schema: { $ref: '#/components/schemas/ApiKeyWithSecret' } } } }
+        '200': { description: 'Repetición de la misma petición con la misma `Idempotency-Key`: la clave NO se vuelve a crear y la respuesta NO trae el secreto (`Idempotency-Replayed: true`).', content: { application/json: { schema: { $ref: '#/components/schemas/ApiKey' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
         '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
         '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
     get:
       operationId: listApiKeys
       tags: [Merchant]
@@ -167,7 +253,13 @@ paths:
                     required: [data]
                     properties: { data: { type: array, items: { $ref: '#/components/schemas/ApiKey' } } }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /api_keys/{id}/rotate:
     post:
       operationId: rotateApiKey
@@ -179,8 +271,18 @@ paths:
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       responses:
         '201': { description: Clave nueva., content: { application/json: { schema: { $ref: '#/components/schemas/ApiKeyWithSecret' } } } }
+        '200': { description: 'Repetición de la misma rotación con la misma `Idempotency-Key`: no se crea otra clave y la respuesta NO trae el secreto (`Idempotency-Replayed: true`). Rotar otra vez la misma clave con otra `Idempotency-Key` es `409`.', content: { application/json: { schema: { $ref: '#/components/schemas/ApiKey' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /api_keys/{id}:
     delete:
       operationId: revokeApiKey
@@ -190,28 +292,49 @@ paths:
       parameters: [{ name: id, in: path, required: true, schema: { type: string, pattern: '^key_[a-z0-9]{10,40}$' } }]
       responses:
         '204': { description: Revocada. }
+        '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /webhook_endpoints:
     post:
       operationId: createWebhookEndpoint
       tags: [Webhooks]
       x-owner: P1
       summary: Suscribe una URL a eventos (Standard Webhooks)
+      description: >-
+        Códigos de `422 validation_failed` por campo: en `url`, `invalid_url`, `https_required`, `credentials_in_url`, `port_not_allowed`,
+        `internal_name`, `private_address` y `unresolvable`; en `enabled_events`, `unknown_event_type`; en `endpoint`, `limit_reached`.
+        Repetir con la misma `Idempotency-Key` devuelve el mismo cuerpo, secreto incluido.
       parameters: [{ $ref: 'common.yaml#/components/parameters/IdempotencyKey' }]
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/WebhookEndpointCreate' } } }
       responses:
         '201': { description: Endpoint creado. El secreto `whsec_…` se muestra una sola vez., content: { application/json: { schema: { $ref: '#/components/schemas/WebhookEndpointWithSecret' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
         '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
     get:
       operationId: listWebhookEndpoints
       tags: [Webhooks]
       x-owner: P1
       summary: Lista los endpoints
+      parameters:
+        - $ref: 'common.yaml#/components/parameters/Limit'
+        - $ref: 'common.yaml#/components/parameters/StartingAfter'
       responses:
         '200':
           description: Endpoints.
@@ -224,31 +347,57 @@ paths:
                     required: [data]
                     properties: { data: { type: array, items: { $ref: '#/components/schemas/WebhookEndpoint' } } }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /webhook_endpoints/{id}/rotate_secret:
     post:
       operationId: rotateWebhookSecret
       tags: [Webhooks]
       x-owner: P1
       summary: Rota el secreto. Durante la rotación las entregas llevan las dos firmas.
+      description: >-
+        Con `signature_scheme: v1a` lo que se devuelve es la clave PÚBLICA `whpk_…` (la que verifica el comercio); la secreta `whsk_…`
+        nunca sale. Repetir con la misma `Idempotency-Key` devuelve el mismo cuerpo.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, pattern: '^we_[a-z0-9]{10,40}$' } }
         - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
       responses:
         '200': { description: Secreto nuevo., content: { application/json: { schema: { $ref: '#/components/schemas/WebhookEndpointWithSecret' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /webhook_endpoints/{id}:
     delete:
       operationId: deleteWebhookEndpoint
       tags: [Webhooks]
       x-owner: P1
       summary: Elimina el endpoint
+      description: 'Borrarlo dos veces es `404` la segunda: el recurso ya no existe.'
       parameters: [{ name: id, in: path, required: true, schema: { type: string, pattern: '^we_[a-z0-9]{10,40}$' } }]
       responses:
         '204': { description: Eliminado. }
+        '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /balance:
     get:
       operationId: getBalance
@@ -258,7 +407,13 @@ paths:
       responses:
         '200': { description: Saldo., content: { application/json: { schema: { $ref: '#/components/schemas/Balance' } } } }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /payouts:
     get:
       operationId: listPayouts
@@ -280,7 +435,13 @@ paths:
                     required: [data]
                     properties: { data: { type: array, items: { $ref: '#/components/schemas/Payout' } } }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /mandates:
     post:
       operationId: createMandate
@@ -297,9 +458,16 @@ paths:
         content: { application/json: { schema: { $ref: '#/components/schemas/MandateCreate' } } }
       responses:
         '201': { description: Mandato creado., content: { application/json: { schema: { $ref: '#/components/schemas/Mandate' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
         '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
     get:
       operationId: listMandates
       tags: [Scheduled payments]
@@ -320,7 +488,13 @@ paths:
                     required: [data]
                     properties: { data: { type: array, items: { $ref: '#/components/schemas/Mandate' } } }
         '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
   /mandates/{id}:
     delete:
       operationId: cancelMandate
@@ -330,8 +504,28 @@ paths:
       parameters: [{ name: id, in: path, required: true, schema: { type: string, pattern: '^md_[a-z0-9]{10,40}$' } }]
       responses:
         '204': { description: Cancelado. }
+        '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
         '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502': { $ref: 'common.yaml#/components/responses/BadGateway' }
+        '503': { $ref: 'common.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: 'common.yaml#/components/responses/GatewayTimeout' }
+webhooks:
+  event:
+    post:
+      operationId: receiveWebhookEvent
+      tags: [Webhooks]
+      x-owner: P1
+      summary: Evento que la pasarela entrega al `url` del comercio
+      description: 'Lo recibe el comercio, no lo llama. Responder `2xx` confirma la entrega; `410 Gone` deshabilita el endpoint; cualquier otra respuesta se reintenta con espera creciente y, tras varias entregas agotadas seguidas, el endpoint se deshabilita (`too_many_failures`). Las redirecciones no se siguen.'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/WebhookEvent' } } }
+      responses:
+        '200': { description: Entrega confirmada. }
 components:
   securitySchemes:
     ApiKey:
@@ -400,7 +594,10 @@ components:
         net_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }], description: Lo que cobra el comercio. `fee_minor + net_minor = amount_minor`. }
         description: { type: string }
         next_action: { $ref: '#/components/schemas/NextAction' }
-        last_error: { type: [object, 'null'], properties: { code: { type: string }, message: { type: string } } }
+        last_error:
+          type: [object, 'null']
+          description: 'Por qué falló el cobro. `code` es un código estable del catálogo: `insufficient_funds`, `connector_unavailable`, `risk_unavailable`, `risk_denied`, `payment_declined`, `ledger_unavailable`, `merchant_suspended`, `validation_failed` o `internal_error`. `message` es un texto estable por código; el error crudo de un tercero nunca sale.'
+          properties: { code: { type: string }, message: { type: string } }
         metadata: { $ref: 'common.yaml#/components/schemas/Metadata' }
         created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
         expires_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
@@ -506,6 +703,50 @@ components:
         - type: object
           required: [secret]
           properties: { secret: { type: string, description: 'Se muestra una sola vez; después solo existe su hash.', pattern: '^sk_(test|live)_' } }
+    WebhookEventType:
+      type: string
+      enum:
+        - '*'
+        - payment_intent.created
+        - payment_intent.requires_action
+        - payment_intent.processing
+        - payment_intent.succeeded
+        - payment_intent.failed
+        - payment_intent.canceled
+        - payment_intent.expired
+        - refund.created
+        - refund.succeeded
+        - refund.failed
+        - dispute.opened
+        - dispute.won
+        - dispute.lost
+        - payout.created
+        - payout.paid
+        - payout.failed
+        - mandate.created
+        - mandate.canceled
+        - scheduled_payment.executed
+        - scheduled_payment.failed
+        - scheduled_payment.insufficient_funds
+    WebhookEvent:
+      type: object
+      description: >-
+        Cuerpo que recibe el comercio (firmado con Standard Webhooks: cabeceras `webhook-id`, `webhook-timestamp`, `webhook-signature`).
+        `id` es el id del evento y el mismo `webhook-id`; no cambia en los reintentos. Política de payload: `data.object` lleva SOLO ids,
+        estados, códigos, fechas e importes en unidades menores. Un campo que no esté en la lista de permitidos se descarta; un valor con
+        correo, teléfono o número de tarjeta hace que el evento ENTERO se rechace y no se entregue (es un defecto del publicador).
+      required: [id, object, type, created_at, mode, data]
+      properties:
+        id: { type: string, format: uuid }
+        object: { const: event }
+        type: { $ref: '#/components/schemas/WebhookEventType' }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        mode: { type: string, enum: [test, live], description: 'Modo del despliegue que entrega: `sandbox` ⇒ `test`, `live` ⇒ `live`.' }
+        data:
+          type: object
+          required: [object]
+          properties:
+            object: { type: object, additionalProperties: { type: [string, number, boolean, 'null'] } }
     WebhookEndpointCreate:
       type: object
       required: [url, enabled_events]
@@ -523,7 +764,11 @@ components:
         enabled_events:
           type: array
           minItems: 1
-          items: { type: string, pattern: '^([a-z_]+\.[a-z_.]+|\*)$' }
+          description: >-
+            Tipos de evento a recibir: los 21 públicos listados, o `*` para todos. Cualquier otro (los internos `ledger.*`, `api_key.*`,
+            `merchant.*`, `fee_schedule.*`, `connector.*`, `settlement.*`, `reconciliation.*` nunca salen de la pasarela) es
+            `422 validation_failed` con `errors[].code = unknown_event_type`.
+          items: { $ref: '#/components/schemas/WebhookEventType' }
         signature_scheme: { type: string, enum: [v1, v1a], default: v1, description: 'HMAC-SHA256 (`whsec_`) o Ed25519 (`whpk_`).' }
         description: { type: string, maxLength: 200 }
     WebhookEndpoint:

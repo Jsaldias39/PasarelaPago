@@ -72,6 +72,19 @@ components:
       required: false
       description: Id de correlación del cliente (8 a 64 caracteres `[A-Za-z0-9._-]`). Se devuelve en la respuesta y en `request_id` de los errores.
       schema: { type: string, pattern: '^[A-Za-z0-9._-]{8,64}$' }
+    PayMode:
+      name: X-Pay-Mode
+      in: header
+      required: false
+      description: >-
+        Modo de la CLAVE que hizo la petición pública (D-28): `test` o `live`. Lo fija `pay-edge` desde el registro de la clave
+        (`api_key.created.mode`), nunca desde el token ni desde el cliente, y descarta cualquier `X-Pay-Mode` que venga de afuera.
+        Los servicios dueños la reciben de `pay-edge` y la propagan en las llamadas internas que mueven dinero. Un valor ausente o
+        distinto de `test|live` se rechaza con `403 forbidden` (nunca se cae en `live` por defecto). Es opcional en el contrato
+        mientras `pay-ledger`, `pay-payments`, `pay-settlement` y `pay-connectors` no la implementen (ola 2); `pay-merchants` y
+        `pay-schedules` ya la exigen. No confundir con el modo de DESPLIEGUE `PAY_MODE=sandbox|live` (D-26): una clave `test` solo
+        opera contra un despliegue `sandbox`, y una `live` contra uno `live`.
+      schema: { type: string, enum: [test, live] }
   headers:
     XRequestId:
       description: Id de correlación de esta petición.
@@ -82,6 +95,12 @@ components:
     RetryAfter:
       description: Segundos a esperar antes de reintentar.
       schema: { type: integer, minimum: 0 }
+    XPayModeSandbox:
+      description: >-
+        Presente SOLO en un despliegue `sandbox` (D-26): toda respuesta pública lleva `X-Pay-Mode: sandbox` y nada de lo que
+        hizo movió dinero real. En producción la cabecera no se envía. (La misma cabecera, en la PETICIÓN interna, lleva `test|live`:
+        ver el parámetro `PayMode`.)
+      schema: { type: string, enum: [sandbox] }
   responses:
     BadRequest:
       description: Petición mal formada o falta una cabecera obligatoria (`idempotency_key_required`).
@@ -107,4 +126,20 @@ components:
       content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
     ServerError:
       description: Error interno (`internal_error`) o dependencia caída (`risk_unavailable`, `connector_unavailable`, `ledger_unavailable`).
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    BadGateway:
+      description: >-
+        El servicio dueño respondió algo inválido (`upstream_error`). Lo emite `pay-edge`. Si la operación mueve dinero NO prueba que
+        no se ejecutó: se reintenta con la MISMA `Idempotency-Key` o se consulta el recurso.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    ServiceUnavailable:
+      description: >-
+        Dependencia caída o cortacircuitos abierto (`upstream_unavailable`; también `ledger_unavailable` y `risk_unavailable`).
+        Lleva `Retry-After`. Si la operación mueve dinero NO prueba que no se ejecutó: se reintenta con la MISMA `Idempotency-Key`.
+      headers: { Retry-After: { $ref: '#/components/headers/RetryAfter' } }
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    GatewayTimeout:
+      description: >-
+        El servicio dueño no respondió a tiempo (`upstream_timeout`). Lo emite `pay-edge`. Resultado AMBIGUO: la operación puede haberse
+        ejecutado; se reintenta con la MISMA `Idempotency-Key` o se consulta el recurso.
       content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }

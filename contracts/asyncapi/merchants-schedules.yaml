@@ -26,6 +26,13 @@ info:
 
     Estos eventos son la **réplica de datos** que evita que un servicio lea la base de otro (regla de separación 5): `pay-payments` y `pay-edge` no consultan a `pay-merchants`, escuchan.
     Un consumidor nuevo arranca desde el último `fee_schedule.published` y `merchant.*` de cada comercio (reproducción del stream).
+
+    **Asiento del ledger.** `scheduled_payment.executed.ledger_transfer_id` cita el asiento (`tx_…`) que `pay-ledger` devolvió al ejecutar el pago
+    (`internal-ledger-v1.yaml`); no hace falta un id de pata `tf_…` (se sigue aceptando). Sin un id de asiento el pago no se da por ejecutado
+    sin dejar rastro: queda a revisión.
+
+    **Modo (D-28).** Los eventos `mandate.*` y `scheduled_payment.*` pueden llevar `mode` (`test|live`), el del mandato. `api_key.*` ya lo
+    lleva (`mode` es obligatorio ahí). `merchant.*` y `fee_schedule.published` no tienen modo: el comercio existe en ambos.
 servers:
   nats:
     host: nats.pay.internal:4222
@@ -1245,8 +1252,9 @@ components:
       pattern: ^mc_[a-z0-9]{10,40}$
     LedgerTransferId:
       type: string
-      pattern: ^tf_[a-z0-9]{10,40}$
-      description: Id del asiento en pay-ledger.
+      pattern: ^(tx|hd|tf)_[a-z0-9]{10,40}$
+      description: Id del asiento (`tx_…`) o de la retención confirmada (`hd_…`) en pay-ledger, tal como los devolvió `internal-ledger-v1.yaml`.
+        `tf_…` (una pata del asiento) se acepta por compatibilidad y no es lo recomendado.
     ApiKeyId:
       type: string
       pattern: ^key_[a-z0-9]{10,40}$
@@ -1460,6 +1468,8 @@ components:
       - start_date
       - end_date
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         mandate_id:
           $ref: '#/components/schemas/MandateId'
         merchant_id:
@@ -1501,6 +1511,8 @@ components:
       - status
       - canceled_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         mandate_id:
           $ref: '#/components/schemas/MandateId'
         merchant_id:
@@ -1523,6 +1535,8 @@ components:
       - ledger_transfer_id
       - executed_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         scheduled_payment_id:
           $ref: '#/components/schemas/ScheduledPaymentId'
         mandate_id:
@@ -1556,6 +1570,8 @@ components:
       - attempt
       - failed_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         scheduled_payment_id:
           $ref: '#/components/schemas/ScheduledPaymentId'
         mandate_id:
@@ -1599,6 +1615,8 @@ components:
       - attempt
       - retry_at
       properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
         scheduled_payment_id:
           $ref: '#/components/schemas/ScheduledPaymentId'
         mandate_id:
@@ -1627,3 +1645,11 @@ components:
           - $ref: '#/components/schemas/Timestamp'
           - type: 'null'
       description: No hay fondos para el pago programado; se reintenta según la política
+    Mode:
+      type: string
+      enum:
+      - test
+      - live
+      description: Modo de la CLAVE que originó el hecho (D-28). Opcional mientras el productor no lo implemente (ola 2); los
+        eventos públicos lo llevan para que un consumidor distinga un hecho `test` de uno `live`. No es el modo del despliegue
+        (`sandbox|live`).

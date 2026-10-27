@@ -1,0 +1,92 @@
+(node:4470) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4457) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4463) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"level":30,"time":1793127363378,"pid":4463,"hostname":"vm","req":{"id":"34ac4c1b-478a-4ec0-ad88-c9e7dae05ff5","method":"POST","url":"/v1/payment_intents"},"res":{"statusCode":422},"responseTime":27,"msg":"request completed"}
+{"level":30,"time":1793127363394,"pid":4463,"hostname":"vm","req":{"id":"1797f3c2-9e8d-4b17-8c58-761e16a42315","method":"POST","url":"/v1/payment_intents"},"res":{"statusCode":422},"responseTime":8,"msg":"request completed"}
+{"level":30,"time":1793127363407,"pid":4463,"hostname":"vm","req":{"id":"7e14f8c5-f23d-4ad1-8188-0935488adc1c","method":"POST","url":"/v1/payment_intents"},"res":{"statusCode":422},"responseTime":8,"msg":"request completed"}
+FAIL test/routes.spec.ts
+  ● tabla de rutas vs contrato public-v1.yaml › tiene EXACTAMENTE las operaciones del contrato (ninguna de más, ninguna de menos)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 0
+
+    @@ -7,11 +7,10 @@
+        "GET /mandates",
+        "GET /merchants/me",
+        "GET /payment_intents",
+        "GET /payment_intents/{id}",
+        "GET /payouts",
+    -   "GET /refunds/{id}",
+        "GET /webhook_endpoints",
+        "POST /api_keys",
+        "POST /api_keys/{id}/rotate",
+        "POST /mandates",
+        "POST /payment_intents",
+
+      14 |     const contract = await loadContract(PUBLIC_CONTRACT);
+      15 |     const fromRoutes = ROUTES.map((r) => `${r.method} ${r.template}`).sort();
+    > 16 |     expect(fromRoutes).toEqual([...contract.operations()].sort());
+         |                        ^
+      17 |     expect(fromRoutes).toHaveLength(19);
+      18 |   });
+      19 |
+
+      at Object.toEqual (test/routes.spec.ts:16:24)
+
+  ● tabla de rutas vs contrato public-v1.yaml › GET /webhook_endpoints: Idempotency-Key y consulta coinciden con el contrato
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 1
+
+    - Array [
+    -   "limit",
+    -   "starting_after",
+    - ]
+    + Array []
+
+      26 |       .flatMap((p) => (p.$ref?.endsWith('parameters/Limit') ? ['limit'] : p.$ref?.endsWith('parameters/StartingAfter') ? ['starting_after'] : p.in === 'query' && p.name ? [p.name] : []))
+      27 |       .sort();
+    > 28 |     expect([...route.query].sort()).toEqual(fromContract);
+         |                                     ^
+      29 |   });
+      30 |
+      31 |   it('cada método del contrato está cubierto (no hay operaciones put/patch sin ruta)', () => {
+
+      at toEqual (test/routes.spec.ts:28:37)
+
+  ● tabla de rutas vs contrato public-v1.yaml › cada método del contrato está cubierto (no hay operaciones put/patch sin ruta)
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 19
+    Received length: 20
+    Received array:  ["post", "get", "get", "post", "post", "get", "get", "post", "get", "post", …]
+
+      31 |   it('cada método del contrato está cubierto (no hay operaciones put/patch sin ruta)', () => {
+      32 |     const declared = Object.values(raw.paths).flatMap((item) => Object.keys(item).filter((m) => METHODS.includes(m)));
+    > 33 |     expect(declared).toHaveLength(ROUTES.length);
+         |                      ^
+      34 |   });
+      35 | });
+      36 |
+
+      at Object.toHaveLength (test/routes.spec.ts:33:22)
+
+[31m[Nest] 4463  - [39m10/27/2026, 6:56:05 PM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'8ad8c861-0205-4a4e-a491-b7a2c316bd3e'[39m
+}
+Error no controlado
+
+Test Suites: 1 failed, 8 passed, 9 total
+Tests:       3 failed, 321 passed, 324 total
+Snapshots:   0 total
+Time:        7.018 s, estimated 9 s
+Ran all test suites.
