@@ -1,0 +1,32 @@
+{
+  "name": "pasarela-pago",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Pasarela de pagos ALOVIDA — monorepo de microservicios",
+  "packageManager": "yarn@4.14.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "contracts/packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "build": "yarn workspaces foreach -A --topological-dev run build",
+    "typecheck": "yarn workspaces foreach -A --topological-dev run typecheck",
+    "lint": "eslint --no-error-on-unmatched-pattern \"contracts/**/*.ts\" \"services/**/*.ts\" \"platform/**/*.ts\"",
+    "test": "yarn workspaces foreach -A --topological-dev run test",
+    "contracts:lint": "node contracts/scripts/lint-contracts.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@swc/core": "^1.15.47",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.18.0",
+    "jest": "^30.0.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  }
+}

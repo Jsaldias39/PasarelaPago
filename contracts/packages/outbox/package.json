@@ -1,0 +1,27 @@
+{
+  "name": "@pay/outbox",
+  "version": "0.1.0",
+  "description": "Outbox transaccional, relé e inbox para entrega al-menos-una-vez con efecto único",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "yarn run -T tsc -p tsconfig.build.json",
+    "typecheck": "yarn run -T tsc -p tsconfig.json --noEmit",
+    "test": "yarn run -T jest --config jest.config.cjs"
+  },
+  "dependencies": {
+    "nats": "^2.29.3",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@pay/testing": "workspace:*",
+    "@types/pg": "^8",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}

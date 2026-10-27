@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:alovida:pay:schema:problem",
+  "title": "Problem Details (RFC 9457) con código estable",
+  "type": "object",
+  "required": ["type", "title", "status", "code"],
+  "properties": {
+    "type": { "type": "string", "pattern": "^urn:alovida:pay:problem:[a-z][a-z0-9_]*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": { "type": "integer", "minimum": 400, "maximum": 599 },
+    "detail": { "type": "string" },
+    "instance": { "type": "string" },
+    "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "request_id": { "type": "string" },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["field", "code"],
+        "properties": {
+          "field": { "type": "string" },
+          "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "message": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

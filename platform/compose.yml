@@ -1,0 +1,136 @@
+# Stack local de la pasarela (P1.H1.M1). Puertos altos (54xxx) para no chocar con nada del equipo.
+#   docker compose -f platform/compose.yml up -d          → núcleo (verificado)
+#   docker compose -f platform/compose.yml --profile full up -d → suma TigerBeetle, Svix, OpenBao y Watchman (sin verificar: ver platform/README.md)
+# Credenciales: solo desarrollo local.
+name: pay
+
+x-healthy: &healthy
+  interval: 5s
+  timeout: 5s
+  retries: 20
+  start_period: 5s
+
+services:
+  postgres:
+    image: ${HUB:-docker.io}/library/postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pay
+    ports: ["54321:5432"]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
+    healthcheck:
+      <<: *healthy
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pay_test"]
+
+  nats:
+    image: ${HUB:-docker.io}/library/nats:2.10-alpine
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports: ["54222:4222", "54822:8222"]
+    volumes: [nats_data:/data]
+    healthcheck:
+      <<: *healthy
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/healthz | grep -q ok"]
+
+  redis:
+    image: ${HUB:-docker.io}/library/redis:7-alpine
+    ports: ["54379:6379"]
+    healthcheck:
+      <<: *healthy
+      test: ["CMD", "redis-cli", "ping"]
+
+  temporal-db:
+    image: ${HUB:-docker.io}/library/postgres:16-alpine
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: dev_only_temporal
+    volumes: [temporal_pg_data:/var/lib/postgresql/data]
+    healthcheck:
+      <<: *healthy
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+
+  temporal:
+    image: ${HUB:-docker.io}/temporalio/auto-setup:1.25
+    depends_on:
+      temporal-db: { condition: service_healthy }
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: dev_only_temporal
+      POSTGRES_SEEDS: temporal-db
+    ports: ["54233:7233"]
+    healthcheck:
+      <<: *healthy
+      start_period: 40s
+      test: ["CMD-SHELL", "tctl --address $$(hostname -i):7233 cluster health | grep -q SERVING"]
+
+  jaeger:
+    image: ${HUB:-docker.io}/jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports: ["54686:16686", "54317:4317", "54318:4318"]
+    healthcheck:
+      <<: *healthy
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:14269/ >/dev/null"]
+
+  # ---- perfil `full`: SIN VERIFICAR en el entorno donde se escribió. Ver platform/README.md. ----
+  # Watchman v0.31.3 baja las listas de sanciones al arrancar y termina con código 1 si no puede (sin salida a internet).
+  # Escucha en 0.0.0.0:9094 según su log; el healthcheck apunta ahí y falta confirmarlo con salida a internet.
+  watchman:
+    profiles: [full]
+    image: ${HUB:-docker.io}/moov/watchman:v0.31.3
+    ports: ["54084:8084"]
+    healthcheck:
+      <<: *healthy
+      start_period: 60s
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9094/live >/dev/null || wget -qO- http://127.0.0.1:8084/live >/dev/null"]
+
+  tigerbeetle:
+    profiles: [full]
+    image: ghcr.io/tigerbeetle/tigerbeetle:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["[ -f /data/0_0.tigerbeetle ] || /tigerbeetle format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle; exec /tigerbeetle start --addresses=0.0.0.0:3000 /data/0_0.tigerbeetle"]
+    ports: ["54300:3000"]
+    volumes: [tb_data:/data]
+    security_opt: ["seccomp=unconfined"]
+    cap_add: ["IPC_LOCK"]
+
+  openbao:
+    profiles: [full]
+    image: ${HUB:-docker.io}/openbao/openbao:latest
+    command: ["server", "-dev", "-dev-root-token-id=dev-only-root", "-dev-listen-address=0.0.0.0:8200"]
+    ports: ["54200:8200"]
+    cap_add: ["IPC_LOCK"]
+
+  svix-db:
+    profiles: [full]
+    image: ${HUB:-docker.io}/library/postgres:16-alpine
+    environment:
+      POSTGRES_USER: svix
+      POSTGRES_PASSWORD: dev_only_svix
+      POSTGRES_DB: svix
+    healthcheck:
+      <<: *healthy
+      test: ["CMD-SHELL", "pg_isready -U svix"]
+
+  svix:
+    profiles: [full]
+    image: ${HUB:-docker.io}/svix/svix-server:latest
+    depends_on:
+      svix-db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      SVIX_DB_DSN: postgresql://svix:dev_only_svix@svix-db/svix
+      SVIX_REDIS_DSN: redis://redis:6379
+      SVIX_QUEUE_TYPE: redis
+      SVIX_JWT_SECRET: dev-only-change-me
+      SVIX_CACHE_TYPE: redis
+    ports: ["54800:8071"]
+
+volumes:
+  pg_data:
+  nats_data:
+  temporal_pg_data:
+  tb_data:
