@@ -44,7 +44,9 @@ export class QrController {
     return send(res, result);
   }
 
+  // Utilidad sin estado: también la usa el pagador simulado de la capa sandbox (`pay-mockbank`, D-26) para leer el QR que paga.
   @Post('qr/decode')
+  @AllowedServices('pay-connectors', 'pay-mockbank')
   @HttpCode(200)
   decode(@Headers('x-pay-mode') payMode: string | undefined, @Body() body: { payload?: unknown }) {
     this.mode.require(payMode); // utilidad sin estado, pero igual exige el modo: toda ruta interna de qr lo pide

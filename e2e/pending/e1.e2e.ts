@@ -1,6 +1,6 @@
 import { ledgerOfCapture, publicApi } from '../lib/flow.ts';
 import { MerchantReceiver } from '../lib/receiver.ts';
-import { seedMerchant, waitForEdgeToKnow, type SeededMerchant } from '../lib/seed.ts';
+import { SYNTHETIC_PAYER_NAME, seedMerchant, waitForEdgeToKnow, type SeededMerchant } from '../lib/seed.ts';
 import { waitFor } from '../lib/process.ts';
 import { startStack, stopStack, type Stack } from '../stack.ts';
 
@@ -46,13 +46,15 @@ describe('E1 — primer cobro QR de punta a punta', () => {
     expect(endpoint.status).toBe(201);
     receiver.route('/hook-e1', { secret: (endpoint.json as { secret: string }).secret, mode: 'up' });
 
-    const created = await api.createQrIntent(GROSS, 'e1-intent-0001-key');
+    const created = await api.createQrIntent(GROSS, 'e1-intent-0001-key', SYNTHETIC_PAYER_NAME);
     expect(created.status).toBe(201);
+    // D-29: el nombre del pagador es dato personal y no vuelve en ninguna respuesta.
+    expect(JSON.stringify(created.intent)).not.toContain(SYNTHETIC_PAYER_NAME);
     expect(created.intent).toMatchObject({ amount_minor: GROSS, fee_minor: FEE, net_minor: NET });
     // El QR (`next_action`) no se afirma acá: lo asigna el conector DESPUÉS de crear el intento y el simulador aprueba en ~1 s, así que
     // un cobro rápido ya es `succeeded` (sin `next_action`) cuando se lo consulta. Su payload se prueba en connector-callbacks.e2e.ts.
 
-    const replay = await api.createQrIntent(GROSS, 'e1-intent-0001-key');
+    const replay = await api.createQrIntent(GROSS, 'e1-intent-0001-key', SYNTHETIC_PAYER_NAME);
     expect(replay.intent.id).toBe(created.intent.id);
 
     // El callback lo firma y lo entrega el simulador (MockPumpService) a pay-connectors; el intento lo ve por JetStream.

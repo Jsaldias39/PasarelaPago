@@ -72,6 +72,9 @@ export function generateSecrets(): RunSecrets {
   };
 }
 
+/** Emisor de las credenciales de operador sintéticas del arnés. */
+export const OPERATOR_ISSUER = 'e2e-issuer';
+
 export interface EnvContext {
   readonly runId: string;
   readonly ports: Record<ServiceName, number>;
@@ -118,7 +121,15 @@ export function envFor(ctx: EnvContext, name: ServiceName): Record<string, strin
     case 'pay-vault':
       return { ...base, VAULT_BACKEND: 'fake' };
     case 'pay-merchants':
-      return { ...base, KYC_STORE_DIR: ctx.kycDir };
+      return {
+        ...base,
+        KYC_STORE_DIR: ctx.kycDir,
+        // Credencial de operador SINTÉTICA (sandbox): el arnés da de alta comercios por la API real del back-office con un JWT que firma con
+        // esta misma clave (ver lib/seed.ts). Misma forma que scripts/sandbox-operator-token.mjs de pay-merchants.
+        OPERATOR_TOKEN_PUBLIC_KEY: secrets.operatorPublicKeyPem.replace(/\n/g, '\\n'),
+        OPERATOR_TOKEN_ISSUER: OPERATOR_ISSUER,
+        OPERATOR_TOKEN_AUDIENCE: 'pay-merchants',
+      };
     case 'pay-webhooks':
       return {
         ...base,

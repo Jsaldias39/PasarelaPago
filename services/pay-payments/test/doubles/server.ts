@@ -36,6 +36,11 @@ export class DoubleServer {
   readonly calls: DoubleRequest[] = [];
   /** Peticiones que NO cumplen el contrato del servicio simulado. Las pruebas exigen que esté vacío. */
   readonly violations: string[] = [];
+  /**
+   * Latencia por ruta: el doble APLICA el efecto y recién después espera para responder. Sirve para matar un worker con la orden «en vuelo»
+   * (el efecto ya ocurrió y la respuesta no llegó), que es exactamente el caso difícil de la inyección de fallos.
+   */
+  readonly routeDelays: { method: string; pattern: RegExp; ms: number }[] = [];
   private server: Server | undefined;
   private contract: ContractValidator | undefined;
   private readonly pending = new Set<ServerResponse>();
@@ -101,7 +106,8 @@ export class DoubleServer {
       this.pending.add(res);
       return;
     }
-    if (out.delayMs) await new Promise((r) => setTimeout(r, out.delayMs));
+    const delayMs = out.delayMs ?? this.routeDelays.find((d) => d.method === call.method && d.pattern.test(call.path))?.ms;
+    if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
     if (out.body !== undefined) {
       const errors = this.contract!.validateResponse({ method: call.method, path: call.path, status: out.status, body: out.body });
       if (errors.length > 0) {

@@ -6,6 +6,7 @@ import supertest from 'supertest';
 import { generateApiKey, type ApiKeyMode } from '@pay/api-key';
 import { createIsolatedDatabase, loadContract, type ContractValidator, type IsolatedDatabase } from '@pay/testing';
 import { AppModule } from '../src/app.module';
+import type { DestinationStream } from 'pino';
 import { loadConfig, UPSTREAMS, type ServiceConfig, type UpstreamName } from '../src/config';
 import { configureApp } from '../src/configure-app';
 import { UpstreamDouble } from './doubles/upstream-double';
@@ -38,6 +39,8 @@ export interface StartOptions {
    * (la guardia tiene su propia prueba en config.spec.ts).
    */
   readonly liveAfterLoad?: boolean;
+  /** Destino de los logs (por defecto la salida estándar): las pruebas leen acá lo que el borde registra. */
+  readonly logStream?: DestinationStream;
 }
 
 /** Levanta el borde COMPLETO con Postgres y Redis reales, un esquema propio, un prefijo de Redis propio y dobles de los destinos. */
@@ -59,7 +62,7 @@ export async function startEdge(options: StartOptions = {}): Promise<EdgeHarness
     ...options.env,
   });
   const config: ServiceConfig = options.liveAfterLoad ? { ...loaded, payMode: 'live' } : loaded;
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule.forRoot(config)] }).compile();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule.forRoot(config, options.logStream)] }).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false });
   configureApp(app, config);
   await app.init();

@@ -1,9 +1,10 @@
-import { randomBytes } from 'node:crypto';
+import { createPrivateKey, createSign, randomBytes } from 'node:crypto';
 import { Client } from 'pg';
 import { generateApiKey } from '@pay/api-key';
 import { enqueue, newCloudEvent } from '@pay/outbox';
 import type { Stack } from '../stack.ts';
 import { waitFor } from './process.ts';
+import { OPERATOR_ISSUER } from './services.ts';
 
 export interface SeededMerchant {
   readonly merchantId: string;
@@ -13,15 +14,23 @@ export interface SeededMerchant {
 }
 
 /**
+ * Razón social y nombre de pagador SINTÉTICOS. Se eligieron para que NO se parezcan a ninguna entrada de las listas de sanciones: contra el
+ * Watchman del Compose (listas OFAC de 2019) puntúan 0,35 y 0,38 como máximo, lejos del umbral de revisión (0,60). `flows/synthetic-names.e2e.ts`
+ * lo comprueba contra el Watchman real y falla si alguien cambia los nombres por otros que puntúen alto.
+ */
+export const SYNTHETIC_LEGAL_NAME = 'TALLER MECANICO VALLE VERDE SRL';
+export const SYNTHETIC_PAYER_NAME = 'Cliente Anonimo Prueba';
+
+/**
+ * RESPALDO declarado como DOBLE — alta directa en la base de pay-merchants. Úsalo solo con `seedMerchant(stack, { mode: 'sql' })`.
  * SEMILLA SINTÉTICA DE SANDBOX (P1.H5.M2): un comercio activo con KYC, contrato y tarifario, y una clave `sk_test_`, escritos en la
  * base de `pay-merchants` con SUS tablas y sus eventos por outbox (el relé de pay-merchants los publica al bus, y de ahí los
  * toman `pay-edge`, `pay-payments`, `pay-schedules`, `pay-webhooks`).
  *
- * POR QUÉ NO POR LA API: el back-office de `pay-merchants` exige una credencial de operador y hoy el verificador es
- * `DenyAllOperatorAuthenticator` (sin configuración posible): en un despliegue real nadie puede dar de alta el primer comercio
- * (ver docs/trabajo/ola-2/P1/ARNES.md). Esto es un DOBLE del alta, declarado como tal: todos los datos son inventados.
+ * Por defecto el arnés NO usa esto: da de alta por la API real del back-office con una credencial de operador sintética (`onboardMerchant`).
+ * Queda como respaldo para aislar un fallo del alta real. Es un DOBLE del alta, declarado como tal: todos los datos son inventados.
  */
-export async function seedMerchant(stack: Stack, options: { label?: string } = {}): Promise<SeededMerchant> {
+export async function seedMerchantDirect(stack: Stack, options: { label?: string; legalName?: string } = {}): Promise<SeededMerchant> {
   const merchantId = `mc_${randomBytes(6).toString('hex')}`;
   const key = generateApiKey('test');
   const client = new Client({ host: stack.infra.postgres.host, port: stack.infra.postgres.port, database: 'pay_merchants', user: 'pay_merchants', password: 'dev_only_merchants' });
@@ -31,7 +40,7 @@ export async function seedMerchant(stack: Stack, options: { label?: string } = {
     const now = new Date();
     await client.query(
       `INSERT INTO merchants (id, display_name, legal_name, legal_type, tax_id, status, activated_at) VALUES ($1, $2, $3, 'srl', $4, 'active', $5)`,
-      [merchantId, options.label ?? 'COMERCIO E2E (SINTÉTICO)', 'COMERCIO E2E SINTETICO SRL', `E2E${randomBytes(5).toString('hex')}`, now],
+      [merchantId, options.label ?? 'COMERCIO E2E (SINTÉTICO)', options.legalName ?? SYNTHETIC_LEGAL_NAME, `E2E${randomBytes(5).toString('hex')}`, now],
     );
     await client.query(`INSERT INTO merchant_kyc (merchant_id, status, risk_level, reviewed_by, reviewed_at) VALUES ($1, 'approved', 'low', 'e2e-seed', $2)`, [merchantId, now]);
     await client.query(`INSERT INTO contract_versions (version, text_sha256, effective_from, published_by) VALUES (1, $1, $2, 'e2e-seed') ON CONFLICT DO NOTHING`, ['0'.repeat(64), now]);
@@ -52,8 +61,8 @@ export async function seedMerchant(stack: Stack, options: { label?: string } = {
     const iso = now.toISOString();
     const emit = (type: string, subject: string, data: Record<string, unknown>, aggregateType: string) =>
       enqueue(client, newCloudEvent({ source: '/pay-merchants', type, subject, merchantId, data }), { aggregateType, aggregateId: subject });
-    await emit('merchant.created', merchantId, { merchant_id: merchantId, status: 'pending', created_at: iso }, 'merchant');
-    await emit('merchant.activated', merchantId, { merchant_id: merchantId, status: 'active', activated_at: iso }, 'merchant');
+    await emit('merchant.created', merchantId, { merchant_id: merchantId, status: 'pending', created_at: iso, legal_name: options.legalName ?? SYNTHETIC_LEGAL_NAME }, 'merchant');
+    await emit('merchant.activated', merchantId, { merchant_id: merchantId, status: 'active', activated_at: iso, legal_name: options.legalName ?? SYNTHETIC_LEGAL_NAME }, 'merchant');
     await emit('fee_schedule.published', merchantId, { merchant_id: merchantId, version: 1, currency: 'BOB', effective_from: iso, effective_to: null, channels, monthly_fee_minor: 0 }, 'fee_schedule');
     await emit('api_key.created', key.keyId, { key_id: key.keyId, merchant_id: merchantId, mode: 'test', key_hash: key.keyHash, last4: key.last4, created_at: iso }, 'api_key');
     await client.query('COMMIT');
@@ -64,6 +73,90 @@ export async function seedMerchant(stack: Stack, options: { label?: string } = {
     await client.end();
   }
   return { merchantId, keyId: key.keyId, token: key.token };
+}
+
+export interface SeedOptions {
+  readonly label?: string;
+  readonly legalName?: string;
+  /** `api` (por defecto): alta por la API real de pay-merchants. `sql`: el respaldo directo en la base (DOBLE). */
+  readonly mode?: 'api' | 'sql';
+}
+
+/** Emite un JWT RS256 de operador SINTÉTICO de sandbox, con la misma forma que `scripts/sandbox-operator-token.mjs` de pay-merchants. */
+export function mintOperatorToken(stack: Stack, roles: readonly string[], options: { sub?: string; ttlSeconds?: number } = {}): string {
+  const now = Math.floor(Date.now() / 1000);
+  const b64 = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const unsigned = `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64({ iss: OPERATOR_ISSUER, aud: 'pay-merchants', sub: options.sub ?? 'operador_e2e_01', roles, mode: 'sandbox', iat: now, exp: now + (options.ttlSeconds ?? 600) })}`;
+  return `${unsigned}.${createSign('RSA-SHA256').update(unsigned).sign(createPrivateKey(stack.secrets.operatorPrivateKeyPem)).toString('base64url')}`;
+}
+
+const OPERATOR_ROLES = ['merchant_operator', 'kyc_reviewer', 'legal_admin', 'pricing_admin'] as const;
+const KYC_KINDS = ['constitucion', 'nit', 'seprec', 'licencia_funcionamiento', 'certificado_sedes', 'poder_representante'] as const;
+/** PNG mínimo con firma válida: es lo que detecta el almacén de KYC por los primeros bytes. Contenido sintético, sin datos de nadie. */
+const SYNTHETIC_PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('DOCUMENTO SINTETICO DE PRUEBA')]);
+const FEE_CHANNELS = [
+  { channel: 'qr', percent: '2.5', fixed_minor: 50 },
+  { channel: 'card', percent: '3.25', fixed_minor: 0, min_minor: 100, cap_minor: 5000 },
+  { channel: 'bank_transfer', percent: '1', fixed_minor: 0 },
+  { channel: 'wallet', percent: '1', fixed_minor: 0 },
+  { channel: 'direct', percent: '1.8', fixed_minor: 50, min_minor: 100, cap_minor: 5000 },
+];
+
+/**
+ * ALTA POR LA API REAL de pay-merchants, como la haría el back-office de ALOVIDA: crea el comercio, sube los 6 documentos de KYC, aprueba el KYC,
+ * publica y acepta el contrato, publica el tarifario y activa. Todo con una credencial de operador SINTÉTICA (JWT firmado por el arnés) y la
+ * identidad de servicio `pay-backoffice`. Los eventos (`merchant.created|activated` con `legal_name`, `fee_schedule.published`, `api_key.created`) los
+ * publica el propio servicio por outbox: nada se escribe en su base.
+ *
+ * Único paso que NO es la API real de un operador: la PRIMERA clave `sk_test_`. Se pide a `POST /api_keys` con la identidad de `pay-edge` y el
+ * `X-Merchant-Id` del comercio (lo que el borde reenviaría), porque el borde exige una clave para llegar a esa ruta y no hay otro camino para la primera
+ * (hallazgo para P5/P1 en ARNES.md: ¿quién emite la primera clave de un comercio?).
+ */
+export async function onboardMerchant(stack: Stack, options: SeedOptions = {}): Promise<SeededMerchant> {
+  const bearer = `Bearer ${mintOperatorToken(stack, OPERATOR_ROLES)}`;
+  const backoffice = async (method: string, path: string, init: { json?: unknown; idempotencyKey?: string; form?: FormData } = {}) => {
+    const res = await fetch(`${stack.url('pay-merchants')}${path}`, {
+      method,
+      headers: { 'x-service-id': 'pay-backoffice', authorization: bearer, ...(init.idempotencyKey ? { 'idempotency-key': init.idempotencyKey } : {}), ...(init.json !== undefined ? { 'content-type': 'application/json' } : {}) },
+      body: init.form ?? (init.json !== undefined ? JSON.stringify(init.json) : undefined),
+    });
+    const text = await res.text();
+    return { status: res.status, json: text ? (JSON.parse(text) as Record<string, unknown>) : {} };
+  };
+  const must = async (what: string, call: Promise<{ status: number; json: Record<string, unknown> }>, ok: readonly number[] = [200, 201]) => {
+    const res = await call;
+    if (!ok.includes(res.status)) throw new Error(`Alta de comercio: «${what}» respondió ${res.status}: ${JSON.stringify(res.json).slice(0, 300)}`);
+    return res.json;
+  };
+
+  const created = await must('crear comercio', backoffice('POST', '/merchants', {
+    idempotencyKey: `e2e-merchant-${randomBytes(8).toString('hex')}`,
+    json: { display_name: options.label ?? 'COMERCIO E2E (SINTÉTICO)', legal_name: options.legalName ?? SYNTHETIC_LEGAL_NAME, legal_type: 'srl', tax_id: `E2E${randomBytes(5).toString('hex')}` },
+  }));
+  const merchantId = created.id as string;
+  for (const kind of KYC_KINDS) {
+    const form = new FormData();
+    form.set('kind', kind);
+    form.set('file', new Blob([new Uint8Array(SYNTHETIC_PNG)], { type: 'image/png' }), `${kind}.png`);
+    await must(`subir documento ${kind}`, backoffice('POST', `/merchants/${merchantId}/kyc/documents`, { form }));
+  }
+  await must('aprobar KYC', backoffice('PUT', `/merchants/${merchantId}/kyc/review`, { json: { decision: 'approved', risk_level: 'low', note: 'sintético' } }));
+  // La versión 1 del contrato se publica una sola vez por corrida; las siguientes altas la reutilizan (la API contesta `not_next`).
+  const published = await backoffice('POST', '/contract_versions', { json: { version: 1, text_sha256: '0'.repeat(64) } });
+  if (published.status >= 400 && !JSON.stringify(published.json).includes('not_next')) throw new Error(`Alta de comercio: «publicar contrato» respondió ${published.status}: ${JSON.stringify(published.json).slice(0, 300)}`);
+  await must('aceptar contrato', backoffice('POST', `/merchants/${merchantId}/contract_acceptances`, { json: { version: 1, accepted_by_ref: 'e2e-sintetico' } }));
+  await must('publicar tarifario', backoffice('POST', `/merchants/${merchantId}/fee_schedules`, { json: { monthly_fee_minor: 0, channels: FEE_CHANNELS } }));
+  await must('activar comercio', backoffice('POST', `/merchants/${merchantId}/activate`));
+
+  const key = await stack.callAs('pay-edge', 'pay-merchants', 'POST', '/api_keys', { merchantId, payMode: 'test', headers: { 'idempotency-key': `e2e-first-key-${randomBytes(8).toString('hex')}` }, json: { mode: 'test', label: 'e2e' } });
+  if (key.status !== 201) throw new Error(`Alta de comercio: «primera clave» respondió ${key.status}: ${JSON.stringify(key.json).slice(0, 300)}`);
+  const body = key.json as { id: string; secret: string };
+  return { merchantId, keyId: body.id, token: body.secret };
+}
+
+/** Da de alta un comercio sintético con su clave `sk_test_`: por la API real de pay-merchants (por defecto) o con el respaldo directo (DOBLE). */
+export async function seedMerchant(stack: Stack, options: SeedOptions = {}): Promise<SeededMerchant> {
+  return options.mode === 'sql' ? seedMerchantDirect(stack, options) : onboardMerchant(stack, options);
 }
 
 /** Espera (por condición) a que el borde reconozca la clave: prueba el camino pay-merchants → outbox → NATS → réplica de pay-edge. */

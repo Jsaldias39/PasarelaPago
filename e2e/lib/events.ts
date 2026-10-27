@@ -5,6 +5,8 @@ export interface BusEvent {
   readonly id: string;
   readonly type: string;
   readonly data: Record<string, unknown>;
+  /** El sobre CloudEvents completo, tal como salió al bus (para validarlo contra el AsyncAPI). */
+  readonly raw: Record<string, unknown>;
 }
 
 /**
@@ -24,7 +26,7 @@ export async function readStream(stack: Stack, stream: string, subject: string, 
       const events: BusEvent[] = [];
       for await (const message of batch) {
         const raw = JSON.parse(message.string()) as { id: string; type: string; data: Record<string, unknown> };
-        const event = { id: raw.id, type: raw.type, data: raw.data };
+        const event = { id: raw.id, type: raw.type, data: raw.data, raw: raw as Record<string, unknown> };
         if (accept(event)) events.push(event);
       }
       return events;

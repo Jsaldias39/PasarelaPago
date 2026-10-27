@@ -63,7 +63,7 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P5.H2.M1 | **Spike** Watchman: cargar listas, latencia de búsqueda, licencia en su `LICENSE` | Responde sí o no con criterio | `evidencia/spike-watchman.md` | A MEDIAS |
+| P5.H2.M1 | **Spike** Watchman: cargar listas, latencia de búsqueda, licencia en su `LICENSE` | Responde sí o no con criterio | `evidencia/spike-watchman.md` | BLOQUEADO (externo; ver abajo) |
 | P5.H2.M2 | Motor de reglas versionado (monto, velocidad por comercio y pagador, horario) | REQ-P5-5 (velocidad) | Test pegado | HECHO |
 | P5.H2.M3 | Cribado de sanciones integrado | REQ-P5-5 (sanciones) | Test con nombres sintéticos de la lista de prueba | HECHO |
 | P5.H2.M4 | `POST /assessments` con p99 < 300 ms | Latencia medida | Salida de la prueba de carga | A MEDIAS |
@@ -91,7 +91,7 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 
 **P5.H2.M4 — p99 < 300 ms.** *Qué anda:* `POST /assessments` con Watchman REAL y Postgres real mide p99 52–77 ms en máquina tranquila y 142–209 ms en 3 de 5 corridas completas; el servicio solo (sin Watchman) mide p99 19–55 ms. *Qué no anda:* con la máquina compartida cargada (load average 17–38 en 4 vCPU) el p99 pasó de 300 ms en 2 de 5 corridas, hasta sin Watchman: clasificado `ENVIRONMENT` ([`P5.H2.M4.txt`](../../trabajo/ola-1/P5/evidencia/P5.H2.M4.txt)). *Qué falta:* la prueba de carga real a 2× el volumen objetivo (**T-01, ola 3**) en un runner dedicado; escalar Watchman (satura con > 4 clientes simultáneos, p99 400 ms con 24) o cachear/usar `entity_type` (PR-11). *Dónde quedó:* `services/pay-risk/test/latency.spec.ts`, compila; intermitente bajo carga externa.
 
-**P5.H2.M1** sigue `A MEDIAS` como en la ola 0 (no se tocó).
+**P5.H2.M1** pasó en la tanda 4a de `A MEDIAS` a `BLOQUEADO` por causa **externa** (sin cambio de código): ver «Estado de P5.H2.M1» más abajo.
 
 ## Dobles (regla 65)
 
@@ -104,6 +104,15 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 ## Estado de la ola 0 (A MEDIAS, con las cuatro respuestas)
 
 **P5.H2.M1 — Spike Watchman.** *Qué anda:* con `moov/watchman:v2-static` (v0.58.1, **datos congelados de 2019**, 7.379 registros) la API responde con p99 < 30 ms en 50 búsquedas por caso ([`watchman.md`](../../spikes/watchman.md), `TESTED`). *Qué no anda:* **no se cargaron las listas vigentes** (sin acceso a treasury.gov y otras desde el entorno); una coincidencia exacta puntuó solo 0,812 y un error de una letra 0,602. *Qué falta:* cargar las listas vigentes desde un caché propio, medir bajo concurrencia, y que cumplimiento fije los umbrales (Q-12). *Dónde quedó:* Watchman `v2-static` en el Compose, solo para sandbox.
+
+## Estado de P5.H2.M1 — BLOQUEADO EXTERNO (tanda 4a)
+
+- **Qué anda (demostrado):** Watchman `v2-static` (datos de 2019, **solo sandbox**) responde con p99 < 30 ms por búsqueda ([`watchman.md`](../../spikes/watchman.md), `TESTED`). `pay-risk` cribó contra él en 3 niveles (`test/screening-parties.spec.ts`, `contract-conformance.spec.ts`, `assessments.spec.ts`): correcto (sin coincidencia ⇒ `allow`), límite (coincidencia en el umbral ⇒ `review`/`deny` según `SANCTIONS_*_SCORE`) e inválido (Watchman caído o sin nombre del comercio ⇒ `review`, nunca `allow`). Esa es la simulación que exige la regla 65: el contrato (API HTTP de Watchman) está aislado detrás de un doble declarado —las listas estáticas de 2019— y el servicio se cerró contra él.
+- **Qué no anda / qué NO se puede hacer desde acá:** (1) cargar las listas **vigentes** (OFAC, ONU, UE…): este entorno no tiene salida a treasury.gov ni a las demás fuentes; (2) fijar los **umbrales** de `review` y `deny` y la lista de campos que se envían a Watchman: es una decisión de cumplimiento (**Q-12**). No se inventan listas ni umbrales: los valores que usan los tests son sintéticos y declarados, y en `live` el servicio no arranca sin `SANCTIONS_DENY_SCORE`/`SANCTIONS_REVIEW_SCORE` ni sin `WATCHMAN_LISTS=current` (D5-42).
+- **Qué lo destraba:** (a) un caché propio de las listas vigentes, con su procedencia (fuente, fecha, licencia) cargado en Watchman por quien tenga salida de red, y la licencia de cada lista revisada; (b) la respuesta de Q-12 por escrito: umbrales, campos enviados y si se exigen listas bolivianas; (c) con eso, repetir el spike con las listas vigentes: puntaje de un nombre exacto y de uno con un error de una letra, y medir bajo concurrencia.
+- **De quién depende:** Cumplimiento (Q-12, umbrales) · quien administre el entorno con salida a internet o el caché de listas (infra / P1) · el dueño del producto para la licencia.
+- **Por qué es legítimo no cerrarlo (regla 65):** lo que falta es una decisión de negocio (Q-12) y un insumo externo (listas vigentes), no un contrato que se pueda simular: el contrato ya está simulado y probado en los tres niveles. Lo verificado contra el doble no sustituye el spike con listas reales.
+- **Dónde quedó:** Watchman `v2-static` en el Compose; `services/pay-risk/` sin cambios por esto; evidencia en `docs/spikes/watchman.md`.
 
 ## Gates y entrega
 

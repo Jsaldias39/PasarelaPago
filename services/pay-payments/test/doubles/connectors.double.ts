@@ -6,7 +6,7 @@ import { DoubleServer, problem, type DoubleRequest, type DoubleResponse } from '
  * `down` / `refund_down` = `502 connector_unavailable` con el cuerpo exacto del contrato: DEFINITIVO, no se envió nada.
  * `charge_ambiguous` / `refund_ambiguous` = un 500 genérico: AMBIGUO, no prueba que no se ejecutó.
  */
-export type ConnectorScenario = 'ok' | 'decline' | 'down' | 'charge_ambiguous' | 'refund_fails' | 'refund_pending' | 'refund_down' | 'refund_ambiguous';
+export type ConnectorScenario = 'ok' | 'decline' | 'down' | 'charge_ambiguous' | 'refund_fails' | 'refund_pending' | 'refund_down' | 'refund_ambiguous' | 'refund_502_opaque';
 
 interface ChargeRecord {
   id: string;
@@ -148,6 +148,7 @@ export class ConnectorsDouble {
       if (charge.status !== 'succeeded') return problem('invalid_state_transition', 409);
       if (this.scenario === 'refund_down') return problem('connector_unavailable', 502);
       if (this.scenario === 'refund_ambiguous') return problem('internal_error', 500);
+      if (this.scenario === 'refund_502_opaque') return { status: 502 }; // un 502 SIN el cuerpo exacto `connector_unavailable`: no prueba que no se envió
       if (this.scenario === 'refund_fails') return problem('validation_failed', 422);
       const key = String(req.headers['idempotency-key']);
       const id = idOf('cr', key);

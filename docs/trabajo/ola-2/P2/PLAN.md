@@ -81,3 +81,17 @@
 | O2.P2.H5.M5 | `.env.example` de los dos servicios consistentes con el arnés y entre sí | prueba que lee el arnés y los `.env.example` vecinos | `yarn test env-example` | HECHO |
 | O2.P2.H5.M6 | Confirmar que el ledger arranca en el arnés con TigerBeetle real, sin pasos manuales | `ready` con el entorno exacto de `envFor` | `evidencia/arnes/` | HECHO |
 | O2.P2.H5.M7 | Gates, suites ≥ 2 corridas por servicio y reporte 2c | todo exit 0 | `evidencia/` | HECHO |
+
+---
+# Tanda 4a (2026-10-27) — flujos E4 y E8 del plan
+## H6 — E4 y E8 como archivos nuevos de e2e/pending
+**CA:** Dados los flujos E4 y E8 de PLAN-MAESTRO §6, cuando se corre `yarn e2e:typecheck` y el lint entonces los dos archivos nuevos compilan y pasan el lint, sin modificar ningún archivo existente de `e2e/`, y la documentación dice qué asumen, qué esperan y cómo se miden.
+**DoD:** `yarn e2e:typecheck`, `yarn eslint` desde la raíz, `yarn lint` (no se levanta el stack: lo corre P1).
+**Estado:** HECHO (peldaño `RUNS`; la ejecución del stack NO se hizo)
+
+| ID | Microtarea | CA | DoD | Estado |
+|---|---|---|---|---|
+| O2.P2.H6.M1 | `e2e/pending/e4.e2e.ts` (corte → payout → conciliación → excepción) | compila y pasa lint | `yarn e2e:typecheck`, `yarn lint` | HECHO |
+| O2.P2.H6.M2 | `e2e/pending/e8.e2e.ts` (transferencia confirmada por el extracto) | ídem | ídem | HECHO |
+| O2.P2.H6.M3 | Ayudantes nuevos `e2e/lib/p2-bank.ts` y `p2-settlement.ts` | ídem; sin tocar archivos de P1 | `git status` | HECHO |
+| O2.P2.H6.M4 | `FLUJOS-E4-E8.md` + confirmación por escrito de qué parte de «E4 en verde» depende del stack y de Q-11 | documento escrito | lectura | HECHO |

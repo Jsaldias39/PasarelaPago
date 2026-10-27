@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import { startEdge, type EdgeHarness } from './harness';
 
 /**
@@ -12,9 +11,8 @@ const body = (payerName: unknown, extra = '') => `{"amount_minor":10000,"currenc
 describe('[DOBLE] payer_name en el borde', () => {
   let h: EdgeHarness;
   let token: string;
-  /** pino escribe directo al descriptor 1 (no pasa por process.stdout.write): se intercepta fs.writeSync, que es lo que llega a la terminal. */
+  /** Lo que el borde registra (pino escribe directo al descriptor 1, no por process.stdout.write): se lo da un destino propio. */
   const writes: string[] = [];
-  let spy: jest.SpyInstance;
 
   const post = (text: string, key = 'clave-de-idempotencia-0001') =>
     h.http().post('/v1/payment_intents').set('Authorization', `Bearer ${token}`).set('Idempotency-Key', key).set('Content-Type', 'application/json').send(text);
@@ -22,16 +20,10 @@ describe('[DOBLE] payer_name en el borde', () => {
 
   beforeAll(async () => {
     // Nivel de log máximo: si el nombre se filtrara a algún log, saldría acá.
-    h = await startEdge({ env: { LOG_LEVEL: 'trace' } });
+    h = await startEdge({ env: { LOG_LEVEL: 'trace' }, logStream: { write: (line: string) => void writes.push(line) } });
     token = (await h.seedKey()).token;
-    const real = fs.writeSync.bind(fs);
-    spy = jest.spyOn(fs, 'writeSync').mockImplementation(((fd: number, data: unknown, ...rest: unknown[]) => {
-      if (fd === 1 || fd === 2) writes.push(typeof data === 'string' ? data : Buffer.from(data as Uint8Array).toString('utf8'));
-      return (real as (...args: unknown[]) => number)(fd, data, ...rest);
-    }) as typeof fs.writeSync);
   });
   afterAll(async () => {
-    spy.mockRestore();
     await h.stop();
   });
   afterEach(() => {

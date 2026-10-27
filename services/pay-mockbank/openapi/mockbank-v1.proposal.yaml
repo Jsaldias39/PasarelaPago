@@ -1,0 +1,320 @@
+# PROPUESTA (no es un contrato congelado ni vive en contracts/): API del BANCO SIMULADO `pay-mockbank` (capa sandbox, D-26, P4.H4.M2).
+# Cada campo es FICTICIO y de sandbox: ninguno es de un banco real (Q-01 y Q-11 siguen abiertas, docs/spikes/banco-mercantil.md).
+# Los adaptadores reales (mercantil_qr, mercantil_card) NO deben copiar estas rutas ni estos campos. Propuesta de integración en
+# docs/trabajo/ola-2/P4/PROPUESTAS.md. Las pruebas de contrato de este servicio validan sus respuestas contra este archivo.
+openapi: 3.1.0
+info:
+  title: pay-mockbank — banco simulado (SANDBOX)
+  version: 0.1.0-proposal
+  description: |
+    Banco FICTICIO para la capa sandbox. Solo existe con `PAY_MODE=sandbox`; con `live` el servicio no arranca. Toda respuesta lleva
+    `X-Pay-Mode: sandbox`. Toda petición lleva `X-Pay-Mode: test` (el modo de la clave, D-28): ausente, repetido, inválido o `live` ⇒ `403`.
+    El escenario lo decide el importe (centavos, tabla en el README). Nada se trata como «no pasó» salvo los cuerpos exactos de este contrato:
+    `404 *_not_found` y `503 bank_unavailable`. Un corte de conexión, un timeout o un 502 con HTML son AMBIGUOS (la orden pudo ejecutarse).
+servers:
+  - url: http://127.0.0.1:3112
+    description: Puerto de desarrollo local de pay-mockbank.
+security:
+  - serviceIdentity: []
+tags:
+  - { name: Cobros }
+  - { name: Reembolsos }
+  - { name: Transferencias }
+  - { name: Tarjeta }
+  - { name: Extracto }
+paths:
+  /sandbox/probe:
+    get:
+      operationId: bankProbe
+      tags: [Cobros]
+      summary: Sonda de salud del banco
+      parameters: [{ $ref: '#/components/parameters/PayMode' }]
+      responses:
+        '200': { description: El banco responde., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { type: object, required: [status], additionalProperties: false, properties: { status: { type: string, enum: [ok] } } } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/charges:
+    post:
+      operationId: bankCreateCharge
+      tags: [Cobros]
+      summary: Crea un cobro (idempotente por `reference`)
+      description: Repetir la misma `reference` devuelve el mismo cobro con `200`. En el escenario 07 el cobro se crea pero la conexión se corta.
+      parameters: [{ $ref: '#/components/parameters/PayMode' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateCharge' } } }
+      responses:
+        '200': { description: El cobro ya existía., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/Charge' } } } }
+        '201': { description: Cobro creado., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/Charge' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/charges/{reference}:
+    get:
+      operationId: bankGetCharge
+      tags: [Cobros]
+      summary: Estado autoritativo de un cobro
+      parameters: [{ $ref: '#/components/parameters/PayMode' }, { $ref: '#/components/parameters/ChargeReference' }]
+      responses:
+        '200': { description: El cobro., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/Charge' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/charges/{reference}/qr:
+    put:
+      operationId: bankRegisterQr
+      tags: [Cobros]
+      summary: Registra el QR que la pasarela emitió para el cobro
+      description: Idempotente con el mismo payload. Otro payload para el mismo cobro, o el mismo payload para otro cobro ⇒ `409 qr_conflict`.
+      parameters: [{ $ref: '#/components/parameters/PayMode' }, { $ref: '#/components/parameters/ChargeReference' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [payload], additionalProperties: false, properties: { payload: { type: string, maxLength: 512 } } } } }
+      responses:
+        '200': { description: QR registrado., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { type: object, required: [reference, qr_registered], additionalProperties: false, properties: { reference: { type: string }, qr_registered: { type: boolean, const: true } } } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/charges/{reference}/cancel:
+    post:
+      operationId: bankCancelCharge
+      tags: [Cobros]
+      summary: Anula un cobro pendiente (idempotente)
+      parameters: [{ $ref: '#/components/parameters/PayMode' }, { $ref: '#/components/parameters/ChargeReference' }]
+      responses:
+        '200': { description: Anulado., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { type: object, required: [status], additionalProperties: false, properties: { status: { type: string, enum: [canceled] } } } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/refunds:
+    post:
+      operationId: bankCreateRefund
+      tags: [Reembolsos]
+      summary: Reembolsa (idempotente por `reference`)
+      parameters: [{ $ref: '#/components/parameters/PayMode' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [reference, charge_reference, amount_minor], additionalProperties: false, properties: { reference: { type: string, pattern: '^cr_[a-z0-9]{10,40}$' }, charge_reference: { type: string, pattern: '^ch_[a-z0-9]{10,40}$' }, amount_minor: { $ref: '#/components/schemas/AmountMinor' } } } } }
+      responses:
+        '200': { description: Rechazado por el banco (`failed`), sin guardar la referencia., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/Refund' } } } }
+        '201': { description: Reembolso aplicado., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/Refund' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/refunds/{reference}:
+    get:
+      operationId: bankGetRefund
+      tags: [Reembolsos]
+      summary: Consulta un reembolso por su referencia
+      description: '`404 refund_not_found` es la respuesta EXPLÍCITA de que el banco no lo tiene.'
+      parameters: [{ $ref: '#/components/parameters/PayMode' }, { name: reference, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: El reembolso., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/Refund' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/transfers:
+    post:
+      operationId: bankCreateTransfer
+      tags: [Transferencias]
+      summary: Transferencia saliente (idempotente por `reference`)
+      description: Escenarios 07 / 17 / 27 EJECUTAN la orden y pierden la respuesta (cuelga / 502 con HTML / socket reseteado).
+      parameters: [{ $ref: '#/components/parameters/PayMode' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [reference, amount_minor, destination_ref], additionalProperties: false, properties: { reference: { type: string, minLength: 1, maxLength: 200 }, amount_minor: { $ref: '#/components/schemas/AmountMinor' }, destination_ref: { type: string, pattern: '^[A-Za-z0-9_.:-]{1,100}$', description: Referencia opaca de la cuenta de liquidación; nunca un número de cuenta (Q-22). } } } } }
+      responses:
+        '200': { description: Estado de la transferencia., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/transfers/{reference}:
+    get:
+      operationId: bankGetTransfer
+      tags: [Transferencias]
+      summary: Consulta autoritativa de una transferencia
+      parameters: [{ $ref: '#/components/parameters/PayMode' }, { name: reference, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: La transferencia., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/card-authorizations:
+    post:
+      operationId: bankAuthorizeCard
+      tags: [Tarjeta]
+      summary: Autoriza un monto en una tarjeta (token de prueba; NUNCA un PAN)
+      description: '`card_token` es un `tok_…` de prueba. Un valor con forma de PAN (12 a 19 dígitos) se rechaza con `422` sin repetirlo en la respuesta.'
+      parameters: [{ $ref: '#/components/parameters/PayMode' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [reference, amount_minor, card_token], additionalProperties: false, properties: { reference: { type: string, pattern: '^ch_[a-z0-9]{10,40}$' }, amount_minor: { $ref: '#/components/schemas/AmountMinor' }, card_token: { type: string, pattern: '^tok_[A-Za-z0-9]{8,64}$' } } } } }
+      responses:
+        '200': { description: La autorización ya existía., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/CardAuthorization' } } } }
+        '201': { description: Autorización creada (`authorized` o `declined`)., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/CardAuthorization' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/card-authorizations/{reference}:
+    get:
+      operationId: bankGetCardAuthorization
+      tags: [Tarjeta]
+      summary: Consulta una autorización
+      parameters: [{ $ref: '#/components/parameters/PayMode' }, { $ref: '#/components/parameters/ChargeReference' }]
+      responses:
+        '200': { description: La autorización., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/CardAuthorization' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/card-authorizations/{reference}/capture:
+    post:
+      operationId: bankCaptureCard
+      tags: [Tarjeta]
+      summary: Captura (total o parcial) una autorización (idempotente)
+      parameters: [{ $ref: '#/components/parameters/PayMode' }, { $ref: '#/components/parameters/ChargeReference' }]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { type: object, additionalProperties: false, properties: { amount_minor: { $ref: '#/components/schemas/AmountMinor' } } } } }
+      responses:
+        '200': { description: Capturada., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/CardAuthorization' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/card-authorizations/{reference}/void:
+    post:
+      operationId: bankVoidCard
+      tags: [Tarjeta]
+      summary: Anula una autorización no capturada (idempotente)
+      parameters: [{ $ref: '#/components/parameters/PayMode' }, { $ref: '#/components/parameters/ChargeReference' }]
+      responses:
+        '200': { description: Anulada., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { $ref: '#/components/schemas/CardAuthorization' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/statement:
+    get:
+      operationId: bankStatement
+      tags: [Extracto]
+      summary: Extracto de la cuenta (JSON, CSV o camt.053)
+      description: '`format=camt053` usa la estructura pública de ISO 20022 `camt.053.001.02`; el perfil real del banco no se conoce y no se inventa.'
+      parameters:
+        - $ref: '#/components/parameters/PayMode'
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: format, in: query, required: false, schema: { type: string, enum: [json, csv, camt053], default: json } }
+      responses:
+        '200':
+          description: El extracto.
+          headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }
+          content:
+            application/json: { schema: { type: object, required: [data], additionalProperties: false, properties: { data: { type: array, items: { $ref: '#/components/schemas/StatementLine' } } } } }
+            text/csv: { schema: { type: string } }
+            application/xml: { schema: { type: string } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+components:
+  securitySchemes:
+    serviceIdentity: { type: apiKey, in: header, name: X-Service-Id, description: 'Identidad de servicio de la pasarela (la termina mTLS en un despliegue real). Aquí: `pay-connectors`.' }
+  headers:
+    XPayModeSandbox:
+      description: Presente en TODA respuesta de este servicio (D-26).
+      schema: { type: string, enum: [sandbox] }
+  parameters:
+    PayMode:
+      name: X-Pay-Mode
+      in: header
+      required: true
+      description: Modo de la clave (D-28). Solo `test`; `live` ⇒ 403.
+      schema: { type: string, enum: [test] }
+    ChargeReference:
+      name: reference
+      in: path
+      required: true
+      schema: { type: string, pattern: '^ch_[a-z0-9]{10,40}$' }
+  schemas:
+    AmountMinor: { type: integer, minimum: 1, maximum: 100000000000, description: Unidades menores de BOB (centavos). Nunca decimal. }
+    BankStatus: { type: string, enum: [pending, authorized, captured, failed, canceled, expired] }
+    CreateCharge:
+      type: object
+      required: [reference, amount_minor, currency, method, expires_at]
+      additionalProperties: false
+      properties:
+        reference: { type: string, pattern: '^ch_[a-z0-9]{10,40}$' }
+        amount_minor: { $ref: '#/components/schemas/AmountMinor' }
+        currency: { type: string, enum: [BOB] }
+        method: { type: string, enum: [qr, card, bank_transfer] }
+        expires_at: { type: string, format: date-time }
+    Charge:
+      type: object
+      required: [bank_reference, status, occurred_at]
+      additionalProperties: false
+      properties:
+        bank_reference: { type: string, pattern: '^SIM-[0-9]{6}$', description: Referencia FICTICIA del banco simulado. }
+        status: { $ref: '#/components/schemas/BankStatus' }
+        failure_code: { type: string, enum: [card_declined] }
+        occurred_at: { type: string, format: date-time }
+    Refund:
+      type: object
+      required: [bank_reference, status]
+      additionalProperties: false
+      properties:
+        bank_reference: { type: string, pattern: '^SIM-R-[0-9]{6}$' }
+        status: { type: string, enum: [captured, failed] }
+        failure_code: { type: string, enum: [validation_failed] }
+    Transfer:
+      type: object
+      required: [bank_reference, status]
+      additionalProperties: false
+      properties:
+        bank_reference: { type: string, pattern: '^SIM-T-[0-9]{6}$' }
+        status: { type: string, enum: [paid, in_transit, failed] }
+        failure_code: { type: string, enum: [rejected_by_bank] }
+    CardAuthorization:
+      type: object
+      required: [bank_reference, status, amount_minor, captured_minor]
+      additionalProperties: false
+      properties:
+        bank_reference: { type: string, pattern: '^SIM-C-[0-9]{6}$' }
+        status: { type: string, enum: [authorized, captured, voided, declined] }
+        amount_minor: { type: integer, minimum: 1 }
+        captured_minor: { type: integer, minimum: 0 }
+        failure_code: { type: string, enum: [card_declined] }
+    StatementLine:
+      type: object
+      required: [bank_reference, our_reference, direction, amount_minor, currency, value_date, booked_at, description]
+      additionalProperties: false
+      properties:
+        bank_reference: { type: string }
+        our_reference: { type: [string, 'null'] }
+        direction: { type: string, enum: [credit, debit] }
+        amount_minor: { type: integer, minimum: 1 }
+        currency: { type: string, enum: [BOB] }
+        value_date: { type: string, format: date }
+        booked_at: { type: string, format: date-time }
+        description: { type: [string, 'null'] }
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+        detail: { type: string }
+        request_id: { type: string }
+        errors: { type: array, items: { type: object } }
+  responses:
+    Forbidden: { description: 'Falta la identidad de servicio, el servicio no está permitido, o `X-Pay-Mode` no es `test`.', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    NotFound: { description: 'Respuesta EXPLÍCITA del banco: `charge_not_found`, `refund_not_found`, `transfer_not_found` o `card_authorization_not_found`.', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    Conflict: { description: 'El estado no admite la operación (`invalid_state`) o el QR ya está asignado (`qr_conflict`).', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    Unprocessable: { description: 'La petición no es válida (`validation_failed` con `errors`).', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    BankUnavailable: { description: 'Banco caído (`bank_unavailable`). RESPUESTA DEFINITIVA: no se creó nada; es seguro reintentar.', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }

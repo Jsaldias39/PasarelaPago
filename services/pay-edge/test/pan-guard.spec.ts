@@ -429,14 +429,10 @@ describe('pay-edge rechaza el PAN y el JSON roto', () => {
     expect(res.status).toBe(200);
   });
 
-  it('el PAN nunca llega a la salida estándar (logs): ni en el rechazo ni en el JSON roto', async () => {
-    const logging = await startEdge({ env: { LOG_LEVEL: 'trace' } });
+  it('el PAN nunca llega a los logs: ni en el rechazo ni en el JSON roto', async () => {
+    // pino escribe directo al descriptor 1 (no pasa por process.stdout.write): se lee con un destino propio, y se comprueba que SÍ se registró algo.
     const writes: string[] = [];
-    const original = process.stdout.write.bind(process.stdout);
-    process.stdout.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
-      writes.push(String(chunk));
-      return (original as (...args: unknown[]) => boolean)(chunk, ...rest);
-    }) as typeof process.stdout.write;
+    const logging = await startEdge({ env: { LOG_LEVEL: 'trace' }, logStream: { write: (line: string) => void writes.push(line) } });
     try {
       const k = await logging.seedKey();
       const send = (body: string) =>
@@ -445,9 +441,9 @@ describe('pay-edge rechaza el PAN y el JSON roto', () => {
       expect((await send(String.raw`{"number":"4111111111111111"}`)).status).toBe(422);
       expect((await send(`{"number":"${VISA}"`)).status).toBe(422);
     } finally {
-      process.stdout.write = original;
       await logging.stop();
     }
+    expect(writes.join('')).toContain('/v1/payment_intents');
     expect(writes.join('')).not.toMatch(/4111|\\u0034/);
   });
 });

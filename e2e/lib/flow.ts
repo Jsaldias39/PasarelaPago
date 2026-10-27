@@ -19,8 +19,8 @@ const TERMINAL = new Set(['succeeded', 'failed', 'canceled', 'expired']);
 export function publicApi(stack: Stack, merchant: SeededMerchant) {
   const headers = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${merchant.token}`, ...extra });
   return {
-    async createQrIntent(amountMinor: number, idempotencyKey: string) {
-      const res = await stack.call('pay-edge', 'POST', '/v1/payment_intents', { headers: headers({ 'idempotency-key': idempotencyKey }), json: { amount_minor: amountMinor, currency: 'BOB', payment_method: { type: 'qr' } } });
+    async createQrIntent(amountMinor: number, idempotencyKey: string, payerName?: string) {
+      const res = await stack.call('pay-edge', 'POST', '/v1/payment_intents', { headers: headers({ 'idempotency-key': idempotencyKey }), json: { amount_minor: amountMinor, currency: 'BOB', payment_method: { type: 'qr' }, ...(payerName ? { payer_name: payerName } : {}) } });
       return { status: res.status, intent: res.json as PublicIntent };
     },
     async getIntent(id: string): Promise<PublicIntent> {
