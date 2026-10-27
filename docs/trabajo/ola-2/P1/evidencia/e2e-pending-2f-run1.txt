@@ -204,3 +204,88 @@ FAIL e2e/pending/e5.e2e.ts (40.797 s)
 
       at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
 
+FAIL e2e/pending/e8.e2e.ts (46.511 s)
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › ANTES DEL EXTRACTO: sin la línea del banco el cobro sigue abierto y el ledger no tiene nada (el banco no avisa, no hay callback)
+
+    TypeError: Cannot read properties of undefined (reading 'filter')
+
+      47 |     return res.status === 404 ? 0 : (res.json as { balance_minor: number }).balance_minor;
+      48 |   };
+    > 49 |   const lines = async (account: string) => ((await call(`/statements?account=${encodeURIComponent(account)}&limit=100`)).json as { data: { direction: 'debit' | 'credit'; amount_minor: number; business_ref: string }[] }).data.filter((l) => l.business_ref === `${intentId}:capture`);
+         |                                                                                                                                                                                                                                  ^
+      50 |   const accounts = [`merchant:${merchantId}:pending`, 'platform:fees', 'connector:mock:clearing'];
+      51 |   const all = (await Promise.all(accounts.map(lines))).flat();
+      52 |   const sum = (direction: 'debit' | 'credit') => all.filter((l) => l.direction === direction).reduce((total, l) => total + l.amount_minor, 0);
+
+      at filter (e2e/lib/flow.ts:49:226)
+          at async Promise.all (index 0)
+      at ledgerOfCapture (e2e/lib/flow.ts:51:16)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:74:12)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › CONFIRMACIÓN POR EL EXTRACTO: el crédito con la referencia y el importe exactos captura el cobro; el ledger deja neto en pending y comisión en fees, débitos = créditos
+
+    E8 necesita pay-mockbank (P4.H4.M3, en construcción): hoy no hay forma de que el pagador deposite 20000 centavos con la referencia TR7W76T372UH en el banco simulado del stack (vive dentro del proceso de pay-connectors). Implementar acá la llamada a pay-mockbank cuando exista.
+
+      44 |  */
+      45 | export async function payerTransfersToBank(input: { reference: string; amountMinor: number }): Promise<never> {
+    > 46 |   throw new Error(
+         |         ^
+      47 |     `E8 necesita pay-mockbank (P4.H4.M3, en construcción): hoy no hay forma de que el pagador deposite ${input.amountMinor} centavos con la referencia ${input.reference} ` +
+      48 |       'en el banco simulado del stack (vive dentro del proceso de pay-connectors). Implementar acá la llamada a pay-mockbank cuando exista.',
+      49 |   );
+
+      at payerTransfersToBank (e2e/lib/p2-bank.ts:46:9)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:78:31)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › UNA SOLA VEZ: el conector vuelve a leer la misma línea en cada ciclo y NO captura dos veces: un evento captured, una captura en el ledger
+
+    No se cumplió «el conector publicó la captura» en 30000 ms; último valor: []
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:90:20)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › CONCILIACIÓN (P2): la línea del extracto cruza con el asiento de la captura; la corrida termina sin excepciones y no mueve el ledger
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 1
+    Received:    0
+
+      106 |     // Hoy la línea trae la referencia de la TRANSFERENCIA y el ledger la del cobro (`pi_…:capture`): no cruzan (FLUJOS-E4-E8.md). Cuando se alineen: 1 cruzada, 0 excepciones.
+      107 |     expect(run).toMatchObject({ status: 'completed', exception_count: 0 });
+    > 108 |     expect(run.matched_count).toBeGreaterThanOrEqual(1);
+          |                               ^
+      109 |     expect(await Promise.all([`merchant:${merchant.merchantId}:pending`, 'platform:fees', `connector:${CONNECTOR}:clearing`].map((a) => view.balance(a)))).toEqual(before);
+      110 |     expect(((await backoffice(stack, 'GET', '/reconciliation_exceptions?status=open')).json as { data: unknown[] }).data).toEqual([]);
+      111 |   });
+
+      at Object.toBeGreaterThanOrEqual (e2e/pending/e8.e2e.ts:108:31)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › IMPORTE DISTINTO: un crédito con la referencia correcta pero otro importe NO captura el cobro; queda a la vista como excepción para una persona
+
+    E8 necesita pay-mockbank (P4.H4.M3, en construcción): hoy no hay forma de que el pagador deposite 19000 centavos con la referencia TREZMAIXOM75 en el banco simulado del stack (vive dentro del proceso de pay-connectors). Implementar acá la llamada a pay-mockbank cuando exista.
+
+      44 |  */
+      45 | export async function payerTransfersToBank(input: { reference: string; amountMinor: number }): Promise<never> {
+    > 46 |   throw new Error(
+         |         ^
+      47 |     `E8 necesita pay-mockbank (P4.H4.M3, en construcción): hoy no hay forma de que el pagador deposite ${input.amountMinor} centavos con la referencia ${input.reference} ` +
+      48 |       'en el banco simulado del stack (vive dentro del proceso de pay-connectors). Implementar acá la llamada a pay-mockbank cuando exista.',
+      49 |   );
+
+      at payerTransfersToBank (e2e/lib/p2-bank.ts:46:9)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:117:31)
+
+Test Suites: 4 failed, 1 passed, 5 total
+Tests:       16 failed, 8 passed, 24 total
+Snapshots:   0 total
+Time:        146.398 s
+Ran all test suites.

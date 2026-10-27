@@ -194,3 +194,39 @@ describe('parseStatement: cualquier error que no sea de dominio se convierte en 
     malformed(() => parseStatement({ format: 'camt053' }));
   });
 });
+
+describe('payment_intent_id (clave de cruce, ola 2): opcional en JSON y CSV; inexistente en camt.053', () => {
+  const PI = 'pi_abcdefghijkl';
+
+  it('JSON: lo conserva cuando viene, y ausente o null no cambian nada', () => {
+    const [withIntent] = parseJsonStatement([{ ...LINE, our_reference: 'ch_abcdefghijkl', payment_intent_id: PI, charge_id: 'ch_abcdefghijkl', currency: 'BOB' }]);
+    expect(withIntent).toMatchObject({ our_reference: 'ch_abcdefghijkl', payment_intent_id: PI });
+    expect(parseJsonStatement([{ ...LINE, payment_intent_id: null }])[0].payment_intent_id).toBeNull();
+    expect(parseJsonStatement([LINE])[0].payment_intent_id).toBeUndefined();
+  });
+
+  it.each([
+    ['un id de cobro del conector', 'ch_abcdefghijkl'],
+    ['mayúsculas', 'PI_ABCDEFGHIJKL'],
+    ['demasiado corto', 'pi_abc'],
+    ['con la operación pegada', 'pi_abcdefghijkl:capture'],
+    ['vacío', ''],
+    ['un número', 12],
+  ])('JSON con payment_intent_id inválido (%s) ⇒ extracto ilegible; no se corrige ni se ignora', (_n, value) => {
+    malformed(() => parseJsonStatement([{ ...LINE, payment_intent_id: value }]), /payment_intent_id/);
+  });
+
+  it('CSV: la columna es OPCIONAL; con ella se conserva (vacío ⇒ null) y mal escrita ⇒ extracto ilegible', () => {
+    const withColumn = csv(['BNK001,ch_abcdefghijkl,pi_abcdefghijkl,credit,10000,BOB,2026-10-20,2026-10-20T14:30:00.000Z,', 'BNK002,ch_zyxwvutsrqpo,,credit,500,BOB,2026-10-20,2026-10-20T14:30:00.000Z,'], 'provider_reference,our_reference,payment_intent_id,direction,amount_minor,currency,value_date,booked_at,description');
+    const lines = parseCsvStatement(withColumn);
+    expect(lines.map((l) => l.payment_intent_id)).toEqual([PI, null]);
+    expect(parseCsvStatement(csv([CSV_ROW]))[0].payment_intent_id).toBeUndefined();
+    malformed(() => parseCsvStatement(csv(['BNK001,ch_abcdefghijkl,ch_abcdefghijkl,credit,10000,BOB,2026-10-20,2026-10-20T14:30:00.000Z,'], 'provider_reference,our_reference,payment_intent_id,direction,amount_minor,currency,value_date,booked_at,description')), /payment_intent_id/);
+  });
+
+  it('camt.053 no tiene dónde llevarlo: la línea sale sin payment_intent_id y se cruza por el respaldo (`EndToEndId`)', () => {
+    const [line] = parseCamt053(camt([entry()]));
+    expect(line.payment_intent_id).toBeUndefined();
+    expect(line.our_reference).toBe('pi_abcdefghijkl:capture');
+  });
+});

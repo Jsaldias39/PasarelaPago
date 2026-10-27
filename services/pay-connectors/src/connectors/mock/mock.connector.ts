@@ -19,7 +19,8 @@ import type {
 } from '../../domain/connector';
 import { ConnectorRejectedError } from '../../domain/connector';
 import { namespaceOf, ScopedSecretProvider, type SecretProvider } from '../../domain/secrets';
-import { SimulatedBank, type ScheduledCallback } from './simulated-bank';
+import type { MockBankPort } from './bank.port';
+import type { ScheduledCallback } from './simulated-bank';
 
 /** Genera el payload del QR de un cobro. En producción es el cliente HTTP de `pay-qr`; en pruebas, un doble declarado. */
 export interface QrPort {
@@ -30,7 +31,7 @@ const EMV_PAYLOAD = /^000201.*6304[0-9A-F]{4}$/;
 const SECRET_NAME = `${namespaceOf('mock')}WEBHOOK_SECRET`;
 
 export interface MockConnectorOptions {
-  readonly bank: SimulatedBank;
+  readonly bank: MockBankPort;
   readonly secrets: SecretProvider;
   readonly qr: QrPort;
   /** Código bajo el que se registra. Por defecto `mock`; las pruebas de ruteo registran un segundo simulador como `mercantil_qr` (DOBLE declarado). */
@@ -53,12 +54,14 @@ export class MockConnector implements Connector {
   }
 
   async createCharge(request: ProviderChargeRequest, now: Date): Promise<ProviderChargeResult> {
-    const result = this.options.bank.charge(request, now);
+    const result = await this.options.bank.charge(request, now);
     if (result.status === 'failed') return { providerReference: result.providerReference, status: 'failed', failureCode: result.failureCode };
     if (request.method === 'qr') {
       const qr = await this.options.qr.issue({ chargeId: request.reference, paymentIntentId: request.paymentIntentId, merchantId: request.merchantId, payMode: request.payMode, amountMinor: request.amountMinor, expiresAt: request.expiresAt });
       // Lo que devuelve pay-qr se valida: si no parece un payload EMV, es un fallo interno, no algo que mostrarle al pagador.
       if (!EMV_PAYLOAD.test(qr.payload)) throw new ConnectorRejectedError('internal_error', 'payload de QR inválido');
+      // Con un banco que tiene pagador (pay-mockbank), el QR emitido se le registra para que lo pueda pagar. Idempotente por cobro.
+      await this.options.bank.registerQr?.(request.reference, qr.payload);
       return { providerReference: result.providerReference, status: result.status, nextAction: { type: 'display_qr', payload: qr.payload, expires_at: qr.expiresAt.toISOString() } };
     }
     if (request.method === 'card') return { providerReference: result.providerReference, status: result.status, nextAction: { type: 'redirect_to_card_form', url: `https://sandbox.invalid/pay/${result.providerReference}` } };
@@ -66,27 +69,27 @@ export class MockConnector implements Connector {
   }
 
   async getStatus(reference: string, now: Date): Promise<ProviderStatusResult> {
-    return this.options.bank.status(reference, now);
+    return await this.options.bank.status(reference, now);
   }
 
   async cancel(reference: string, now: Date): Promise<{ status: ProviderStatus }> {
-    return { status: this.options.bank.cancel(reference, now) };
+    return { status: await this.options.bank.cancel(reference, now) };
   }
 
   async refund(request: ProviderRefundRequest, now: Date): Promise<ProviderRefundResult> {
-    return this.options.bank.refund(request, now);
+    return await this.options.bank.refund(request, now);
   }
 
   async getRefund(reference: string): Promise<ProviderRefundStatusResult> {
-    return this.options.bank.refundStatus(reference);
+    return await this.options.bank.refundStatus(reference);
   }
 
   async createTransfer(request: ProviderTransferRequest, now: Date): Promise<ProviderTransferResult> {
-    return this.options.bank.transfer(request, now);
+    return await this.options.bank.transfer(request, now);
   }
 
   async getTransfer(reference: string, now: Date): Promise<ProviderTransferResult | { readonly status: 'not_found' }> {
-    return this.options.bank.transferStatus(reference, now);
+    return await this.options.bank.transferStatus(reference, now);
   }
 
   async verifyCallback(input: VerifyCallbackInput): Promise<VerifyCallbackResult> {
@@ -109,11 +112,11 @@ export class MockConnector implements Connector {
   }
 
   async fetchStatement(range: { from: Date; to: Date }): Promise<readonly StatementLine[]> {
-    return this.options.bank.statement(range);
+    return await this.options.bank.statement(range);
   }
 
   async probe(): Promise<ProbeResult> {
-    return this.options.bank.isDown() ? { ok: false, latencyMs: 1, reason: 'unreachable' } : { ok: true, latencyMs: 1 };
+    return await this.options.bank.probe();
   }
 
   /**

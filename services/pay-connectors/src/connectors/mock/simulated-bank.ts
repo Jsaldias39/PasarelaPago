@@ -1,5 +1,6 @@
 import { ConnectorAmbiguousError, ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError } from '../../domain/connector';
-import type { Method, ProviderRefundResult, ProviderRefundStatusResult, ProviderStatus, ProviderTransferResult, StatementLine, TransferStatus } from '../../domain/connector';
+import type { Method, ProbeResult, ProviderRefundResult, ProviderRefundStatusResult, ProviderStatus, ProviderTransferResult, StatementLine, TransferStatus } from '../../domain/connector';
+import type { MockBankPort } from './bank.port';
 import { scenarioFor, seededRandom, transferAmbiguity, type Scenario } from './scenarios';
 
 /**
@@ -39,7 +40,7 @@ interface SimTransfer {
   readonly delayMs: number;
 }
 
-export class SimulatedBank {
+export class SimulatedBank implements MockBankPort {
   private readonly transfers = new Map<string, SimTransfer>();
   private readonly charges = new Map<string, SimCharge>();
   private callbacks: ScheduledCallback[] = [];
@@ -68,6 +69,10 @@ export class SimulatedBank {
 
   isDown(): boolean {
     return this.down;
+  }
+
+  probe(): ProbeResult {
+    return this.down ? { ok: false, latencyMs: 1, reason: 'unreachable' } : { ok: true, latencyMs: 1 };
   }
 
   private eventId(): string {

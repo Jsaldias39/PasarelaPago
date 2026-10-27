@@ -9,6 +9,9 @@ export interface ServiceConfig {
   readonly mode: 'sandbox' | 'live';
   /** URL base de `pay-qr`. Sin ella, pedir un cobro QR falla con `internal_error` (no hay QR que mostrar). */
   readonly qrUrl?: string;
+  /** URL base de `pay-mockbank` (banco simulado de la capa sandbox, D-26). Con ella, el conector `mock` y el de transferencias hablan con ese servicio en vez de usar el banco en memoria. Solo sandbox. */
+  readonly mockbankUrl?: string;
+  readonly mockbankTimeoutMs: number;
   readonly poller: { readonly intervalMs: number; readonly minAgeMs: number; readonly baseBackoffMs: number; readonly maxBackoffMs: number; readonly batchSize: number };
   readonly health: { readonly intervalMs: number; readonly downAfterFailures: number };
   /** Reintentos de la MISMA llamada ante un timeout ambiguo (con la misma referencia) antes de responder 502. */
@@ -91,11 +94,26 @@ function rejectDoublesInLive(env: NodeJS.ProcessEnv): void {
     if (name.startsWith('PAY_SECRET_CONNECTOR_MOCK_') && value !== undefined && value !== '') found.push(name);
   }
   if (env.MOCK_PUMP_INTERVAL_MS !== undefined && env.MOCK_PUMP_INTERVAL_MS !== '') found.push('MOCK_PUMP_INTERVAL_MS');
+  for (const name of ['MOCKBANK_URL', 'MOCKBANK_TIMEOUT_MS']) if (env[name] !== undefined && env[name] !== '') found.push(name);
   for (const name of ['BANK_TRANSFER_BANK_NAME', 'BANK_TRANSFER_ACCOUNT_HOLDER', 'BANK_TRANSFER_ACCOUNT_NUMBER']) {
     const value = env[name];
     if (value !== undefined && SANDBOX_LABEL.test(value)) found.push(name);
   }
   if (found.length > 0) throw new Error(`PAY_MODE=live no admite conectores ni dobles de sandbox; quitá del entorno: ${found.join(', ')}`);
+}
+
+/** `MOCKBANK_URL`: una URL http(s) válida. Bajo `live` ya la rechaza `rejectDoublesInLive`. */
+function mockbank(env: NodeJS.ProcessEnv): { mockbankUrl?: string } {
+  const raw = env.MOCKBANK_URL;
+  if (raw === undefined || raw === '') return {};
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error('MOCKBANK_URL inválida (tiene que ser una URL http o https)');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('MOCKBANK_URL inválida (tiene que ser una URL http o https)');
+  return { mockbankUrl: raw };
 }
 
 /** `PAY_MODE` es obligatorio y solo admite `sandbox` o `live`: un modo mal escrito no puede dar un servicio en `live` por accidente. */
@@ -125,6 +143,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
     ...(env.NATS_URL ? { natsUrl: env.NATS_URL } : {}),
     mode,
     ...(env.PAY_QR_URL ? { qrUrl: env.PAY_QR_URL } : {}),
+    ...mockbank(env),
+    mockbankTimeoutMs: integer(env, 'MOCKBANK_TIMEOUT_MS', 5_000, 1),
     poller: {
       intervalMs: integer(env, 'POLLER_INTERVAL_MS', 15_000),
       minAgeMs: integer(env, 'POLLER_MIN_AGE_MS', 30_000),

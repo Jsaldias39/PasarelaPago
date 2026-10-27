@@ -70,7 +70,24 @@ describe('E1 — primer cobro QR de punta a punta', () => {
     expect(balance.body.pending_minor).toBe(NET);
 
     expect((await waitFor(async () => [...receiver.accepted.values()].some((a) => a.path === '/hook-e1'), 60_000)).ok).toBe(true);
-    const delivered = [...receiver.accepted.values()].filter((a) => a.path === '/hook-e1').map((a) => JSON.parse(a.body) as { type: string; data: { object: { id: string } } });
-    expect(delivered.filter((e) => e.type === 'payment_intent.succeeded' && e.data.object.id === created.intent.id)).toHaveLength(1);
+    const delivered = [...receiver.accepted.values()].filter((a) => a.path === '/hook-e1').map((a) => JSON.parse(a.body) as { type: string; data: { object: { payment_intent_id: string; fee_minor: number; net_minor: number; ledger_transfer_id: string } } });
+    const succeeded = delivered.filter((e) => e.type === 'payment_intent.succeeded' && e.data.object.payment_intent_id === created.intent.id);
+    expect(succeeded).toHaveLength(1);
+    expect(succeeded[0]!.data.object).toMatchObject({ fee_minor: FEE, net_minor: NET, ledger_transfer_id: expect.stringMatching(/^tx_/) });
+    // Ningún dato personal en lo que sale al comercio: ni el nombre del pagador ni la razón social.
+    expect(delivered.map((e) => JSON.stringify(e)).join('')).not.toMatch(/Cliente Anonimo|TALLER MECANICO/);
+  });
+
+  it('CONTROL NEGATIVO (D-29/D-30): un comercio cuya razón social figura en las listas de sanciones NO cobra: el intento termina failed/risk_denied y el ledger no asienta nada', async () => {
+    // Nombre de una EMPRESA de las listas OFAC de 2019 que trae el Watchman del Compose (puntúa ~0,81 al buscarla por su nombre exacto).
+    const listed = await seedMerchant(stack, { label: 'COMERCIO LISTADO (SINTÉTICO)', legalName: 'J.A.J. BARBOSA Y CIA. S.C.S.' });
+    expect((await waitForEdgeToKnow(stack, listed)).ok).toBe(true);
+    const client = publicApi(stack, listed);
+    const created = await client.createQrIntent(GROSS, 'e1-listed-intent-0001');
+    expect(created.status).toBe(201);
+    const settled = await client.settle(created.intent.id);
+    expect({ status: settled.status, code: settled.last_error?.code }).toEqual({ status: 'failed', code: 'risk_denied' });
+    const ledger = await ledgerOfCapture(stack, listed.merchantId, created.intent.id);
+    expect(ledger).toMatchObject({ pending: 0, debits: 0, credits: 0, captureLinesOnPending: 0 });
   });
 });

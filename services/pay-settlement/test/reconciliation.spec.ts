@@ -286,3 +286,88 @@ describe('conciliación (P2.H2.M6, REQ-P2-6)', () => {
     });
   });
 });
+
+describe('conciliación por payment_intent_id (ola 2, 4b): extracto del conector con `ch_…` + `payment_intent_id`', () => {
+  const intentOf = (businessRef: string) => businessRef.split(':')[0];
+  const ch = (n: number) => `ch_e4line${String(n).padStart(4, '0')}ab`;
+
+  it('UNA excepción amount_mismatch por la diferencia de Bs 1,00; el otro cobro cruza; el ledger no se mueve; un solo evento con la diferencia y el payment intent; repetir la corrida no reabre nada', async () => {
+    await setup();
+    const m = merchantId();
+    const okRef = charge(m, 9700, 300);
+    const offRef = charge(m, 9709, 300);
+    statement(
+      line({ provider_reference: 'B1', our_reference: ch(1), payment_intent_id: intentOf(okRef), amount_minor: 10000 }),
+      line({ provider_reference: 'B2', our_reference: ch(2), payment_intent_id: intentOf(offRef), amount_minor: 9909 }),
+    );
+    const before = JSON.stringify(ctx.ledger.entries);
+    const run = await reconcileNow();
+    expect(run).toMatchObject({ status: 'completed', matched_count: 1, exception_count: 1 });
+    const open = await exceptions('open');
+    expect(open).toHaveLength(1);
+    expect(open[0]).toMatchObject({ kind: 'amount_mismatch', business_ref: offRef, statement_amount_minor: 9909, ledger_amount_minor: 10009 });
+    expect(writes()).toBe(0);
+    expect(JSON.stringify(ctx.ledger.entries)).toBe(before);
+    const events = await ctx.events('reconciliation.exception.opened');
+    expect(events).toHaveLength(1);
+    expect(validators.get('reconciliation.exception.opened')?.(events[0])).toEqual([]);
+    expect(events[0]).toMatchObject({ merchantid: m, data: { kind: 'amount_mismatch', difference_minor: -100, payment_intent_id: intentOf(offRef) } });
+
+    const again = await reconcileNow();
+    expect(again).toMatchObject({ status: 'completed', exception_count: 1 });
+    expect((await exceptions('open')).map((e: { id: string }) => e.id)).toEqual([open[0].id]);
+    expect(await ctx.events('reconciliation.exception.opened')).toHaveLength(1);
+  });
+
+  it('línea SIN payment_intent_id cae al respaldo (`our_reference` = business_ref) y se mezcla con las que sí lo traen en la misma corrida', async () => {
+    await setup();
+    const m = merchantId();
+    const [a, b] = [charge(m, 9700, 300), charge(m, 4850, 150)];
+    statement(line({ provider_reference: 'B1', our_reference: ch(1), payment_intent_id: intentOf(a), amount_minor: 10000 }), line({ provider_reference: 'B2', our_reference: b, payment_intent_id: null, amount_minor: 5000 }));
+    expect(await reconcileNow()).toMatchObject({ status: 'completed', matched_count: 2, exception_count: 0 });
+  });
+
+  it('un payment_intent_id inexistente o de OTRO MODO ⇒ excepción `missing_in_ledger`; nunca se asume; en el modo que sí lo tiene, cruza', async () => {
+    await setup();
+    const m = merchantId();
+    const liveRef = ref();
+    ctx.ledger.seedCharge({ merchant: m, net: 9700, fee: 300, at: AT, ref: liveRef, mode: 'live' });
+    statement(
+      line({ provider_reference: 'B1', our_reference: ch(1), payment_intent_id: intentOf(liveRef), amount_minor: 10000 }),
+      line({ provider_reference: 'B2', our_reference: ch(2), payment_intent_id: 'pi_nuncaexistio01', amount_minor: 700 }),
+    );
+    const test = await reconcileNow();
+    expect(test).toMatchObject({ status: 'completed', matched_count: 0, exception_count: 2 });
+    const found = await exceptions('open');
+    expect(found.map((e: { kind: string; business_ref: string }) => [e.kind, e.business_ref]).sort()).toEqual(
+      [
+        ['missing_in_ledger', `${intentOf(liveRef)}:capture`],
+        ['missing_in_ledger', 'pi_nuncaexistio01:capture'],
+      ].sort(),
+    );
+
+    const live = await ctx.as('pay-backoffice', 'live').post('/reconciliation_runs', { connector: 'mock', period_from: FROM, period_to: TO }).set('idempotency-key', key());
+    expect(live.status).toBe(202);
+    await ctx.reconciliation.idle();
+    const liveRun = (await ctx.as('pay-backoffice', 'live').get(`/reconciliation_runs/${live.body.id}`)).body;
+    expect(liveRun).toMatchObject({ status: 'completed', matched_count: 1, exception_count: 1 }); // el cobro de live cruza; el inexistente sigue siendo excepción
+  });
+
+  it('un payment_intent_id que contradice al `our_reference` de otro cobro ⇒ `unknown_reference`; ninguno de los dos cobros se da por cruzado', async () => {
+    await setup();
+    const m = merchantId();
+    const [a, b] = [charge(m, 9700, 300), charge(m, 4850, 150)];
+    statement(line({ provider_reference: 'B1', our_reference: b, payment_intent_id: intentOf(a), amount_minor: 10000 }));
+    const run = await reconcileNow();
+    expect(run).toMatchObject({ status: 'completed', matched_count: 0 });
+    expect((await exceptions('open')).map((e: { kind: string }) => e.kind).sort()).toEqual(['missing_in_statement', 'missing_in_statement', 'unknown_reference']);
+  });
+
+  it('un extracto con payment_intent_id mal formado falla la corrida entera (`statement_malformed`) y no deja excepciones', async () => {
+    await setup();
+    statement(line({ provider_reference: 'B1', payment_intent_id: 'ch_abcdefghijkl' }));
+    const run = await reconcileNow();
+    expect(run).toMatchObject({ status: 'failed', failure_code: 'statement_malformed' });
+    expect(await exceptions()).toEqual([]);
+  });
+});

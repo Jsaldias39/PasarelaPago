@@ -240,6 +240,17 @@ describe('identidad entre servicios (matriz negativa por ruta)', () => {
     }
   });
 
+  it('`pay-mockbank` (el pagador simulado de la capa sandbox) puede LEER un QR con /qr/decode y NADA más', async () => {
+    const created = (await post('/qr', dynamic(), as(), uniqueKey())).body;
+    const decode = await post('/qr/decode', { payload: created.payload }, as('pay-mockbank'), null);
+    expect(decode.status).toBe(200);
+    expect(decode.body.crc_valid).toBe(true);
+    expect((await post('/qr/decode', { payload: created.payload }, { 'x-pay-mode': 'test' }, null)).status).toBe(403); // sin identidad sigue negado
+    expect((await post('/qr', dynamic(), as('pay-mockbank'), uniqueKey())).status).toBe(403);
+    expect((await request(app.getHttpServer()).get(`/qr/${created.id}`).set(as('pay-mockbank'))).status).toBe(403);
+    expect((await request(app.getHttpServer()).post(`/qr/${created.id}/cancel`).set(as('pay-mockbank')).set('idempotency-key', uniqueKey()).send({})).status).toBe(403);
+  });
+
   it('la salud es pública (sin identidad)', async () => {
     await request(app.getHttpServer()).get('/health/live').expect(200);
   });

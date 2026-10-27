@@ -67,7 +67,7 @@ export interface TestApp {
 }
 
 /** Levanta la app real sobre un esquema aislado de Postgres real (nada de ORM mockeado) con reloj y QR de prueba. */
-export async function createTestApp(options: { controllers?: Array<new (...args: never[]) => unknown>; config?: Partial<ServiceConfig> } = {}): Promise<TestApp> {
+export async function createTestApp(options: { controllers?: Array<new (...args: never[]) => unknown>; config?: Partial<ServiceConfig>; qr?: QrPort } = {}): Promise<TestApp> {
   const db = await createIsolatedDatabase(SQL);
   const contract = await loadContract(SPEC);
   const appPool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${db.schema}`, max: 10 });
@@ -81,7 +81,7 @@ export async function createTestApp(options: { controllers?: Array<new (...args:
     .overrideProvider(CLOCK)
     .useValue(clock)
     .overrideProvider(QR_PORT)
-    .useValue(qr)
+    .useValue(options.qr ?? qr)
     .compile();
   const app = moduleRef.createNestApplication(APP_OPTIONS);
   configureBodyParsers(app);

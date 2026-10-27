@@ -211,3 +211,15 @@ describe('de punta a punta con el cliente HTTP real: el hold solo se mueve con e
     expect(ctx.ledger.balanceOf(`merchant:${m}:available`)).toBe(0);
   });
 });
+
+describe('extracto del conector con payment_intent_id (contrato de la ola 2)', () => {
+  const line = (over: object) => ({ provider_reference: 'BNK-1', our_reference: 'ch_abcdefghijkl', charge_id: 'ch_abcdefghijkl', direction: 'credit', amount_minor: 10000, currency: 'BOB', value_date: '2026-10-20', booked_at: '2026-10-20T14:30:00.000Z', description: null, ...over });
+
+  it('el cliente HTTP real entrega la línea con su payment_intent_id (la respuesta cumple el contrato) y la normalización lo conserva', async () => {
+    server.on('GET /statements', { kind: 'contract', status: 200, body: { object: 'list', has_more: false, next_cursor: null, data: [line({ payment_intent_id: 'pi_abcdefghijkl' }), line({ provider_reference: 'BNK-2', payment_intent_id: null })] } });
+    const { parseStatement } = await import('../src/settlement/statement-parsers');
+    const lines = parseStatement(await client.getStatement({ connector: 'mock', from: '2026-10-19T00:00:00.000Z', to: '2026-10-27T00:00:00.000Z', format: 'json' }));
+    expect(lines.map((l) => [l.provider_reference, l.payment_intent_id ?? null])).toEqual([['BNK-1', 'pi_abcdefghijkl'], ['BNK-2', null]]);
+    expect(lines[0].our_reference).toBe('ch_abcdefghijkl');
+  });
+});

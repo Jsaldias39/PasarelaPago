@@ -34,8 +34,7 @@ export class PayerService {
     if (decoded.currency_numeric !== '068') throw new ProblemError('validation_failed', { errors: [{ field: 'qr_payload', code: 'currency_not_supported' }] });
     const qrAmount = typeof decoded.amount === 'string' ? toMinor(decoded.amount) : null;
     if (qrAmount === null) throw new ProblemError('validation_failed', { errors: [{ field: 'qr_payload', code: 'amount_missing' }] }); // un QR estático no se paga con este simulador
-    const { row, view, alreadyPaid } = await this.bank.payByQr(payload);
-    if (this.bank.amountOf(row) !== qrAmount) throw new ProblemError('validation_failed', { errors: [{ field: 'qr_payload', code: 'amount_mismatch' }] });
+    const { row, view, alreadyPaid } = await this.bank.payByQr(payload, qrAmount);
     return { chargeReference: row.reference, status: view.status, amountMinor: qrAmount, alreadyPaid };
   }
 

@@ -72,9 +72,15 @@ export function createActivities(deps: Deps) {
     deps.tx(async (db: Db) => {
       const intent = await intentsRepo.byId(db, intentId, { forUpdate: true });
       if (!intent) throw ApplicationFailure.nonRetryable(`El intento ${intentId} no existe`, 'IntentNotFound');
-      if (isTerminal(intent.status)) return 'done';
-
       const { decision, reason } = decideConnectorEvent({ intentStatus: intent.status, chargeStatus: intent.chargeStatus, incoming: signal.status });
+      if (isTerminal(intent.status)) {
+        // Una señal que llega con el intento ya cerrado (iba en la misma ráfaga que la que lo cerró) no se pierde: si afirma algo
+        // incompatible con el estado terminal (REQ-P3-3: `failed` sobre `succeeded`, dinero `captured` sobre un `failed`) queda registrada y se publica.
+        if (decision === 'contradiccion') {
+          await contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.chargeStatus, incomingStatus: signal.status, sourceEventId: `signal:${intent.chargeStatus}->${signal.status}`, kind: 'status_conflict', reason });
+        }
+        return 'done';
+      }
       if (decision === 'contradiccion') {
         await contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.chargeStatus, incomingStatus: signal.status, sourceEventId: `signal:${intent.chargeStatus}->${signal.status}`, kind: 'status_conflict', reason });
       }
@@ -241,6 +247,11 @@ export function createActivities(deps: Deps) {
         // No se puede verificar ni anular un cargo que el conector dice no conocer: el intento NO vence. Se escala y el workflow falla visible.
         await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'ambiguous', sourceEventId: 'ambiguous:charge_not_found_at_connector', kind: 'charge_not_found_at_connector', reason: 'authoritative_query_not_found_keeps_state' }));
         throw ApplicationFailure.nonRetryable('El conector no conoce el cargo al vencer; se conserva el estado', 'ChargeNotFoundAtConnector');
+      }
+      // El conector ya lo tiene cancelado (nuestra propia anulación de una ejecución anterior que no llegó a confirmarse): al vencer es `expired`.
+      if (first.status === 'canceled') {
+        await settle(intentId, 'expired');
+        return 'done';
       }
       if (first.status !== 'pending' && first.status !== 'authorized') return applySignal(intentId, first);
       const cancel = await clients.connectors.cancelCharge(intent.chargeId, `${intentId}:cancel`, intent.mode);

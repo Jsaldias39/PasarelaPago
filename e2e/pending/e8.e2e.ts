@@ -15,7 +15,7 @@ import { startStack, stopStack, type Stack } from '../stack.ts';
  * Vive en e2e/pending por TRES cosas que hoy no existen (docs/trabajo/ola-2/P2/FLUJOS-E4-E8.md § «Qué depende del stack»):
  *  1. el depósito del pagador en el banco simulado: lo trae `pay-mockbank` (P4.H4.M3, en construcción); `payerTransfersToBank` falla diciendo por qué;
  *  2. los cobros de `pay-payments` terminan `failed/risk_denied` en el arnés (D-29/D-30, ver ARNES.md § Pendientes);
- *  3. la clave de cruce de settlement (`business_ref` del ledger, `pi_…:capture`) no es la referencia que devuelve el extracto del conector (la de la transferencia).
+ *  3. que `fetchStatement` de pay-connectors (P4) emita `payment_intent_id` en la línea: settlement cruza por ese campo (`pi_…` ⇒ `pi_…:capture`) y usa `our_reference` solo de respaldo.
  * Importes: constantes nombradas en `e2e/lib/p2-bank.ts` (los de pay-mockbank, cuando existan, se cambian ahí).
  */
 const CONNECTOR = 'bank_transfer';
@@ -103,7 +103,7 @@ describe('E8 — transferencia bancaria confirmada por la línea del extracto', 
     const started = await backoffice(stack, 'POST', '/reconciliation_runs', { json: { connector: CONNECTOR, period_from: new Date(startedAt.getTime() - 60_000).toISOString(), period_to: new Date(Date.now() + 300_000).toISOString() }, idempotencyKey: 'e8-recon-0001' });
     expect(started.status).toBe(202);
     const run = await until('la corrida termina', async () => (await backoffice(stack, 'GET', `/reconciliation_runs/${(started.json as { id: string }).id}`)).json as { status: string; matched_count: number; exception_count: number }, (r) => r.status !== 'running', 60_000, 250);
-    // Hoy la línea trae la referencia de la TRANSFERENCIA y el ledger la del cobro (`pi_…:capture`): no cruzan (FLUJOS-E4-E8.md). Cuando se alineen: 1 cruzada, 0 excepciones.
+    // Con `payment_intent_id` en la línea: 1 cruzada, 0 excepciones. Sin el campo, la línea trae la referencia de la TRANSFERENCIA, no cruza y sale una excepción (FLUJOS-E4-E8.md).
     expect(run).toMatchObject({ status: 'completed', exception_count: 0 });
     expect(run.matched_count).toBeGreaterThanOrEqual(1);
     expect(await Promise.all([`merchant:${merchant.merchantId}:pending`, 'platform:fees', `connector:${CONNECTOR}:clearing`].map((a) => view.balance(a)))).toEqual(before);

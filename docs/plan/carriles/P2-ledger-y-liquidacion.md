@@ -1,6 +1,6 @@
 # Carril P2 — Ledger y liquidación (dinero en reposo)
 
-> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 15 / 18 — 83,3 %** · **Peldaño:** `TESTED` en lo marcado HECHO (pruebas de integración contra Postgres, NATS y TigerBeetle reales, contra el `pay-ledger` real en un proceso aparte y contra dobles declarados de conectores; sin banco real ni stack E1–E8); `A MEDIAS` en H1.M2, H2.M1 y H2.M6
+> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 15 / 19 — 78,9 %** · **Peldaño:** `TESTED` en lo marcado HECHO (pruebas de integración contra Postgres, NATS y TigerBeetle reales, contra el `pay-ledger` real en un proceso aparte y contra dobles declarados de conectores; sin banco real ni stack E1–E8); `A MEDIAS` en H1.M2, H2.M1 y H2.M6a; `BLOQUEADO` en H2.M6b
 > **Evidencia, decisiones y propuestas de la ola 1:** [`docs/trabajo/ola-1/P2/`](../../trabajo/ola-1/P2/REPORTE.md)
 > **Antes de empezar, leé** [`spikes/tigerbeetle.md`](../../spikes/tigerbeetle.md) (hallazgos H-1 a H-7).
 > **Predecesor:** P1.H1 (plataforma y plantilla). Ningún otro: los colaboradores se simulan.
@@ -72,7 +72,8 @@ hecho. Y sumar todos los débitos y créditos del ledger después de E1–E5: si
 | P2.H2.M3 | Interfaz `PayoutRail` + `bank-transfer` (modo A) + `acquirer-settlement` (doble del modo B) | Elige por `settlement.mode` | Test de los dos modos | HECHO |
 | P2.H2.M4 | Payout: retención en `merchant:available` → rail → `post` o `void` según el resultado | Rail falla → retención anulada, saldo intacto | Test con rail en fallo | HECHO |
 | P2.H2.M5 | Comisión semanal de proveedores (7.8): neteo contra saldo o cargo programado, según el acuerdo | El neteo deja el asiento correcto | Test pegado | HECHO |
-| P2.H2.M6 | Conciliación: importador `camt.053` + CSV por conector, cruce con el ledger, excepciones | REQ-P2-6 | E4 en verde | A MEDIAS — Importadores JSON/CSV/camt.053, cruce, excepciones y resolución con credencial de operador: probados. Falta el DoD «E4 en verde» (ola 3) y el formato real del banco (Q-11) |
+| P2.H2.M6a | Conciliación contra el **sandbox**: importadores `camt.053` + CSV + JSON, cruce por `payment_intent_id` (respaldo `our_reference`), excepciones | REQ-P2-6 | E4 en verde | A MEDIAS — Importadores, cruce (clave `payment_intent_id`, 4b), excepciones y resolución con credencial de operador: probados en tres niveles. Falta que P4 emita `payment_intent_id` en `fetchStatement` y correr E4 (`e2e/pending/e4.e2e.ts`) contra el stack. T+7 con ledger doble en `batch.spec.ts`; E4 solo prueba que el corte no libera lo fresco |
+| P2.H2.M6b | Conciliación: paridad con el **formato real del banco** | REQ-P2-6 contra el extracto real | Extracto real conciliado | BLOQUEADO — Q-11 (formato real del Mercantil) y T-03 (cuenta recaudadora, visto bueno legal); dependen del dueño y del banco. Nada se asume ni se inventa |
 | P2.H2.M7 | Exportación de asientos para M16 (accounting) | REQ-P2-8: la exportación cuadra | Test de cuadre pegado | HECHO |
 | P2.H2.M8 | Dejar el rail del modo B como doble declarado detrás de `settlement.mode` (D-02: se eligió el modo A) | Con `settlement.mode=acquirer` el servicio arranca y el reporte dice que es un doble | Test + línea en `REPORTE.md` | HECHO |
 | P2.H2.M9 | **Abono mensual** del comercio (D-07): cargo por neteo contra su saldo en el corte, o deuda si no alcanza | El corte deja el asiento del abono una sola vez por mes | Test pegado | HECHO |

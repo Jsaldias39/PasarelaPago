@@ -22,6 +22,7 @@ tags:
   - { name: Transferencias }
   - { name: Tarjeta }
   - { name: Extracto }
+  - { name: Pagador simulado, description: 'Herramientas de la capa sandbox: no son parte de lo que expondría un banco.' }
 paths:
   /sandbox/probe:
     get:
@@ -210,6 +211,7 @@ paths:
         - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
         - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
         - { name: format, in: query, required: false, schema: { type: string, enum: [json, csv, camt053], default: json } }
+        - { name: account, in: query, required: false, description: '`collections` = cobros QR/tarjeta; `transfers` = depósitos del pagador por transferencia bancaria. Sin el parámetro: todas.', schema: { type: string, enum: [collections, transfers] } }
       responses:
         '200':
           description: El extracto.
@@ -218,6 +220,35 @@ paths:
             application/json: { schema: { type: object, required: [data], additionalProperties: false, properties: { data: { type: array, items: { $ref: '#/components/schemas/StatementLine' } } } } }
             text/csv: { schema: { type: string } }
             application/xml: { schema: { type: string } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/BankUnavailable' }
+  /sandbox/payer/pay:
+    post:
+      operationId: sandboxPayerPay
+      tags: [Pagador simulado]
+      summary: (NO es del banco) El pagador simulado paga un QR emitido por la pasarela
+      description: Identidad `pay-mockbank`. Decodifica el QR con `pay-qr` (CRC, moneda `068`, monto), comprueba que el banco lo conoce y que el monto coincide, y «paga». Idempotente.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [qr_payload], additionalProperties: false, properties: { qr_payload: { type: string, minLength: 20, maxLength: 512 } } } } }
+      responses:
+        '200': { description: Pagado., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { type: object, required: [charge_reference, status, amount_minor, already_paid], additionalProperties: false, properties: { charge_reference: { type: string }, status: { $ref: '#/components/schemas/BankStatus' }, amount_minor: { type: integer }, already_paid: { type: boolean } } } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /sandbox/payer/transfer-in:
+    post:
+      operationId: sandboxPayerTransferIn
+      tags: [Pagador simulado]
+      summary: (NO es del banco) El pagador transfiere al banco con la referencia de las instrucciones (E8)
+      description: Identidad `pay-mockbank`. El banco no avisa a nadie; la línea aparece en el extracto de la cuenta `transfers` y la pasarela la concilia. Cada llamada es un depósito distinto.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [reference, amount_minor], additionalProperties: false, properties: { reference: { type: string, pattern: '^[A-Za-z0-9_.:-]{1,100}$' }, amount_minor: { $ref: '#/components/schemas/AmountMinor' } } } } }
+      responses:
+        '200': { description: Depósito registrado., headers: { X-Pay-Mode: { $ref: '#/components/headers/XPayModeSandbox' } }, content: { application/json: { schema: { type: object, required: [bank_reference, reference, amount_minor, account], additionalProperties: false, properties: { bank_reference: { type: string }, reference: { type: string }, amount_minor: { type: integer }, account: { type: string, enum: [transfers] } } } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/Unprocessable' }
         '503': { $ref: '#/components/responses/BankUnavailable' }

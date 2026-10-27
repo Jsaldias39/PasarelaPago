@@ -1,0 +1,65 @@
+{
+  "label": "vault",
+  "verdict": "PASS",
+  "problems": [],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "capture_sessions",
+        "p",
+        "capture_sessions_pkey"
+      ],
+      [
+        "card_tokens",
+        "p",
+        "card_tokens_pkey"
+      ],
+      [
+        "idempotency_keys",
+        "p",
+        "idempotency_keys_pkey"
+      ],
+      [
+        "reveal_audit",
+        "p",
+        "reveal_audit_pkey"
+      ]
+    ],
+    "modelo": [
+      [
+        "capture_sessions",
+        "p",
+        "pk_capture_sessions"
+      ],
+      [
+        "card_tokens",
+        "p",
+        "pk_card_tokens"
+      ],
+      [
+        "idempotency_keys",
+        "p",
+        "pk_idempotency_keys"
+      ],
+      [
+        "reveal_audit",
+        "p",
+        "pk_reveal_audit"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 4,
+    "columnas": 40,
+    "indices": 8,
+    "check": 7,
+    "fk": 0,
+    "triggers": 0,
+    "funciones": 0
+  }
+}

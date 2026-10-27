@@ -4,9 +4,12 @@ import { join } from 'node:path';
 
 const SERVICE_DIR = process.cwd();
 
-/** Compila el servicio: las pruebas de arranque ejecutan `dist/main.js`, el mismo binario que se despliega. */
-export function buildService(): void {
-  execFileSync('yarn', ['build'], { cwd: SERVICE_DIR, stdio: 'pipe' });
+/** Carpeta de un servicio hermano (`pay-mockbank`, `pay-qr`) o la de este servicio si no se nombra ninguno. */
+const dirOf = (service?: string): string => (service ? join(SERVICE_DIR, '..', service) : SERVICE_DIR);
+
+/** Compila el servicio: las pruebas de arranque ejecutan `dist/main.js`, el mismo binario que se despliega. Solo se ejecuta el binario de otro servicio, nunca se importa su código. */
+export function buildService(service?: string): void {
+  execFileSync('yarn', ['build'], { cwd: dirOf(service), stdio: 'pipe' });
 }
 
 /** Un puerto libre del sistema operativo (se cierra antes de devolverlo). */
@@ -32,10 +35,10 @@ export interface Started {
  * Lanza `node dist/main.js` con un entorno ARMADO DESDE CERO: solo `PATH` y lo que se pasa. Así una variable heredada del entorno de pruebas
  * (por ejemplo el `PAY_MODE=sandbox` de `test/env.ts`) no puede tapar la ausencia que se quiere probar.
  */
-export function startService(env: Record<string, string | undefined>): Started {
+export function startService(env: Record<string, string | undefined>, service?: string): Started {
   const clean: Record<string, string> = { PATH: process.env.PATH ?? '' };
   for (const [name, value] of Object.entries(env)) if (value !== undefined) clean[name] = value;
-  const child = spawn(process.execPath, [join(SERVICE_DIR, 'dist/main.js')], { cwd: SERVICE_DIR, env: clean, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [join(dirOf(service), 'dist/main.js')], { cwd: dirOf(service), env: clean, stdio: ['ignore', 'pipe', 'pipe'] });
   let buffer = '';
   child.stdout?.on('data', (chunk: Buffer) => (buffer += chunk.toString('utf8')));
   child.stderr?.on('data', (chunk: Buffer) => (buffer += chunk.toString('utf8')));

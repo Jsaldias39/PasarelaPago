@@ -354,3 +354,43 @@ describe('banco caído a la fuerza (probar salud y ruteo)', () => {
     expect((await request(t.app.getHttpServer()).put('/sandbox/admin/down').set(asAdmin).send({ down: 'si' })).status).toBe(422);
   });
 });
+
+describe('depósito del pagador por transferencia bancaria (E8)', () => {
+  const deposit = (body: unknown, headers: Record<string, string> = asAdmin) => request(t.app.getHttpServer()).post('/sandbox/payer/transfer-in').set(headers).send(body as object);
+  const statement = async (account?: string) => (await get(t, `/sandbox/statement?${range()}${account ? `&account=${account}` : ''}`)).body.data as Array<Record<string, unknown>>;
+
+  it('correcto: el depósito aparece SOLO en la cuenta `transfers` del extracto, con la referencia de las instrucciones, y el banco no avisa a nadie', async () => {
+    const charge = chargeBody({ amount_minor: 12345 }, t.clock);
+    await post(t, '/sandbox/charges', charge);
+    const response = await deposit({ reference: 'TRABCDEFGHIJ', amount_minor: 20000 });
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({ reference: 'TRABCDEFGHIJ', amount_minor: 20000, account: 'transfers' });
+    const transfers = await statement('transfers');
+    expect(transfers).toEqual([expect.objectContaining({ our_reference: 'TRABCDEFGHIJ', direction: 'credit', amount_minor: 20000, currency: 'BOB' })]);
+    expect(await statement('collections')).toEqual([expect.objectContaining({ our_reference: charge.reference })]); // el cobro QR no se mezcla con el depósito
+    expect(await statement()).toHaveLength(2);
+    expect((await get(t, `/sandbox/statement?${range()}&account=transfers`)).body).toEqual({ data: transfers });
+    t.contract.assertResponse({ method: 'GET', path: '/sandbox/statement', status: 200, body: { data: transfers } });
+    await deliver(t);
+    expect(t.receiver.received.map((r) => JSON.parse(r.rawBody).reference)).not.toContain('TRABCDEFGHIJ'); // el banco NO notifica la transferencia
+  });
+
+  it('límite: cada llamada es un depósito distinto (mismo importe dos veces = dos líneas); importe mínimo 1', async () => {
+    await deposit({ reference: 'TR1', amount_minor: 1 });
+    await deposit({ reference: 'TR1', amount_minor: 1 });
+    const lines = await statement('transfers');
+    expect(lines).toHaveLength(2);
+    expect(new Set(lines.map((l) => l.bank_reference)).size).toBe(2);
+  });
+
+  it('inválido: referencia con caracteres raros, importe 0/decimal, campos de más ⇒ 422; sin identidad pay-mockbank ⇒ 403; banco caído ⇒ 503; `account` desconocida en el extracto ⇒ 422', async () => {
+    for (const body of [{ reference: 'tr con espacio', amount_minor: 100 }, { reference: '', amount_minor: 100 }, { reference: 'TR1', amount_minor: 0 }, { reference: 'TR1', amount_minor: 1.5 }, { reference: 'TR1', amount_minor: 100, extra: 1 }]) {
+      expect((await deposit(body)).status).toBe(422);
+    }
+    expect((await deposit({ reference: 'TR1', amount_minor: 100 }, asConnectors)).status).toBe(403);
+    expect(await statement('transfers')).toEqual([]);
+    expect((await get(t, `/sandbox/statement?${range()}&account=otra`)).status).toBe(422);
+    await request(t.app.getHttpServer()).put('/sandbox/admin/down').set(asAdmin).send({ down: true });
+    expect((await deposit({ reference: 'TR1', amount_minor: 100 })).status).toBe(503);
+  });
+});

@@ -97,6 +97,11 @@ export const PAYOUT_RAILS = Symbol('PAYOUT_RAILS');
 export interface StatementLine {
   readonly provider_reference: string;
   readonly our_reference: string | null;
+  /**
+   * Intento de pago al que pertenece la línea, si el conector la emparejó (`internal-connectors-v1`, `StatementLine.payment_intent_id`). Es la clave de cruce
+   * preferida: el `business_ref` del ledger es `pi_…:operación`, nunca un `ch_…`. Opcional por compatibilidad; ausente o `null` ⇒ se cruza por `our_reference`.
+   */
+  readonly payment_intent_id?: string | null;
   readonly direction: 'credit' | 'debit';
   readonly amount_minor: number;
   readonly value_date: string;

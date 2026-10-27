@@ -127,7 +127,7 @@ export class BankController {
   async statement(@Headers('x-pay-mode') payMode: string | string[] | undefined, @Query() query: Record<string, unknown>, @Res() res: Response): Promise<void> {
     this.mode.require(payMode);
     const range = parseRange(query);
-    const entries = await this.bank.statement(range);
+    const entries = await this.bank.statement(range, range.account);
     if (range.format === 'csv') {
       res.status(200).type('text/csv; charset=utf-8').send(toCsv(entries));
     } else if (range.format === 'camt053') {

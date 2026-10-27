@@ -3,7 +3,7 @@ import { ProblemError } from '@pay/problem';
 import { AllowedServices } from '@pay/service-auth';
 import { BankService } from '../bank/bank.service';
 import { DeliveryService } from '../bank/delivery.service';
-import { parseInject, parsePay } from './dto';
+import { parseInject, parsePay, parseTransferIn } from './dto';
 import { PayerService } from './payer.service';
 
 /**
@@ -25,6 +25,17 @@ export class AdminController {
   async pay(@Body() body: unknown) {
     const result = await this.payer.pay(parsePay(body));
     return { charge_reference: result.chargeReference, status: result.status, amount_minor: Number(result.amountMinor), already_paid: result.alreadyPaid };
+  }
+
+  /**
+   * El pagador TRANSFIERE al banco con la referencia de las instrucciones (E8): el depósito aparece en el extracto de la cuenta `transfers`.
+   * El banco no notifica: la pasarela lo descubre al conciliar el extracto.
+   */
+  @Post('payer/transfer-in')
+  async transferIn(@Body() body: unknown) {
+    const input = parseTransferIn(body);
+    const { bankReference } = await this.bank.payerTransferIn(input);
+    return { bank_reference: bankReference, reference: input.reference, amount_minor: Number(input.amountMinor), account: 'transfers' };
   }
 
   @Post('admin/deliver')

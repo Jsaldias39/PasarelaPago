@@ -49,6 +49,8 @@ export interface ReconcileResult {
 
 const PAYMENT_INTENT = /^(pi_[a-z0-9]{10,40}):/;
 const PAYOUT_REF = /^(po_[a-z0-9]{10,40})(?::payout)?$/;
+/** Una referencia con la forma de un `business_ref` del ledger: `pi_…:operación`. */
+const LEDGER_REF = /^(pi_[a-z0-9]{10,40}):[a-z_]{3,30}$/;
 const MERCHANT_ACCOUNT = /^merchant:(mc_[a-z0-9]{10,40}):(?:pending|available)$/;
 
 const signed = (line: StatementLine): number => (line.direction === 'credit' ? line.amount_minor : -line.amount_minor);
@@ -62,8 +64,11 @@ function dedupe(connector: string, kind: ExceptionKind, businessRef: string | nu
  * toda diferencia sale como borrador de excepción para que una persona la resuelva.
  *
  * Reglas:
- *  - La clave de cruce es nuestra referencia (`our_reference` = `business_ref` del cobro). Por cada clave se compara el neto del extracto
- *    (créditos − débitos del banco) con el neto del ledger en la cuenta de compensación (débitos − créditos): lo que entró al banco.
+ *  - La clave de cruce es, EN ESTE ORDEN: (1) el `payment_intent_id` de la línea, si el conector la emparejó ⇒ `pi_…:capture`, el `business_ref` del cobro en el
+ *    ledger; (2) si no lo trae, la nuestra referencia (`our_reference` = `business_ref` del cobro) como respaldo. Nunca se adivina: una línea cuyo
+ *    `payment_intent_id` contradice a una `our_reference` con forma de `business_ref` es `unknown_reference`; un `payment_intent_id` que el ledger de ESTE
+ *    modo no conoce (inexistente, de otro modo) es `missing_in_ledger`; un cobro del ledger repartido entre varios comercios es `unknown_reference`.
+ *    Por cada clave se compara el neto del extracto (créditos − débitos del banco) con el neto del ledger en la cuenta de compensación (débitos − créditos): lo que entró al banco.
  *  - Una línea sin nuestra referencia no se puede cruzar: `unknown_reference`. Una referencia que el ledger no tiene: `missing_in_ledger`.
  *  - Un cobro del ledger que el extracto no trae: `missing_in_statement`. Montos distintos: `amount_minor` con la diferencia con signo.
  *  - La misma `provider_reference` dos veces: la segunda es `duplicate_in_statement` y NO suma al cruce.
@@ -79,6 +84,8 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
   const seen = new Set<string>();
 
   const byRef = new Map<string, { net: number; refs: string[]; first: string }>();
+  /** Clave con la que cada línea entró al cruce (la de `payment_intent_id` o la de `our_reference`). */
+  const keyOf = new Map<StatementLine, string>();
   input.statement.forEach((line, index) => {
     const lineRef = `${label}#linea-${index + 1}`;
     const instant = line.booked_at ? new Date(line.booked_at) : new Date(`${line.value_date}T00:00:00Z`);
@@ -130,7 +137,28 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
       return;
     }
 
-    if (!line.our_reference) {
+    // Clave de cruce de la línea (ver arriba). Una contradicción entre las dos identificaciones no se resuelve a favor de ninguna.
+    const intent = line.payment_intent_id ?? null;
+    const ownIntent = line.our_reference ? LEDGER_REF.exec(line.our_reference)?.[1] : undefined;
+    if (intent && ownIntent && ownIntent !== intent) {
+      exceptions.push({
+        kind: 'unknown_reference',
+        providerReference: line.provider_reference,
+        businessRef: line.our_reference,
+        statementAmountMinor: line.amount_minor,
+        ledgerAmountMinor: null,
+        differenceMinor: signed(line),
+        statementLineRef: lineRef,
+        merchantId: null,
+        paymentIntentId: null,
+        dedupeKey: dedupe(connector, 'unknown_reference', line.our_reference, line.provider_reference, line.amount_minor, null),
+      });
+      outcomes.push({ line, lineRef, outcome: 'exception' });
+      return;
+    }
+    const key = intent ? `${intent}:capture` : line.our_reference;
+
+    if (!key) {
       exceptions.push({
         kind: 'unknown_reference',
         providerReference: line.provider_reference,
@@ -146,19 +174,22 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
       outcomes.push({ line, lineRef, outcome: 'exception' });
       return;
     }
-    const slot = byRef.get(line.our_reference) ?? { net: 0, refs: [], first: lineRef };
+    const slot = byRef.get(key) ?? { net: 0, refs: [], first: lineRef };
     slot.net += signed(line);
     slot.refs.push(lineRef);
-    byRef.set(line.our_reference, slot);
-    outcomes.push({ line, lineRef, outcome: 'matched' }); // se corrige abajo si el cruce de su referencia falla
+    byRef.set(key, slot);
+    keyOf.set(line, key);
+    outcomes.push({ line, lineRef, outcome: 'matched' }); // se corrige abajo si el cruce de su clave falla
   });
 
   // Neto del ledger por cobro: lo que entró a la cuenta de compensación del conector.
-  const ledger = new Map<string, { net: number; merchantId: string | null }>();
+  const ledger = new Map<string, { net: number; merchantId: string | null; merchants: Set<string> }>();
   for (const entry of input.ledger) {
-    const slot = ledger.get(entry.business_ref) ?? { net: 0, merchantId: null };
+    const slot = ledger.get(entry.business_ref) ?? { net: 0, merchantId: null, merchants: new Set<string>() };
     slot.net += entry.direction === 'debit' ? entry.amount_minor : -entry.amount_minor;
-    slot.merchantId ??= MERCHANT_ACCOUNT.exec(entry.counterparty_account)?.[1] ?? null;
+    const merchant = MERCHANT_ACCOUNT.exec(entry.counterparty_account)?.[1] ?? null;
+    if (merchant) slot.merchants.add(merchant);
+    slot.merchantId ??= merchant;
     ledger.set(entry.business_ref, slot);
   }
 
@@ -180,14 +211,16 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
   };
 
   const providerOf = new Map<string, string>();
-  input.statement.forEach((line) => {
-    if (line.our_reference && !providerOf.has(line.our_reference)) providerOf.set(line.our_reference, line.provider_reference);
-  });
+  for (const [line, key] of keyOf) if (!providerOf.has(key)) providerOf.set(key, line.provider_reference);
 
   for (const [ref, stmt] of byRef) {
     const led = ledger.get(ref);
     if (!led) {
       draft('missing_in_ledger', ref, stmt.net, null, stmt.first, providerOf.get(ref) ?? null);
+      failedRefs.add(ref);
+    } else if (led.merchants.size > 1) {
+      // Un mismo cobro repartido entre varios comercios: no hay a quién atribuir la línea. No se adivina.
+      draft('unknown_reference', ref, stmt.net, led.net, stmt.first, providerOf.get(ref) ?? null);
       failedRefs.add(ref);
     } else if (led.net !== stmt.net) {
       draft('amount_mismatch', ref, stmt.net, led.net, stmt.first, providerOf.get(ref) ?? null);
@@ -199,7 +232,10 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
     draft('missing_in_statement', ref, null, led.net, `ledger:${ref}`, null);
   }
 
-  const lines = outcomes.map((o) => (o.line.our_reference && failedRefs.has(o.line.our_reference) && o.outcome === 'matched' ? { ...o, outcome: 'exception' as const } : o));
+  const lines = outcomes.map((o) => {
+    const key = keyOf.get(o.line);
+    return key !== undefined && failedRefs.has(key) && o.outcome === 'matched' ? { ...o, outcome: 'exception' as const } : o;
+  });
   return {
     lines,
     exceptions,

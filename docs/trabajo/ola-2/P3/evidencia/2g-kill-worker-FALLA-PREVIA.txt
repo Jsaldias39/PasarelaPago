@@ -1,0 +1,15 @@
+# Primera corrida de test/ola2.tanda2g.kill.spec.ts ANTES de corregir el producto (conservada, no se maquilla)
+# Comando: yarn test --maxWorkers=2 test/ola2.tanda2g.kill.spec.ts
+# Clasificación (regla 80.4): PRODUCT_BUG ×4 (señales que llegan en la misma ráfaga que la que cierra el cobro se DESCARTABAN sin registrar
+# la contradicción; el reembolso con avisos contradictorios no escalaba; resolveExpiry tras un SIGKILL terminaba `canceled` y no `expired`) y
+# TEST_BUG ×1 (el worker hijo de una prueba fallida seguía vivo y tomaba las tareas de la siguiente: afterEach ahora mata a todos por PID).
+  ● SIGKILL del worker con la orden EN VUELO en cada actividad › resolveExpiry: el cargo ya se canceló en el conector al vencer y el worker muere antes de saberlo ⇒ UN solo estado terminal (expired) y UN evento
+  ● «publicación»: el commit del estado terminal + su evento, y el relé del outbox › completeIntent: el worker muere JUSTO DESPUÉS del commit … ⇒ UN estado terminal, UN evento   (TEST_BUG: worker hijo vivo de la prueba anterior)
+  ● señales duplicadas y reordenadas … › captured y DESPUÉS failed (misma ráfaga) ⇒ succeeded, UN asiento, y el `failed` contradictorio queda REGISTRADO y publicado (REQ-P3-3), no perdido
+  ● señales duplicadas y reordenadas … › failed y DESPUÉS captured (misma ráfaga, orden inverso) ⇒ failed, SIN asiento, y el dinero `captured` queda REGISTRADO como contradicción (el conector sí cobró)
+  ● señales duplicadas y reordenadas … › señales de reembolso duplicadas y contradictorias (succeeded, succeeded, failed) con el conector en `pending` ⇒ UN estado terminal, UNA confirmación de la retención y el conflicto queda escalado
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 7 passed, 12 total
+# Correcciones: src/temporal/activities.ts (applySignal registra la contradicción también con el intento terminal; resolveExpiry: cargo ya `canceled` al vencer ⇒ expired),
+# src/temporal/workflows.ts (PaymentWorkflow pasa por applyChargeSignal las señales que quedaron en la cola al cerrar; RefundWorkflow escala refund_status_conflict).
+# Segunda corrida (tras corregir): Tests: 12 passed, 12 total  → ver 2g-P3.H2.M8.txt

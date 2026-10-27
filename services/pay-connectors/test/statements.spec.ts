@@ -59,6 +59,32 @@ describe('GET /statements (P4.H2.M5)', () => {
     expect(response.body).toMatchObject({ object: 'list', has_more: false, next_cursor: null });
   });
 
+  it('payment_intent_id (tanda 4b): cada línea emparejada con un cobro trae el `pi_…` de ESE cobro (la clave con la que pay-settlement cruza con el ledger)', async () => {
+    const a = await create();
+    const b = await create({ amount_minor: 25050 });
+    const response = await get(t.app, query('mock'), asSettlement);
+    t.contract.assertResponse({ method: 'GET', path: '/statements', status: 200, body: response.body });
+    const row = (id: string) => response.body.data.find((l: { charge_id: string }) => l.charge_id === id);
+    expect(row(a.id).payment_intent_id).toBe((await t.db.pool.query('SELECT payment_intent_id FROM connector_charges WHERE id = $1', [a.id])).rows[0].payment_intent_id);
+    expect(row(a.id).payment_intent_id).toMatch(/^pi_[a-z0-9]{10,40}$/);
+    expect(row(b.id).payment_intent_id).not.toBe(row(a.id).payment_intent_id);
+  });
+
+  it('payment_intent_id: una línea SIN cobro (referencia ajena o sin referencia) trae `null`, nunca uno inventado; la línea de una transferencia bancaria trae el del cobro que paga', async () => {
+    const charge = await create({ method: 'bank_transfer', amount_minor: 25000 });
+    const reference = charge.next_action.reference as string;
+    transferBank.injectStatementLine(credit({ providerReference: 'BNK-PI-1', ourReference: reference, amountMinor: 25000n }));
+    transferBank.injectStatementLine(credit({ providerReference: 'BNK-PI-2', ourReference: 'TRZZZZZZZZZZ', amountMinor: 1000n }));
+    transferBank.injectStatementLine(credit({ providerReference: 'BNK-PI-3', ourReference: null, amountMinor: 1000n }));
+    const response = await get(t.app, query('bank_transfer'), asSettlement);
+    const byRef = new Map<string, { charge_id: string | null; payment_intent_id: string | null }>(response.body.data.map((l: { provider_reference: string }) => [l.provider_reference, l]));
+    expect(byRef.get('BNK-PI-1')?.charge_id).toBe(charge.id);
+    expect(byRef.get('BNK-PI-1')?.payment_intent_id).toBe((await t.db.pool.query('SELECT payment_intent_id FROM connector_charges WHERE id = $1', [charge.id])).rows[0].payment_intent_id);
+    expect(byRef.get('BNK-PI-2')).toMatchObject({ charge_id: null, payment_intent_id: null });
+    expect(byRef.get('BNK-PI-3')).toMatchObject({ charge_id: null, payment_intent_id: null });
+    t.contract.assertResponse({ method: 'GET', path: '/statements', status: 200, body: response.body });
+  });
+
   it('paginación por cursor: sin repetidos ni saltos; un cursor inventado es 422', async () => {
     const ids = [] as string[];
     for (let i = 0; i < 5; i += 1) ids.push((await create({ amount_minor: 10000 + (i + 1) * 100 })).id);

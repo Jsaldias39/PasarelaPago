@@ -1,0 +1,175 @@
+{
+  "label": "payments",
+  "verdict": "PASS",
+  "problems": [],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "disputes",
+        "f",
+        "disputes_intent_fk"
+      ],
+      [
+        "disputes",
+        "p",
+        "disputes_pkey"
+      ],
+      [
+        "fee_schedule_replica",
+        "p",
+        "fee_schedule_replica_pkey"
+      ],
+      [
+        "idempotency_keys",
+        "p",
+        "idempotency_keys_pkey"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "inbox_events_pkey"
+      ],
+      [
+        "intent_contradictions",
+        "p",
+        "intent_contradictions_pkey"
+      ],
+      [
+        "intent_contradictions",
+        "u",
+        "intent_contradictions_event_uidx"
+      ],
+      [
+        "merchant_replica",
+        "p",
+        "merchant_replica_pkey"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "outbox_events_pkey"
+      ],
+      [
+        "outbox_events",
+        "u",
+        "outbox_events_seq_key"
+      ],
+      [
+        "payment_cancellation_requests",
+        "f",
+        "payment_cancellation_requests_intent_fk"
+      ],
+      [
+        "payment_cancellation_requests",
+        "p",
+        "payment_cancellation_requests_pkey"
+      ],
+      [
+        "payment_intents",
+        "p",
+        "payment_intents_pkey"
+      ],
+      [
+        "refunds",
+        "f",
+        "refunds_intent_fk"
+      ],
+      [
+        "refunds",
+        "p",
+        "refunds_pkey"
+      ],
+      [
+        "wallet_authorizations_used",
+        "p",
+        "wallet_authorizations_used_pkey"
+      ]
+    ],
+    "modelo": [
+      [
+        "disputes",
+        "f",
+        "fk_disputes_payment_intent_id"
+      ],
+      [
+        "disputes",
+        "p",
+        "pk_disputes"
+      ],
+      [
+        "fee_schedule_replica",
+        "p",
+        "pk_fee_schedule_replica"
+      ],
+      [
+        "idempotency_keys",
+        "p",
+        "pk_idempotency_keys"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "pk_inbox_events"
+      ],
+      [
+        "intent_contradictions",
+        "p",
+        "pk_intent_contradictions"
+      ],
+      [
+        "merchant_replica",
+        "p",
+        "pk_merchant_replica"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "pk_outbox_events"
+      ],
+      [
+        "payment_cancellation_requests",
+        "f",
+        "fk_payment_cancellation_requests_payment_intent_id"
+      ],
+      [
+        "payment_cancellation_requests",
+        "p",
+        "pk_payment_cancellation_requests"
+      ],
+      [
+        "payment_intents",
+        "p",
+        "pk_payment_intents"
+      ],
+      [
+        "refunds",
+        "f",
+        "fk_refunds_payment_intent_id"
+      ],
+      [
+        "refunds",
+        "p",
+        "pk_refunds"
+      ],
+      [
+        "wallet_authorizations_used",
+        "p",
+        "pk_wallet_authorizations_used"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 11,
+    "columnas": 109,
+    "indices": 23,
+    "check": 16,
+    "fk": 3,
+    "triggers": 0,
+    "funciones": 0
+  }
+}

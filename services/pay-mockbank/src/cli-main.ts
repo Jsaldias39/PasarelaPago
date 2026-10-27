@@ -1,5 +1,5 @@
 /**
- * CLI del pagador simulado: `mockbank pay <qr>`. Habla con el endpoint `POST /sandbox/payer/pay` de `pay-mockbank` (MOCKBANK_URL).
+ * CLI del pagador simulado: `mockbank pay <qr>` y `mockbank transfer <referencia> <centavos>`. Hablan con los endpoints del pagador de `pay-mockbank` (MOCKBANK_URL).
  * Separado de `cli.ts` para poder probarlo sin lanzar un proceso.
  */
 export interface CliIo {
@@ -9,21 +9,29 @@ export interface CliIo {
   readonly err: (text: string) => void;
 }
 
-const USAGE = 'uso: mockbank pay <payload-del-QR>   (MOCKBANK_URL, por defecto http://127.0.0.1:3112)';
+const USAGE = 'uso: mockbank pay <payload-del-QR> | mockbank transfer <referencia> <importe-en-centavos>   (MOCKBANK_URL, por defecto http://127.0.0.1:3112)';
 
 export async function runCli(argv: readonly string[], io: CliIo): Promise<number> {
-  const [command, qr, ...rest] = argv;
-  if (command !== 'pay' || !qr || rest.length > 0) {
+  const [command, first, second, ...rest] = argv;
+  let path: string;
+  let body: Record<string, unknown>;
+  if (command === 'pay' && first && second === undefined) {
+    path = '/sandbox/payer/pay';
+    body = { qr_payload: first };
+  } else if (command === 'transfer' && first && second && rest.length === 0 && /^[1-9][0-9]{0,11}$/.test(second)) {
+    path = '/sandbox/payer/transfer-in';
+    body = { reference: first, amount_minor: Number(second) };
+  } else {
     io.err(`${USAGE}\n`);
     return 2;
   }
   const base = (io.env.MOCKBANK_URL ?? 'http://127.0.0.1:3112').replace(/\/$/, '');
   let response: Response;
   try {
-    response = await io.fetchImpl(`${base}/sandbox/payer/pay`, {
+    response = await io.fetchImpl(`${base}${path}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-service-id': 'pay-mockbank' },
-      body: JSON.stringify({ qr_payload: qr }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(10_000),
     });
   } catch {
@@ -40,7 +48,7 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
     } catch {
       /* cuerpo no JSON */
     }
-    io.err(`mockbank: el pago falló: HTTP ${response.status} ${code}\n`);
+    io.err(`mockbank: la operación falló: HTTP ${response.status} ${code}\n`);
     return 1;
   }
   io.out(`${text}\n`);

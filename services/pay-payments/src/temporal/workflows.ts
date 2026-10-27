@@ -72,7 +72,16 @@ export async function PaymentWorkflow(input: { intentId: string }): Promise<Paym
   const must = async <T>(kind: string, run: () => Promise<T>): Promise<T> => (await keep(kind, run)) as T;
   const finalStatus = async (): Promise<PaymentResult> => ({ status: (await must('state_read_unknown', () => a.loadPaymentPlan(intentId))).status });
 
-  try {
+  // Señales que llegaron en la misma ráfaga que la que cerró el cobro (por ejemplo `captured` y luego `failed`): no se descartan, se pasan por
+  // `applyChargeSignal`, que las registra como contradicción si afirman algo incompatible con el estado terminal (REQ-P3-3).
+  const drainLateSignals = async (): Promise<void> => {
+    while (inbox.length > 0) {
+      const late = inbox.shift() as ChargeSignal;
+      await must('late_signal_unknown', () => a.applyChargeSignal(intentId, late));
+    }
+  };
+
+  const body = async (): Promise<PaymentResult> => {
     const risk = await must('risk_unknown', () => a.assessRisk(intentId));
     if (!risk.proceed) return await finalStatus();
 
@@ -132,6 +141,12 @@ export async function PaymentWorkflow(input: { intentId: string }): Promise<Paym
     if (ledger.transferId) return await must('finalize_unknown', () => a.completeIntent(intentId, { transferId: ledger.transferId as string }));
     if (plan.method !== 'wallet') await must('compensation_outcome_unknown', () => a.compensateCapture(intentId));
     return await must('finalize_unknown', () => a.completeIntent(intentId, { failureCode: ledger.rejected ?? 'internal_error' }));
+  };
+
+  try {
+    const result = await body();
+    await drainLateSignals();
+    return result;
   } catch (error) {
     // Lo que no se arregla reintentando (un error de integración, un dato que no existe): se deja constancia y el workflow falla
     // de forma visible. El cobro NO se cierra por esto.
@@ -189,12 +204,16 @@ export async function RefundWorkflow(input: { refundId: string }): Promise<{ sta
       const event = events[0];
       if (result.status === 'pending' && event) result = { status: event.status, ...(event.failureCode ? { failureCode: event.failureCode } : {}) };
     }
+    // Avisos del conector que se contradicen entre sí (`succeeded` y `failed` del mismo reembolso): manda el primero, el conflicto no se pierde.
+    const conflicting = events.length > 1 && events.some((e) => e.status !== events[0]?.status);
     if (result.status === 'succeeded') {
       await must('post_outcome_unknown', () => a.finishRefund(refundId));
+      if (conflicting) await must('refund_status_conflict', () => a.escalateRefund(refundId, 'refund_status_conflict'));
       return { status: 'succeeded' };
     }
     // Rechazo DEFINITIVO del conector (4xx declarado o `502 connector_unavailable` exacto = sin efecto): recién ahí se anula la retención.
     await must('void_outcome_unknown', () => a.failRefund(refundId, result.failureCode ?? 'connector_unavailable', true));
+    if (conflicting) await must('refund_status_conflict', () => a.escalateRefund(refundId, 'refund_status_conflict'));
     return { status: 'failed' };
   } catch (error) {
     await a.escalateRefund(refundId, 'workflow_stuck').catch(() => undefined);

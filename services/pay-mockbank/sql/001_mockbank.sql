@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS mb_callbacks (
 );
 CREATE INDEX IF NOT EXISTS mb_callbacks_pending_idx ON mb_callbacks (due_at, id) WHERE delivered_at IS NULL;
 
--- Líneas del extracto que NO son cobros nuestros (por ejemplo un depósito sin referencia), cargadas por el administrador del simulador.
+-- Líneas del extracto que NO nacen de un cobro del banco: depósitos del pagador por transferencia y líneas ajenas (por ejemplo un depósito sin referencia).
 CREATE TABLE IF NOT EXISTS mb_statement_extra (
   id             bigserial   PRIMARY KEY,
   bank_reference text        NOT NULL UNIQUE,
@@ -79,7 +79,9 @@ CREATE TABLE IF NOT EXISTS mb_statement_extra (
   amount_minor   bigint      NOT NULL CHECK (amount_minor > 0),
   value_date     date        NOT NULL,
   booked_at      timestamptz NOT NULL,
-  description    text
+  description    text,
+  -- Cuenta del extracto: `collections` (cobros QR/tarjeta) o `transfers` (depósitos de pagadores por transferencia bancaria).
+  account        text        NOT NULL DEFAULT 'collections' CHECK (account IN ('collections', 'transfers'))
 );
 
 -- El banco está «caído» (escenario 06 de forma global, para probar salud y ruteo): una sola fila.

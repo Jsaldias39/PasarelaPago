@@ -48,7 +48,8 @@ afterAll(async () => {
   );
   await stack.stop();
 });
-afterEach(() => {
+afterEach(async () => {
+  await Promise.all(alive.splice(0).map((w) => w.kill())); // ningún worker de una prueba (aunque haya fallado) queda tomando tareas de la siguiente
   stack.risk.mode = 'allow';
   stack.connectors.scenario = 'ok';
   stack.connectors.server.routeDelays.length = 0;

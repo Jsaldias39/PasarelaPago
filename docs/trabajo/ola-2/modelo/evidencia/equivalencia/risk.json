@@ -1,0 +1,70 @@
+{
+  "label": "risk",
+  "verdict": "PASS",
+  "problems": [],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "idempotency_keys",
+        "p",
+        "idempotency_keys_pkey"
+      ],
+      [
+        "risk_assessments",
+        "f",
+        "risk_assessments_rule_version_fk"
+      ],
+      [
+        "risk_assessments",
+        "p",
+        "risk_assessments_pkey"
+      ],
+      [
+        "risk_assessments",
+        "u",
+        "risk_assessments_request_uq"
+      ],
+      [
+        "risk_rule_sets",
+        "p",
+        "risk_rule_sets_pkey"
+      ]
+    ],
+    "modelo": [
+      [
+        "idempotency_keys",
+        "p",
+        "pk_idempotency_keys"
+      ],
+      [
+        "risk_assessments",
+        "f",
+        "fk_risk_assessments_rule_version"
+      ],
+      [
+        "risk_assessments",
+        "p",
+        "pk_risk_assessments"
+      ],
+      [
+        "risk_rule_sets",
+        "p",
+        "pk_risk_rule_sets"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 3,
+    "columnas": 44,
+    "indices": 8,
+    "check": 17,
+    "fk": 1,
+    "triggers": 4,
+    "funciones": 1
+  }
+}

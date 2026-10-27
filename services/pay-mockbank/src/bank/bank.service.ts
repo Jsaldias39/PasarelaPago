@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
+import { ProblemError } from '@pay/problem';
 import type { Pool, PoolClient } from 'pg';
 import { SERVICE_CONFIG, type ServiceConfig } from '../config';
 import { CLOCK, type Clock } from '../clock';
@@ -8,6 +9,8 @@ import { BankProblem, BankProxyHtml, BankSocketCut } from './faults';
 import { scenarioFor, transferAmbiguity, type Scenario } from './scenarios';
 
 export type Method = 'qr' | 'card' | 'bank_transfer';
+/** Cuenta del extracto: `collections` (cobros QR/tarjeta) o `transfers` (depósitos del pagador). Sin cuenta: todas. */
+export type StatementAccount = 'collections' | 'transfers';
 export type BankStatus = 'pending' | 'authorized' | 'captured' | 'failed' | 'canceled' | 'expired';
 
 interface ChargeRow {
@@ -212,14 +215,18 @@ export class BankService {
     }
   }
 
-  /** Pago de un QR por el pagador simulado. `reference` ya está resuelto por quien decodificó el QR. */
-  async payByQr(payload: string): Promise<{ row: ChargeRow; view: ChargeView; alreadyPaid: boolean }> {
+  /**
+   * Pago de un QR por el pagador simulado. Se valida TODO (QR conocido, estado, monto) antes de tocar nada: un pago rechazado no deja efecto.
+   * `qrAmountMinor` es el monto que pay-qr leyó del QR.
+   */
+  async payByQr(payload: string, qrAmountMinor: bigint): Promise<{ row: ChargeRow; view: ChargeView; alreadyPaid: boolean }> {
     await this.assertUp();
     const found = (await this.pool.query('SELECT * FROM mb_charges WHERE qr_payload = $1', [payload])).rows[0] as ChargeRow | undefined;
     if (!found) throw new BankProblem(404, 'qr_not_registered');
     const now = this.clock.now();
     const status = this.statusOf(found, now);
     if (status === 'canceled' || status === 'expired' || status === 'failed') throw new BankProblem(409, 'invalid_state', `el QR está ${status}`);
+    if (BigInt(found.amount_minor) !== qrAmountMinor) throw new ProblemError('validation_failed', { errors: [{ field: 'qr_payload', code: 'amount_mismatch' }] });
     const alreadyPaid = found.paid_at !== null;
     const row = alreadyPaid ? found : await this.applyPayment(found, now);
     return { row, view: this.view(row, now), alreadyPaid };
@@ -365,29 +372,39 @@ export class BankService {
 
   // ───────────────────────────── extracto ─────────────────────────────
 
-  async statement(range: { from: Date; to: Date }): Promise<StatementEntry[]> {
+  async statement(range: { from: Date; to: Date }, account?: StatementAccount): Promise<StatementEntry[]> {
     await this.assertUp();
-    const charges = (await this.pool.query('SELECT * FROM mb_charges WHERE paid_at IS NOT NULL AND paid_at >= $1 AND paid_at <= $2', [range.from, range.to])).rows as ChargeRow[];
+    const charges = account === 'transfers' ? [] : (await this.pool.query('SELECT * FROM mb_charges WHERE paid_at IS NOT NULL AND paid_at >= $1 AND paid_at <= $2', [range.from, range.to])).rows as ChargeRow[];
     const entries: StatementEntry[] = charges.map((charge) => {
       const paidAt = charge.paid_at as Date;
       // El escenario `statement_mismatch` informa Bs 1,00 menos que lo cobrado.
       const booked = charge.scenario === 'statement_mismatch' ? BigInt(charge.amount_minor) - 100n : BigInt(charge.amount_minor);
       return { bankReference: `${charge.bank_reference}-L`, ourReference: charge.reference, direction: 'credit', amountMinor: booked, valueDate: paidAt.toISOString().slice(0, 10), bookedAt: paidAt, description: 'ABONO SIMULADO' };
     });
-    const extras = (await this.pool.query('SELECT * FROM mb_statement_extra WHERE booked_at >= $1 AND booked_at <= $2', [range.from, range.to])).rows as Array<Record<string, unknown>>;
+    const extras = (await this.pool.query('SELECT * FROM mb_statement_extra WHERE booked_at >= $1 AND booked_at <= $2 AND ($3::text IS NULL OR account = $3)', [range.from, range.to, account ?? null])).rows as Array<Record<string, unknown>>;
     for (const e of extras) {
       entries.push({ bankReference: e.bank_reference as string, ourReference: (e.our_reference as string | null) ?? null, direction: e.direction as 'credit' | 'debit', amountMinor: BigInt(e.amount_minor as string), valueDate: (e.value_date as Date).toISOString().slice(0, 10), bookedAt: e.booked_at as Date, description: (e.description as string | null) ?? null });
     }
     return entries.sort((a, b) => b.bookedAt.getTime() - a.bookedAt.getTime() || (a.bankReference < b.bankReference ? 1 : -1));
   }
 
-  async injectStatementLine(line: { ourReference: string | null; direction: 'credit' | 'debit'; amountMinor: bigint; bookedAt: Date; description: string | null }): Promise<string> {
+  async injectStatementLine(line: { ourReference: string | null; direction: 'credit' | 'debit'; amountMinor: bigint; bookedAt: Date; description: string | null; account?: StatementAccount }): Promise<string> {
+    await this.assertUp();
     const bankReference = await this.nextBankReference('SIM-X');
     await this.pool.query(
-      'INSERT INTO mb_statement_extra (bank_reference, our_reference, direction, amount_minor, value_date, booked_at, description) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [bankReference, line.ourReference, line.direction, line.amountMinor.toString(), line.bookedAt.toISOString().slice(0, 10), line.bookedAt, line.description],
+      'INSERT INTO mb_statement_extra (bank_reference, our_reference, direction, amount_minor, value_date, booked_at, description, account) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [bankReference, line.ourReference, line.direction, line.amountMinor.toString(), line.bookedAt.toISOString().slice(0, 10), line.bookedAt, line.description, line.account ?? 'collections'],
     );
     return bankReference;
+  }
+
+  /**
+   * DEPÓSITO del pagador: transfiere al banco escribiendo la referencia de las instrucciones. El banco no avisa a nadie (como un banco real): la
+   * línea aparece en el extracto de la cuenta `transfers` y la pasarela la concilia. Cada llamada es un depósito distinto.
+   */
+  async payerTransferIn(input: { reference: string; amountMinor: bigint }): Promise<{ bankReference: string }> {
+    const bankReference = await this.injectStatementLine({ ourReference: input.reference, direction: 'credit', amountMinor: input.amountMinor, bookedAt: this.clock.now(), description: 'TRANSFERENCIA SIMULADA', account: 'transfers' });
+    return { bankReference };
   }
 }
 

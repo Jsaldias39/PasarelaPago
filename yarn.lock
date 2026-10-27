@@ -7488,10 +7488,14 @@ __metadata:
     "@swc/jest": "npm:^0.2.39"
     "@types/jest": "npm:^30.0.0"
     "@types/node": "npm:^24.0.0"
+    "@types/pg": "npm:^8"
     eslint: "npm:^9.18.0"
     jest: "npm:^30.0.0"
+    nats: "npm:^2.29.3"
+    pg: "npm:^8.22.0"
     typescript: "npm:^5.7.3"
     typescript-eslint: "npm:^8.20.0"
+    yaml: "npm:^2.9.1"
   languageName: unknown
   linkType: soft
 
@@ -7711,6 +7715,46 @@ __metadata:
     reflect-metadata: "npm:^0.2.2"
     rxjs: "npm:^7.8.1"
     supertest: "npm:^7.0.0"
+  languageName: unknown
+  linkType: soft
+
+"pay-mockbank@workspace:services/pay-mockbank":
+  version: 0.0.0-use.local
+  resolution: "pay-mockbank@workspace:services/pay-mockbank"
+  dependencies:
+    "@apidevtools/json-schema-ref-parser": "npm:^16.0.5"
+    "@nestjs/common": "npm:^11.0.1"
+    "@nestjs/core": "npm:^11.0.1"
+    "@nestjs/platform-express": "npm:^11.0.1"
+    "@nestjs/terminus": "npm:^11.1.1"
+    "@nestjs/testing": "npm:^11.0.1"
+    "@opentelemetry/api": "npm:^1.9.1"
+    "@opentelemetry/exporter-trace-otlp-proto": "npm:^0.221.0"
+    "@opentelemetry/instrumentation-express": "npm:^0.69.0"
+    "@opentelemetry/instrumentation-http": "npm:^0.221.0"
+    "@opentelemetry/instrumentation-nestjs-core": "npm:^0.67.0"
+    "@opentelemetry/instrumentation-pg": "npm:^0.73.0"
+    "@opentelemetry/sdk-node": "npm:^0.221.0"
+    "@pay/problem": "workspace:*"
+    "@pay/service-auth": "workspace:*"
+    "@pay/testing": "workspace:*"
+    "@pay/webhook-signature": "workspace:*"
+    "@types/express": "npm:^5.0.0"
+    "@types/pg": "npm:^8"
+    "@types/supertest": "npm:^6.0.2"
+    ajv: "npm:^8.20.0"
+    ajv-formats: "npm:^3.0.1"
+    fast-xml-parser: "npm:^5.11.2"
+    nestjs-pino: "npm:^4.6.1"
+    pg: "npm:^8.22.0"
+    pino: "npm:^10.3.1"
+    pino-http: "npm:^11.0.0"
+    reflect-metadata: "npm:^0.2.2"
+    rxjs: "npm:^7.8.1"
+    supertest: "npm:^7.0.0"
+    yaml: "npm:^2.9.1"
+  bin:
+    mockbank: dist/cli.js
   languageName: unknown
   linkType: soft
 

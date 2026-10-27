@@ -46,7 +46,12 @@ export async function ledgerOfCapture(stack: Stack, merchantId: string, intentId
     const res = await call(`/balances?account=${encodeURIComponent(account)}`);
     return res.status === 404 ? 0 : (res.json as { balance_minor: number }).balance_minor;
   };
-  const lines = async (account: string) => ((await call(`/statements?account=${encodeURIComponent(account)}&limit=100`)).json as { data: { direction: 'debit' | 'credit'; amount_minor: number; business_ref: string }[] }).data.filter((l) => l.business_ref === `${intentId}:capture`);
+  /** Una cuenta que nadie nombró todavía no existe (el ledger la crea al primer asiento): su extracto está vacío. */
+  const lines = async (account: string) => {
+    const res = await call(`/statements?account=${encodeURIComponent(account)}&limit=100`);
+    if (res.status === 404) return [];
+    return (res.json as { data: { direction: 'debit' | 'credit'; amount_minor: number; business_ref: string }[] }).data.filter((l) => l.business_ref === `${intentId}:capture`);
+  };
   const accounts = [`merchant:${merchantId}:pending`, 'platform:fees', 'connector:mock:clearing'];
   const all = (await Promise.all(accounts.map(lines))).flat();
   const sum = (direction: 'debit' | 'credit') => all.filter((l) => l.direction === direction).reduce((total, l) => total + l.amount_minor, 0);

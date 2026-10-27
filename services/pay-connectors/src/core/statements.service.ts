@@ -23,7 +23,7 @@ export function negotiate(accept: string | undefined): StatementFormat {
   return 'json';
 }
 
-type MatchedLine = StatementLine & { chargeId: string | null };
+type MatchedLine = StatementLine & { chargeId: string | null; paymentIntentId: string | null };
 
 export interface ReconcileSummary {
   readonly lines: number;
@@ -55,7 +55,16 @@ export class StatementsService {
       );
       for (const r of transfers.rows) byRef.set(r.reference as string, r.charge_id as string);
     }
-    return lines.map((l) => ({ ...l, chargeId: l.ourReference ? (byRef.get(l.ourReference) ?? null) : null }));
+    // El intento de pago sale de NUESTRO registro de cobros (un banco no conoce nuestros `pi_…`): es la clave con la que pay-settlement cruza con el ledger.
+    const intents = new Map<string, string>();
+    const chargeIds = [...new Set(byRef.values())];
+    if (chargeIds.length > 0) {
+      for (const r of (await this.pool.query('SELECT id, payment_intent_id FROM connector_charges WHERE id = ANY($1)', [chargeIds])).rows) intents.set(r.id as string, r.payment_intent_id as string);
+    }
+    return lines.map((l) => {
+      const chargeId = l.ourReference ? (byRef.get(l.ourReference) ?? null) : null;
+      return { ...l, chargeId, paymentIntentId: chargeId ? (intents.get(chargeId) ?? null) : null };
+    });
   }
 
   // ───────────────────────── GET /statements ─────────────────────────
@@ -116,6 +125,7 @@ export class StatementsService {
           provider_reference: l.providerReference,
           our_reference: l.ourReference,
           charge_id: l.chargeId,
+          payment_intent_id: l.paymentIntentId,
           direction: l.direction,
           amount_minor: Number(l.amountMinor),
           currency: l.currency,

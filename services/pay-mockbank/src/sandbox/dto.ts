@@ -131,20 +131,24 @@ export function parseCapture(body: unknown): bigint | undefined {
   return value;
 }
 
-export function parseRange(query: Record<string, unknown>): { from: Date; to: Date; format: 'json' | 'csv' | 'camt053' } {
+export function parseRange(query: Record<string, unknown>): { from: Date; to: Date; format: 'json' | 'csv' | 'camt053'; account?: 'collections' | 'transfers' } {
   const f = new Fields(query);
   const from = date(f, 'from');
   const to = date(f, 'to');
   const format = query.format ?? 'json';
   if (format !== 'json' && format !== 'csv' && format !== 'camt053') f.fail('format', 'invalid');
   if (from.getTime() > to.getTime()) f.fail('from', 'after_to');
+  const account = query.account;
+  if (account !== undefined && account !== 'collections' && account !== 'transfers') f.fail('account', 'invalid');
   f.done();
-  return { from, to, format: format as 'json' | 'csv' | 'camt053' };
+  return { from, to, format: format as 'json' | 'csv' | 'camt053', ...(account !== undefined ? { account: account as 'collections' | 'transfers' } : {}) };
 }
 
-export function parseInject(body: unknown): { ourReference: string | null; direction: 'credit' | 'debit'; amountMinor: bigint; bookedAt: Date; description: string | null } {
+export function parseInject(body: unknown): { ourReference: string | null; direction: 'credit' | 'debit'; amountMinor: bigint; bookedAt: Date; description: string | null; account: 'collections' | 'transfers' } {
   const f = new Fields(object(body));
-  allow(f, ['our_reference', 'direction', 'amount_minor', 'booked_at', 'description']);
+  allow(f, ['our_reference', 'direction', 'amount_minor', 'booked_at', 'description', 'account']);
+  const account = f.body.account ?? 'collections';
+  if (account !== 'collections' && account !== 'transfers') f.fail('account', 'invalid');
   const amountMinor = amount(f, 'amount_minor') ?? 0n;
   if (f.body.direction !== 'credit' && f.body.direction !== 'debit') f.fail('direction', 'invalid');
   const bookedAt = date(f, 'booked_at');
@@ -153,7 +157,18 @@ export function parseInject(body: unknown): { ourReference: string | null; direc
   const description = f.body.description;
   if (description !== undefined && description !== null && (typeof description !== 'string' || description.length > 200)) f.fail('description', 'invalid');
   f.done();
-  return { ourReference: (our as string | undefined) ?? null, direction: f.body.direction as 'credit' | 'debit', amountMinor, bookedAt, description: (description as string | undefined) ?? null };
+  return { ourReference: (our as string | undefined) ?? null, direction: f.body.direction as 'credit' | 'debit', amountMinor, bookedAt, description: (description as string | undefined) ?? null, account: account as 'collections' | 'transfers' };
+}
+
+/** Depósito del pagador: la referencia es la de las instrucciones de transferencia (`TR…`), tal cual la escribe el pagador. */
+export function parseTransferIn(body: unknown): { reference: string; amountMinor: bigint } {
+  const f = new Fields(object(body));
+  allow(f, ['reference', 'amount_minor']);
+  const reference = f.body.reference;
+  if (typeof reference !== 'string' || !/^[A-Za-z0-9_.:-]{1,100}$/.test(reference)) f.fail('reference', 'invalid');
+  const amountMinor = amount(f, 'amount_minor') ?? 0n;
+  f.done();
+  return { reference: reference as string, amountMinor };
 }
 
 export function parsePay(body: unknown): string {

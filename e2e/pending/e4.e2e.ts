@@ -150,15 +150,15 @@ describe('E4 — corte semanal → payout → conciliación → excepción', () 
     expect(batches.data.map((b) => b.id)).toEqual([batchId]);
   });
 
-  it('PRECONDICIÓN DEL CRUCE: el extracto del conector trae nuestra referencia de cobro (`pi_…:capture`), que es la clave con que settlement cruza contra el ledger', async () => {
+  it('PRECONDICIÓN DEL CRUCE: el extracto del conector trae `payment_intent_id` (`pi_…`) de nuestros cobros, que es la clave con que settlement cruza contra el ledger (`pi_…:capture`)', async () => {
     const window = `from=${encodeURIComponent(new Date(startedAt.getTime() - FROM_MARGIN_MS).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + TO_MARGIN_MS).toISOString())}`;
     const res = await stack.callAs('pay-settlement', 'pay-connectors', 'GET', `/statements?connector=mock&${window}&limit=100`, {});
     expect(res.status).toBe(200);
-    const lines = (res.json as { data: { our_reference: string | null; charge_id: string | null; direction: string; amount_minor: number }[] }).data;
-    const wanted = [captured.matching!, captured.mismatch!].map((c) => `${c.paymentIntentId}:capture`);
-    // Hoy el simulador devuelve `our_reference = ch_…` (el id del cobro del conector): ninguna línea trae `pi_…:capture` y NINGUNA puede, porque un
-    // `business_ref` del ledger siempre lleva `:operación`. Es el hueco P2↔P4 documentado en FLUJOS-E4-E8.md; mientras exista, la conciliación de abajo no cruza.
-    expect(lines.map((l) => l.our_reference).filter((r) => wanted.includes(r ?? ''))).toEqual(expect.arrayContaining(wanted));
+    const lines = (res.json as { data: { our_reference: string | null; payment_intent_id?: string | null; direction: string; amount_minor: number }[] }).data;
+    const wanted = [captured.matching!, captured.mismatch!].map((c) => c.paymentIntentId);
+    // Contrato `StatementLine.payment_intent_id` (opcional, `^pi_…`, nulo sin emparejamiento). Si P4 aún no lo emite, este test falla ACÁ (y no más abajo con una
+    // excepción confusa): es la señal de que falta el campo en `fetchStatement` de pay-connectors, no de que la conciliación esté mal.
+    expect(lines.map((l) => l.payment_intent_id).filter((r) => wanted.includes(r ?? ''))).toEqual(expect.arrayContaining(wanted));
   });
 
   it('CONCILIACIÓN: el extracto trae Bs 1,00 menos en UN cobro ⇒ una sola excepción amount_mismatch con la diferencia; lo demás cruza; el ledger NO se mueve; settlement avisa UNA vez', async () => {

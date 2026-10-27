@@ -1,0 +1,205 @@
+{
+  "label": "merchants",
+  "verdict": "PASS",
+  "problems": [],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "api_keys",
+        "f",
+        "api_keys_merchant_fk"
+      ],
+      [
+        "api_keys",
+        "p",
+        "api_keys_pkey"
+      ],
+      [
+        "contract_acceptances",
+        "f",
+        "contract_acceptances_merchant_fk"
+      ],
+      [
+        "contract_acceptances",
+        "f",
+        "contract_acceptances_version_fk"
+      ],
+      [
+        "contract_acceptances",
+        "p",
+        "contract_acceptances_pkey"
+      ],
+      [
+        "contract_acceptances",
+        "u",
+        "contract_acceptances_merchant_version_uq"
+      ],
+      [
+        "contract_versions",
+        "p",
+        "contract_versions_pkey"
+      ],
+      [
+        "fee_schedule_channels",
+        "p",
+        "fee_schedule_channels_pkey"
+      ],
+      [
+        "fee_schedule_versions",
+        "f",
+        "fee_schedule_versions_merchant_fk"
+      ],
+      [
+        "fee_schedule_versions",
+        "p",
+        "fee_schedule_versions_pkey"
+      ],
+      [
+        "idempotency_keys",
+        "p",
+        "idempotency_keys_pkey"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "inbox_events_pkey"
+      ],
+      [
+        "kyc_documents",
+        "f",
+        "kyc_documents_merchant_fk"
+      ],
+      [
+        "kyc_documents",
+        "p",
+        "kyc_documents_pkey"
+      ],
+      [
+        "merchant_kyc",
+        "f",
+        "merchant_kyc_merchant_fk"
+      ],
+      [
+        "merchant_kyc",
+        "p",
+        "merchant_kyc_pkey"
+      ],
+      [
+        "merchants",
+        "p",
+        "merchants_pkey"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "outbox_events_pkey"
+      ],
+      [
+        "outbox_events",
+        "u",
+        "outbox_events_seq_key"
+      ]
+    ],
+    "modelo": [
+      [
+        "api_keys",
+        "f",
+        "fk_api_keys_merchant_id"
+      ],
+      [
+        "api_keys",
+        "p",
+        "pk_api_keys"
+      ],
+      [
+        "contract_acceptances",
+        "f",
+        "fk_contract_acceptances_merchant_id"
+      ],
+      [
+        "contract_acceptances",
+        "f",
+        "fk_contract_acceptances_version"
+      ],
+      [
+        "contract_acceptances",
+        "p",
+        "pk_contract_acceptances"
+      ],
+      [
+        "contract_versions",
+        "p",
+        "pk_contract_versions"
+      ],
+      [
+        "fee_schedule_channels",
+        "p",
+        "pk_fee_schedule_channels"
+      ],
+      [
+        "fee_schedule_versions",
+        "f",
+        "fk_fee_schedule_versions_merchant_id"
+      ],
+      [
+        "fee_schedule_versions",
+        "p",
+        "pk_fee_schedule_versions"
+      ],
+      [
+        "idempotency_keys",
+        "p",
+        "pk_idempotency_keys"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "pk_inbox_events"
+      ],
+      [
+        "kyc_documents",
+        "f",
+        "fk_kyc_documents_merchant_id"
+      ],
+      [
+        "kyc_documents",
+        "p",
+        "pk_kyc_documents"
+      ],
+      [
+        "merchant_kyc",
+        "f",
+        "fk_merchant_kyc_merchant_id"
+      ],
+      [
+        "merchant_kyc",
+        "p",
+        "pk_merchant_kyc"
+      ],
+      [
+        "merchants",
+        "p",
+        "pk_merchants"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "pk_outbox_events"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 11,
+    "columnas": 89,
+    "indices": 19,
+    "check": 25,
+    "fk": 7,
+    "triggers": 6,
+    "funciones": 1
+  }
+}
