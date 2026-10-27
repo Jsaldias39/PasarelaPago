@@ -17,3 +17,21 @@ Gates literales en `evidencia/`: `connectors-typecheck`, `connectors-build`, `co
 **A MEDIAS / no hecho:** `X-Pay-Mode` (D-28, la recomendada «f»; no estaba en el pedido de esta tanda). Adaptadores del Mercantil: siguen sin documentación.
 **No cubierto:** nada se ejercitó contra un banco real; la cuenta de la transferencia es sintética en sandbox (T-03).
 **Decisiones:** `DECISIONES-TOMADAS.md` (D-P4-22 a D-P4-28).
+
+---
+
+> **AVANCE (tanda 2b, D-28 `X-Pay-Mode`): 6 / 7 pedidos aplicados; 1 no aplicable (`mode` en eventos: el contrato no lo admite).** Peldaño: `TESTED`.
+
+| # | Pedido | Estado | Evidencia |
+|---|---|---|---|
+| 1 | `X-Pay-Mode ∈ {test, live}` exigido en charges, refunds, transfers y qr; ausente/inválido ⇒ 403 sin efecto | HECHO (8 ops de connectors + 6 rutas de qr) | `test/pay-mode.spec.ts` (92), `pay-qr/test/pay-mode.spec.ts` |
+| 2 | Modo de la petición = modo del despliegue y del conector (`live`↔sandbox ⇒ 403, nunca cae en live) | HECHO (compuerta + ruteo + CHECK en la base) | ídem |
+| 3 | Modo del pedido guardado (`pay_mode`; el del conector se renombró `connector_mode`); lecturas por (id, modo); otro modo ⇒ 404 | HECHO | ídem |
+| 4 | Misma `Idempotency-Key` en test y live = dos operaciones | HECHO (scope `llamador\|modo`, índices únicos con `pay_mode`) | ídem |
+| 5 | `mode` opcional en los eventos | NO APLICABLE: `connectors.yaml` no lo admite (`additionalProperties: false`); propuesta en `PROPUESTAS.md` | — |
+| 6 | Callbacks: el modo sale del registro del cobro | HECHO (`connector_callback_events.pay_mode`) | ídem |
+| 7 | Pruebas en 3 niveles + test↔live en los dos sentidos; regla 11 y carrera de envíos intactas | HECHO | 656 + 92 pasan (2 corridas cada una) |
+| — | Auditoría de llamadas salientes | HECHO: la única es `HttpQrClient` → `pay-qr`; propaga `X-Pay-Mode` | `qr-client.spec.ts` |
+
+Gates literales en `evidencia/2b-*`: typecheck, build, test×2 (`--maxWorkers=2`) por servicio y `yarn eslint` desde la raíz, todos exit 0.
+**Decisiones:** D-P4-29 a D-P4-35. **Hallazgo:** el `health.spec.ts` de la plantilla (10 servicios) tiene una aserción intermitente (`not.toContain('4111')` contra un UUID aleatorio); corregida en los dos míos.

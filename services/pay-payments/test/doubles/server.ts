@@ -48,6 +48,14 @@ export class DoubleServer {
 
   async start(): Promise<string> {
     this.contract = await loadContract(this.contractPath);
+    // Ajv compila cada esquema la PRIMERA vez que se usa. Sin precalentar, la primera petición de una prueba paga esa compilación y,
+    // con la máquina cargada, supera los 300 ms del timeout de riesgo (falla intermitente observada en la corrida 1 de la tanda 2b).
+    for (const operation of this.contract.operations()) {
+      const [method, route] = operation.split(' ') as [string, string];
+      const concrete = route.replace(/\{[^}]+\}/g, 'x_aaaaaaaaaaaa');
+      for (const status of [200, 201, 400, 404, 422, 500]) this.contract.validateResponse({ method, path: concrete, status, body: {} });
+      this.contract.validateRequest({ method, path: concrete, body: {} });
+    }
     this.server = createServer((req, res) => void this.handle(req, res));
     await new Promise<void>((resolve) => this.server!.listen(0, '127.0.0.1', resolve));
     this.url = `http://127.0.0.1:${(this.server.address() as AddressInfo).port}`;

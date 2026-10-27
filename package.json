@@ -14,11 +14,16 @@
   "scripts": {
     "build": "yarn workspaces foreach -A --topological-dev run build",
     "typecheck": "yarn workspaces foreach -A --topological-dev run typecheck",
-    "lint": "eslint --no-error-on-unmatched-pattern \"contracts/**/*.ts\" \"services/**/*.ts\" \"platform/**/*.ts\"",
+    "lint": "eslint --no-error-on-unmatched-pattern \"contracts/**/*.ts\" \"services/**/*.ts\" \"platform/**/*.ts\" \"e2e/**/*.ts\"",
     "test": "yarn workspaces foreach -A --topological-dev run test",
     "contracts:lint": "node contracts/scripts/lint-contracts.mjs",
     "contracts:events": "node contracts/scripts/validate-events.mjs",
-    "contracts:breaking": "node contracts/scripts/check-breaking.mjs"
+    "contracts:breaking": "node contracts/scripts/check-breaking.mjs",
+    "e2e:up": "node --no-warnings e2e/cli.ts up",
+    "e2e:down": "node --no-warnings e2e/cli.ts down",
+    "e2e:boot": "node --no-warnings e2e/cli.ts boot",
+    "e2e:smoke": "node --no-warnings e2e/cli.ts smoke",
+    "e2e": "jest --config e2e/jest.config.cjs --runInBand"
   },
   "devDependencies": {
     "@asyncapi/parser": "^3.6.6",
