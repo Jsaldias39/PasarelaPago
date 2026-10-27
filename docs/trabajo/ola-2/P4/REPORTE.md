@@ -55,3 +55,26 @@ Gates literales en `evidencia/2b-*`: typecheck, build, test×2 (`--maxWorkers=2`
 **Cambio de comportamiento a avisar:** un despliegue `live` que arrastre variables del simulador (`PAY_SECRET_CONNECTOR_MOCK_*`, `MOCK_PUMP_INTERVAL_MS`, cuenta con rótulo SANDBOX) o un `QR_ACCOUNT_GUID` provisional ahora no arranca.
 **No cubierto:** nada contra un banco real; el chequeo de GUID de pay-qr es por rótulo (un GUID de prueba sin esos rótulos pasaría); no se corrió el arnés e2e de P1 completo, solo los equivalentes dentro de mis servicios.
 **A MEDIAS:** nada. Adaptadores del Mercantil siguen sin documentación.
+
+---
+
+> **AVANCE (tandas 4a + 4b, capa sandbox `pay-mockbank`): 5 microtareas de P4.H4 — 4 HECHO, 1 A MEDIAS (M4); 4 / 4 pedidos de la 4b aplicados.** Peldaño: `TESTED` (procesos reales de `pay-mockbank` y `pay-qr`, Postgres real; sin banco real). Carril: 16 / 22 — 72,7 %.
+
+| ID | Qué | Estado | Evidencia |
+|---|---|---|---|
+| P4.H4.M1 | Suite de contrato por conector (`mock`, `bank_transfer`; `mercantil_qr`/`mercantil_card`) | HECHO para `mock` y `bank_transfer`; los dos del Mercantil **BLOQUEADOS** (sin documentación ni ambiente del banco) | `4a-contract-*` |
+| P4.H4.M2 | Servicio `services/pay-mockbank` (puerto 3112, base `pay_mockbank`): QR, tarjeta auth/captura/anulación, reembolsos, transferencias, extracto JSON/CSV/`camt.053`, callbacks firmados | HECHO | `4a-mockbank-test-*` |
+| P4.H4.M3 | Escenarios por importe en tabla, un test por fila | HECHO | `scenarios.spec.ts`, `ESCENARIOS.md` |
+| P4.H4.M4 | Pagador simulado (CLI + endpoint) con `pay-qr` real | **A MEDIAS** (falta E1 del arnés, de P1) | `payer-e2e.spec.ts`, `mockbank.spec.ts` |
+| P4.H4.M5 | Guardia de modo | HECHO | `startup.spec.ts` ×2 |
+| 4b-1 | `payment_intent_id` y `merchant_id` en el extracto (emparejada ⇒ ambos; sin cobro ⇒ `null`) | HECHO (en `StatementsService`, vale para todo conector) | `statements.spec.ts`, `mockbank.spec.ts` |
+| 4b-2 | Depósito del pagador (E8) + tabla de importes para E4/E8 | HECHO | `POST /sandbox/payer/transfer-in`, `ESCENARIOS.md` |
+| 4b-3/4 | `yarn lint` de la raíz limpio | HECHO | `4a-yarn-lint.txt` (exit 0) |
+
+**Decisión de integración (D-P4-42):** el conector `mock` habla con pay-mockbank por HTTP si hay `MOCKBANK_URL`; sin ella usa el banco en memoria. No se tocó `contracts/`.
+**Gates literales** (`evidencia/4a-*`, `--maxWorkers=2`, una suite a la vez): pay-mockbank typecheck/build exit 0, 93 pasan ×2; pay-connectors typecheck/build exit 0, 758 pasan + 23 `todo` ×2; `test:contract` por conector (mock 37 + 5 todo; bank_transfer 26 + 16 todo; mercantil_* 1 + 1 todo cada uno); pay-qr typecheck/build exit 0, 98 pasan ×2; `yarn eslint` de los tres servicios exit 0 y **`yarn lint` completo exit 0**.
+**Hallazgo en el camino (corregido antes de escribirlo en el código):** en el pagador simulado, un monto distinto del QR se rechazaba DESPUÉS de haber pagado; ahora todo se valida antes de tocar nada (`payer.spec.ts`).
+**Propuestas (`PROPUESTAS.md` #6 a #9):** contrato del banco simulado, `pay-mockbank` en `POST /qr/decode`, lo que el arnés debe lanzar, y que `pay-connectors`/`pay-qr` todavía no envían `X-Pay-Mode: sandbox`.
+**No cubierto:** `yarn e2e` / el stack completo (lo hace P1; no se levantó); nada contra un banco real (el contrato del banco es **ficticio**, no se usa para los adaptadores reales); el ciclo auth/captura/anulación de tarjeta lo expone el banco pero el conector aún no lo usa (D-P4-43); `e2e/lib/p2-bank.ts` (de P2) no se editó: sus constantes coinciden con `ESCENARIOS.md` y solo falta que P2 cambie `payerTransfersToBank` por la llamada documentada.
+**A MEDIAS:** P4.H4.M4 — anda el pagador contra `pay-qr` real y el cobro llega a `succeeded` por callback firmado; falta el DoD literal (E1 con `yarn e2e`, que corre P1).
+**Decisiones:** D-P4-42 a D-P4-50.

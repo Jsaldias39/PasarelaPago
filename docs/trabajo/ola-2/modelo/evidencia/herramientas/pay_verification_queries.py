@@ -80,7 +80,7 @@ PROBES = {
 
 
 def main() -> int:
-    nums = {"connectors": 70, "edge": 71, "ledger": 72, "merchants": 73, "payments": 74, "qr": 75, "risk": 76, "schedules": 77, "settlement": 78, "vault": 79, "webhooks": 80}
+    nums = {"connectors": 70, "edge": 71, "ledger": 72, "merchants": 73, "payments": 74, "qr": 75, "risk": 76, "schedules": 77, "settlement": 78, "vault": 79, "webhooks": 80, "lib": 81}
     bad = 0
     for svc, num in nums.items():
         puml = PUML / f"diagram_{num}_pay_{svc}.puml"

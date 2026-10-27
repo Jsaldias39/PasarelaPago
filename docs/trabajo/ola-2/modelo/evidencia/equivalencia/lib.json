@@ -1,0 +1,60 @@
+{
+  "label": "lib",
+  "verdict": "PASS",
+  "problems": [],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "idempotency_keys",
+        "p",
+        "idempotency_keys_pkey"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "inbox_events_pkey"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "outbox_events_pkey"
+      ],
+      [
+        "outbox_events",
+        "u",
+        "outbox_events_seq_key"
+      ]
+    ],
+    "modelo": [
+      [
+        "idempotency_keys",
+        "p",
+        "pk_idempotency_keys"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "pk_inbox_events"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "pk_outbox_events"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 3,
+    "columnas": 25,
+    "indices": 6,
+    "check": 1,
+    "fk": 0,
+    "triggers": 0,
+    "funciones": 0
+  }
+}
