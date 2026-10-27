@@ -54,7 +54,7 @@ describe('pay-edge (arranque real contra su base y su Redis)', () => {
     const text = JSON.stringify(response.body);
     expect(response.body.code).toBe('internal_error');
     expect(text).not.toContain('SELECT');
-    expect(text).not.toContain('4111');
+    expect(text).not.toContain('4111111111111111'); // el número completo: un trozo corto (4111) puede aparecer en un UUID aleatorio del request_id
     expect(text).not.toContain('stack');
   });
 
