@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { WatchmanScreener } from '../src/screening/watchman.screener';
 import { loadRiskSettings, type RiskSettings } from '../src/settings';
 import { FUNCTIONAL_TIMEOUT_MS } from './support/app';
@@ -89,18 +90,18 @@ describe('[DOBLE] de Watchman: lo que el real no produce a pedido', () => {
   });
 
   it.each([
-    ['HTTP 500', (_req: unknown, res: any) => json(res, { entities: [] }, 500)],
-    ['HTTP 404', (_req: unknown, res: any) => json(res, {}, 404)],
-    ['JSON roto', (_req: unknown, res: any) => { res.writeHead(200); res.end('{"entities": ['); }],
-    ['cuerpo vacío', (_req: unknown, res: any) => { res.writeHead(200); res.end(); }],
-    ['sin campo entities', (_req: unknown, res: any) => json(res, { ok: true })],
-    ['entities no es lista', (_req: unknown, res: any) => json(res, { entities: 'x' })],
-    ['entrada sin match', (_req: unknown, res: any) => json(res, { entities: [{ name: 'x' }] })],
-    ['match fuera de rango (1.5)', (_req: unknown, res: any) => json(res, { entities: [entity(1.5)] })],
-    ['match negativo', (_req: unknown, res: any) => json(res, { entities: [entity(-0.1)] })],
-    ['match como texto', (_req: unknown, res: any) => json(res, { entities: [entity('0.99' as unknown as number)] })],
-    ['entrada nula', (_req: unknown, res: any) => json(res, { entities: [null] })],
-    ['conexión cortada', (req: any) => req.socket.destroy()],
+    ['HTTP 500', (_req: unknown, res: ServerResponse) => json(res, { entities: [] }, 500)],
+    ['HTTP 404', (_req: unknown, res: ServerResponse) => json(res, {}, 404)],
+    ['JSON roto', (_req: unknown, res: ServerResponse) => { res.writeHead(200); res.end('{"entities": ['); }],
+    ['cuerpo vacío', (_req: unknown, res: ServerResponse) => { res.writeHead(200); res.end(); }],
+    ['sin campo entities', (_req: unknown, res: ServerResponse) => json(res, { ok: true })],
+    ['entities no es lista', (_req: unknown, res: ServerResponse) => json(res, { entities: 'x' })],
+    ['entrada sin match', (_req: unknown, res: ServerResponse) => json(res, { entities: [{ name: 'x' }] })],
+    ['match fuera de rango (1.5)', (_req: unknown, res: ServerResponse) => json(res, { entities: [entity(1.5)] })],
+    ['match negativo', (_req: unknown, res: ServerResponse) => json(res, { entities: [entity(-0.1)] })],
+    ['match como texto', (_req: unknown, res: ServerResponse) => json(res, { entities: [entity('0.99' as unknown as number)] })],
+    ['entrada nula', (_req: unknown, res: ServerResponse) => json(res, { entities: [null] })],
+    ['conexión cortada', (req: IncomingMessage) => req.socket.destroy()],
   ])('inválido: %s ⇒ `unavailable`, nunca `clear`', async (_name, behavior) => {
     double.behavior = behavior as never;
     expect((await screener().screen('x')).outcome).toBe('unavailable');

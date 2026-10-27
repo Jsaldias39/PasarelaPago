@@ -13,7 +13,7 @@ import { AccountingExportService } from '../../src/settlement/export.service';
 import { NettingService } from '../../src/settlement/netting.service';
 import { JwtOperatorVerifier } from '../../src/settlement/operator-token';
 import { PayoutService, type RailMap } from '../../src/settlement/payout.service';
-import { CONNECTORS_PORT, LEDGER_PORT, OPERATOR_VERIFIER, PAYOUT_RAILS } from '../../src/settlement/ports';
+import { CONNECTORS_PORT, type ConnectorsPort, LEDGER_PORT, OPERATOR_VERIFIER, PAYOUT_RAILS } from '../../src/settlement/ports';
 import { AcquirerSettlementRail, BankTransferRail } from '../../src/settlement/rails';
 import { ReconciliationService } from '../../src/settlement/reconciliation.service';
 import { SETTLEMENT_CONFIG, type SettlementConfig } from '../../src/settlement/settlement.config';
@@ -52,6 +52,7 @@ export function testConfig(overrides: Partial<SettlementConfig> = {}): Settlemen
     ledgerUrl: 'http://ledger.test',
     connectorsUrl: 'http://connectors.test',
     httpTimeoutMs: 2000,
+    transferConnector: 'mock',
     mode: 'bank',
     payMode: 'sandbox',
     cutoffWeekday: 1,
@@ -95,7 +96,7 @@ export interface SettlementTestContext {
  * Arma pay-settlement real (controladores, servicios, Postgres de verdad en un esquema propio, outbox/inbox/idempotencia reales) con
  * los dobles DECLARADOS del ledger y de los conectores. Los eventos se quedan en el outbox: las pruebas los leen de ahí.
  */
-export async function createSettlementContext(options: { config?: Partial<SettlementConfig>; ledger?: FakeLedger; connectors?: FakeConnectors } = {}): Promise<SettlementTestContext> {
+export async function createSettlementContext(options: { config?: Partial<SettlementConfig>; ledger?: FakeLedger; connectors?: FakeConnectors; connectorsPort?: ConnectorsPort } = {}): Promise<SettlementTestContext> {
   const db = await createIsolatedDatabase([
     repoPath('services/pay-settlement/sql/001_settlement.sql'),
     repoPath('contracts/packages/outbox/sql/001_outbox_inbox.sql'),
@@ -104,14 +105,16 @@ export async function createSettlementContext(options: { config?: Partial<Settle
   const config = testConfig(options.config);
   const ledger = options.ledger ?? new FakeLedger();
   const connectors = options.connectors ?? new FakeConnectors();
-  const rails: RailMap = { bank_transfer: new BankTransferRail(connectors), acquirer_settlement: new AcquirerSettlementRail() };
+  // `connectorsPort` pone el cliente HTTP REAL en lugar del doble en memoria (para probar contra un servidor HTTP).
+  const port: ConnectorsPort = options.connectorsPort ?? connectors;
+  const rails: RailMap = { bank_transfer: new BankTransferRail(port), acquirer_settlement: new AcquirerSettlementRail() };
   const moduleRef = await Test.createTestingModule({
     controllers: [SettlementController],
     providers: [
       { provide: PG_POOL, useValue: db.pool },
       { provide: SETTLEMENT_CONFIG, useValue: config },
       { provide: LEDGER_PORT, useValue: ledger },
-      { provide: CONNECTORS_PORT, useValue: connectors },
+      { provide: CONNECTORS_PORT, useValue: port },
       { provide: PAYOUT_RAILS, useValue: rails },
       { provide: OPERATOR_VERIFIER, useValue: new JwtOperatorVerifier(config.operator.publicKeyPem, config.operator.issuer, config.operator.audience) },
       ServiceIdentityGuard,

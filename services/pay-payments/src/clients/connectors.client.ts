@@ -1,4 +1,4 @@
-import { HttpClient, UpstreamRejection, problemCode } from './upstream';
+import { HttpClient, UpstreamError, UpstreamRejection, problemCode } from './upstream';
 
 export type ConnectorName = 'mock' | 'mercantil_qr' | 'mercantil_card' | 'bank_transfer';
 export type ChargeStatusValue = 'pending' | 'requires_action' | 'succeeded' | 'failed' | 'expired' | 'canceled';
@@ -35,6 +35,11 @@ export interface ConnectorRefund {
   readonly failure_code?: string | null;
 }
 
+/**
+ * Resultado de una orden al conector. `ok:false` es SIEMPRE una respuesta definitiva que el contrato declara (4xx con su
+ * cuerpo, o `502 connector_unavailable`, que garantiza que no se envió nada al proveedor). Todo lo demás (timeout, corte, otro
+ * 5xx, un 4xx sin el cuerpo exacto) es AMBIGUO y sale como `UpstreamError`: no prueba que no se ejecutó.
+ */
 export type Outcome<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly status: number; readonly code: string };
 
 export interface ChargeRequest {
@@ -53,7 +58,7 @@ export class ConnectorsClient {
   constructor(private readonly http: HttpClient) {}
 
   async createCharge(request: ChargeRequest): Promise<Outcome<Charge>> {
-    const response = await this.http.request<Charge>({
+    const response = await this.definitive502(() => this.http.request<Charge>({
       method: 'POST',
       path: '/charges',
       idempotencyKey: `${request.paymentIntentId}:charge`,
@@ -67,8 +72,8 @@ export class ConnectorsClient {
         expires_at: request.expiresAt,
         ...(request.description ? { description: request.description } : {}),
       },
-    });
-    return this.outcome(response.status, response.body, [200, 201]);
+    }));
+    return response.kind === 'definitive' ? response.outcome : this.outcome(response.status, response.body, [200, 201], [400, 403, 409, 422]);
   }
 
   async getChargeStatus(chargeId: string): Promise<ChargeStatus> {
@@ -77,25 +82,40 @@ export class ConnectorsClient {
     throw new UpstreamRejection('pay-connectors', response.status, problemCode(response.body));
   }
 
-  /** `{ok:false, status:409}` = el cargo ya no se puede cancelar (por ejemplo, ya fue pagado). */
+  /** `{ok:false, status:409}` = el cargo ya no se puede cancelar (ya se pagó o terminó): el único rechazo que no es un error nuestro. */
   async cancelCharge(chargeId: string, key: string): Promise<Outcome<Charge>> {
     const response = await this.http.request<Charge>({ method: 'POST', path: `/charges/${chargeId}/cancel`, idempotencyKey: key });
-    return this.outcome(response.status, response.body, [200]);
+    return this.outcome(response.status, response.body, [200], [409]);
   }
 
   async createRefund(chargeId: string, amountMinor: number, key: string, reason?: string): Promise<Outcome<ConnectorRefund>> {
-    const response = await this.http.request<ConnectorRefund>({
+    const response = await this.definitive502(() => this.http.request<ConnectorRefund>({
       method: 'POST',
       path: `/charges/${chargeId}/refunds`,
       idempotencyKey: key,
       body: { amount_minor: amountMinor, ...(reason ? { reason } : {}) },
-    });
-    return this.outcome(response.status, response.body, [200, 201]);
+    }));
+    return response.kind === 'definitive' ? response.outcome : this.outcome(response.status, response.body, [200, 201], [400, 403, 404, 409, 422]);
   }
 
-  private outcome<T>(status: number, body: unknown, success: number[]): Outcome<T> {
+  /** `502 connector_unavailable` con su cuerpo exacto: el conector garantiza que no se envió nada. Cualquier otro 5xx se relanza. */
+  private async definitive502<R extends { status: number; body: unknown }>(call: () => Promise<R>): Promise<(R & { kind: 'response' }) | { kind: 'definitive'; outcome: { ok: false; status: number; code: string } }> {
+    try {
+      return { ...(await call()), kind: 'response' as const };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'UpstreamError') {
+        const upstream = error as UpstreamError;
+        if (upstream.status === 502 && upstream.problemCode === 'connector_unavailable') return { kind: 'definitive', outcome: { ok: false, status: 502, code: 'connector_unavailable' } };
+      }
+      throw error;
+    }
+  }
+
+  /** Un 4xx que el contrato NO declara para esta operación es un error de integración nuestro, no un rechazo de negocio. */
+  private outcome<T>(status: number, body: unknown, success: number[], declared: number[]): Outcome<T> {
     if (success.includes(status)) return { ok: true, value: body as T };
-    if (status >= 400 && status < 500) return { ok: false, status, code: problemCode(body) ?? 'validation_failed' };
-    throw new UpstreamRejection('pay-connectors', status, problemCode(body));
+    const code = problemCode(body);
+    if (declared.includes(status) && code !== undefined) return { ok: false, status, code };
+    throw new UpstreamRejection('pay-connectors', status, code);
   }
 }

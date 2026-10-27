@@ -38,7 +38,7 @@ export interface ServiceConfig {
     /** Cada cuánto se consulta el estado del cargo al conector mientras se espera al pagador (eventos perdidos, REQ-P3-7). */
     readonly inquiryIntervalMs: number;
     /** Política de las activities de Temporal: el tope de reintentos decide cuándo se compensa y se falla el cobro. */
-    readonly activity: { readonly timeoutMs: number; readonly maxAttempts: number; readonly initialMs: number; readonly maxMs: number };
+    readonly activity: { readonly timeoutMs: number; readonly maxAttempts: number; readonly initialMs: number; readonly maxMs: number; readonly slowRetryMs: number };
     /** Vigencia de la retención de un reembolso en el ledger. Larga a propósito: si vence, el dinero del comercio se libera. */
     readonly refundHoldSeconds: number;
     /**
@@ -123,6 +123,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
         maxAttempts: int(env, 'ACTIVITY_MAX_ATTEMPTS', 6),
         initialMs: int(env, 'ACTIVITY_INITIAL_MS', 500),
         maxMs: int(env, 'ACTIVITY_MAX_MS', 5000),
+        // Tras agotar los reintentos con un resultado AMBIGUO se escala a una persona y se sigue reintentando, despacio, con la misma clave.
+        slowRetryMs: int(env, 'ACTIVITY_SLOW_RETRY_MS', 30_000),
       },
       refundHoldSeconds: int(env, 'REFUND_HOLD_SECONDS', 604_800),
       ...bankTransfer(env),

@@ -15,6 +15,8 @@ export interface ActivityPolicy {
   readonly maxAttempts: number;
   readonly initialMs: number;
   readonly maxMs: number;
+  /** Espera entre rondas cuando un resultado ambiguo ya se escaló: se reintenta con la misma clave hasta que haya respuesta definitiva. */
+  readonly slowRetryMs: number;
 }
 
 export interface PaymentPlan {

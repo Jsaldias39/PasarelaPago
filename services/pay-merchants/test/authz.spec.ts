@@ -17,11 +17,12 @@ beforeAll(async () => {
 afterAll(async () => ctx.close());
 
 type Route = { method: string; path: string };
+type Layer = { route?: { path: string; methods: Record<string, boolean> } };
 const METHODS = ['get', 'post', 'put', 'delete', 'patch'];
 
 /** Rutas realmente montadas en Express, con `:param` pasado a `{param}`. */
 function mountedRoutes(c: TestContext): Route[] {
-  const instance = c.app.getHttpAdapter().getInstance() as { router?: { stack: any[] }; _router?: { stack: any[] } };
+  const instance = c.app.getHttpAdapter().getInstance() as { router?: { stack: Layer[] }; _router?: { stack: Layer[] } };
   const stack = (instance.router ?? instance._router)?.stack ?? [];
   const routes: Route[] = [];
   for (const layer of stack) {

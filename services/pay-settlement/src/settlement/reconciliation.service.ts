@@ -109,7 +109,9 @@ export class ReconciliationService implements OnApplicationShutdown {
       if (error instanceof StatementMalformedError) return this.fail(id, 'statement_malformed');
       if (error instanceof StatementUnavailableError) return this.fail(id, 'connector_unavailable');
       if (error instanceof LedgerUnavailableError) return this.fail(id, 'ledger_unavailable');
-      throw error;
+      // Cualquier otro error en la lectura NO deja la corrida en `running`: el barrido la reintentaría para siempre. Falla y se reporta.
+      this.logger.error({ run: id, err: error instanceof Error ? error.name : 'desconocido' }, 'La corrida de conciliación falló por un error inesperado');
+      return this.fail(id, 'internal_error');
     }
 
     const now = new Date();

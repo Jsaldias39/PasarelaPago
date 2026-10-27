@@ -95,6 +95,7 @@ export function parseCreateIntent(body: unknown): CreateIntentInput {
     if (typeof body.description !== 'string' || body.description.length > 200) c.add('description', 'invalid_value');
     else {
       description = body.description;
+      noPan(c, 'description', description);
     }
   }
   let expiresInSeconds = 3600;

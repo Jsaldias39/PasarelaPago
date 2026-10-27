@@ -74,6 +74,7 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
     ACTIVITY_MAX_ATTEMPTS: '4',
     ACTIVITY_INITIAL_MS: '200',
     ACTIVITY_MAX_MS: '800',
+    ACTIVITY_SLOW_RETRY_MS: '1000',
     ...options.env,
   };
   const config = loadConfig(env);

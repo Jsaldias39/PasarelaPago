@@ -1,55 +1,41 @@
-import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
-import { MikroOrmModule } from '@mikro-orm/nestjs';
-import { defineConfig } from '@mikro-orm/postgresql';
+import { type DynamicModule, Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { Pool } from 'pg';
-import { SERVICE_CONFIG, loadConfig, type ServiceConfig } from './config';
+import type { ServiceConfig } from './config';
 
-/** Pool de `pg` que usan las librerías @pay/* (idempotencia, outbox, inbox). El ORM tiene el suyo. */
+/**
+ * Pool de `pg` de pay-webhooks. No hay MikroORM acá: el servicio usa SQL directo (endpoints, secretos, entregas), igual que pay-edge, y se
+ * comparte con las librerías @pay/* (idempotencia, inbox).
+ */
 export const PG_POOL = Symbol('PG_POOL');
 
-const config = loadConfig();
-
 @Global()
-@Module({
-  imports: [
-    // Mismo patrón que mantra-core-health-api: `forRoot` con la configuración ya resuelta, no `forRootAsync`.
-    MikroOrmModule.forRoot(
-      defineConfig({
-        host: config.db.host,
-        port: config.db.port,
-        user: config.db.user,
-        password: config.db.password,
-        dbName: config.db.name,
-        // Las entidades salen del modelo (D-18); este servicio todavía no declara ninguna.
-        entities: ['dist/**/entities/*.entity.js'],
-        entitiesTs: ['src/**/entities/*.entity.ts'],
-        discovery: { warnWhenNoEntities: false },
-        pool: { min: 1, max: 10 },
-        forceUtcTimezone: true,
-        driverOptions: { application_name: 'pay-webhooks' },
-      }),
-    ),
-  ],
-  providers: [
-    {
-      provide: PG_POOL,
-      inject: [SERVICE_CONFIG],
-      useFactory: (config: ServiceConfig) =>
-        new Pool({
-          host: config.db.host,
-          port: config.db.port,
-          user: config.db.user,
-          password: config.db.password,
-          database: config.db.name,
-          max: 10,
-          application_name: 'pay-webhooks',
-        }),
-    },
-  ],
-  exports: [PG_POOL],
-})
+@Module({})
 export class DatabaseModule implements OnApplicationShutdown {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+
+  static forRoot(config: ServiceConfig): DynamicModule {
+    return {
+      module: DatabaseModule,
+      providers: [
+        {
+          provide: PG_POOL,
+          useFactory: () =>
+            new Pool({
+              host: config.db.host,
+              port: config.db.port,
+              user: config.db.user,
+              password: config.db.password,
+              database: config.db.name,
+              max: 10,
+              application_name: 'pay-webhooks',
+              // Esquema opcional (aislamiento en pruebas); validado en config.ts, nunca texto libre.
+              ...(config.db.schema ? { options: `-c search_path=${config.db.schema}` } : {}),
+            }),
+        },
+      ],
+      exports: [PG_POOL],
+    };
+  }
 
   async onApplicationShutdown(): Promise<void> {
     await this.pool.end();

@@ -39,6 +39,8 @@ export class LedgerDouble {
   /** Respuestas 503 pendientes: simula la caída del ledger. */
   failNext = 0;
   latencyMs = 0;
+  /** Rechazo DEFINITIVO (422) de toda transacción cuyo `business_ref` cumpla el patrón: prueba el camino de compensación. */
+  rejectPattern: RegExp | null = null;
   readonly server: DoubleServer;
 
   constructor() {
@@ -154,7 +156,7 @@ export class LedgerDouble {
     }
     if (list.some((t) => t.status === 'posted')) return problem('invalid_state_transition', 409);
     if (body.attempt !== (list.at(-1)?.attempt ?? 0) + 1) return problem('invalid_state_transition', 409);
-    const rejected = this.violates(body.legs);
+    const rejected = (this.rejectPattern?.test(body.business_ref) ?? false) || this.violates(body.legs);
     const record: TxAttempt = { id: `tx_${sha(`${body.business_ref}:${body.attempt}`)}`, attempt: body.attempt, status: rejected ? 'rejected' : 'posted', content, currency: body.currency, legs: body.legs };
     list.push(record);
     if (rejected) return problem('insufficient_funds', 422);

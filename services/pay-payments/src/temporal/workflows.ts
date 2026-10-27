@@ -2,7 +2,7 @@
  * Workflows de pay-payments. Código DETERMINISTA: nada de I/O, `Date.now()` es el reloj del workflow, y todo efecto va en
  * una activity (idempotente). Solo importa `@temporalio/workflow` y tipos: el bundle del worker no puede traer más.
  */
-import { condition, defineSignal, proxyActivities, setHandler } from '@temporalio/workflow';
+import { ActivityFailure, ApplicationFailure, condition, defineSignal, proxyActivities, setHandler, sleep } from '@temporalio/workflow';
 import type { PaymentActivities } from './activities';
 import type { RefundActivities, DisputeActivities } from './activities-money';
 import { SIGNALS, type ActivityPolicy, type ChargeSignal, type NextStep, type PaymentResult, type RefundStep } from './types';
@@ -19,6 +19,37 @@ const policy = (p: ActivityPolicy) => ({
   retry: { maximumAttempts: p.maxAttempts, initialInterval: p.initialMs, maximumInterval: p.maxMs },
 });
 
+const isNonRetryable = (error: unknown): boolean => error instanceof ActivityFailure && error.cause instanceof ApplicationFailure && error.cause.nonRetryable === true;
+const causeType = (error: unknown): string | undefined => (error instanceof ActivityFailure && error.cause instanceof ApplicationFailure ? (error.cause.type ?? undefined) : undefined);
+
+/**
+ * Un resultado AMBIGUO no es un fallo (CLAUDE.md regla 11). Si una activity agota sus reintentos por un timeout, un corte o un 5xx,
+ * NO se anula nada ni se cierra el cobro por «no disponible»: se escala a una persona (una vez) y se reintenta con la MISMA clave
+ * de idempotencia, despacio, hasta que haya una respuesta definitiva. Se corta solo ante lo que no tiene arreglo reintentando
+ * (un error no reintentable), ante una respuesta que `isDefinitive` reconoce o, si se da, al llegar `deadlineMs`.
+ */
+const EXPIRED = Symbol('expired');
+async function untilResolved<T>(options: { run: () => Promise<T>; escalate: () => Promise<unknown>; slowMs: number; isDefinitive?: (error: unknown) => boolean; deadlineMs?: number }): Promise<T | typeof EXPIRED> {
+  let escalated = false;
+  for (;;) {
+    try {
+      return await options.run();
+    } catch (error) {
+      if (isNonRetryable(error) || options.isDefinitive?.(error)) throw error;
+      if (!escalated) {
+        try {
+          await options.escalate();
+          escalated = true;
+        } catch {
+          // No se pudo dejar constancia ahora: se reintenta en la próxima ronda.
+        }
+      }
+      if (options.deadlineMs !== undefined && Date.now() >= options.deadlineMs) return EXPIRED;
+      await sleep(options.slowMs);
+    }
+  }
+}
+
 export async function PaymentWorkflow(input: { intentId: string }): Promise<PaymentResult> {
   const { intentId } = input;
   const inbox: ChargeSignal[] = [];
@@ -34,58 +65,73 @@ export async function PaymentWorkflow(input: { intentId: string }): Promise<Paym
   const plan = await first.loadPaymentPlan(intentId);
   if (plan.terminal) return { status: plan.status };
   const a = proxyActivities<PaymentActivities>(policy(plan.activity));
-  const finalStatus = async (): Promise<PaymentResult> => ({ status: (await a.loadPaymentPlan(intentId)).status });
+  const slowMs = plan.activity.slowRetryMs;
+  const keep = <T>(kind: string, run: () => Promise<T>, extra: { isDefinitive?: (error: unknown) => boolean; deadlineMs?: number } = {}) =>
+    untilResolved({ run, escalate: () => a.escalate(intentId, kind), slowMs, ...extra });
+  const must = async <T>(kind: string, run: () => Promise<T>): Promise<T> => (await keep(kind, run)) as T;
+  const finalStatus = async (): Promise<PaymentResult> => ({ status: (await must('state_read_unknown', () => a.loadPaymentPlan(intentId))).status });
 
-  let phase: 'risk' | 'charge' | 'wait' | 'ledger' = 'risk';
   try {
-    const risk = await a.assessRisk(intentId);
+    const risk = await must('risk_unknown', () => a.assessRisk(intentId));
     if (!risk.proceed) return await finalStatus();
 
     let step: NextStep = 'capture';
     if (plan.method !== 'wallet') {
-      phase = 'charge';
-      const charge = await a.createCharge(intentId);
-      if (charge.state === 'settled') return await finalStatus();
-      step = charge.state === 'captured' ? 'capture' : 'continue';
+      // Crear el cargo es una orden: si no se sabe si se creó, se reintenta con la misma clave hasta saberlo o hasta el vencimiento.
+      // Solo `connector_unavailable` (sin efecto, garantizado por el contrato) cierra el cobro tras agotar los reintentos.
+      let charge;
+      try {
+        charge = await keep('charge_outcome_unknown', () => a.createCharge(intentId), { isDefinitive: (error) => causeType(error) === 'ConnectorUnavailable', deadlineMs: plan.expiresAtMs });
+      } catch (error) {
+        if (causeType(error) !== 'ConnectorUnavailable') throw error;
+        await must('finalize_unknown', () => a.settleFailed(intentId, 'connector_unavailable'));
+        return await finalStatus();
+      }
+      if (charge === EXPIRED) {
+        step = await must('expiry_unknown', () => a.resolveExpiry(intentId));
+      } else {
+        if (charge.state === 'settled') return await finalStatus();
+        step = charge.state === 'captured' ? 'capture' : 'continue';
+      }
     }
 
-    phase = 'wait';
     while (step === 'continue') {
       const remaining = plan.expiresAtMs - Date.now();
       if (remaining <= 0) {
-        step = await a.resolveExpiry(intentId);
+        step = await must('cancel_outcome_unknown', () => a.resolveExpiry(intentId));
         break;
       }
       await condition(() => inbox.length > 0 || woken, Math.min(plan.inquiryIntervalMs, remaining));
       const signal = inbox.shift();
       if (signal) {
-        step = await a.applyChargeSignal(intentId, signal);
+        step = await must('state_update_unknown', () => a.applyChargeSignal(intentId, signal));
       } else if (woken) {
         woken = false;
-        if ((await a.loadPaymentPlan(intentId)).terminal) return await finalStatus();
+        if ((await must('state_read_unknown', () => a.loadPaymentPlan(intentId))).terminal) return await finalStatus();
       } else if (plan.expiresAtMs - Date.now() > 0) {
         // Nadie avisó: se pregunta al conector (un evento perdido no puede dejar el cobro colgado, REQ-P3-7).
         try {
           const state = await a.inquireCharge(intentId);
-          if (state.status !== 'pending') step = await a.applyChargeSignal(intentId, state);
-        } catch {
-          // El conector no contestó: se vuelve a preguntar en el próximo ciclo; el vencimiento sigue corriendo.
+          if (state.status !== 'pending') step = await must('state_update_unknown', () => a.applyChargeSignal(intentId, state));
+        } catch (error) {
+          if (isNonRetryable(error)) throw error;
+          // El conector no contestó: es una consulta de solo lectura; se vuelve a preguntar en el próximo ciclo.
         }
       }
     }
     if (step === 'done') return await finalStatus();
 
-    phase = 'ledger';
-    const ledger = await a.recordLedger(intentId);
-    if (ledger.transferId) return await a.completeIntent(intentId, { transferId: ledger.transferId });
-    // El ledger rechazó el asiento: el cobro no se completa y, si el conector ya cobró, se le devuelve el dinero al pagador.
-    if (plan.method !== 'wallet') await a.compensateCapture(intentId);
-    return await a.completeIntent(intentId, { failureCode: ledger.rejected ?? 'ledger_unavailable' });
-  } catch {
-    // Se agotaron los reintentos de una activity (o falló algo no previsto): el cobro termina en UN estado, nunca colgado.
-    if (phase === 'ledger' && plan.method !== 'wallet') await a.compensateCapture(intentId);
-    const code = phase === 'charge' ? 'connector_unavailable' : phase === 'ledger' ? 'ledger_unavailable' : 'internal_error';
-    return await a.settleFailed(intentId, code);
+    // El conector ya cobró. Si el ledger no contesta NO se devuelve el dinero ni se cierra el cobro: se conserva el estado,
+    // se escala y se reintenta con la misma clave hasta que el ledger responda (R-11). Solo un RECHAZO definitivo compensa.
+    const ledger = await must('ledger_outcome_unknown', () => a.recordLedger(intentId));
+    if (ledger.transferId) return await must('finalize_unknown', () => a.completeIntent(intentId, { transferId: ledger.transferId as string }));
+    if (plan.method !== 'wallet') await must('compensation_outcome_unknown', () => a.compensateCapture(intentId));
+    return await must('finalize_unknown', () => a.completeIntent(intentId, { failureCode: ledger.rejected ?? 'internal_error' }));
+  } catch (error) {
+    // Lo que no se arregla reintentando (un error de integración, un dato que no existe): se deja constancia y el workflow falla
+    // de forma visible. El cobro NO se cierra por esto.
+    await a.escalate(intentId, 'workflow_stuck').catch(() => undefined);
+    throw error;
   }
 }
 
@@ -100,40 +146,38 @@ export async function RefundWorkflow(input: { refundId: string }): Promise<{ sta
   const plan = await first.loadRefundPlan(refundId);
   if (plan.status !== 'pending') return { status: plan.status };
   const a = proxyActivities<RefundActivities>(policy(plan.activity));
+  const slowMs = plan.activity.slowRetryMs;
+  const must = async <T>(kind: string, run: () => Promise<T>): Promise<T> => (await untilResolved({ run, escalate: () => a.escalateRefund(refundId, kind), slowMs })) as T;
 
-  let connectorTouched = false;
   try {
-    const hold = await a.holdRefund(refundId);
+    // Todo paso con dinero es una orden: ante un resultado ambiguo se conserva la retención, se escala y se reintenta con la misma clave.
+    const hold = await must('hold_outcome_unknown', () => a.holdRefund(refundId));
     if (hold.rejected) {
-      await a.failRefund(refundId, hold.rejected, false);
+      await must('finalize_unknown', () => a.failRefund(refundId, hold.rejected as string, false));
       return { status: 'failed' };
     }
-    connectorTouched = true;
-    let result = await a.refundAtConnector(refundId);
+    let result = await must('refund_outcome_unknown', () => a.refundAtConnector(refundId));
     if (result.status === 'pending') {
       const arrived = await condition(() => events.length > 0, plan.waitMs);
-      const event = events[0];
-      if (!arrived || !event) {
-        // No se sabe si el conector devolvió el dinero: NO se libera la retención ni se da por fallido; queda para conciliación.
-        await a.flagRefundPending(refundId);
-        return { status: 'pending' };
+      if (!arrived) {
+        // No se sabe si el conector devolvió el dinero y no hay forma de consultarlo: NO se libera la retención ni se da por
+        // fallido. Se escala y se sigue esperando el aviso del conector, sin plazo.
+        await must('refund_pending_timeout', () => a.escalateRefund(refundId, 'refund_pending_timeout'));
+        await condition(() => events.length > 0);
       }
-      result = { status: event.status, ...(event.failureCode ? { failureCode: event.failureCode } : {}) };
+      const event = events[0];
+      result = { status: event?.status ?? 'failed', ...(event?.failureCode ? { failureCode: event.failureCode } : {}) };
     }
     if (result.status === 'succeeded') {
-      await a.finishRefund(refundId);
+      await must('post_outcome_unknown', () => a.finishRefund(refundId));
       return { status: 'succeeded' };
     }
-    await a.failRefund(refundId, result.failureCode ?? 'connector_unavailable', true);
+    // Rechazo DEFINITIVO del conector (4xx declarado o `502 connector_unavailable` exacto = sin efecto): recién ahí se anula la retención.
+    await must('void_outcome_unknown', () => a.failRefund(refundId, result.failureCode ?? 'connector_unavailable', true));
     return { status: 'failed' };
-  } catch {
-    if (connectorTouched) {
-      // El conector no contestó tras los reintentos: el resultado real es desconocido. Se anula la retención para no congelar
-      // dinero del comercio y se deja registrado para que una persona concilie.
-      await a.flagRefundOutcomeUnknown(refundId);
-    }
-    await a.failRefund(refundId, connectorTouched ? 'connector_unavailable' : 'ledger_unavailable', true);
-    return { status: 'failed' };
+  } catch (error) {
+    await a.escalateRefund(refundId, 'workflow_stuck').catch(() => undefined);
+    throw error;
   }
 }
 
@@ -151,6 +195,6 @@ export async function DisputeWorkflow(input: { disputeId: string }): Promise<{ s
 
   // Sin plazo inventado: la disputa espera la decisión del conector o de la persona que la resuelve.
   await condition(() => resolution !== null);
-  const outcome = await a.settleDispute(disputeId, resolution ?? 'lost');
+  const outcome = (await untilResolved({ run: () => a.settleDispute(disputeId, resolution ?? 'lost'), escalate: () => a.escalateDispute(disputeId, 'dispute_ledger_unknown'), slowMs: plan.activity.slowRetryMs })) as { status: 'won' | 'lost' | 'open' };
   return { status: outcome.status };
 }

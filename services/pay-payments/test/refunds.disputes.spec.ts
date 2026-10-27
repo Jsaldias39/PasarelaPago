@@ -72,26 +72,49 @@ describe('P3.H2.M5 · RefundWorkflow con retención en dos fases (REQ-P3-6)', ()
     expect(available()).toBe(1000);
   });
 
-  it('conector caído al reembolsar: falla, la retención se anula y queda registrado para conciliar (no se sabe si devolvió)', async () => {
+  it('`502 connector_unavailable` exacto = el conector garantiza que NO envió nada: es definitivo, la retención se anula y el reembolso falla', async () => {
     const id = await succeededIntent();
     stack.connectors.scenario = 'refund_down';
     const result = await refund(id, 2000);
-    await waitFor(async () => ((await refundsRepo.byId(stack.deps.pool, result.body.id as string))?.status === 'failed' ? true : undefined), 30_000, 'reembolso fallido');
-    expect((await refundsRepo.byId(stack.deps.pool, result.body.id as string))?.failureCode).toBe('connector_unavailable');
+    expect(result.body).toMatchObject({ status: 'failed', failure_code: 'connector_unavailable' });
     expect(available()).toBe(20000);
-    const flagged = await stack.db.pool.query("SELECT kind FROM intent_contradictions WHERE payment_intent_id = $1", [id]);
-    expect(flagged.rows.map((r) => r.kind)).toContain('refund_outcome_unknown');
+    expect([...stack.ledger.holds.values()].find((h) => h.business_ref === `${result.body.id}:refund`)?.status).toBe('voided');
+    expect((await stack.db.pool.query("SELECT kind FROM intent_contradictions WHERE payment_intent_id = $1", [id])).rows).toEqual([]);
   });
 
-  it('ledger caído al retener: el reembolso falla ledger_unavailable y el conector no se toca', async () => {
+  it('un 500 del conector al reembolsar es AMBIGUO: NO se anula la retención ni se da por fallido; se escala y se reintenta con la MISMA clave hasta que haya respuesta', async () => {
+    const id = await succeededIntent();
+    stack.connectors.scenario = 'refund_ambiguous';
+    const result = await refund(id, 2000); // la petición espera createWaitMs y vuelve con el reembolso todavía pendiente
+    const refundId = result.body.id as string;
+    expect(result.body.status).toBe('pending');
+    await waitFor(async () => (Number((await stack.db.pool.query("SELECT count(*) AS n FROM intent_contradictions WHERE payment_intent_id = $1 AND kind = 'refund_outcome_unknown'", [id])).rows[0].n) > 0 ? true : undefined), 30_000, 'escalado');
+    const hold = () => [...stack.ledger.holds.values()].find((h) => h.business_ref === `${refundId}:refund`);
+    expect(hold()?.status).toBe('pending'); // la retención sigue puesta
+    expect(available()).toBe(20000); // y el saldo todavía no cambió
+    stack.connectors.scenario = 'ok'; // el conector vuelve y contesta
+    await waitFor(async () => ((await refundsRepo.byId(stack.deps.pool, refundId))?.status === 'succeeded' ? true : undefined), 30_000, 'reembolso completado');
+    expect(hold()?.status).toBe('posted');
+    expect(available()).toBe(18000); // se debitó UNA vez
+    const attempts = stack.connectors.server.callsTo('POST', /\/refunds$/).filter((c) => String(c.headers['idempotency-key']).startsWith(refundId));
+    expect(attempts.length).toBeGreaterThan(1); // se reintentó…
+    expect(new Set(attempts.map((c) => c.headers['idempotency-key']))).toEqual(new Set([`${refundId}:refund`])); // …siempre con la misma clave
+    expect([...stack.connectors.refunds.values()].filter((r) => r.charge_id === stack.connectors.chargeFor(id)?.id)).toHaveLength(1);
+  });
+
+  it('ledger caído al retener (ambiguo): el reembolso queda pendiente y escalado, el conector no se toca; al volver el ledger se completa', async () => {
     const id = await succeededIntent();
     const before = stack.connectors.server.callsTo('POST', /\/refunds$/).length;
     stack.ledger.failNext = 1000;
     const result = await refund(id, 2000);
-    await waitFor(async () => ((await refundsRepo.byId(stack.deps.pool, result.body.id as string))?.status === 'failed' ? true : undefined), 30_000, 'reembolso fallido');
-    expect((await refundsRepo.byId(stack.deps.pool, result.body.id as string))?.failureCode).toBe('ledger_unavailable');
+    const refundId = result.body.id as string;
+    expect(result.body.status).toBe('pending');
+    await waitFor(async () => (Number((await stack.db.pool.query("SELECT count(*) AS n FROM intent_contradictions WHERE payment_intent_id = $1 AND kind = 'hold_outcome_unknown'", [id])).rows[0].n) > 0 ? true : undefined), 30_000, 'escalado');
+    expect((await refundsRepo.byId(stack.deps.pool, refundId))?.status).toBe('pending');
     expect(stack.connectors.server.callsTo('POST', /\/refunds$/).length).toBe(before);
     stack.ledger.failNext = 0;
+    await waitFor(async () => ((await refundsRepo.byId(stack.deps.pool, refundId))?.status === 'succeeded' ? true : undefined), 30_000, 'reembolso completado');
+    expect(available()).toBe(18000);
   });
 
   it('el conector responde `pending`: espera el evento y, al llegar, confirma', async () => {
@@ -192,6 +215,18 @@ describe('P3.H2.M6 · disputas: abrir, evidencia, resultado (D-22)', () => {
     await stack.service.resolveDispute(dispute.id, 'lost');
     await waitFor(async () => ((await disputesRepo.byId(stack.deps.pool, dispute.id))?.status === 'lost' ? true : undefined), 15_000, 'disputa perdida');
     expect(stack.ledger.balance(`merchant:${MC}:pending`)).toBe(-10000);
+  });
+
+  it('perdida con el ledger caído (ambiguo): la disputa sigue abierta y escalada, no se da por resuelta; al volver el ledger el débito ocurre UNA vez', async () => {
+    const id = await succeededIntent();
+    const { dispute } = await stack.service.openDispute({ paymentIntentId: id, openedKey: 'prov-evt-ledgerdown' });
+    stack.ledger.failNext = 1000;
+    await stack.service.resolveDispute(dispute.id, 'lost');
+    await waitFor(async () => (Number((await stack.db.pool.query("SELECT count(*) AS n FROM intent_contradictions WHERE payment_intent_id = $1 AND kind = 'dispute_ledger_unknown'", [id])).rows[0].n) > 0 ? true : undefined), 30_000, 'escalado');
+    expect((await disputesRepo.byId(stack.deps.pool, dispute.id))?.status).toBe('open');
+    stack.ledger.failNext = 0;
+    await waitFor(async () => ((await disputesRepo.byId(stack.deps.pool, dispute.id))?.status === 'lost' ? true : undefined), 30_000, 'disputa perdida');
+    expect(stack.ledger.postedCount(`${dispute.id}:chargeback`)).toBe(1);
   });
 
   it('ganada: no se mueve dinero y se emite dispute.won', async () => {

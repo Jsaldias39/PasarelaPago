@@ -50,7 +50,7 @@ class SettlementLifecycle implements OnModuleInit, OnApplicationShutdown {
   providers: [
     { provide: SETTLEMENT_CONFIG, useFactory: () => loadSettlementConfig() },
     { provide: LEDGER_PORT, inject: [SETTLEMENT_CONFIG], useFactory: (c: SettlementConfig) => new HttpLedgerClient(c.ledgerUrl, c.httpTimeoutMs) },
-    { provide: CONNECTORS_PORT, inject: [SETTLEMENT_CONFIG], useFactory: (c: SettlementConfig) => new HttpConnectorsClient(c.connectorsUrl, c.httpTimeoutMs) },
+    { provide: CONNECTORS_PORT, inject: [SETTLEMENT_CONFIG], useFactory: (c: SettlementConfig) => new HttpConnectorsClient(c.connectorsUrl, c.httpTimeoutMs, c.transferConnector) },
     {
       provide: PAYOUT_RAILS,
       inject: [CONNECTORS_PORT],

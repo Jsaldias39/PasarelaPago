@@ -1,3 +1,5 @@
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { CircuitBreaker, HttpClient, UpstreamError } from '../../src/clients/http';
 import type { Leg } from '../../src/clients/ledger.client';
 import { UpstreamRejection } from '../../src/clients/upstream';
@@ -94,11 +96,30 @@ describe('[DOBLE] pay-connectors (internal-connectors-v1)', () => {
     expect(await c.connectors.cancelCharge(paid.ok ? paid.value.id : '', 'k-cancel-0002')).toMatchObject({ ok: false, status: 409 });
   });
 
-  it('inválido: 422 del proveedor es un fallo de negocio ({ok:false}); la caída es UpstreamError', async () => {
+  it('inválido: el 422 del proveedor y el `502 connector_unavailable` exacto son DEFINITIVOS ({ok:false}); un 500 es AMBIGUO (UpstreamError)', async () => {
     connectors.scenario = 'decline';
     expect(await c.connectors.createCharge({ ...charge, paymentIntentId: 'pi_declined00001' })).toMatchObject({ ok: false, status: 422 });
-    connectors.scenario = 'down';
-    await expect(c.connectors.createCharge({ ...charge, paymentIntentId: 'pi_down000000001' })).rejects.toBeInstanceOf(UpstreamError);
+    connectors.scenario = 'down'; // 502 + problem+json connector_unavailable: el contrato garantiza que no se envió nada
+    expect(await c.connectors.createCharge({ ...charge, paymentIntentId: 'pi_down000000001' })).toMatchObject({ ok: false, status: 502, code: 'connector_unavailable' });
+    connectors.scenario = 'charge_ambiguous'; // un 500 NO prueba que no se creó el cargo
+    await expect(c.connectors.createCharge({ ...charge, paymentIntentId: 'pi_ambiguous0001' })).rejects.toMatchObject({ name: 'UpstreamError', kind: 'server_error', status: 500 });
+  });
+
+  it('inválido: una respuesta fuera del contrato (4xx sin cuerpo problem+json, 502 de un proxy) es AMBIGUA, no un rechazo', async () => {
+    const raw = (status: number, body: string, contentType = 'text/plain') => {
+      const server = createServer((_req, res) => res.writeHead(status, { 'content-type': contentType }).end(body));
+      return new Promise<{ url: string; close: () => Promise<void> }>((resolve) =>
+        server.listen(0, '127.0.0.1', () => resolve({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, close: () => new Promise<void>((r) => server.close(() => r())) })),
+      );
+    };
+    for (const [status, body] of [[404, 'Not Found'], [422, ''], [502, '<html>Bad Gateway</html>'], [400, '{"error":"x"}']] as const) {
+      const fake = await raw(status, body);
+      const client = clientsFor({ connectors: fake.url }).connectors;
+      await expect(client.createCharge({ ...charge, paymentIntentId: 'pi_proxyfail0001' })).rejects.toMatchObject({ name: 'UpstreamError' });
+      await expect(client.createRefund('ch_aaaaaaaaaaaa', 100, 'k-refund-proxy1')).rejects.toMatchObject({ name: 'UpstreamError' });
+      await expect(client.cancelCharge('ch_aaaaaaaaaaaa', 'k-cancel-proxy1')).rejects.toMatchObject({ name: 'UpstreamError' });
+      await fake.close();
+    }
   });
 
   it('límite: el estado del cargo refleja lo que «pagó» el pagador y reembolsar exige un cargo pagado', async () => {

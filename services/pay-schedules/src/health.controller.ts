@@ -1,9 +1,11 @@
 import { Controller, Get, Inject } from '@nestjs/common';
+import { PublicRoute } from '@pay/service-auth';
 import { HealthCheck, HealthCheckService, type HealthIndicatorResult } from '@nestjs/terminus';
 import type { Pool } from 'pg';
 import { PG_POOL } from './database.module';
 
 @Controller('health')
+@PublicRoute()
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,

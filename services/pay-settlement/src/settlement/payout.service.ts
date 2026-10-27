@@ -113,7 +113,7 @@ export class PayoutService {
   }
 
   private order(row: PayoutRow): PayoutOrder {
-    return { payoutId: row.id, merchantId: row.merchant_id, amountMinor: Number(row.amount_minor), currency: 'BOB' };
+    return { payoutId: row.id, businessRef: row.hold_business_ref, attempt: 1, merchantId: row.merchant_id, amountMinor: Number(row.amount_minor), currency: 'BOB' };
   }
 
   private railOf(row: PayoutRow): PayoutRail {
@@ -210,12 +210,29 @@ export class PayoutService {
 
   /** Consulta al riel un pago en tránsito y lo resuelve si ya terminó (confirmación tardía incluida). */
   private async poll(row: PayoutRow): Promise<PayoutRow> {
+    let outcome: RailOutcome;
     try {
-      return await this.apply(row, await this.railOf(row).query(this.order(row), row.rail_reference));
+      outcome = await this.railOf(row).query(this.order(row));
     } catch (error) {
-      if (error instanceof RailUnavailableError || error instanceof RailAmbiguousError) return row; // sigue en tránsito
+      if (error instanceof RailUnavailableError || error instanceof RailAmbiguousError) {
+        // La consulta autoritativa no concluyó: NO se anula, NO se paga de nuevo. Queda en tránsito y se escala a una persona.
+        await this.escalate(row, error.name);
+        return row;
+      }
       throw error;
     }
+    return this.apply(row, outcome);
+  }
+
+  /** Deja constancia durable (una sola vez por pago) de que un pago en tránsito necesita ojos humanos. */
+  private async escalate(row: PayoutRow, reason: string): Promise<void> {
+    this.logger.error({ payout: row.id, reason }, 'ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva');
+    await this.pool.query(
+      `INSERT INTO settlement_audit (actor, role, action, subject, detail, at)
+       SELECT 'pay-settlement', 'system', 'payout.needs_attention', $1, $2::jsonb, $3
+        WHERE NOT EXISTS (SELECT 1 FROM settlement_audit WHERE subject = $1 AND action = 'payout.needs_attention')`,
+      [row.id, JSON.stringify({ reason }), new Date()],
+    );
   }
 
   /** Confirmación externa (por ejemplo, la línea del extracto que prueba que el banco pagó). */

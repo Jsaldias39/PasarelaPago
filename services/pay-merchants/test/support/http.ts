@@ -4,6 +4,9 @@ import { bearer } from '../doubles/operator-auth.double';
 import { KINDS, merchantInput, pdf, SHA } from './fixtures';
 import type { TestContext } from './app';
 
+/** Cuerpo JSON de una respuesta: las pruebas lo recorren por nombre (el tipo de `JSON.parse`, a propósito). */
+export type Body = ReturnType<typeof JSON.parse>;
+
 export type Method = 'get' | 'post' | 'put' | 'delete';
 let sequence = 0;
 export const uniqueKey = (): string => `idem-${Date.now()}-${++sequence}-${Math.random().toString(36).slice(2, 8)}`;
@@ -17,7 +20,7 @@ export const pub = (ctx: TestContext, method: Method, path: string, merchantId: 
   request(ctx.server)[method](path).set('x-service-id', 'pay-edge').set('x-merchant-id', merchantId).set('x-pay-mode', mode);
 
 /** Comprueba estado HTTP y que el cuerpo cumpla el contrato. Devuelve el cuerpo. */
-export function verified(contract: ContractValidator, method: Method, path: string, res: request.Response, status: number): any {
+export function verified(contract: ContractValidator, method: Method, path: string, res: request.Response, status: number): Body {
   expect({ status: res.status, body: res.body }).toMatchObject({ status });
   contract.assertResponse({ method, path: path.split('?')[0], status: res.status, body: res.body });
   return res.body;
@@ -77,7 +80,7 @@ export async function activeMerchant(ctx: TestContext, n: number): Promise<strin
 }
 
 /** Eventos del outbox de un tipo, en orden, ya validados contra el AsyncAPI. */
-export async function eventsOf(ctx: TestContext, type: string, aggregateId?: string): Promise<any[]> {
+export async function eventsOf(ctx: TestContext, type: string, aggregateId?: string): Promise<Body[]> {
   const { rows } = await ctx.db.pool.query(
     `SELECT subject, envelope FROM outbox_events WHERE type = $1 ${aggregateId ? 'AND aggregate_id = $2' : ''} ORDER BY seq`,
     aggregateId ? [type, aggregateId] : [type],

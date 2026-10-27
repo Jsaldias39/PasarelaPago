@@ -3,6 +3,9 @@ import type { ContractValidator } from '@pay/testing';
 import { bearer } from '../doubles/operator-auth.double';
 import type { TestContext } from './app';
 
+/** Cuerpo JSON de una respuesta: las pruebas lo recorren por nombre (el tipo de `JSON.parse`, a propósito). */
+export type Body = ReturnType<typeof JSON.parse>;
+
 let sequence = 0;
 export const uniqueKey = (): string => `idem-${Date.now()}-${++sequence}-${Math.random().toString(36).slice(2, 8)}`;
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
@@ -53,7 +56,7 @@ export const post = (ctx: TestContext, body: object, key = uniqueKey(), service 
 export const getAssessment = (ctx: TestContext, assessmentId: string, service = 'pay-payments'): Test =>
   request(ctx.server).get(`/assessments/${assessmentId}`).set('x-service-id', service);
 
-export function verified(contract: ContractValidator, method: 'get' | 'post', path: string, res: request.Response, status: number): any {
+export function verified(contract: ContractValidator, method: 'get' | 'post', path: string, res: request.Response, status: number): Body {
   expect({ status: res.status, body: res.body }).toMatchObject({ status });
   contract.assertResponse({ method, path, status: res.status, body: res.body });
   return res.body;
@@ -63,7 +66,7 @@ export function verified(contract: ContractValidator, method: 'get' | 'post', pa
 export const bo = (ctx: TestContext, method: 'get' | 'post', path: string, as = 'op-risk'): Test =>
   request(ctx.server)[method](path).set('x-service-id', 'pay-backoffice').set('authorization', bearer(as));
 
-export async function publishRules(ctx: TestContext, body: object = {}): Promise<any> {
+export async function publishRules(ctx: TestContext, body: object = {}): Promise<Body> {
   const res = await bo(ctx, 'post', '/rule_sets').send(body);
   return verified(ctx.ruleSetsContract, 'post', '/rule_sets', res, 201);
 }

@@ -101,7 +101,7 @@ export function createActivities(deps: Deps) {
     return { status: chargeNameOf(state.status), failureCode: state.failure_code ?? undefined };
   };
 
-  return {
+  return nonRetryableRejections({
     async loadPaymentPlan(intentId: string): Promise<PaymentPlan> {
       const intent = await load(intentId);
       return {
@@ -160,7 +160,9 @@ export function createActivities(deps: Deps) {
         ...(intent.description ? { description: intent.description } : {}),
       });
       if (!outcome.ok) {
-        // 4xx de negocio del conector: el cobro no se puede hacer; el código del conector queda como motivo.
+        // `502 connector_unavailable` exacto: el conector garantiza que NO se envió nada; se reintenta y, agotados los
+        // reintentos, el workflow cierra el cobro. Los demás rechazos (4xx declarados) son de negocio: el cobro no se puede hacer.
+        if (outcome.status === 502) throw ApplicationFailure.retryable('El conector no está disponible (sin efecto)', 'ConnectorUnavailable');
         await settle(intentId, 'failed', { failureCode: outcome.code });
         return { state: 'settled' };
       }
@@ -240,27 +242,33 @@ export function createActivities(deps: Deps) {
     },
 
     /**
-     * Compensación: el conector cobró pero el ledger no pudo registrarlo. Se reembolsa el cargo completo (clave estable) para que
-     * el pagador no pierda su dinero. Si el reembolso también falla queda registrado para una persona y no se oculta.
+     * Compensación: el conector cobró y el ledger RECHAZÓ el asiento (respuesta definitiva). Se reembolsa el cargo completo con una
+     * clave estable para que el pagador no pierda su dinero. Un resultado ambiguo se relanza (Temporal reintenta con la MISMA clave);
+     * un rechazo definitivo del conector queda registrado para una persona y no se oculta.
      */
     async compensateCapture(intentId: string): Promise<{ compensated: boolean }> {
       const intent = await load(intentId);
       if (!intent.chargeId) return { compensated: true };
-      try {
-        const refund = await clients.connectors.createRefund(intent.chargeId, intent.amountMinor, `${intentId}:compensation`, 'duplicate');
-        if (refund.ok && refund.value.status !== 'failed') return { compensated: true };
-      } catch (error) {
-        if (!isUpstreamError(error)) throw error;
-      }
-      await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.chargeStatus, incomingStatus: 'compensation_failed', sourceEventId: 'compensation', kind: 'compensation_failed', reason: 'ledger_unavailable' }));
+      const refund = await clients.connectors.createRefund(intent.chargeId, intent.amountMinor, `${intentId}:compensation`, 'duplicate');
+      if (refund.ok) return { compensated: true };
+      await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.chargeStatus, incomingStatus: 'compensation_failed', sourceEventId: 'compensation', kind: 'compensation_failed', reason: refund.code }));
       return { compensated: false };
+    },
+
+    /**
+     * Un resultado ambiguo (timeout, corte, 5xx) NO es un fallo (CLAUDE.md regla 11): no se anula nada, se conserva el estado y se
+     * deja constancia para una persona. Idempotente por `kind`: escalar dos veces es lo mismo que una.
+     */
+    async escalate(intentId: string, kind: string): Promise<void> {
+      const intent = await load(intentId);
+      await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'ambiguous', sourceEventId: `ambiguous:${kind}`, kind, reason: 'ambiguous_result_keeps_state' }));
     },
 
     async settleFailed(intentId: string, failureCode: string): Promise<{ status: string }> {
       const row = await settle(intentId, 'failed', { failureCode });
       return { status: row.status };
     },
-  };
+  });
 }
 
 /** Cuenta que se debita: la billetera del usuario, el saldo del comercio pagador (cobro programado) o el clearing del conector. */
@@ -271,6 +279,25 @@ export function ledgerSource(intent: IntentRow): string {
 }
 
 export type PaymentActivities = ReturnType<typeof createActivities>;
+
+/**
+ * Un rechazo 4xx que el contrato no declara para la operación es un error de integración nuestro: reintentar no lo arregla.
+ * Se marca no reintentable para que el workflow lo escale y falle de forma visible, en vez de girar para siempre.
+ */
+export function nonRetryableRejections<T extends Record<string, (...args: never[]) => Promise<unknown>>>(activities: T): T {
+  const wrapped: Record<string, unknown> = {};
+  for (const [name, fn] of Object.entries(activities)) {
+    wrapped[name] = async (...args: never[]) => {
+      try {
+        return await fn(...args);
+      } catch (error) {
+        if (isRejection(error)) throw ApplicationFailure.nonRetryable((error as Error).message, 'UpstreamRejection');
+        throw error;
+      }
+    };
+  }
+  return wrapped as T;
+}
 
 /** Estados desde los que un cobro puede cancelarse (solo mientras espera al pagador). */
 export const CANCELABLE: readonly IntentStatus[] = ['requires_action'];

@@ -6,6 +6,7 @@ import { contradictionsRepo } from '../persistence/contradictions.repo';
 import { disputesRepo } from '../persistence/disputes.repo';
 import { intentsRepo, type IntentRow } from '../persistence/intents.repo';
 import { refundsRepo, type RefundRow } from '../persistence/refunds.repo';
+import { nonRetryableRejections } from './activities';
 import type { DisputePlan, RefundPlan } from './types';
 
 const clearingOf = (intent: IntentRow) => `connector:${intent.connector ?? 'mock'}:clearing`;
@@ -26,7 +27,7 @@ export function createRefundActivities(deps: Deps) {
     return { refund, intent };
   };
 
-  return {
+  return nonRetryableRejections({
     async loadRefundPlan(refundId: string): Promise<RefundPlan> {
       const { refund } = await loadBoth(refundId);
       return { status: refund.status, hasHold: refund.ledgerHoldId !== null, waitMs: config.policy.refundWaitMs, activity: config.policy.activity };
@@ -87,17 +88,15 @@ export function createRefundActivities(deps: Deps) {
       });
     },
 
-    /** Sin respuesta final del conector: el reembolso sigue `pending` con la retención puesta y queda a la vista de conciliación. */
-    async flagRefundPending(refundId: string): Promise<void> {
+    /**
+     * Resultado ambiguo o sin respuesta final (CLAUDE.md regla 11): NO se anula la retención ni se da por fallido. Se conserva el
+     * estado y se deja constancia para una persona; el workflow sigue esperando/reintentando con la misma clave.
+     */
+    async escalateRefund(refundId: string, kind: string): Promise<void> {
       const { refund } = await loadBoth(refundId);
-      await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: refund.paymentIntentId, currentStatus: 'refund_pending', incomingStatus: 'no_connector_result', sourceEventId: `refund:${refundId}`, kind: 'refund_pending_timeout', reason: 'refund_wait_elapsed' }));
+      await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: refund.paymentIntentId, currentStatus: `refund_${refund.status}`, incomingStatus: 'ambiguous', sourceEventId: `ambiguous:${kind}:${refundId}`, kind, reason: 'ambiguous_result_keeps_state' }));
     },
-
-    async flagRefundOutcomeUnknown(refundId: string): Promise<void> {
-      const { refund } = await loadBoth(refundId);
-      await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: refund.paymentIntentId, currentStatus: 'refund_pending', incomingStatus: 'unknown', sourceEventId: `refund:${refundId}:unknown`, kind: 'refund_outcome_unknown', reason: 'connector_unreachable' }));
-    },
-  };
+  });
 }
 
 export type RefundActivities = ReturnType<typeof createRefundActivities>;
@@ -108,7 +107,7 @@ export type RefundActivities = ReturnType<typeof createRefundActivities>;
  */
 export function createDisputeActivities(deps: Deps) {
   const { clients, config } = deps;
-  return {
+  return nonRetryableRejections({
     async loadDisputePlan(disputeId: string): Promise<DisputePlan> {
       const dispute = await disputesRepo.byId(deps.pool, disputeId);
       if (!dispute) throw ApplicationFailure.nonRetryable(`La disputa ${disputeId} no existe`, 'DisputeNotFound');
@@ -142,7 +141,13 @@ export function createDisputeActivities(deps: Deps) {
       });
       return { status: outcome };
     },
-  };
+
+    async escalateDispute(disputeId: string, kind: string): Promise<void> {
+      const dispute = await disputesRepo.byId(deps.pool, disputeId);
+      if (!dispute) throw ApplicationFailure.nonRetryable(`La disputa ${disputeId} no existe`, 'DisputeNotFound');
+      await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: dispute.paymentIntentId, currentStatus: `dispute_${dispute.status}`, incomingStatus: 'ambiguous', sourceEventId: `ambiguous:${kind}:${disputeId}`, kind, reason: 'ambiguous_result_keeps_state' }));
+    },
+  });
 }
 
 export type DisputeActivities = ReturnType<typeof createDisputeActivities>;

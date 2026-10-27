@@ -88,7 +88,7 @@ export class LedgerClient {
 
   private failure(status: number, body: unknown): LedgerResult<never> {
     const code = problemCode(body);
-    if (status === 409) return { kind: 'conflict' };
+    if (status === 409 && code === 'invalid_state_transition') return { kind: 'conflict' };
     if (status === 422 && (code === 'insufficient_funds' || code === 'validation_failed')) return { kind: 'rejected', code };
     throw new UpstreamRejection('pay-ledger', status, code);
   }

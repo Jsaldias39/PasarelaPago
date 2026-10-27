@@ -61,7 +61,8 @@ describe('payout (P2.H2.M4, REQ-P2-1/2 del lado del pago)', () => {
     expect((await create(body(m, 1_000))).body.status).toBe('paid');
     expect(available(m)).toBe(0);
     expect((await create(body(m, 1))).status).toBe(422);
-    const tiny = await funded(1);
+    const tiny = merchantId();
+    ctx.ledger.seedMovement({ debit: 'connector:mock:clearing', credit: `merchant:${tiny}:available`, amount: 1, at: new Date('2026-10-01T10:00:00Z'), ref: ref(), code: 'release' });
     expect((await create(body(tiny, 1))).body.status).toBe('paid');
   });
 

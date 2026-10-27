@@ -2,7 +2,7 @@ import type { ConnectorsPort, PayoutOrder, PayoutRail, RailOutcome } from './por
 
 /**
  * Riel REAL del modo A (D-02): transferencia desde la cuenta recaudadora, ordenada a `pay-connectors`.
- * La orden es idempotente por `payoutId` (clave de idempotencia estable): repetirla no paga dos veces.
+ * La orden es idempotente por `business_ref` + `attempt` y por una clave de idempotencia estable: repetirla no paga dos veces.
  */
 export class BankTransferRail implements PayoutRail {
   readonly code = 'bank_transfer' as const;
@@ -14,8 +14,8 @@ export class BankTransferRail implements PayoutRail {
     return this.connectors.createTransfer(order, `payout-${order.payoutId}`);
   }
 
-  query(order: PayoutOrder, reference: string | null): Promise<RailOutcome> {
-    return this.connectors.queryTransfer(order, reference);
+  query(order: PayoutOrder): Promise<RailOutcome> {
+    return this.connectors.queryTransfer(order);
   }
 }
 
@@ -34,9 +34,8 @@ export class AcquirerSettlementRail implements PayoutRail {
     return { state: 'paid', reference: `sim_${order.payoutId}` };
   }
 
-  async query(order: PayoutOrder, reference: string | null): Promise<RailOutcome> {
-    // El doble nunca deja una orden sin respuesta: si no tiene referencia, nunca la recibió.
-    if (reference !== `sim_${order.payoutId}`) return { state: 'not_found' };
-    return { state: 'paid', reference };
+  async query(order: PayoutOrder): Promise<RailOutcome> {
+    // El doble responde siempre y de inmediato: toda orden que se le envió ya está «pagada».
+    return { state: 'paid', reference: `sim_${order.payoutId}` };
   }
 }

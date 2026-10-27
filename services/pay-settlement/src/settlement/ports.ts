@@ -61,6 +61,9 @@ export type RailOutcome =
 
 export interface PayoutOrder {
   readonly payoutId: string;
+  /** `business_ref` de la transferencia (`po_x:payout`) y `attempt`: juntos son la idempotencia y la referencia de consulta del conector. */
+  readonly businessRef: string;
+  readonly attempt: number;
   readonly merchantId: string;
   readonly amountMinor: number;
   readonly currency: 'BOB';
@@ -76,8 +79,11 @@ export interface PayoutRail {
   /** `true` si el riel es un doble y no movió dinero real. */
   readonly simulated: boolean;
   send(order: PayoutOrder): Promise<RailOutcome>;
-  /** Estado actual de una orden ya enviada. `reference` es `null` si la orden se envió y nunca se supo la respuesta. */
-  query(order: PayoutOrder, reference: string | null): Promise<RailOutcome>;
+  /**
+   * Consulta AUTORITATIVA del estado de una orden ya enviada (la referencia sale de la propia orden). Es lo que resuelve un `send`
+   * ambiguo. `not_found` solo si el riel prueba que no hay registro; cualquier otra duda lanza RailAmbiguousError.
+   */
+  query(order: PayoutOrder): Promise<RailOutcome>;
 }
 export const PAYOUT_RAILS = Symbol('PAYOUT_RAILS');
 
@@ -100,12 +106,13 @@ export interface StatementDocument {
   readonly text?: string;
 }
 
-/** Lo que pay-settlement necesita de pay-connectors (`internal-connectors-v1.yaml`, más la orden de transferencia, que NO está en el contrato). */
+/** Lo que pay-settlement necesita de pay-connectors (`internal-connectors-v1.yaml`: extractos y transferencias salientes). */
 export interface ConnectorsPort {
   getStatement(input: { connector: string; from: string; to: string; format: StatementFormat }): Promise<StatementDocument>;
-  /** Ordena una transferencia desde la cuenta recaudadora. PROPUESTA de contrato (`POST /transfers`): ver PROPUESTAS.md. */
+  /** `POST /transfers`: ordena una transferencia saliente (idempotente por `business_ref` + `attempt`). */
   createTransfer(order: PayoutOrder, idempotencyKey: string): Promise<RailOutcome>;
-  queryTransfer(order: PayoutOrder, reference: string | null): Promise<RailOutcome>;
+  /** `GET /transfers/{business_ref:attempt}`: consulta autoritativa. */
+  queryTransfer(order: PayoutOrder): Promise<RailOutcome>;
 }
 export const CONNECTORS_PORT = Symbol('CONNECTORS_PORT');
 

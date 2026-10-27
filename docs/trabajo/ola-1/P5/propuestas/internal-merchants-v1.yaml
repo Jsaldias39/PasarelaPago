@@ -103,7 +103,7 @@ paths:
       tags: [Merchants]
       x-owner: P5
       x-required-role: merchant_operator
-      summary: Cierra el comercio (terminal) y revoca todas sus claves
+      summary: Cierra el comercio (terminal). Sus claves dejan de servir porque los consumidores aplican `merchant.closed` (no se revocan una a una)
       parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/MerchantId' }]
       responses:
         '200': { description: Cerrado., content: { application/json: { schema: { $ref: '#/components/schemas/MerchantAdmin' } } } }
@@ -140,7 +140,6 @@ paths:
         '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
         '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
         '409': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Conflict' }
-        '413': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
         '422': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
         '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
   /merchants/{id}/kyc/review:

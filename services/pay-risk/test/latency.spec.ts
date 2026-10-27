@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { createTestContext, type TestContext } from './support/app';
+import { json, startWatchmanDouble } from './support/watchman-double';
 import { assessmentBody, post, publishRules, rows, CLEAN_NAME, SANCTIONED_ORG } from './support/http';
 
 let ctx: TestContext;
@@ -68,6 +69,26 @@ describe('POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman R
     // para detectar regresiones grandes, y la cifra real queda en la evidencia.
     const line = summary('concurrente-4', await measure(400, 4, body));
     expect(line.p99).toBeLessThan(600);
+  });
+
+  it('el servicio SIN Watchman (cribado instantáneo [DOBLE]) aporta una fracción del presupuesto: p99 propio, ≥ 200 llamadas', async () => {
+    const double = await startWatchmanDouble((_req, res) => json(res, { entities: null }));
+    const own = await createTestContext({ settings: { watchmanUrl: double.url, screeningTimeoutMs: 200 } });
+    try {
+      await publishRules(own, { max_amount_minor: 100_000_000, payer_velocity: { max: 100000, window_seconds: 3600 }, merchant_velocity: { max: 100000, window_seconds: 3600 }, hours: { from: 0, to: 24 } });
+      const times: number[] = [];
+      for (let i = 0; i < 205; i += 1) {
+        const started = performance.now();
+        const res = await post(own, assessmentBody({ payer_fingerprint: `huella-${i % 7}`, screening: { name: CLEAN_NAME, entity_type: 'business' } }));
+        if (i >= 5) times.push(performance.now() - started);
+        expect(res.status).toBe(201);
+      }
+      const line = summary('servicio-solo-sin-watchman', times);
+      expect(line.p99).toBeLessThan(150); // la mitad del presupuesto: lo que el servicio gasta por sí mismo
+    } finally {
+      await own.close();
+      await double.close();
+    }
   });
 
   it('cada llamada medida dejó su rastro, con su duración interna registrada', async () => {

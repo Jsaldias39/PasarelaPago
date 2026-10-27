@@ -4,9 +4,12 @@ import { serviceHeaders } from '@pay/service-auth';
 /** Falla de la dependencia (no una respuesta de negocio): sirve para decidir reintento y circuit breaker. */
 export class UpstreamError extends Error {
   constructor(
-    readonly kind: 'timeout' | 'network' | 'circuit_open' | 'server_error',
+    /** `unexpected_response`: llegó algo que el contrato no declara (un 4xx sin el cuerpo de error exacto, un cuerpo ilegible). */
+    readonly kind: 'timeout' | 'network' | 'circuit_open' | 'server_error' | 'unexpected_response',
     readonly upstream: string,
     readonly status?: number,
+    /** `code` del cuerpo problem+json si venía bien formado; con él se reconoce un error DEFINITIVO declarado por el contrato. */
+    readonly problemCode?: string,
   ) {
     super(`${upstream}: ${kind}${status ? ` (${status})` : ''}`);
     this.name = 'UpstreamError';
@@ -141,20 +144,21 @@ export class HttpClient {
       const timedOut = name === 'TimeoutError' || name === 'AbortError';
       throw new UpstreamError(timedOut ? 'timeout' : 'network', this.options.name);
     }
-    // Todo 5xx es la dependencia fallando (el contrato del ledger, por ejemplo, devuelve la caída como 500 + `ledger_unavailable`).
-    if (response.status >= 500) {
-      await response.arrayBuffer().catch(() => undefined);
-      throw new UpstreamError('server_error', this.options.name, response.status);
-    }
+    // Un resultado ambiguo no es un fallo (CLAUDE.md regla 11): un 5xx, un timeout o un 4xx sin el cuerpo de error exacto del
+    // contrato NO prueban que la orden no se ejecutó. Se lanza UpstreamError; solo `connector_unavailable` (502) es definitivo y
+    // lo reconoce quien llama mirando `problemCode`.
     const text = await response.text();
     let body: unknown = null;
     if (text) {
       try {
         body = JSON.parse(text);
       } catch {
-        throw new UpstreamError('server_error', this.options.name, response.status);
+        throw new UpstreamError(response.status >= 500 ? 'server_error' : 'unexpected_response', this.options.name, response.status);
       }
     }
+    const code = typeof body === 'object' && body !== null && typeof (body as { code?: unknown }).code === 'string' ? (body as { code: string }).code : undefined;
+    if (response.status >= 500) throw new UpstreamError('server_error', this.options.name, response.status, code);
+    if (response.status >= 400 && code === undefined) throw new UpstreamError('unexpected_response', this.options.name, response.status);
     return { status: response.status, body: body as T };
   }
 }

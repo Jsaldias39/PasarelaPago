@@ -36,3 +36,31 @@
 - **Dónde:** `internal-connectors-v1.yaml` (`ChargeNextAction`: solo `reference`) vs `public-v1.yaml` (`NextAction.bank_transfer`: `bank_name`, `account_holder`, `account_number` obligatorios).
 - **Qué hace P3 hoy:** toma esos tres datos de la configuración (`BANK_TRANSFER_*`), que describe la cuenta recaudadora (que todavía no existe, T-03). Sin configurarla, el medio `bank_transfer` responde `422 payment_method_unavailable`.
 - **Parche propuesto:** que el conector devuelva `bank_name`, `account_holder` y `account_number` en la acción (la cuenta es del conector/banco, no de pay-payments).
+
+## PROP-8 · `connector_transaction_id` (`ct_…`) no coincide con el id del cargo de la API (`ch_…`)
+- **Dónde:** `asyncapi/connectors.yaml` (`ConnectorTransactionId`: `^ct_[a-z0-9]{10,40}$`) vs `internal-connectors-v1.yaml` (`Charge.id`: `^ch_[a-z0-9]{10,40}$`).
+- **Qué hace P3 hoy:** no depende de ese campo; correlaciona por `payment_intent_id` (y `refund_id`).
+- **Parche propuesto:** unificar el prefijo, o documentar que son ids distintos y cómo se relacionan.
+
+## PROP-9 · D-28 pide que P3 guarde y filtre por `mode` (test/live) y falta la cabecera en los contratos internos
+- **Dónde:** `internal-payments-v1.yaml` y las rutas públicas que reenvía pay-edge (`X-Pay-Mode: test|live`); ledger y conectores (`mode` en las peticiones).
+- **Qué hace P3 hoy:** NO lo implementa (la decisión lo manda a la ola 2 «con una propuesta de contrato»). Todo cobro se trata como del único modo que haya.
+- **Parche propuesto:** `X-Pay-Mode` requerida en las rutas de `pay-payments`, columna `payment_intents.mode`, filtro de toda consulta por `(merchant_id, mode)`, y que el cargo al conector y el asiento del ledger lleven `mode`. Quien cobra en `test` no puede ver ni reembolsar un cobro `live`.
+
+## PROP-10 · No hay `GET /payment_intents/{id}/refunds/{refund_id}` ni listado de reembolsos
+- **Dónde:** `public-v1.yaml` solo tiene `POST /payment_intents/{id}/refunds`. El estado final de un reembolso `pending` llega solo por el evento `refund.succeeded|failed`.
+- **Qué hace P3 hoy:** `PaymentsService.getRefund` existe y está probado, sin ruta HTTP (no se agrega una operación que el contrato no declara).
+- **Parche propuesto:** `GET /refunds/{id}` y `GET /payment_intents/{id}/refunds` en `public-v1.yaml` (y su ruta en pay-edge).
+
+## PROP-11 · El conector no tiene consulta de estado de un reembolso
+- **Dónde:** `internal-connectors-v1.yaml` (`GET /charges/{id}/status` existe; para reembolsos no).
+- **Efecto:** ante un reembolso `pending` sin aviso, la regla 11 pide «consultar de forma autoritativa» y no se puede (P3-D11): el reembolso queda pendiente y escalado para siempre.
+- **Parche propuesto:** `GET /refunds/{id}` en `internal-connectors-v1.yaml` con `ConnectorRefund`.
+
+## PROP-12 · Códigos de campo que usa P3 y que conviene documentar en el catálogo
+- `errors[].code` usados en `422 validation_failed`: `fee_schedule_missing`, `payment_method_unavailable`, `exceeds_refundable`, `contains_card_number`, `unknown_field`, `invalid_amount`, `unsupported_currency`, `invalid_token`, `not_allowed_for_method`, `out_of_range`, `invalid_value`, `invalid_key`, `required`.
+- **Parche propuesto:** listarlos en `common.yaml` como valores conocidos de `FieldError.code`.
+
+## PROP-13 · `.eslintrc`/`eslint.config.mjs` raíz: `jest.config.cjs` de TODOS los servicios falla el lint
+- **Hallazgo (trabajo ajeno, no se tocó):** `yarn eslint services/*/jest.config.cjs` da 4 errores por archivo (`require`/`module`/`__dirname` no definidos, `no-require-imports`) porque la configuración raíz no declara los globals de CommonJS para `*.cjs`.
+- **Parche propuesto:** en `eslint.config.mjs` agregar un bloque `files: ['**/*.cjs']` con `languageOptions.globals: globals.node` y `@typescript-eslint/no-require-imports: off`.

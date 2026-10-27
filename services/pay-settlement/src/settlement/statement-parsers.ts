@@ -1,5 +1,5 @@
 import { parse as parseCsv } from 'csv-parse/sync';
-import { XMLParser } from 'fast-xml-parser';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { z } from 'zod';
 import { toMinor } from '@pay/money';
 import { StatementMalformedError } from './errors';
@@ -18,10 +18,26 @@ const lineSchema = z.strictObject({
   booked_at: z.iso.datetime().nullable(),
 });
 
+/** Un extracto bancario con fechas fuera de este rango no es un extracto: es basura (o un ataque a `Date`). */
+const MIN_YEAR = 2000;
+const MAX_YEAR = 2100;
+
+/** Milisegundos de una fecha del extracto, o `null` si no existe, está vacía o tiene un año absurdo. Nunca lanza. */
+function sane(text: string): number | null {
+  const ms = Date.parse(text);
+  if (Number.isNaN(ms)) return null;
+  const year = new Date(ms).getUTCFullYear();
+  return year >= MIN_YEAR && year <= MAX_YEAR ? ms : null;
+}
+
 function validated(raw: unknown, index: number): StatementLine {
   const parsed = lineSchema.safeParse(raw);
   if (!parsed.success) throw new StatementMalformedError(`línea inválida (${parsed.error.issues[0]?.path.join('.') ?? 'forma'})`, index + 1);
-  if (Number.isNaN(Date.parse(`${parsed.data.value_date}T00:00:00Z`))) throw new StatementMalformedError('fecha de valor inexistente', index + 1);
+  // `Date.parse` + rango, no `new Date(x).toISOString()`: esa lanza RangeError ante una fecha inválida.
+  const valueDate = sane(`${parsed.data.value_date}T00:00:00Z`);
+  // El calendario también cuenta: `2026-02-30` no existe aunque el formato sea correcto.
+  if (valueDate === null || new Date(valueDate).toISOString().slice(0, 10) !== parsed.data.value_date) throw new StatementMalformedError('fecha de valor inexistente', index + 1);
+  if (parsed.data.booked_at !== null && sane(parsed.data.booked_at) === null) throw new StatementMalformedError('fecha de asiento inexistente', index + 1);
   return parsed.data;
 }
 
@@ -88,6 +104,8 @@ export function parseCamt053(document: string): StatementLine[] {
   if (Buffer.byteLength(document) > MAX_STATEMENT_BYTES) throw new StatementMalformedError('extracto demasiado grande');
   // Sin DTD: no hay entidades externas que resolver (XXE) ni expansión de entidades.
   if (/<!DOCTYPE|<!ENTITY/i.test(document)) throw new StatementMalformedError('DOCTYPE no permitido');
+  // El parser es permisivo (acepta etiquetas sin cerrar): un documento truncado se detecta con el validador estricto, no con `parse`.
+  if (XMLValidator.validate(document) !== true) throw new StatementMalformedError('XML mal formado o truncado');
   let tree: Record<string, unknown>;
   try {
     tree = xml.parse(document) as Record<string, unknown>;
@@ -115,6 +133,8 @@ export function parseCamt053(document: string): StatementLine[] {
       if (!providerReference) throw new StatementMalformedError('falta AcctSvcrRef', index + 1);
       const endToEnd = text(details[0]?.Refs?.EndToEndId);
       const booked = text((entry.BookgDt as { Dt?: unknown; DtTm?: unknown } | undefined)?.DtTm);
+      const bookedMs = booked === undefined ? null : sane(booked);
+      if (booked !== undefined && bookedMs === null) throw new StatementMalformedError('fecha de asiento inexistente', index + 1);
       const valueDate = text((entry.ValDt as { Dt?: unknown } | undefined)?.Dt) ?? text((entry.BookgDt as { Dt?: unknown } | undefined)?.Dt);
       lines.push(
         validated(
@@ -124,7 +144,7 @@ export function parseCamt053(document: string): StatementLine[] {
             direction: sign === 'CRDT' ? 'credit' : 'debit',
             amount_minor: Number(toMinor(value)),
             value_date: valueDate,
-            booked_at: booked ? new Date(booked).toISOString() : null,
+            booked_at: bookedMs === null ? null : new Date(bookedMs).toISOString(),
           },
           index,
         ),
@@ -135,8 +155,21 @@ export function parseCamt053(document: string): StatementLine[] {
   return lines;
 }
 
-/** Normaliza lo que entregó el conector, sea cual sea su formato. */
+/**
+ * Normaliza lo que entregó el conector, sea cual sea su formato. Cualquier error que no sea de dominio (un `RangeError` de una fecha, un
+ * fallo del parser de XML o de CSV) se convierte en `StatementMalformedError`: una corrida con un extracto malo FALLA y se reporta; nunca
+ * queda en `running` reintentándose para siempre.
+ */
 export function parseStatement(document: StatementDocument): StatementLine[] {
+  try {
+    return parseStatementUnsafe(document);
+  } catch (error) {
+    if (error instanceof StatementMalformedError) throw error;
+    throw new StatementMalformedError('extracto ilegible');
+  }
+}
+
+function parseStatementUnsafe(document: StatementDocument): StatementLine[] {
   if (document.format === 'json') {
     if (document.lines) return parseJsonStatement(document.lines);
     let raw: unknown;

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { createTestContext, type TestContext } from './support/app';
 import {
-  CLEAN_NAME, SANCTIONED_ORG, SANCTIONED_ORG_TYPO, assessmentBody, getAssessment, newIntent, newMerchant, post, publishRules, rows, uniqueKey, verified,
+  SANCTIONED_ORG, SANCTIONED_ORG_TYPO, assessmentBody, getAssessment, newIntent, newMerchant, post, publishRules, rows, uniqueKey, verified,
 } from './support/http';
 import { entity, json, startWatchmanDouble, type WatchmanDouble } from './support/watchman-double';
 

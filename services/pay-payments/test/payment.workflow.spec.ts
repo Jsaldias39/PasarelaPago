@@ -149,19 +149,48 @@ describe('P3.H2.M2 · política de llamadas síncronas', () => {
     expect(stack.ledger.balance(`merchant:${MC}:pending`)).toBeGreaterThan(0);
   });
 
-  it('ledger caído del todo: se compensa devolviendo el dinero en el conector y el cobro termina failed ledger_unavailable', async () => {
+  it('ledger caído del todo (resultado AMBIGUO): NO se devuelve el dinero ni se cierra el cobro; se conserva el estado, se escala y, al volver el ledger, se registra UNA sola vez', async () => {
     const intent = await create();
     const id = intent.id as string;
-    const totalBefore = stack.ledger.totalBalance();
     stack.ledger.failNext = 1000;
     await pay(id);
-    await settled(id, 'failed', 40_000);
-    const row = await intentsRepo.byId(stack.deps.pool, id);
-    expect(row?.failureCode).toBe('ledger_unavailable');
+    await waitFor(async () => (Number((await stack.db.pool.query("SELECT count(*) AS n FROM intent_contradictions WHERE payment_intent_id = $1 AND kind = 'ledger_outcome_unknown'", [id])).rows[0].n) > 0 ? true : undefined), 30_000, 'escalado a una persona');
+    expect(await statusOf(stack, id)).toBe('processing'); // el cobro NO se dio por fallido
+    expect(stack.ledger.postedCount(`${id}:capture`)).toBe(0);
+    expect([...stack.connectors.refunds.values()].filter((r) => r.charge_id === stack.connectors.chargeFor(id)?.id)).toHaveLength(0); // y no se devolvió el dinero
+    stack.ledger.failNext = 0; // vuelve el ledger: se reintenta con la MISMA clave
+    await settled(id, 'succeeded', 30_000);
+    expect(stack.ledger.postedCount(`${id}:capture`)).toBe(1);
+    const ledgerCalls = stack.ledger.server.callsTo('POST', /^\/transactions$/).filter((c) => JSON.stringify(c.body).includes(`${id}:capture`));
+    expect(new Set(ledgerCalls.map((c) => c.headers['idempotency-key'])).size).toBe(1); // siempre la misma clave de idempotencia
+  });
+
+  it('el ledger RECHAZA el asiento (respuesta definitiva): ahí sí se compensa devolviendo el dinero en el conector y el cobro termina failed', async () => {
+    const intent = await create();
+    const id = intent.id as string;
+    stack.ledger.rejectPattern = /:capture$/;
+    await pay(id);
+    await settled(id, 'failed', 30_000);
+    stack.ledger.rejectPattern = null;
+    expect((await intentsRepo.byId(stack.deps.pool, id))?.failureCode).toBe('insufficient_funds');
     expect(stack.ledger.postedCount(`${id}:capture`)).toBe(0);
     expect([...stack.connectors.refunds.values()].filter((r) => r.charge_id === stack.connectors.chargeFor(id)?.id && r.amount_minor === 10000)).toHaveLength(1);
-    expect(stack.ledger.totalBalance()).toBe(totalBefore);
-    stack.ledger.failNext = 0;
+  });
+
+  it('crear el cargo con resultado AMBIGUO (500): no se sabe si se creó; el cobro sigue processing, se escala y se reintenta con la misma clave; al volver el conector sigue su camino con UN solo cargo', async () => {
+    stack.connectors.scenario = 'charge_ambiguous';
+    const pending = stack.service.createIntent(MC, key(), QR);
+    const created = await pending;
+    const id = created.body.id as string;
+    expect(created.body.status).toBe('processing'); // ni «failed» ni «connector_unavailable» por una duda
+    await waitFor(async () => (Number((await stack.db.pool.query("SELECT count(*) AS n FROM intent_contradictions WHERE payment_intent_id = $1 AND kind = 'charge_outcome_unknown'", [id])).rows[0].n) > 0 ? true : undefined), 30_000, 'escalado');
+    stack.connectors.scenario = 'ok';
+    await settled(id, 'requires_action', 30_000);
+    await pay(id);
+    await settled(id, 'succeeded', 30_000);
+    expect(stack.connectors.chargeCreations.get(id)).toBe(1);
+    const keys = new Set(stack.connectors.server.callsTo('POST', /^\/charges$/).filter((c) => (c.body as { payment_intent_id: string }).payment_intent_id === id).map((c) => c.headers['idempotency-key']));
+    expect(keys.size).toBe(1);
   });
 });
 

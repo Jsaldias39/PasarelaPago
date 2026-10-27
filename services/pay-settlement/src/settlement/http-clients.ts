@@ -47,6 +47,11 @@ function problemCode(reply: Reply): string | undefined {
   return body && typeof body.code === 'string' ? body.code : undefined;
 }
 
+/** «No existe» solo lo prueba el servicio: `404` `application/problem+json` con `code: resource_not_found`. Un 404 de un proxy no prueba nada. */
+function isNotFound(reply: Reply): boolean {
+  return reply.status === 404 && reply.isProblem && problemCode(reply) === 'resource_not_found';
+}
+
 function problemDetail(reply: Reply): string | undefined {
   const body = reply.json as { detail?: unknown } | null;
   return body && typeof body.detail === 'string' ? body.detail : undefined;
@@ -112,7 +117,7 @@ export class HttpLedgerClient implements LedgerPort {
 
   async getHold(holdId: string): Promise<LedgerHold | undefined> {
     const reply = await this.call('GET', `/holds/${encodeURIComponent(holdId)}`);
-    if (reply.status === 404) return undefined;
+    if (isNotFound(reply)) return undefined;
     if (reply.status !== 200) this.reject(reply);
     return holdOf(reply);
   }
@@ -131,7 +136,7 @@ export class HttpLedgerClient implements LedgerPort {
 
   async getBalance(account: string): Promise<LedgerBalance | undefined> {
     const reply = await this.call('GET', `/balances?account=${encodeURIComponent(account)}`);
-    if (reply.status === 404) return undefined;
+    if (isNotFound(reply)) return undefined;
     if (reply.status !== 200) this.reject(reply);
     const body = reply.json as Partial<LedgerBalance> | null;
     if (!body || typeof body.balance_minor !== 'number' || (body.nature !== 'credit' && body.nature !== 'debit')) throw new LedgerUnavailableError('saldo ilegible');
@@ -147,7 +152,7 @@ export class HttpLedgerClient implements LedgerPort {
       if (window.to) query.set('to', window.to);
       if (cursor) query.set('starting_after', cursor);
       const reply = await this.call('GET', `/statements?${query.toString()}`);
-      if (reply.status === 404) return entries;
+      if (isNotFound(reply)) return entries;
       if (reply.status !== 200) this.reject(reply);
       const page = reply.json as { data?: LedgerStatementEntry[]; has_more?: boolean; next_cursor?: string | null } | null;
       if (!page || !Array.isArray(page.data)) throw new LedgerUnavailableError('extracto ilegible');
@@ -175,11 +180,13 @@ function holdOf(reply: Reply): LedgerHold {
 
 const ACCEPT: Record<StatementFormat, string> = { json: 'application/json', camt053: 'application/xml', csv: 'text/csv' };
 
-/** Cliente HTTP de `internal-connectors-v1.yaml` (extractos) y de la orden de transferencia (PROPUESTA: `POST /transfers`). */
+
+/** Cliente HTTP de `internal-connectors-v1.yaml`: extractos y transferencias salientes (`POST /transfers`, `GET /transfers/{reference}`). */
 export class HttpConnectorsClient implements ConnectorsPort {
   constructor(
     private readonly baseUrl: string,
     private readonly timeoutMs: number,
+    private readonly connector: 'mock' | 'mercantil_qr' | 'mercantil_card' | 'bank_transfer',
   ) {}
 
   async getStatement(input: { connector: string; from: string; to: string; format: StatementFormat }): Promise<StatementDocument> {
@@ -210,42 +217,49 @@ export class HttpConnectorsClient implements ConnectorsPort {
       {
         method: 'POST',
         headers: { ...serviceHeaders(SELF, { 'idempotency-key': idempotencyKey }), 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ payout_id: order.payoutId, merchant_id: order.merchantId, amount_minor: order.amountMinor, currency: order.currency }),
+        body: JSON.stringify({
+          business_ref: order.businessRef,
+          attempt: order.attempt,
+          connector: this.connector,
+          amount_minor: order.amountMinor,
+          currency: order.currency,
+          // Referencia opaca de la cuenta de liquidación (Q-22): el conector la resuelve; la pasarela no guarda números de cuenta.
+          destination_ref: order.merchantId,
+        }),
       },
       this.timeoutMs,
     );
-    return transferOutcome(reply);
+    return transferOutcome(reply, 'create');
   }
 
-  /** Con `reference` consulta esa orden; sin ella (la orden se envió y nunca se supo la respuesta) la busca por `payout_id`. */
-  async queryTransfer(order: PayoutOrder, reference: string | null): Promise<RailOutcome> {
-    const path = reference ? `/transfers/${encodeURIComponent(reference)}` : `/transfers?payout_id=${encodeURIComponent(order.payoutId)}`;
-    const reply = await send(`${this.baseUrl}${path}`, { method: 'GET', headers: { ...serviceHeaders(SELF), accept: 'application/json' } }, this.timeoutMs);
-    return queryOutcome(reply);
+  async queryTransfer(order: PayoutOrder): Promise<RailOutcome> {
+    const reply = await send(`${this.baseUrl}/transfers/${order.businessRef}:${order.attempt}`, { method: 'GET', headers: { ...serviceHeaders(SELF), accept: 'application/json' } }, this.timeoutMs);
+    return transferOutcome(reply, 'query');
   }
 }
+
+const TRANSFER_ID = /^tr_[a-z0-9]{10,40}$/;
 
 /**
- * Traduce la respuesta del conector a un resultado del riel. Regla de dinero (doble pago): un rechazo es DEFINITIVO solo si el
- * conector lo dice con `application/problem+json` y un `code` que el contrato garantiza «sin efecto» (`connector_unavailable`, o
- * `validation_failed` en un 422). Cualquier otra cosa después de enviar la orden —502/503/504 de un proxy, cuerpo ilegible, corte de
- * conexión, tiempo agotado— es AMBIGUA: puede que el banco ya haya pagado. Nunca se anula una retención por ambigüedad.
+ * Traduce la respuesta del conector a un resultado del riel. Regla de dinero (doble pago, CLAUDE.md #11): SOLO es definitivo lo que el
+ * contrato declara definitivo:
+ *  - `POST`: un `502` `application/problem+json` con `code: connector_unavailable` (no se envió nada al proveedor);
+ *  - `GET`: un `404` `application/problem+json` con `code: transfer_not_found` (el conector consultó al proveedor y no hay registro);
+ *  - una `Transfer` bien formada con `status: failed` y `failure_code` (prueba que NO se pagó).
+ * Todo lo demás —502/503/504 de un proxy, 404 genérico, 4xx sin cuerpo problem+json, cuerpo ilegible, corte de conexión, tiempo
+ * agotado— es AMBIGUO: puede que el banco ya haya pagado. Nunca se anula una retención por ambigüedad.
  */
-function transferOutcome(reply: Reply | null): RailOutcome {
+function transferOutcome(reply: Reply | null, call: 'create' | 'query'): RailOutcome {
   if (!reply) throw new RailAmbiguousError('sin respuesta del conector');
   const code = problemCode(reply);
-  if (reply.isProblem && reply.status === 502 && code === 'connector_unavailable') throw new RailUnavailableError();
-  if (reply.isProblem && reply.status === 422 && code === 'validation_failed') return { state: 'failed', code: 'rail_rejected' };
+  if (call === 'create' && reply.isProblem && reply.status === 502 && code === 'connector_unavailable') throw new RailUnavailableError();
+  if (call === 'query' && reply.isProblem && reply.status === 404 && code === 'transfer_not_found') return { state: 'not_found' };
   if (reply.status !== 200 && reply.status !== 201) throw new RailAmbiguousError(`respuesta no concluyente del conector (${reply.status})`);
-  const body = reply.json as { status?: string; reference?: string; failure_code?: string } | null;
-  if (body?.status === 'paid' && body.reference) return { state: 'paid', reference: body.reference };
-  if (body?.status === 'in_transit' && body.reference) return { state: 'in_transit', reference: body.reference };
-  if (body?.status === 'failed') return { state: 'failed', code: body.failure_code ?? 'rail_rejected' };
-  throw new RailAmbiguousError('respuesta ilegible del conector');
-}
-
-/** La consulta de una orden dice «no existe» solo con un 404 `application/problem+json` `resource_not_found`. */
-function queryOutcome(reply: Reply | null): RailOutcome {
-  if (reply && reply.status === 404 && reply.isProblem && problemCode(reply) === 'resource_not_found') return { state: 'not_found' };
-  return transferOutcome(reply);
+  const body = reply.json as { id?: unknown; object?: unknown; reference?: unknown; status?: unknown; failure_code?: unknown } | null;
+  if (!body || body.object !== 'transfer' || typeof body.id !== 'string' || !TRANSFER_ID.test(body.id) || typeof body.reference !== 'string') throw new RailAmbiguousError('respuesta ilegible del conector');
+  if (body.status === 'paid') return { state: 'paid', reference: body.reference };
+  if (body.status === 'pending' || body.status === 'in_transit') return { state: 'in_transit', reference: body.reference };
+  // `failed` sin `failure_code` no prueba nada: se trata como ambiguo.
+  if (body.status === 'failed' && typeof body.failure_code === 'string' && body.failure_code.length > 0) return { state: 'failed', code: body.failure_code };
+  throw new RailAmbiguousError('estado de transferencia desconocido');
 }

@@ -6,6 +6,8 @@ export interface SettlementConfig {
   readonly ledgerUrl: string;
   readonly connectorsUrl: string;
   readonly httpTimeoutMs: number;
+  /** Conector por el que salen los payouts del modo A: `mock` en sandbox, `bank_transfer` en producción (override: `SETTLEMENT_TRANSFER_CONNECTOR`). */
+  readonly transferConnector: 'mock' | 'mercantil_qr' | 'mercantil_card' | 'bank_transfer';
   /** `settlement.mode`: `bank` = modo A (D-02, rail real); `acquirer` = modo B (rail doble declarado). */
   readonly mode: SettlementMode;
   readonly payMode: PayMode;
@@ -66,6 +68,7 @@ export function loadSettlementConfig(env: NodeJS.ProcessEnv = process.env): Sett
     ledgerUrl: url(env, 'LEDGER_URL'),
     connectorsUrl: url(env, 'CONNECTORS_URL'),
     httpTimeoutMs: integer(env, 'SETTLEMENT_HTTP_TIMEOUT_MS', 8000, 100),
+    transferConnector: transferConnector(env.SETTLEMENT_TRANSFER_CONNECTOR, rawPay),
     mode: rawMode,
     payMode: rawPay,
     cutoffWeekday: weekday === undefined || weekday === '' ? 1 : weekday === 'any' ? null : integer(env, 'SETTLEMENT_CUTOFF_WEEKDAY', 1, 0, 6),
@@ -91,4 +94,11 @@ function statementFormats(raw: string | undefined): Record<string, 'json' | 'cam
     out[connector] = format;
   }
   return out;
+}
+
+function transferConnector(raw: string | undefined, payMode: PayMode): SettlementConfig['transferConnector'] {
+  if (raw === undefined || raw === '') return payMode === 'sandbox' ? 'mock' : 'bank_transfer';
+  if (raw !== 'mock' && raw !== 'mercantil_qr' && raw !== 'mercantil_card' && raw !== 'bank_transfer') throw new Error(`SETTLEMENT_TRANSFER_CONNECTOR inválido: ${raw}`);
+  if (raw === 'mock' && payMode === 'live') throw new Error('SETTLEMENT_TRANSFER_CONNECTOR=mock no puede correr con PAY_MODE=live');
+  return raw;
 }
