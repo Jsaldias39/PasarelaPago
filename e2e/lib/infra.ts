@@ -145,3 +145,12 @@ export async function deleteServiceStreams(infra: Infra): Promise<string[]> {
   }
   return deleted;
 }
+
+/** Certificado autofirmado SOLO de pruebas para el receptor local de webhooks (SAN IP:127.0.0.1). */
+export function makeReceiverCertificate(runDir: string): { certFile: string; keyFile: string } {
+  const certFile = join(runDir, 'receiver-cert.pem');
+  const keyFile = join(runDir, 'receiver-key.pem');
+  execFileSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-days', '1', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1', '-keyout', keyFile, '-out', certFile], { stdio: 'ignore' });
+  return { certFile, keyFile };
+}
+

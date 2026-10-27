@@ -10,10 +10,9 @@
  *
  * Un solo stack a la vez: comparten bases, streams y el puerto de TigerBeetle.
  */
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { checkInfra, deleteServiceStreams, resetDatabase, ROOT, startPrivateTigerBeetle } from './lib/infra.ts';
+import { checkInfra, deleteServiceStreams, makeReceiverCertificate, resetDatabase, ROOT, startPrivateTigerBeetle } from './lib/infra.ts';
 import { freePorts, isOurProcess, type Managed, spawnNode, tailLog, terminate, waitFor } from './lib/process.ts';
 import { DEFAULT_INFRA, DEPENDS_ON, envFor, generateSecrets, type EnvContext, type Infra, type RunSecrets, SERVICES, type ServiceName } from './lib/services.ts';
 
@@ -102,13 +101,6 @@ function request(stackUrl: string, method: string, path: string, options: CallOp
     }
     return { status: res.status, headers: res.headers, text, json };
   });
-}
-
-function makeReceiverCertificate(runDir: string): { certFile: string; keyFile: string } {
-  const certFile = join(runDir, 'receiver-cert.pem');
-  const keyFile = join(runDir, 'receiver-key.pem');
-  execFileSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-days', '1', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1', '-keyout', keyFile, '-out', certFile], { stdio: 'ignore' });
-  return { certFile, keyFile };
 }
 
 export async function startStack(options: StartOptions = {}): Promise<Stack> {
