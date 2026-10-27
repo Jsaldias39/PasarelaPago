@@ -215,12 +215,17 @@ describe('privacidad: nombres, NIT y documentos no salen por logs, eventos ni er
     expect(fake.status).toBe(422);
     outputs.push(JSON.stringify(fake.body));
 
-    const events = (await ctx.db.pool.query('SELECT envelope::text AS e FROM outbox_events')).rows.map((r) => r.e as string);
+    const typed = (await ctx.db.pool.query('SELECT type, envelope::text AS e FROM outbox_events')).rows as { type: string; e: string }[];
+    const events = typed.map((r) => r.e);
+    // D-33: la RAZÓN SOCIAL viaja SOLO en merchant.created y merchant.activated (pay-payments la cribra); ningún otro dato ni ningún otro evento.
+    const RAZON = 'CENTINELA-RAZON-SOCIAL-600';
+    expect(typed.filter((r) => r.e.includes(RAZON)).map((r) => r.type).every((t) => t === 'merchant.created' || t === 'merchant.activated')).toBe(true);
+    expect(typed.some((r) => r.type === 'merchant.created' && r.e.includes(RAZON))).toBe(true);
     const logs = ctx.logs.join('\n');
     expect(logs.length).toBeGreaterThan(0);
     for (const centinela of centinelas) {
       expect({ centinela, enLogs: logs.includes(centinela) }).toEqual({ centinela, enLogs: false });
-      expect({ centinela, enEventos: events.some((e) => e.includes(centinela)) }).toEqual({ centinela, enEventos: false });
+      if (centinela !== RAZON) expect({ centinela, enEventos: events.some((e) => e.includes(centinela)) }).toEqual({ centinela, enEventos: false });
       expect({ centinela, enErrores: outputs.some((o) => o.includes(centinela)) }).toEqual({ centinela, enErrores: false });
     }
     expect(logs).not.toMatch(/authorization|bearer op-/i);

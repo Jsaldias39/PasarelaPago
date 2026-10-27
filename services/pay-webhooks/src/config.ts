@@ -14,6 +14,11 @@ export interface ServiceConfig {
   readonly natsUrl?: string;
   /** `sandbox` ⇒ los eventos salen con `mode: test`; `live` ⇒ `mode: live`. */
   readonly payMode: 'sandbox' | 'live';
+  /**
+   * Motor de entrega (`WEBHOOKS_ENGINE`). Hoy solo existe `inprocess`, el [DOBLE de Svix]: en sandbox es el valor por defecto; bajo
+   * `live` la variable es obligatoria y el servicio NO arranca ni con `inprocess` (es un doble) ni con `svix` (SvixEngine no existe todavía).
+   */
+  readonly engine: 'inprocess';
   /** Clave de 32 bytes con la que se sellan los secretos de firma (AES-256-GCM). */
   readonly secretKek: Buffer;
   readonly eventSources: readonly EventSource[];
@@ -86,6 +91,21 @@ function parseSchedule(text: string | undefined): readonly number[] {
   return values;
 }
 
+/**
+ * D-26. `inprocess|svix`. Sin valor: sandbox usa `inprocess`; live exige declararlo, y aun declarado no arranca: `inprocess` es un doble
+ * de Svix y `svix` todavía no está implementado (no hay `SvixEngine`). Cuando exista, `svix` pasa a ser el único valor admitido en live.
+ */
+function parseEngine(raw: string | undefined, payMode: 'sandbox' | 'live'): 'inprocess' {
+  const value = raw ?? '';
+  if (value !== '' && value !== 'inprocess' && value !== 'svix') throw new Error(`WEBHOOKS_ENGINE inválido: ${value} (inprocess | svix)`);
+  if (value === 'svix') throw new Error('WEBHOOKS_ENGINE=svix: el motor real no está implementado (no existe SvixEngine); en sandbox usá WEBHOOKS_ENGINE=inprocess');
+  if (payMode === 'live') {
+    if (value === '') throw new Error('PAY_MODE=live exige declarar WEBHOOKS_ENGINE (sin valor por defecto en live)');
+    throw new Error('PAY_MODE=live no admite WEBHOOKS_ENGINE=inprocess: es el doble de Svix y el motor real no está implementado');
+  }
+  return 'inprocess';
+}
+
 /** Lee y valida el entorno. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {
   const payMode = env.PAY_MODE ?? '';
@@ -99,6 +119,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
   if (payMode === 'live' && env.WEBHOOKS_RETRY_SCHEDULE_MS) {
     throw new Error('WEBHOOKS_RETRY_SCHEDULE_MS no puede usarse con PAY_MODE=live: es un acelerador de sandbox y en live rige la escalera por defecto');
   }
+  const engine = parseEngine(env.WEBHOOKS_ENGINE, payMode);
   const kek = Buffer.from(required(env, 'WEBHOOKS_SECRET_KEK'), 'base64');
   if (kek.length !== 32) throw new Error('WEBHOOKS_SECRET_KEK debe ser una clave de 32 bytes en base64');
   if (env.DB_SCHEMA && !SCHEMA.test(env.DB_SCHEMA)) throw new Error(`DB_SCHEMA inválido: ${env.DB_SCHEMA}`);
@@ -115,6 +136,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
     },
     ...(env.NATS_URL ? { natsUrl: env.NATS_URL } : {}),
     payMode,
+    engine,
     secretKek: kek,
     eventSources: parseSources(env.WEBHOOKS_EVENT_SOURCES ?? DEFAULT_SOURCES),
     delivery: {

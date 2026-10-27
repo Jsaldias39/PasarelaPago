@@ -74,12 +74,10 @@ describe('E2 (conector real) — callbacks duplicados, fuera de orden y perdidos
     expect((await state(id)).status).toBe('succeeded');
   });
 
-  it('PERDIDO (…05): sin callback el cobro sigue pendiente; la consulta de estado lo revela y se publica UN evento, también al repetirla', async () => {
+  it('PERDIDO (…05): nunca llega el callback; la consulta de estado (explícita o la del poller del conector) revela captured y se publica UN evento, también al repetirla', async () => {
     const { paymentIntentId, id } = await charge('05');
-    await drained();
-    expect((await state(id)).status).toBe('requires_action');
-    expect(await connectorEvents(stack, paymentIntentId)).toHaveLength(0);
-
+    // El arnés fija POLLER_MIN_AGE_MS=1000 y POLLER_INTERVAL_MS=500: el poller puede adelantarse a la consulta explícita; da igual quién gane,
+    // lo que se afirma es que el estado se resuelve sin callback y que el efecto es único.
     const refreshed = await state(id, true);
     expect(refreshed).toMatchObject({ status: 'succeeded', stale: false });
     const events = await until('evento por consulta', () => connectorEvents(stack, paymentIntentId), (e) => e.length >= 1);

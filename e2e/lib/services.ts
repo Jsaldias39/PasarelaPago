@@ -134,6 +134,9 @@ export function envFor(ctx: EnvContext, name: ServiceName): Record<string, strin
         ...base,
         PAY_QR_URL: url(ctx, 'pay-qr'),
         PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET: secrets.connectorMockWebhookSecret,
+        // Propuesta de P4: la consulta de estado de cobros pendientes (callback perdido) corre en segundos y no en 15/30 s.
+        POLLER_MIN_AGE_MS: '1000',
+        POLLER_INTERVAL_MS: '500',
         BANK_TRANSFER_BANK_NAME: 'BANCO SIMULADO (SANDBOX)',
         BANK_TRANSFER_ACCOUNT_HOLDER: 'ALOVIDA PAY (SANDBOX)',
         BANK_TRANSFER_ACCOUNT_NUMBER: 'SANDBOX-0000-0001',

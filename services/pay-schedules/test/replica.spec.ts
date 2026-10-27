@@ -73,4 +73,50 @@ describe('réplica del estado de comercios por eventos merchant.* (inbox)', () =
     expect((await ctx.db.pool.query('SELECT 1 FROM merchant_replica WHERE merchant_id = $1', ['mc_abcdefghij12'])).rows).toHaveLength(0);
     void randomUUID;
   });
+
+  // D-33: pay-merchants añade `legal_name` a merchant.created/activated para pay-payments. pay-schedules NO lo necesita: lo ignora y no lo guarda.
+  describe('legal_name (D-33) en merchant.activated', () => {
+    const LEGAL = 'CENTINELA-RAZON-SOCIAL-SCHEDULES';
+    const tables = async (): Promise<string> => {
+      const { rows } = await ctx.db.pool.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'`);
+      let all = '';
+      for (const row of rows as { table_name: string }[]) all += JSON.stringify((await ctx.db.pool.query(`SELECT t::text AS r FROM "${row.table_name}" t`)).rows);
+      return all;
+    };
+
+    it('correcto: el evento con razón social se procesa igual y la razón social no queda en ninguna tabla ni en los logs', async () => {
+      const id = newMerchant();
+      const raw = event('merchant.activated', id, '2026-04-01T10:00:00Z', { data: { merchant_id: id, status: 'active', activated_at: '2026-04-01T10:00:00Z', legal_name: LEGAL } });
+      const parsed = parseMerchantEvent(raw);
+      expect(parsed).toEqual({ eventId: expect.any(String), merchantId: id, status: 'active', at: '2026-04-01T10:00:00.000Z' }); // el evento tipado no lleva el dato
+      expect(await apply(raw)).toBe('processed');
+      expect(await status(id)).toBe('active');
+      expect(await tables()).not.toContain(LEGAL);
+      expect(ctx.logs.join('\n')).not.toContain(LEGAL);
+    });
+
+    it('límite: 1 y 300 caracteres no cambian el resultado, y un duplicado con la razón social tiene un solo efecto', async () => {
+      for (const name of ['A', 'B'.repeat(300)]) {
+        const id = newMerchant();
+        expect(await apply(event('merchant.activated', id, '2026-04-02T10:00:00Z', { data: { merchant_id: id, status: 'active', activated_at: '2026-04-02T10:00:00Z', legal_name: name } }))).toBe('processed');
+        expect(await status(id)).toBe('active');
+      }
+      const id = newMerchant();
+      const raw = event('merchant.activated', id, '2026-04-03T10:00:00Z', { data: { merchant_id: id, status: 'active', activated_at: '2026-04-03T10:00:00Z', legal_name: LEGAL } });
+      expect([await apply(raw), await apply(raw)]).toEqual(['processed', 'duplicate']);
+    });
+
+    it('inválido: un `legal_name` mal formado (número, objeto, nulo) tampoco se guarda ni rompe el procesamiento del estado; merchant.created no entra en la réplica', async () => {
+      for (const bad of [12345, { a: LEGAL }, null]) {
+        const id = newMerchant();
+        expect(await apply(event('merchant.activated', id, '2026-04-04T10:00:00Z', { data: { merchant_id: id, status: 'active', activated_at: '2026-04-04T10:00:00Z', legal_name: bad } }))).toBe('processed');
+        expect(await status(id)).toBe('active');
+      }
+      const created = newMerchant();
+      const raw = { ...newCloudEvent({ source: '/pay-merchants', type: 'merchant.created', subject: created, merchantId: created, data: { merchant_id: created, status: 'pending', created_at: '2026-04-05T10:00:00Z', legal_name: LEGAL } }) };
+      expect(parseMerchantEvent(raw)).toBeNull();
+      expect(await status(created)).toBeNull();
+      expect(await tables()).not.toContain(LEGAL);
+    });
+  });
 });

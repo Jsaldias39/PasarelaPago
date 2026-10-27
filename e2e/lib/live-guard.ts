@@ -15,7 +15,7 @@ export interface LiveGuardResult {
  * `VAULT_BACKEND=fake`, destinos y CA de sandbox, rail `mock` de liquidación…). Una guardia correcta hace que el proceso termine
  * con un mensaje que nombra el modo; un servicio que queda sano está sirviendo `live` con dobles.
  */
-export async function bootUnderLive(only: readonly ServiceName[] = SERVICES, extraEnv: Partial<Record<ServiceName, Record<string, string>>> = {}): Promise<LiveGuardResult[]> {
+export async function bootUnderLive(only: readonly ServiceName[] = SERVICES, extraEnv: Partial<Record<ServiceName, Record<string, string | null>>> = {}): Promise<LiveGuardResult[]> {
   const envOverrides = Object.fromEntries(only.map((name) => [name, { PAY_MODE: 'live', ...extraEnv[name] }]));
   const stack = await startStack({ only, envOverrides, readyTimeoutMs: 25_000 });
   let results: LiveGuardResult[] = [];

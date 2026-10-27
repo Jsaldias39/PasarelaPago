@@ -20,8 +20,8 @@ import { DnsResolver, TargetGuard, type Resolver } from './ssrf/target-guard';
 import { RESOLVER, TRANSPORT } from './ssrf/tokens';
 
 /**
- * Cableado de pay-webhooks. El motor de entrega es el [DOBLE de Svix] (`InProcessEngine`); cambiarlo por `SvixEngine` es
- * cambiar el proveedor `DELIVERY_ENGINE`. `RESOLVER`, `TRANSPORT` y `CLOCK` se inyectan para poder probar el rebinding, la red
+ * Cableado de pay-webhooks. El motor de entrega es el [DOBLE de Svix] (`InProcessEngine`), el único que existe (`WEBHOOKS_ENGINE`, ver `config.ts`:
+ * bajo `live` el servicio no arranca); cambiarlo por `SvixEngine` es cambiar el proveedor `DELIVERY_ENGINE` y relajar esa guardia. `RESOLVER`, `TRANSPORT` y `CLOCK` se inyectan para poder probar el rebinding, la red
  * y los reintentos sin esperar.
  */
 @Module({})

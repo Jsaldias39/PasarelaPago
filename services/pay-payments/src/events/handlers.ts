@@ -87,8 +87,10 @@ export class EventHandlers {
     const merchantId = str(data.merchant_id, 'merchant_id');
     const occurredAt = new Date(event.time);
     if (Number.isNaN(occurredAt.getTime())) throw new PoisonEventError('time inválido');
-    // `legal_name` NO está en el contrato vigente de los eventos (PROP-17): se acepta si algún día llega, y nunca se inventa.
-    const legalName = typeof data.legal_name === 'string' && data.legal_name.trim() !== '' ? data.legal_name.trim().slice(0, 300) : undefined;
+    // `legal_name` (D-33) es opcional en merchant.created|activated, 1..300: lo que no cumple se ignora (sin él el riesgo responde `review` ⇒
+    // risk_denied, fail-closed). Nunca se trunca ni se inventa: un nombre cortado cribaría otra cosa.
+    const trimmed = typeof data.legal_name === 'string' ? data.legal_name.trim() : '';
+    const legalName = trimmed.length >= 1 && trimmed.length <= 300 ? trimmed : undefined;
     return processOnce(this.deps.pool, INBOX.merchant, event.id, async (client) => {
       await replicasRepo.upsertMerchantStatus(client, merchantId, status, occurredAt, legalName);
     });

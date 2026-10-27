@@ -9,7 +9,7 @@ import { startStack, stopStack, type Stack } from '../stack.ts';
  * ledger asienta la captura UNA vez (una línea de crédito sobre el pending del comercio) y débitos = créditos.
  * Para el perdido, pay-payments consulta el estado cada STATUS_INQUIRY_MS (por defecto 30 s; el arnés lo baja a 1 s).
  *
- * PENDIENTE (`yarn e2e:pending`): bloquea D-29/D-30 en P3 y P5, igual que E1 (el intento termina `failed/risk_denied`).
+ * Hoy vive en e2e/pending (`yarn e2e:pending`); pasa a e2e/flows con `git mv e2e/pending/*.e2e.ts e2e/flows/`. Lo bloquea D-29/D-30 en P3 y P5, igual que E1 (el intento termina `failed/risk_denied`).
  * Ya probado por separado y contra el conector REAL: flows/connector-callbacks.e2e.ts (los tres escenarios hasta el evento del bus).
  */
 describe('E2 — callbacks duplicados, fuera de orden y perdidos, de punta a punta', () => {

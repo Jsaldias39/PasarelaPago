@@ -13,7 +13,8 @@ Comercios de la pasarela de pagos ALOVIDA (carril P5, `P5.H1`): alta, KYC, contr
 - Un comercio solo pasa a `active` con KYC `approved` **y** el contrato vigente aceptado; si falta algo, `409` con el motivo y no cambia nada.
 - La aceptación del contrato y las versiones del contrato y del tarifario son **inmutables en la base** (triggers).
 - La clave de API se muestra **una vez** (`sk_<modo>_<id>_<secreto>`, D-27); en la base queda solo `sha256$…`. Una clave de un modo no crea, lista, rota ni revoca las del otro (D-28).
-- Los documentos de KYC van **fuera de la base** (interfaz `ObjectStore`), con tipo real por magic bytes y tamaño máximo. Nombres, NIT y documentos no salen por logs, eventos ni errores.
+- Los documentos de KYC van **fuera de la base** (interfaz `ObjectStore`), con tipo real por magic bytes y tamaño máximo. Nombres, NIT y documentos no salen por logs, eventos ni errores (única excepción: la razón social en `merchant.created`/`merchant.activated`, D-33).
+- La razón social (`legal_name`) viaja SOLO en `merchant.created` y `merchant.activated` (D-33), en la misma transacción que el cambio de estado; no sale en ningún otro evento, ni en logs ni en errores.
 - La comisión sale solo de `@pay/money.splitFee` (neto half-up, D-20): comisión + neto = bruto.
 
 ## Puntos de extensión que NO son de producción

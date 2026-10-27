@@ -18,6 +18,7 @@ Evaluación de riesgo de un cobro antes de mandarlo al proveedor (carril P5, `P5
 
 - **Nunca `allow` sin cribar** (`screened: false` ⇒ como mucho `review`); la tabla lo impide con una restricción.
 - **Cribado (D-29):** se criba siempre el nombre legal del comercio (`screening.merchant_name`, por defecto como empresa) y, si el pagador dio nombre, también el suyo (`screening.name`); gana el más grave. `screening_not_provided` solo si falta el nombre del comercio; un pagador invitado sin nombre no bloquea. `merchant_name` es una extensión pendiente del contrato (PR-17).
+- **Agrupación por intento (PROP-19):** el grupo es `payment_intent_id`. Dos evaluaciones del mismo intento (comercio y pagador, `${intentId}:risk` y `${intentId}:risk:payer`) cuentan UNA vez en la velocidad y en los límites diarios; el importe que cuenta es el MAYOR evaluado del intento (no depende del orden) y un intento con algún `deny` no consume límite.
 - **Sin límites por defecto (D-23):** la versión 1 del conjunto de reglas es «sin límites» (todo `NULL`). Los límites los carga el negocio o el banco.
 - **Los umbrales de sanciones no tienen valor por defecto** (`SANCTIONS_DENY_SCORE`, `SANCTIONS_REVIEW_SCORE`): los fija cumplimiento; sin ellos el servicio no arranca. Se decide por umbral, nunca por «hubo resultados».
 - **Datos personales:** el nombre se manda a Watchman (solo nombre y tipo) y **no se guarda ni se registra**; el pagador se guarda como HMAC (`PAYER_HASH_KEY`). El rastro es inmutable (triggers).

@@ -128,7 +128,8 @@ export class MerchantsService {
           subject: merchantId,
           aggregateType: 'merchant',
           aggregateId: merchantId,
-          data: { merchant_id: merchantId, status: 'pending', created_at: iso(new Date()) },
+          // D-33: la razón social viaja SOLO en `merchant.created` y `merchant.activated` (pay-payments la cribra al cobrar); en ningún otro evento ni log.
+          data: { merchant_id: merchantId, status: 'pending', created_at: iso(new Date()), legal_name: input.legal_name },
         });
         return merchantId;
       });
@@ -156,14 +157,17 @@ export class MerchantsService {
       if (current === null || accepted.rows.length === 0) missing.push({ field: 'contract', code: 'not_accepted' });
       if (missing.length > 0) throw new ProblemError('invalid_state_transition', { detail: 'Faltan condiciones para activar el comercio', errors: missing });
       const now = new Date();
-      await client.query(`UPDATE merchants SET status = 'active', activated_at = $2, suspended_at = NULL, suspension_reason = NULL WHERE id = $1`, [id, now]);
+      const updated = await client.query(
+        `UPDATE merchants SET status = 'active', activated_at = $2, suspended_at = NULL, suspension_reason = NULL WHERE id = $1 RETURNING legal_name`,
+        [id, now],
+      );
       await emit(client, {
         type: 'merchant.activated',
         merchantId: id,
         subject: id,
         aggregateType: 'merchant',
         aggregateId: id,
-        data: { merchant_id: id, status: 'active', activated_at: iso(now) },
+        data: { merchant_id: id, status: 'active', activated_at: iso(now), legal_name: updated.rows[0].legal_name as string }, // D-33
       });
     });
     return this.view(this.pool, id);

@@ -56,7 +56,7 @@ export class PaymentsService {
           }
           const { inserted } = await intentsRepo.insert(db, {
             id, merchantId, mode, amountMinor: input.amountMinor, method: input.method, feeMinor: Number(split.feeMinor), netMinor: Number(split.netMinor),
-            description: input.description, metadata: input.metadata, expiresAt, cardToken: input.cardToken, walletUserRef,
+            description: input.description, metadata: input.metadata, expiresAt, cardToken: input.cardToken, walletUserRef, payerName: input.payerName,
           });
           if (inserted) {
             const row = await intentsRepo.byId(db, id);

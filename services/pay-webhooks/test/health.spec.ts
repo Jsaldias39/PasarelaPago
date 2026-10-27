@@ -53,20 +53,37 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
   it('los destinos de sandbox se leen en sandbox y NO se admiten con PAY_MODE=live (ni la CA)', () => {
     expect(loadConfig({ ...base, WEBHOOKS_SANDBOX_TARGETS: '127.0.0.1:41234, 127.0.0.1:41235' }).sandboxTargets).toEqual(['127.0.0.1:41234', '127.0.0.1:41235']);
     expect(loadConfig(base).sandboxTargets).toEqual([]);
-    expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_SANDBOX_TARGETS: '127.0.0.1:41234' })).toThrow(/PAY_MODE=live/);
-    expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_SANDBOX_CA_FILE: '/tmp/ca.pem' })).toThrow(/PAY_MODE=live/);
-  });
-
-  it('PAY_MODE=live arranca con la configuración de producción (sin dobles) y rige la escalera por defecto', () => {
-    const live = loadConfig({ ...base, PAY_MODE: 'live' });
-    expect(live.payMode).toBe('live');
-    expect(live.sandboxTargets).toEqual([]);
-    expect(live.delivery.scheduleMs).toHaveLength(8);
+    expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_SANDBOX_TARGETS: '127.0.0.1:41234' })).toThrow(/abren la entrega a la red local/);
+    expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_SANDBOX_CA_FILE: '/tmp/ca.pem' })).toThrow(/abren la entrega a la red local/);
   });
 
   it('D-26: la escalera de reintentos acortada es de sandbox y NO se admite con PAY_MODE=live', () => {
     expect(loadConfig({ ...base, WEBHOOKS_RETRY_SCHEDULE_MS: '0,200,400' }).delivery.scheduleMs).toEqual([0, 200, 400]);
-    expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_RETRY_SCHEDULE_MS: '0,200,400' })).toThrow(/PAY_MODE=live/);
+    expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_RETRY_SCHEDULE_MS: '0,200,400' })).toThrow(/acelerador de sandbox/);
+  });
+
+  describe('WEBHOOKS_ENGINE (D-26): el motor de entrega propio es un doble de Svix', () => {
+    it('sandbox: sin valor o con inprocess arranca con el doble', () => {
+      expect(loadConfig(base).engine).toBe('inprocess');
+      expect(loadConfig({ ...base, WEBHOOKS_ENGINE: 'inprocess' }).engine).toBe('inprocess');
+    });
+
+    it('live SIN WEBHOOKS_ENGINE ⇒ no arranca y pide declararlo (no hay valor por defecto en live)', () => {
+      expect(() => loadConfig({ ...base, PAY_MODE: 'live' })).toThrow(/exige declarar WEBHOOKS_ENGINE/);
+    });
+
+    it('live con inprocess ⇒ no arranca: es el doble de Svix', () => {
+      expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_ENGINE: 'inprocess' })).toThrow(/PAY_MODE=live no admite WEBHOOKS_ENGINE=inprocess.*doble de Svix/);
+    });
+
+    it.each(['sandbox', 'live'])('%s con svix ⇒ no arranca mientras SvixEngine no exista («el motor real no está implementado»)', (mode) => {
+      expect(() => loadConfig({ ...base, PAY_MODE: mode, WEBHOOKS_ENGINE: 'svix' })).toThrow(/el motor real no está implementado/);
+    });
+
+    it.each(['Svix', 'in-process', 'memory', ' inprocess', 'inprocess '])('valor inválido %j ⇒ no arranca en cualquier modo', (value) => {
+      expect(() => loadConfig({ ...base, WEBHOOKS_ENGINE: value })).toThrow(/WEBHOOKS_ENGINE inválido/);
+      expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_ENGINE: value })).toThrow(/WEBHOOKS_ENGINE inválido/);
+    });
   });
 
   it.each(['', ' ', 'Live', 'SANDBOX', 'test', 'production'])('PAY_MODE=%j ⇒ no arranca (sin valor por defecto, sin tolerancia a variantes)', (value) => {

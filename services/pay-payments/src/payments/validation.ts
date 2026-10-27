@@ -53,6 +53,8 @@ export interface CreateIntentInput {
   readonly cardToken?: string;
   readonly walletAuthorization?: string;
   readonly description?: string;
+  /** Nombre del pagador, solo para cribarlo en pay-risk (D-29/D-33). Dato personal: nunca se devuelve ni se publica. */
+  readonly payerName?: string;
   readonly expiresInSeconds: number;
   readonly metadata: Record<string, string>;
 }
@@ -60,7 +62,7 @@ export interface CreateIntentInput {
 export function parseCreateIntent(body: unknown): CreateIntentInput {
   const c = new Collector();
   if (!isObject(body)) throw new ProblemError('validation_failed', { errors: [{ field: '', code: 'invalid_type' }] });
-  c.strict(body, ['amount_minor', 'currency', 'payment_method', 'description', 'expires_in_seconds', 'metadata'], '');
+  c.strict(body, ['amount_minor', 'currency', 'payment_method', 'description', 'payer_name', 'expires_in_seconds', 'metadata'], '');
 
   const amount = body.amount_minor;
   if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount < 1) c.add('amount_minor', 'invalid_amount');
@@ -98,6 +100,15 @@ export function parseCreateIntent(body: unknown): CreateIntentInput {
       noPan(c, 'description', description);
     }
   }
+  let payerName: string | undefined;
+  if (body.payer_name !== undefined) {
+    // Contrato: 1..200. Un nombre en blanco no cribaría nada: se rechaza en vez de mandar «   » a pay-risk. Nunca se repite el valor en el error.
+    if (typeof body.payer_name !== 'string' || body.payer_name.length < 1 || body.payer_name.length > 200 || body.payer_name.trim() === '') c.add('payer_name', 'invalid_value');
+    else {
+      payerName = body.payer_name.trim();
+      noPan(c, 'payer_name', payerName);
+    }
+  }
   let expiresInSeconds = 3600;
   if (body.expires_in_seconds !== undefined) {
     const e = body.expires_in_seconds;
@@ -112,6 +123,7 @@ export function parseCreateIntent(body: unknown): CreateIntentInput {
     ...(cardToken ? { cardToken } : {}),
     ...(walletAuthorization ? { walletAuthorization } : {}),
     ...(description !== undefined ? { description } : {}),
+    ...(payerName ? { payerName } : {}),
     expiresInSeconds,
     metadata: meta,
   };

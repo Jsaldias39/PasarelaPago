@@ -15,6 +15,19 @@ describe('guardia de modo — PAY_MODE=live con el conector mock y los dobles de
     }
   });
 
+  describe('pay-webhooks: el motor de entrega propio es un doble de Svix (WEBHOOKS_ENGINE)', () => {
+    /** Se le quitan los destinos y la CA de sandbox para aislar la guardia del motor de las otras. */
+    const withoutSandboxLeftovers = { WEBHOOKS_SANDBOX_TARGETS: null, WEBHOOKS_SANDBOX_CA_FILE: null };
+    it.each([
+      ['sin declarar el motor', {}, /PAY_MODE=live exige declarar WEBHOOKS_ENGINE/],
+      ['con inprocess (el doble)', { WEBHOOKS_ENGINE: 'inprocess' }, /no admite WEBHOOKS_ENGINE=inprocess/],
+      ['con svix (no existe SvixEngine)', { WEBHOOKS_ENGINE: 'svix' }, /el motor real no está implementado/],
+    ])('live %s ⇒ no arranca y el mensaje lo dice', async (_name, env, message) => {
+      const [result] = await bootUnderLive(['pay-webhooks'], { 'pay-webhooks': { ...withoutSandboxLeftovers, ...env } });
+      expect({ healthy: result!.healthy, refusedByMode: result!.log.match(message) !== null }).toEqual({ healthy: false, refusedByMode: true });
+    });
+  });
+
   it('pay-schedules no embebe ningún doble (su libro mayor es pay-ledger por HTTP): arranca en live, pero se niega con el interruptor de pruebas', async () => {
     const [withSwitch] = await bootUnderLive(['pay-schedules'], { 'pay-schedules': { DISABLE_BACKGROUND_JOBS: '1' } });
     expect({ healthy: withSwitch!.healthy, refusedByMode: refusedLive(withSwitch!) }).toEqual({ healthy: false, refusedByMode: true });

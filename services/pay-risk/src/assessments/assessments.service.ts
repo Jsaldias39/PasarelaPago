@@ -119,6 +119,7 @@ export class AssessmentsService {
 
   private async history(client: Queryable, rules: RuleSet, input: AssessmentInput, payerHash: string | null, now: Date): Promise<History> {
     const attempts = async (column: 'payer_hash' | 'merchant_id', value: string, windowSeconds: number): Promise<number> => {
+      // Velocidad: intentos DISTINTOS (el grupo es el intento), sin contar el que se está evaluando.
       const { rows } = await client.query(
         `SELECT count(DISTINCT payment_intent_id)::int AS n FROM risk_assessments
           WHERE ${column} = $1 AND created_at > $2::timestamptz - make_interval(secs => $3) AND payment_intent_id <> $4`,
@@ -127,13 +128,17 @@ export class AssessmentsService {
       return Number(rows[0].n);
     };
     const committed = async (column: 'payer_hash' | 'merchant_id', value: string): Promise<bigint> => {
-      // Un solo registro por intento (el primero), y no cuenta lo que se rechazó.
+      // GRUPO = el INTENTO (`payment_intent_id`), no la evaluación ni la `Idempotency-Key`: `pay-payments` evalúa un mismo intento más de una
+      // vez (comercio y pagador, claves `${intent}:risk` y `${intent}:risk:payer`) y eso NO suma dos veces. Cada intento cuenta UNA vez, con el
+      // MAYOR importe evaluado del intento (no «el de la primera»: dos evaluaciones pueden tener la misma `created_at` y el orden por `id` es
+      // aleatorio; el máximo no depende del orden y no se esquiva re-evaluando con un importe menor), y solo si NINGUNA de sus evaluaciones lo
+      // rechazó (un deny en cualquiera lo deja sin efecto).
       const { rows } = await client.query(
-        `SELECT COALESCE(sum(amount_minor), 0)::text AS total FROM (
-           SELECT DISTINCT ON (payment_intent_id) amount_minor, decision FROM risk_assessments
+        `SELECT COALESCE(sum(amount), 0)::text AS total FROM (
+           SELECT payment_intent_id, max(amount_minor) AS amount FROM risk_assessments
             WHERE ${column} = $1 AND created_at > $2::timestamptz - interval '24 hours' AND payment_intent_id <> $3
-            ORDER BY payment_intent_id, created_at, id) first_per_intent
-          WHERE decision <> 'deny'`,
+            GROUP BY payment_intent_id) per_intent
+          WHERE NOT EXISTS (SELECT 1 FROM risk_assessments d WHERE d.payment_intent_id = per_intent.payment_intent_id AND d.decision = 'deny')`,
         [value, now, input.payment_intent_id],
       );
       return BigInt(rows[0].total as string);
