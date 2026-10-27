@@ -57,3 +57,26 @@ Evidencia: `evidencia/2c-*.txt`. Pruebas nuevas: `pay-payments/test/ola2.tanda2c
 6. **`.env.example`**: `PAY_MODE` en los dos servicios y `VAULT_URL` en pay-payments (opcional: hoy ningún flujo llama a la bóveda).
 
 No cubierto en 2c: contra el pay-risk REAL (solo el doble que valida `internal-risk-v1.yaml`); `PAY_MODE=live` contra un `pay-connectors` real (no hay despliegue); en `live` no se puede detectar un doble de riesgo o de ledger (sus contratos no exponen un indicador de simulación).
+
+
+# Tanda 2d (D-33)
+
+Evidencia: `evidencia/2d-*.txt`. Pruebas nuevas: `pay-payments/test/ola2.tanda2d.spec.ts` (11).
+
+1. **`payer_name`** (opcional, 1..200) se acepta en `POST /payment_intents`: validación de servidor (longitud; un nombre en blanco, no-texto o con un número de tarjeta se rechaza con 422 sin repetir el valor), se guarda en `payment_intents.payer_name`, alimenta la segunda evaluación `person` y se BORRA al llegar el intento a un estado terminal (probado tras `succeeded` y tras `risk_denied`). No sale en la respuesta, la lectura, el listado, la repetición idempotente ni en el outbox. La misma `Idempotency-Key` con otro `payer_name` es `422 idempotency_key_reused`. El contrato (`validateRequest`) y el servicio coinciden en 1 y 200 caracteres.
+2. **`legal_name`**: probado con eventos construidos y validados contra el AsyncAPI NUEVO (`merchants-schedules.yaml`), con y sin el campo, en `merchant.created` y en `merchant.activated`: con nombre el cobro llega a pay-risk con ese nombre (`business`) y avanza hasta el conector; sin nombre sale sin `screening` y el intento es `risk_denied` sin cargo. Un `legal_name` inválido (301 caracteres, vacío, en blanco, no-texto) se IGNORA —ya no se trunca a 300— y por lo tanto deniega.
+3. **Dobles**: el de riesgo ya cribaba como `internal-risk-v1` (2c) y su contrato no cambió; el «doble de mercantes» son los eventos de la prueba, validados por el AsyncAPI real. `seedMerchant` sigue sembrando una razón social sintética.
+4. **Cobro exitoso de punta a punta contra dobles**: comercio activo con `legal_name` + invitado sin nombre + riesgo `allow` ⇒ 201 con `display_qr`, UNA evaluación, cargo en el conector; capturado ⇒ `succeeded` con asiento en el ledger y `payer_name` nulo; respuestas conformes a `public-v1.yaml`.
+5. **PROP-19**: claves sin cambios (`${intentId}:risk`, `${intentId}:risk:payer`). Ver PROP-20: puede quedar sin objeto.
+6. **`.env.example`**: puertos corregidos según el PR-19 de P5 (`RISK_URL` 3108, `CONNECTORS_URL` 3103, `LEDGER_URL` 3105; `VAULT_URL` 3111).
+
+## Qué falta para que pasen E1/E2 (`e2e/pending`)
+Con P3 cerrado en 2d, quedan estas cosas, ordenadas por cuánto bloquean (ninguna se pudo ejecutar acá: no corrí el arnés E2E, es de otro carril):
+1. **PROP-20 (contrato de riesgo ↔ pay-risk real) — BLOQUEA.** `pay-risk` espera el nombre del comercio en `screening.merchant_name`; el contrato escrito y P3 lo mandan en `screening.name`. El pay-risk real lo lee como pagador y responde `review/screening_not_provided` ⇒ `risk_denied`. Hace falta una decisión de contrato (recomendada: aplicar el `merchant_name` de P5) y, después, ~15 líneas en P3.
+2. **La semilla del arnés (`e2e/lib/seed.ts`, P1)** escribe `legal_name` en la base de pay-merchants pero publica a mano `merchant.created|activated` SIN `legal_name`: pay-payments nunca lo recibe. Hay que agregar `legal_name` a los dos `emit(...)`. (El emisor real de pay-merchants lo emite en 2d por P5; la semilla lo esquiva.)
+3. **Watchman del stack E2E (P1/P5):** `SANCTIONS_REVIEW_SCORE=0.60` con las listas estáticas de 2019: si el nombre sintético de la semilla (`COMERCIO E2E SINTETICO SRL`) puntúa ≥ 0,60 contra alguna entrada, el resultado será `review` ⇒ denegado aunque todo lo demás esté bien. Hay que verificarlo corriendo el arnés, no se puede deducir.
+4. **`pay-edge` (P1)** debe reenviar `payer_name` (opcional; E1/E2 no lo usan, pero el contrato público ya lo declara) y aceptarlo en su validación del cuerpo.
+5. **El tramo del medio sigue sin haberse ejecutado contra servicios reales** (la nota del ARNES lo dice): consumo del evento del conector, asiento en el ledger, `succeeded_at`, `GET /v1/balance`. Puede aparecer algún desajuste de contrato que mis dobles no ven; la reproducción es lo primero que hay que hacer una vez resueltos 1 a 3.
+6. **Arranque**: pay-payments y pay-vault exigen `PAY_MODE` (el arnés ya lo pone en `lib/services.ts`) y un worker de Temporal (`TEMPORAL_RUN_WORKER` no debe ser `false` en el proceso del E2E).
+
+No cubierto en 2d: lo de 1 a 5 contra servicios reales; el rechazo de `payer_name` por el pan-guard del borde (P1) —acá solo la defensa en profundidad del servicio—.

@@ -1,0 +1,138 @@
+pay-connectors  BANK_TRANSFER_ACCOUNT_HOLDER               arranca
+pay-connectors  BANK_TRANSFER_ACCOUNT_NUMBER               arranca
+pay-connectors  BANK_TRANSFER_BANK_NAME                    arranca
+pay-connectors  DB_HOST                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-connectors  DB_NAME                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-connectors  DB_PASSWORD                                falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-connectors  DB_PORT                                    falla_rapido  ← } |  | Node.js v22.22.0
+pay-connectors  DB_USER                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-connectors  LOG_LEVEL                                  arranca
+pay-connectors  NATS_URL                                   arranca
+pay-connectors  PAY_MODE                                   falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-connectors  PAY_QR_URL                                 arranca
+pay-connectors  PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET   arranca
+pay-connectors  POLLER_INTERVAL_MS                         arranca
+pay-connectors  POLLER_MIN_AGE_MS                          arranca
+pay-edge        DB_HOST                                    falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-edge        DB_NAME                                    falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-edge        DB_PASSWORD                                falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-edge        DB_PORT                                    vivo_no_sano  ← "req":{"id":"2095fbe6-d396-47ef-8ef3-51dbbe055896","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"2095fbe6-d396-47ef-8ef3-51dbbe055896","msg":"Error no con | "req":{"id":"9cbd9d20-9f30-4c1e-a9a2-4ae6284a720b","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"9cbd9d20-9f30-4c1e-a9a2-4ae6284a720b","msg":"Error no con | "req":{"id":"2d086bdf-5734-47c9-886b-d69594cb6726","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"2d086bdf-5734-47c9-886b-d69594cb6726","msg":"Error no con
+pay-edge        DB_USER                                    falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-edge        LOG_LEVEL                                  arranca
+pay-edge        NATS_URL                                   arranca
+pay-edge        PAY_MODE                                   falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-edge        RATE_LIMIT_PREFIX                          arranca
+pay-edge        REDIS_URL                                  falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-edge        UPSTREAM_PAY_LEDGER_URL                    falla_rapido  ←     at Function._load (node:internal/modules/cjs/loader:1263:12) |  | Node.js v22.22.0
+pay-edge        UPSTREAM_PAY_MERCHANTS_URL                 falla_rapido  ←     at Function._load (node:internal/modules/cjs/loader:1263:12) |  | Node.js v22.22.0
+pay-edge        UPSTREAM_PAY_PAYMENTS_URL                  falla_rapido  ←     at Function._load (node:internal/modules/cjs/loader:1263:12) |  | Node.js v22.22.0
+pay-edge        UPSTREAM_PAY_SCHEDULES_URL                 falla_rapido  ←     at Function._load (node:internal/modules/cjs/loader:1263:12) |  | Node.js v22.22.0
+pay-edge        UPSTREAM_PAY_SETTLEMENT_URL                falla_rapido  ←     at Function._load (node:internal/modules/cjs/loader:1263:12) |  | Node.js v22.22.0
+pay-edge        UPSTREAM_PAY_WEBHOOKS_URL                  falla_rapido  ←     at Function._load (node:internal/modules/cjs/loader:1263:12) |  | Node.js v22.22.0
+pay-ledger      DB_HOST                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-ledger      DB_NAME                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-ledger      DB_PASSWORD                                falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-ledger      DB_PORT                                    vivo_no_sano  ← "req":{"id":"20915521-efff-460e-b099-57c88ecf4120","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"20915521-efff-460e-b099-57c88ecf4120","msg":"Error no con | "req":{"id":"2db42fea-b12a-47be-9364-2852af29a40a","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"2db42fea-b12a-47be-9364-2852af29a40a","msg":"Error no con | "req":{"id":"1b479ef0-ffb2-4b05-9831-a178a873ea00","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"1b479ef0-ffb2-4b05-9831-a178a873ea00","msg":"Error no con
+pay-ledger      DB_USER                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-ledger      LEDGER_ID_NAMESPACE                        arranca
+pay-ledger      LOG_LEVEL                                  arranca
+pay-ledger      NATS_URL                                   arranca
+pay-ledger      PAY_MODE                                   falla_rapido  ←     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13 |     at async Promise.all (index 3)
+pay-ledger      TB_ADDRESS                                 falla_rapido  ←     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13 |     at async Promise.all (index 3) |     at async InstanceLoader.createInstancesOfProviders (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:55:9)
+pay-ledger      TB_CLUSTER_ID                              arranca
+pay-merchants   DB_HOST                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-merchants   DB_NAME                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-merchants   DB_PASSWORD                                falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-merchants   DB_PORT                                    vivo_no_sano  ← "req":{"id":"448a4d79-f5ae-4bdd-98ba-ac4709bdde16","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"448a4d79-f5ae-4bdd-98ba-ac4709bdde16","msg":"Error no con | "req":{"id":"88d97bbb-4ae1-4267-96fa-e675651dc524","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"88d97bbb-4ae1-4267-96fa-e675651dc524","msg":"Error no con | "req":{"id":"e3d4d88f-a677-47b6-b950-7a61d2b6b81f","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"e3d4d88f-a677-47b6-b950-7a61d2b6b81f","msg":"Error no con
+pay-merchants   DB_USER                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-merchants   KYC_STORE_DIR                              arranca
+pay-merchants   LOG_LEVEL                                  arranca
+pay-merchants   NATS_URL                                   arranca
+pay-merchants   PAY_MODE                                   falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-payments    CONNECTORS_URL                             falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-payments    DB_HOST                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-payments    DB_NAME                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-payments    DB_PASSWORD                                falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-payments    DB_PORT                                    vivo_no_sano  ← "req":{"id":"8fc53513-dd31-420f-ac52-d8944e7ad357","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","code":"ECONNREFUSED","request_id":"8fc53513-dd31-420f-ac52-d8944e7ad35 | "req":{"id":"6652584a-545d-4b1d-80df-14b13092a4de","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","code":"ECONNREFUSED","request_id":"6652584a-545d-4b1d-80df-14b13092a4d | "req":{"id":"7d217001-c901-40ee-828e-77f9d43670dd","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","code":"ECONNREFUSED","request_id":"7d217001-c901-40ee-828e-77f9d43670d
+pay-payments    DB_USER                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-payments    LEDGER_URL                                 falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-payments    LOG_LEVEL                                  arranca
+pay-payments    NATS_URL                                   arranca
+pay-payments    PAY_MODE                                   falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-payments    RISK_ALLOW_BELOW_THRESHOLD                 arranca
+pay-payments    RISK_FAIL_CLOSED_THRESHOLD_MINOR           arranca
+pay-payments    RISK_URL                                   falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-payments    TEMPORAL_ADDRESS                           arranca
+pay-payments    TEMPORAL_NAMESPACE                         arranca
+pay-payments    TEMPORAL_RUN_WORKER                        arranca
+pay-payments    TEMPORAL_TASK_QUEUE                        arranca
+pay-payments    VAULT_URL                                  arranca
+pay-qr          DB_HOST                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-qr          DB_NAME                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-qr          DB_PASSWORD                                falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-qr          DB_PORT                                    vivo_no_sano  ← "req":{"id":"8f4901ea-2d87-41fd-b064-e2c41838495d","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"8f4901ea-2d87-41fd-b064-e2c41838495d","msg":"Error no con | "req":{"id":"ffa8e957-03dc-48b2-a5fc-0b835ab42bb3","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"ffa8e957-03dc-48b2-a5fc-0b835ab42bb3","msg":"Error no con | "req":{"id":"8a83d4ea-4a98-45af-b4bd-b4e041ef7083","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"8a83d4ea-4a98-45af-b4bd-b4e041ef7083","msg":"Error no con
+pay-qr          DB_USER                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-qr          LOG_LEVEL                                  arranca
+pay-qr          NATS_URL                                   arranca
+pay-qr          PAY_MODE                                   falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-qr          QR_ACCOUNT_GUID                            falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-risk        DB_HOST                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-risk        DB_NAME                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-risk        DB_PASSWORD                                falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-risk        DB_PORT                                    vivo_no_sano  ← "req":{"id":"aff64755-99e1-4b59-b885-3f5a57f68fc6","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"aff64755-99e1-4b59-b885-3f5a57f68fc6","msg":"Error no con | "req":{"id":"b9ca1fa6-7db0-4f74-8b40-08ffa26e939e","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"b9ca1fa6-7db0-4f74-8b40-08ffa26e939e","msg":"Error no con | "req":{"id":"89709bfc-c96b-41f1-8676-63a9535698f6","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"89709bfc-c96b-41f1-8676-63a9535698f6","msg":"Error no con
+pay-risk        DB_USER                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-risk        LOG_LEVEL                                  arranca
+pay-risk        NATS_URL                                   arranca
+pay-risk        PAY_MODE                                   falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-risk        PAYER_HASH_KEY                             falla_rapido  ←     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13 |     at async Promise.all (index 3)
+pay-risk        SANCTIONS_DENY_SCORE                       falla_rapido  ←     at async Injector.loadInstance (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:76:13) |     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13
+pay-risk        SANCTIONS_REVIEW_SCORE                     falla_rapido  ←     at async Injector.loadInstance (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:76:13) |     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13
+pay-risk        WATCHMAN_URL                               falla_rapido  ←     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13 |     at async Promise.all (index 3)
+pay-schedules   DB_HOST                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-schedules   DB_NAME                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-schedules   DB_PASSWORD                                falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-schedules   DB_PORT                                    vivo_no_sano  ← "req":{"id":"c7a56d20-fc46-4035-be1a-7f590b5178fc","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"c7a56d20-fc46-4035-be1a-7f590b5178fc","msg":"Error no con | "req":{"id":"0a90c04e-3c86-4ab3-83c3-92393dc901fe","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"0a90c04e-3c86-4ab3-83c3-92393dc901fe","msg":"Error no con | "req":{"id":"c5f0c7d3-be6b-4d37-a555-dfbb3b3b842b","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"c5f0c7d3-be6b-4d37-a555-dfbb3b3b842b","msg":"Error no con
+pay-schedules   DB_USER                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-schedules   LEDGER_URL                                 falla_rapido  ←     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13 |     at async Promise.all (index 3)
+pay-schedules   LOG_LEVEL                                  arranca
+pay-schedules   NATS_URL                                   arranca
+pay-schedules   PAY_MODE                                   falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-schedules   RETRY_DELAYS_SECONDS                       falla_rapido  ←     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13 |     at async Promise.all (index 3)
+pay-settlement  CONNECTORS_URL                             falla_rapido  ←     at async Injector.loadInstance (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:76:13) |     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13
+pay-settlement  DB_HOST                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-settlement  DB_NAME                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-settlement  DB_PASSWORD                                falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-settlement  DB_PORT                                    vivo_no_sano  ← "req":{"id":"dfd3c228-18b5-4f6e-9301-284515ddb192","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"dfd3c228-18b5-4f6e-9301-284515ddb192","msg":"Error no con | "req":{"id":"197d9c73-a2d2-432a-9f24-eec6903a4566","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"197d9c73-a2d2-432a-9f24-eec6903a4566","msg":"Error no con | "req":{"id":"3de74652-5e3b-4aff-a517-22858a954059","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"3de74652-5e3b-4aff-a517-22858a954059","msg":"Error no con
+pay-settlement  DB_USER                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-settlement  LEDGER_URL                                 falla_rapido  ←     at async Injector.loadInstance (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:76:13) |     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13
+pay-settlement  LOG_LEVEL                                  arranca
+pay-settlement  NATS_URL                                   arranca
+pay-settlement  OPERATOR_TOKEN_AUDIENCE                    falla_rapido  ←     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13 |     at async Promise.all (index 3)
+pay-settlement  OPERATOR_TOKEN_ISSUER                      falla_rapido  ←     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13 |     at async Promise.all (index 3)
+pay-settlement  OPERATOR_TOKEN_PUBLIC_KEY                  falla_rapido  ←     at async Injector.loadProvider (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/injector.js:115:9) |     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13 |     at async Promise.all (index 3)
+pay-settlement  PAY_MODE                                   falla_rapido  ←     at async /home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:56:13 |     at async Promise.all (index 3) |     at async InstanceLoader.createInstancesOfProviders (/home/user/pasarelapago/node_modules/[4m@nestjs/core[24m/injector/instance-loader.js:55:9)
+pay-settlement  SETTLEMENT_MODE                            arranca
+pay-settlement  SETTLEMENT_TRANSFER_CONNECTOR              arranca
+pay-vault       DB_HOST                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-vault       DB_NAME                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-vault       DB_PASSWORD                                falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-vault       DB_PORT                                    vivo_no_sano  ← "req":{"id":"ef4b30bb-0d9c-4ff4-9070-372f2fc50cf8","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"ef4b30bb-0d9c-4ff4-9070-372f2fc50cf8","msg":"Error no con | "req":{"id":"ebfc570f-e011-4eb9-bb56-8dc0022e9646","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"ebfc570f-e011-4eb9-bb56-8dc0022e9646","msg":"Error no con | "req":{"id":"4515f952-c8a3-40e2-95ae-2dee3a3e5897","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"4515f952-c8a3-40e2-95ae-2dee3a3e5897","msg":"Error no con
+pay-vault       DB_USER                                    falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-vault       LOG_LEVEL                                  arranca
+pay-vault       NATS_URL                                   arranca
+pay-vault       PAY_MODE                                   falla_rapido  ←     at Module.require (node:internal/modules/cjs/loader:1463:12) |  | Node.js v22.22.0
+pay-vault       VAULT_BACKEND                              falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-webhooks    DB_HOST                                    falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-webhooks    DB_NAME                                    falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-webhooks    DB_PASSWORD                                falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-webhooks    DB_PORT                                    vivo_no_sano  ← "req":{"id":"7ee16288-cdba-4f87-b0cf-6ed89fca3c3e","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"7ee16288-cdba-4f87-b0cf-6ed89fca3c3e","msg":"Error no con | "context":"WorkerRunner","err":"Error","code":"ECONNREFUSED","msg":"El trabajador de entregas falló"} | "req":{"id":"c5272d78-ac76-425d-8636-04c805be9222","method":"GET","url":"/health/ready"},"context":"ProblemFilter","err":"Error","request_id":"c5272d78-ac76-425d-8636-04c805be9222","msg":"Error no con
+pay-webhooks    DB_USER                                    falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+pay-webhooks    LOG_LEVEL                                  arranca
+pay-webhooks    NATS_URL                                   arranca
+pay-webhooks    PAY_MODE                                   falla_rapido  ←     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5) |  | Node.js v22.22.0
+pay-webhooks    WEBHOOKS_POLL_INTERVAL_MS                  arranca
+pay-webhooks    WEBHOOKS_RETRY_JITTER_PERCENT              arranca
+pay-webhooks    WEBHOOKS_SANDBOX_CA_FILE                   arranca
+pay-webhooks    WEBHOOKS_SANDBOX_TARGETS                   arranca
+pay-webhooks    WEBHOOKS_SECRET_KEK                        falla_rapido  ←     at wrapModuleLoad (node:internal/modules/cjs/loader:237:24) |  | Node.js v22.22.0
+exit=0

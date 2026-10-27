@@ -41,27 +41,30 @@ Lo que hace al arrancar (en este orden, sin esperas de tiempo fijo; todo espera 
 
 ## Matriz por servicio
 
-Arranque medido en la corrida de humo (`evidencia/e2e-smoke.txt`); variables de `evidencia/e2e-envprobe.txt`
+Arranque medido en la corrida de humo (`evidencia/e2e-smoke.txt`); variables de `evidencia/e2e-envprobe-2d.txt` (re-corrida de la tanda 2d)
 (se quitó UNA variable a la vez de un entorno que sí arranca y se clasificó: `falla_rapido` = el proceso muere,
 `vivo_no_sano` = vive pero `/health/ready` ≠ 200, `arranca` = tiene valor por defecto o es opcional).
 
-| Servicio (carril) | ¿Arranca? | Listo en | Variables sin las que NO arranca (`falla_rapido`) | Con valor por defecto / opcionales (`arranca`) | Quién corrige lo que falta |
+| Servicio (carril) | ¿Arranca? | Listo en | Sin estas variables NO arranca (`falla_rapido`) | Con valor por defecto u opcionales (`arranca`) | Quién corrige lo que falta |
 |---|---|---|---|---|---|
-| `pay-ledger` (P2) | Sí | 4223 ms | `DB_*`, `TB_ADDRESS` | `TB_CLUSTER_ID`, `LEDGER_ID_NAMESPACE`, `PAY_MODE` | P2: **no lee `PAY_MODE`** (solo valida el modo de la clave); sin guardia de despliegue |
-| `pay-risk` (P5) | Sí | 4103 ms | `DB_*`, `WATCHMAN_URL`, `PAYER_HASH_KEY`, `SANCTIONS_DENY_SCORE`, `SANCTIONS_REVIEW_SCORE` | `PAY_MODE` | P5: no lee `PAY_MODE`; con `payments` las decisiones `review` se tratan como `deny` (ver hallazgo 2) |
-| `pay-qr` (P4) | Sí | 2954 ms | `DB_*`, `PAY_MODE`, `QR_ACCOUNT_GUID` | — | ninguno |
-| `pay-vault` (P3) | Sí | 3398 ms | `DB_*`, `VAULT_BACKEND` | `PAY_MODE` (por defecto `sandbox`; `fake` se niega con `live`) | ninguno |
-| `pay-merchants` (P5) | Sí | 3859 ms | `DB_*` | `KYC_STORE_DIR`, `PAY_MODE` | P5: **no hay forma de dar de alta al primer comercio** (hallazgo 1); no lee `PAY_MODE` |
-| `pay-webhooks` (P1) | Sí | 2008 ms | `DB_*`, `PAY_MODE`, `WEBHOOKS_SECRET_KEK` | `WEBHOOKS_POLL_INTERVAL_MS`, `WEBHOOKS_RETRY_JITTER_PERCENT`, `WEBHOOKS_SANDBOX_TARGETS`, `WEBHOOKS_SANDBOX_CA_FILE` | P1 (resuelto en esta tanda: prefijo `/v1` y destinos sandbox) |
-| `pay-connectors` (P4) | Sí | 1540 ms | `DB_*`, `PAY_MODE`, `BANK_TRANSFER_ACCOUNT_HOLDER`, `BANK_TRANSFER_ACCOUNT_NUMBER`, `BANK_TRANSFER_BANK_NAME` | `PAY_QR_URL`, `PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET` | P4: los tres `BANK_TRANSFER_*` son obligatorios aun con el conector `mock` (documentar en `.env.example`) |
-| `pay-payments` (P3) | Sí | 3991 ms | `DB_*`, `RISK_URL`, `CONNECTORS_URL`, `LEDGER_URL` | `VAULT_URL`, `TEMPORAL_*`, `RISK_*`, `PAY_MODE` | P3: `VAULT_URL` falta en `.env.example`; no lee `PAY_MODE`; errores de apagado (hallazgo 3) |
-| `pay-settlement` (P2) | Sí | 1699 ms | `DB_*`, `LEDGER_URL`, `CONNECTORS_URL`, `OPERATOR_TOKEN_ISSUER`, `OPERATOR_TOKEN_AUDIENCE`, `OPERATOR_TOKEN_PUBLIC_KEY` | `SETTLEMENT_MODE`, `SETTLEMENT_TRANSFER_CONNECTOR`, `PAY_MODE` (por defecto `sandbox`) | ninguno |
-| `pay-schedules` (P5) | Sí | 1717 ms | `DB_*`, `LEDGER_URL`, `RETRY_DELAYS_SECONDS` | `PAY_MODE` | P5: no tiene cliente de `pay-payments` (hallazgo 4); no lee `PAY_MODE` |
-| `pay-edge` (P1) | Sí | 1268 ms | `DB_*`, `PAY_MODE`, `REDIS_URL`, seis `UPSTREAM_PAY_*_URL` | `RATE_LIMIT_PREFIX` | P1 (resuelto en 2c: aviso `LegacyRouteConverter`, hallazgo 6) |
+| `pay-ledger` (P2) | Sí | 4223 ms | `DB_*`, `PAY_MODE`, `TB_ADDRESS` | `LEDGER_ID_NAMESPACE`, `LOG_LEVEL`, `NATS_URL`, `TB_CLUSTER_ID` | ninguno (la guardia de `live` se ocupa de dobles del motor; con TigerBeetle real arranca en live, ver § PAY_MODE) |
+| `pay-risk` (P5) | Sí | 4103 ms | `DB_*`, `PAYER_HASH_KEY`, `PAY_MODE`, `SANCTIONS_DENY_SCORE`, `SANCTIONS_REVIEW_SCORE`, `WATCHMAN_URL` | `LOG_LEVEL`, `NATS_URL` | P3+P5: con `payments` el intento termina `risk_denied` (hallazgo 2) |
+| `pay-qr` (P4) | Sí | 2954 ms | `DB_*`, `PAY_MODE`, `QR_ACCOUNT_GUID` | `LOG_LEVEL`, `NATS_URL` | ninguno |
+| `pay-vault` (P3) | Sí | 3398 ms | `DB_*`, `PAY_MODE`, `VAULT_BACKEND` | `LOG_LEVEL`, `NATS_URL` | ninguno |
+| `pay-merchants` (P5) | Sí | 3859 ms | `DB_*`, `PAY_MODE` | `KYC_STORE_DIR`, `LOG_LEVEL`, `NATS_URL` | P5: no hay forma de dar de alta al primer comercio (hallazgo 1) |
+| `pay-webhooks` (P1) | Sí | 2008 ms | `DB_*`, `PAY_MODE`, `WEBHOOKS_SECRET_KEK` | `LOG_LEVEL`, `NATS_URL`, `WEBHOOKS_POLL_INTERVAL_MS`, `WEBHOOKS_RETRY_JITTER_PERCENT`, `WEBHOOKS_SANDBOX_CA_FILE`, `WEBHOOKS_SANDBOX_TARGETS` | P1 (`WEBHOOKS_ENGINE`: en live no arranca, ver § PAY_MODE) |
+| `pay-connectors` (P4) | Sí | 1540 ms | `DB_*`, `PAY_MODE` | `BANK_TRANSFER_ACCOUNT_HOLDER`, `BANK_TRANSFER_ACCOUNT_NUMBER`, `BANK_TRANSFER_BANK_NAME`, `LOG_LEVEL`, `NATS_URL`, `PAY_QR_URL`, `PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET`, `POLLER_INTERVAL_MS`, `POLLER_MIN_AGE_MS` | ninguno (los `BANK_TRANSFER_*` ya son opcionales; `POLLER_*` fijados por el arnés) |
+| `pay-payments` (P3) | Sí | 3991 ms | `DB_*`, `CONNECTORS_URL`, `LEDGER_URL`, `PAY_MODE`, `RISK_URL` | `LOG_LEVEL`, `NATS_URL`, `RISK_ALLOW_BELOW_THRESHOLD`, `RISK_FAIL_CLOSED_THRESHOLD_MINOR`, `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_RUN_WORKER`, `TEMPORAL_TASK_QUEUE`, `VAULT_URL` | P3: errores de apagado de Temporal (hallazgo 3); `VAULT_URL` no figura en `.env.example` |
+| `pay-settlement` (P2) | Sí | 1699 ms | `DB_*`, `CONNECTORS_URL`, `LEDGER_URL`, `OPERATOR_TOKEN_AUDIENCE`, `OPERATOR_TOKEN_ISSUER`, `OPERATOR_TOKEN_PUBLIC_KEY`, `PAY_MODE` | `LOG_LEVEL`, `NATS_URL`, `SETTLEMENT_MODE`, `SETTLEMENT_TRANSFER_CONNECTOR` | ninguno |
+| `pay-schedules` (P5) | Sí | 1717 ms | `DB_*`, `LEDGER_URL`, `PAY_MODE`, `RETRY_DELAYS_SECONDS` | `LOG_LEVEL`, `NATS_URL` | P5: sin cliente de `pay-payments` (hallazgo 4) |
+| `pay-edge` (P1) | Sí | 1268 ms | `DB_*`, `PAY_MODE`, `REDIS_URL`, `UPSTREAM_PAY_LEDGER_URL`, `UPSTREAM_PAY_MERCHANTS_URL`, `UPSTREAM_PAY_PAYMENTS_URL`, `UPSTREAM_PAY_SCHEDULES_URL`, `UPSTREAM_PAY_SETTLEMENT_URL`, `UPSTREAM_PAY_WEBHOOKS_URL` | `LOG_LEVEL`, `NATS_URL`, `RATE_LIMIT_PREFIX` | ninguno |
 
-Notas de lectura: `DB_PORT` figura `vivo_no_sano` en todos porque el puerto por defecto (5432) existe pero no es la
-base del arnés; es un efecto del entorno de la prueba y no un defecto. `NATS_URL` y `LOG_LEVEL` tienen valor por
+Notas de lectura: `DB_PORT` (en `DB_*` de la columna 4 aparece junto a las demás: sin ella el servicio cae a 5432, que no es la base del arnés ⇒ `vivo_no_sano` o `falla_rapido`; es un efecto del entorno de la prueba, no un defecto). **`PAY_MODE` es obligatorio en los 11** (ya no hay filas con valor por defecto). `NATS_URL` y `LOG_LEVEL` tienen valor por
 defecto en todos.
+
+**Ajustes del entorno del arnés (propuesta de P4):** `POLLER_MIN_AGE_MS=1000` y `POLLER_INTERVAL_MS=500` en `pay-connectors` (en `e2e/lib/services.ts`): la consulta de estado de los
+cobros pendientes (callback perdido) corre en segundos y no a los 15/30 s por defecto. Efecto en las pruebas: el poller puede revelar un cobro «…05» antes que la consulta explícita; `connector-callbacks.e2e.ts`
+ya no afirma que siga pendiente y afirma lo que importa (sin callback, un solo evento). `pay-payments` además usa `STATUS_INQUIRY_MS=1000` solo en E2.
 
 ## Humo (`yarn e2e:smoke`)
 
@@ -93,13 +96,18 @@ defecto en todos.
    Temporal que se apaga dos veces). No afecta el cierre del proceso, sí ensucia el log.
 4. **`pay-schedules` no tiene cliente de `pay-payments`** — P5/P3. El plan de llamadas del contrato lo declara;
    el humo lo ejercita directo contra `pay-payments`, pero el servicio no lo consume todavía.
-5. **`PAY_MODE` (2c)** — cada carril. Estado medido con `e2e/flows/live-guard.e2e.ts` (`PAY_MODE=live` + el entorno de sandbox del arnés: conector `mock`,
-   `VAULT_BACKEND=fake`, destinos y CA de sandbox, rail `mock`, listas de Watchman congeladas, GUID de QR provisional, destinos en loopback):
-   **se niegan a arrancar y nombran `PAY_MODE=live`: `pay-vault`, `pay-merchants`, `pay-webhooks`, `pay-connectors`, `pay-payments`, `pay-settlement`, `pay-edge`, `pay-qr`, `pay-risk`.**
-   `pay-schedules` y `pay-ledger` **no embeben ningún doble** (el arnés le da a `pay-ledger` un TigerBeetle REAL y `pay-schedules` habla con `pay-ledger` por HTTP),
-   así que en live arrancan legítimamente; su guardia cubre interruptores de prueba (`DISABLE_BACKGROUND_JOBS=1` en schedules, probado) y dobles del motor (ledger, probado en su carril).
-   Por eso «ningún servicio arranca» es cierto para los que reciben un doble, no para los 11 en sentido literal. Que `PAY_MODE` falte o tenga otro valor **no arranca** en los 11
-   (`pay-edge` y `pay-webhooks`: pruebas de configuración; el resto: cada carril, ver su `loadConfig`).
+5. **`PAY_MODE` (2d)** — resuelto en lo esencial; queda una nota de lectura.
+   - **Explícito en los 11, sin valor por defecto ni tolerancia a variantes:** `e2e/flows/pay-mode-required.e2e.ts` arranca los 11 con el modo ausente, vacío, `prod` y `LIVE`; ninguno queda sano
+     (`evidencia/e2e-full-2d.txt`). La re-corrida de variables (`e2e-envprobe-2d.txt`) confirma que quitar `PAY_MODE` mata el proceso en los 11.
+   - **Bajo `live` con el entorno de sandbox del arnés** (`flows/live-guard.e2e.ts`; mensajes literales en `evidencia/live-guard-mensajes.txt`): se niegan a arrancar y nombran `PAY_MODE=live`
+     **9 de 11 — `pay-vault`, `pay-merchants`, `pay-webhooks`, `pay-connectors`, `pay-payments`, `pay-settlement`, `pay-edge`, `pay-qr`, `pay-risk`** — más `pay-schedules` cuando se le pone `DISABLE_BACKGROUND_JOBS=1`.
+   - **`pay-webhooks` (2d):** el motor de entrega propio (`InProcessEngine`) es un doble de Svix. `WEBHOOKS_ENGINE=inprocess|svix`: en sandbox es opcional (por defecto `inprocess`); bajo `live` es obligatorio y **no hay valor que arranque**:
+     sin declarar ⇒ «exige declarar WEBHOOKS_ENGINE»; `inprocess` ⇒ «es el doble de Svix»; `svix` (en cualquier modo) ⇒ «el motor real no está implementado». Probado en configuración (`health.spec`) y arrancando el proceso (`live-guard`).
+     Consecuencia: hasta que exista `SvixEngine`, `pay-webhooks` no puede correr en live.
+   - **Por qué arrancan en live `pay-ledger` y `pay-schedules` (única diferencia con el pedido «10 de 11»):** ninguno recibe un doble en el entorno del arnés. `pay-ledger` usa un TigerBeetle REAL
+     (privado por corrida) y su guardia (`assertDeploymentSafe`) solo rechaza motores que no se declaren reales; `pay-schedules` no embebe ningún doble (su libro mayor es `pay-ledger` por HTTP) y su guardia cubre
+     interruptores de prueba (`DISABLE_BACKGROUND_JOBS=1`, probado). Por eso, medido con el entorno de sandbox tal cual, se niegan 9 de 11; con el interruptor de pruebas puesto, 10 de 11; solo `pay-ledger` arranca en live
+     de forma legítima. Si se quisiera que `pay-schedules` se negara con el entorno de sandbox tal cual, el arnés tendría que inyectarle un interruptor de pruebas que hoy no usa (decisión de P5/coordinador).
 6. **`pay-edge`: aviso `LegacyRouteConverter`** — **resuelto** (P1). Venía del comodín `*` por defecto de `nestjs-pino` combinado con el prefijo `/v1`
    («Unsupported route path: /v1/*»); se declara `forRoutes: [{ path: '{*path}' }]`. Comprobado: el arranque ya no emite el aviso. La plantilla no tiene prefijo, no se ve afectada.
 7. **`.env.example` inconsistentes** — P3/P5: valores por defecto de URL distintos entre `payments` y `schedules`,
@@ -139,6 +147,18 @@ Pruebas en tres niveles — correcto / límite / inválido: `services/pay-edge/t
 |---|---|---|---|---|
 | `e2e/pending/e1.e2e.ts` | E1: alta (siembra [DOBLE]) → `sk_test_` → cobro QR de Bs 100 → callback del conector `mock` → `succeeded` → ledger con 97,00 en `merchant:X:pending` y 3,00 en `platform:fees`, débitos = créditos, `GET /v1/balance` y un `payment_intent.succeeded` al comercio | D-29/D-30: el intento termina `failed` con `risk_denied` (medido: `last_error.code = risk_denied`); `pay-payments` no manda el nombre del comercio a `pay-risk` y `pay-risk` contesta `review` (`screening_not_provided`) | P3 + P5 (2c) | el intento llega a `succeeded` |
 | `e2e/pending/e2.e2e.ts` | E2 por la API pública: callback duplicado (…03), fuera de orden (…04) y perdido que resuelve la consulta de estado (…05, `STATUS_INQUIRY_MS=1000`): un solo `succeeded`, un solo asiento | el mismo `risk_denied` | P3 + P5 (2c) | ídem |
+
+**Mover E1/E2 a la suite por defecto (un solo cambio mecánico, sin editar contenido):**
+
+```bash
+git mv e2e/pending/e1.e2e.ts e2e/flows/e1.e2e.ts
+git mv e2e/pending/e2.e2e.ts e2e/flows/e2.e2e.ts      # o: git mv e2e/pending/*.e2e.ts e2e/flows/
+```
+
+Las rutas relativas (`../lib/…`, `../stack.ts`) son iguales en `pending/` y en `flows/`, y `e2e/tsconfig.json` ya tipa las dos carpetas. `yarn e2e` recoge `flows/**/*.e2e.ts` sin tocar nada.
+`yarn e2e:pending` ya corre con `--passWithNoTests`: con la carpeta vacía termina en 0 («No tests found, exiting with code 0», comprobado). Comprobado también copiando un archivo a `flows/` (jest lo lista y `tsc` pasa).
+Los encabezados de ambos archivos dicen cuándo y cómo moverlos; después del `git mv` se puede borrar ese párrafo si se quiere.
+Condición para moverlos: que el intento llegue a `succeeded` (P3: nombre del comercio en el cribado y `payer_name`; P5: `legal_name` en los eventos y `screening_not_provided`). Correr `yarn e2e:pending` antes de mover.
 
 Lo que ya está probado hoy, contra los servicios REALES, de los mismos flujos (dentro de la suite por defecto):
 `flows/ledger-capture.e2e.ts` (el asiento exacto que manda `recordLedger`: 97,00/3,00, partida doble, idempotencia, `insufficient_funds`, 403 por identidad/modo/matriz) y

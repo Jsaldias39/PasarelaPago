@@ -53,7 +53,7 @@ paths:
       tags: [Assessments]
       x-owner: P5
       summary: Evalúa un cobro
-      description: 'Idempotente por `Idempotency-Key`: reevaluar el mismo intento devuelve la misma decisión (y la misma `rule_version`).'
+      description: 'Idempotente por `Idempotency-Key`: reevaluar el mismo intento devuelve la misma decisión (y la misma `rule_version`). `payment_intent_id` es la clave de AGRUPACIÓN: varias evaluaciones del mismo intento no cuentan doble en la velocidad ni en los límites diarios.'
       x-open-question: 'El umbral de coincidencia aproximada para sanciones lo fija cumplimiento: en el spike de Watchman, una coincidencia exacta puntuó 0,812 y un nombre con una letra cambiada 0,602 (`docs/spikes/watchman.md`). Hasta que se defina, `screening.min_score` es obligatorio en la configuración del servicio y no tiene valor por defecto.'
       parameters:
         - $ref: '#/components/parameters/ServiceId'
@@ -186,10 +186,16 @@ components:
           type: object
           x-sensitive: true
           additionalProperties: false
-          required: [name]
+          description: >-
+            Partes a cribar contra listas de sanciones (D-29): SIEMPRE el comercio (`merchant_name`) y, si el pagador dio un nombre,
+            también el pagador (`name`). Una sola evaluación por intento: gana la coincidencia más grave de las dos partes. Sin
+            `merchant_name` la evaluación responde `review` con `reason_code: screening_not_provided` (fail-closed, D-30); un pagador
+            invitado sin nombre NO produce `review`. Se usan en memoria: no se guardan ni se registran (regla 90.2).
           properties:
-            name: { type: string, minLength: 1, maxLength: 200, description: 'Nombre a cribar contra listas de sanciones. Se usa en memoria; no se guarda ni se registra.' }
-            entity_type: { type: string, enum: [person, business], description: 'Opcional. Con él se hace UNA búsqueda en Watchman (el cuello de botella de la latencia); sin él se hacen dos (persona y empresa) y manda el puntaje mayor.' }
+            merchant_name: { type: string, minLength: 1, maxLength: 300, description: 'Razón social del comercio (la que llega en `merchant.created`/`merchant.activated`). Siempre debe venir.' }
+            merchant_entity_type: { type: string, enum: [person, business], description: 'Opcional. Por defecto `business`. Con él se hace UNA búsqueda en Watchman para el comercio.' }
+            name: { type: string, minLength: 1, maxLength: 200, description: 'Opcional. Nombre del pagador, solo si lo dio (`payer_name`).' }
+            entity_type: { type: string, enum: [person, business], description: 'Opcional. Tipo del pagador. Sin él se hacen dos búsquedas (persona y empresa) y manda el puntaje mayor.' }
     Assessment:
       type: object
       required: [id, object, decision, reason_code, rule_version, screened, created_at]
