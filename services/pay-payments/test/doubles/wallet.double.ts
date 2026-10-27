@@ -20,7 +20,8 @@ export class WalletAuthorizerDouble implements WalletAuthorizer {
   consumeCalls = 0;
 
   issue(input: { userId: string; merchantId: string; amountMinor: number; currency?: string; ttlMs?: number }): string {
-    const token = `wa_${randomUUID().replace(/-/g, '')}`;
+    // Una `x` cada 8 caracteres: ninguna corrida de dígitos llega a 13, así que un token aleatorio nunca se confunde con un PAN (Luhn) y la prueba no es intermitente.
+    const token = `wa_${randomUUID().replace(/-/g, '').match(/.{8}/g)!.join('x')}`;
     this.tokens.set(token, {
       authorizationId: `wauth_${randomUUID().replace(/-/g, '').slice(0, 20)}`,
       userId: input.userId,
