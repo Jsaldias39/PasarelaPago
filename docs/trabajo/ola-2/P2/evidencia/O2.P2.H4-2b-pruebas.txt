@@ -1,0 +1,112 @@
+# O2.P2.H4 (tanda 2b) pay-ledger: M1 mode en eventos (events, config) · M4 ids estables (ids)
+
+## test/events.spec.ts — 9/9 pasan
+  [passed] eventos del ledger (outbox, en la misma transacción) un asiento de cobro + comisión publica un ledger.transfer.posted POR PATA, válido contra el AsyncAPI, con kind y merchantid correctos
+  [passed] eventos del ledger (outbox, en la misma transacción) un movimiento `release` (pending → available) no publica evento: el contrato de eventos no tiene ese kind (PROPUESTAS.md #2)
+  [passed] eventos del ledger (outbox, en la misma transacción) un rechazo NO deja evento: sin asiento no hay evento
+  [passed] eventos del ledger (outbox, en la misma transacción) los eventos de retención (created, posted, voided) cumplen el AsyncAPI
+  [passed] eventos del ledger (outbox, en la misma transacción) el relé del outbox lleva los eventos a NATS JetStream, en orden y una sola vez
+  [passed] eventos del ledger (outbox, en la misma transacción) merchantid sale del lado crédito si lo hay y del débito si no
+  [passed] `mode` en los eventos (D-28): apagado hasta que el AsyncAPI lo declare, listo para encenderse por defecto NO sale `mode` y todos los eventos validan contra el contrato de hoy
+  [passed] `mode` en los eventos (D-28): apagado hasta que el AsyncAPI lo declare, listo para encenderse encendido (EVENTS_CARRY_MODE) cada evento lleva el modo test de su asiento o retención; contra el contrato solo puede diferir en `mode`
+  [passed] `mode` en los eventos (D-28): apagado hasta que el AsyncAPI lo declare, listo para encenderse encendido (EVENTS_CARRY_MODE) cada evento lleva el modo live de su asiento o retención; contra el contrato solo puede diferir en `mode`
+
+## test/config.spec.ts — 10/10 pasan
+  [passed] configuración de pay-ledger sin TB_ADDRESS no arranca; los valores por defecto son los de producción (sin job del invariante propio ni namespace)
+  [passed] configuración de pay-ledger TB_CLUSTER_ID="-1" es inválido
+  [passed] configuración de pay-ledger TB_TIMEOUT_MS="5" es inválido
+  [passed] configuración de pay-ledger LEDGER_INVARIANT_INTERVAL_MS="x" es inválido
+  [passed] configuración de pay-ledger LEDGER_ID_NAMESPACE="con espacios" es inválido
+  [passed] configuración de pay-ledger LEDGER_ID_NAMESPACE="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" es inválido
+  [passed] configuración de pay-ledger LEDGER_ID_NAMESPACE="ñandú" es inválido
+  [passed] configuración de pay-ledger LEDGER_ID_NAMESPACE válido se acepta
+  [passed] namespace de ids de TigerBeetle apartar el namespace cambia TODOS los ids (cuentas e ids públicos) y es determinista
+  [passed] EVENTS_CARRY_MODE apagado por defecto; acepta true|false; cualquier otro valor falla al arrancar
+
+## test/ids.spec.ts — 28/28 pasan
+  [passed] ids deterministas (P2.H1.M3) la misma cuenta lógica da siempre el mismo id de 128 bits, y cuentas distintas dan ids distintos
+  [passed] ids deterministas (P2.H1.M3) valor fijado: un cambio accidental del algoritmo de derivación rompería todos los ids ya asentados
+  [passed] ids deterministas (P2.H1.M3) el id de la pata depende de business_ref, attempt e índice (H-TB1: un reintento tras rechazo usa un id nuevo)
+  [passed] ids deterministas (P2.H1.M3) el MODO entra en todos los ids: la misma cuenta, pata y retención de `test` y de `live` son identidades distintas (D-28)
+  [passed] ids deterministas (P2.H1.M3) los dominios no se pisan: la misma cadena como cuenta, pata, retención y resolución da ids distintos
+  [passed] ids deterministas (P2.H1.M3) propiedad (20.000 casos): nunca 0 ni 2^128−1, sin colisiones, y los ids públicos cumplen los patrones del contrato
+  [passed] ids deterministas (P2.H1.M3) hash128 corrige los dos valores prohibidos de TigerBeetle
+  [passed] plan de cuentas merchant:mc_k3m9x2q7ab:pending → merchant_pending (credit, no negativo: true)
+  [passed] plan de cuentas merchant:mc_k3m9x2q7ab:debt → merchant_debt (debit, no negativo: true)
+  [passed] plan de cuentas merchant:mc_k3m9x2q7ab:available → merchant_available (credit, no negativo: true)
+  [passed] plan de cuentas user:usr_abc-123:wallet → user_wallet (credit, no negativo: true)
+  [passed] plan de cuentas platform:fees → platform_fees (credit, no negativo: false)
+  [passed] plan de cuentas connector:mercantil_qr:clearing → connector_clearing (debit, no negativo: false)
+  [passed] plan de cuentas payout:clearing → payout_clearing (credit, no negativo: false)
+  [passed] plan de cuentas schedule:md_k3m9x2q7ab:reserve → schedule_reserve (credit, no negativo: true)
+  [passed] plan de cuentas rechaza ""
+  [passed] plan de cuentas rechaza "platform:fee"
+  [passed] plan de cuentas rechaza "merchant:mc_short:pending"
+  [passed] plan de cuentas rechaza "merchant:mc_k3m9x2q7ab:other"
+  [passed] plan de cuentas rechaza "user:a:wallet"
+  [passed] plan de cuentas rechaza "connector:AB:clearing"
+  [passed] plan de cuentas rechaza "x"
+  [passed] plan de cuentas rechaza "merchant:mc_k3m9x2q7ab:pending "
+  [passed] plan de cuentas rechaza "platform:fees
+"
+  [passed] plan de cuentas extrae el comercio dueño
+  [passed] los ids con el modo son deterministas y estables entre reinicios y entre réplicas (D-28) valores fijados: la derivación de hoy da exactamente estos ids
+  [passed] los ids con el modo son deterministas y estables entre reinicios y entre réplicas (D-28) un reinicio y dos réplicas (procesos nuevos y aparte, con otra zona horaria, otro idioma y otro entorno) calculan los mismos ids que este proceso
+  [passed] los ids con el modo son deterministas y estables entre reinicios y entre réplicas (D-28) el modo, el business_ref y el intento cambian el id; nada más (sin reloj, sin azar, sin dependencia del entorno)
+
+# O2.P2.H4 (tanda 2b) pay-settlement: M1 events-mode · M2 inbound-mode · M3/M5 consumers, nats, drift
+
+## test/events-mode.spec.ts — 4/4 pasan
+  [passed] mode en los eventos de settlement por defecto batch.closed y reconciliation.exception.opened NO llevan `mode` y validan contra el contrato de hoy; payout.* sí lo llevan
+  [passed] mode en los eventos de settlement encendido, cada evento lleva el modo test de su corte o corrida; contra el contrato solo puede diferir en `mode` (canario del cambio de contrato)
+  [passed] mode en los eventos de settlement encendido, cada evento lleva el modo live de su corte o corrida; contra el contrato solo puede diferir en `mode` (canario del cambio de contrato)
+  [passed] mode en los eventos de settlement EVENTS_CARRY_MODE: apagado por defecto, true|false, otro valor falla al arrancar
+
+## test/inbound-mode.spec.ts — 3/3 pasan
+  [passed] llamadas entrantes que el contrato documenta la tabla del contrato es la que se espera (si cambia, esta prueba lo avisa; no se asumen llamadores)
+  [passed] llamadas entrantes que el contrato documenta cada par (servicio, operación) documentado: CON modo no es 403; SIN modo o con un valor inválido, 403 forbidden
+  [passed] llamadas entrantes que el contrato documenta un llamador NO documentado recibe 403 aunque mande un modo válido; no se agregan llamadores
+
+## test/consumers.spec.ts — 27/27 pasan
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) correcto: un evento válido abre UNA excepción de conciliación con el detalle, visible solo en su modo, y no mueve dinero
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) la lista con una contradicción difiere del contrato SOLO en `kind` y `run_id` (propuesta de contrato; si el contrato ya los admite, esta prueba sigue verde)
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) duplicado: el mismo evento dos veces tiene efecto una vez; el mismo hecho con OTRO id de evento tampoco abre otra excepción
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) hechos distintos del mismo cobro (otro kind, otro estado o otro instante) abren excepciones distintas
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) concurrencia: el mismo evento entregado 10 veces a la vez ⇒ 1 procesado, 9 duplicados, 1 excepción
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) desorden: el orden de llegada de dos hechos del mismo cobro no cambia el resultado
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) límite: sin `mode` (el productor aún no lo informa) la excepción queda con modo desconocido, se ve desde los dos modos y se puede resolver desde cualquiera; nunca se asume live
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) una contradicción con modo no se resuelve desde el otro modo (404) y sigue abierta
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) resolver es una decisión de una persona y NO toca el ledger: request_adjustment solo deja un pedido
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) inválido (payment_intent_id mal formado): se descarta sin abrir nada ni dejar rastro en el inbox
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) inválido (sin merchant_id): se descarta sin abrir nada ni dejar rastro en el inbox
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) inválido (kind en mayúsculas): se descarta sin abrir nada ni dejar rastro en el inbox
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) inválido (estado de 41 caracteres): se descarta sin abrir nada ni dejar rastro en el inbox
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) inválido (modo fuera de test|live): se descarta sin abrir nada ni dejar rastro en el inbox
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) inválido (fecha ilegible): se descarta sin abrir nada ni dejar rastro en el inbox
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) inválido (campo faltante current_status): se descarta sin abrir nada ni dejar rastro en el inbox
+  [passed] payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) un evento con ese tipo pero de otro origen se ignora
+  [passed] ledger.transfer.posted: inbox, duplicados y desorden el mismo evento repetido y concurrente (10 a la vez) tiene un solo efecto
+  [passed] ledger.transfer.posted: inbox, duplicados y desorden desorden: un evento anterior que llega tarde adelanta la primera aparición y no atrasa la última actividad (cualquier orden da lo mismo)
+  [passed] ledger.transfer.posted: inbox, duplicados y desorden un crédito a una cuenta que no es `pending` de un comercio y un evento de otro origen se ignoran sin tocar el inbox
+  [passed] fee_schedule.published: inbox, duplicados y desorden las versiones 1, 2 y 3 llegando en el orden 1 dejan siempre la 3
+  [passed] fee_schedule.published: inbox, duplicados y desorden las versiones 1, 2 y 3 llegando en el orden 1 dejan siempre la 3
+  [passed] fee_schedule.published: inbox, duplicados y desorden las versiones 1, 2 y 3 llegando en el orden 2 dejan siempre la 3
+  [passed] fee_schedule.published: inbox, duplicados y desorden las versiones 1, 2 y 3 llegando en el orden 2 dejan siempre la 3
+  [passed] fee_schedule.published: inbox, duplicados y desorden las versiones 1, 2 y 3 llegando en el orden 3 dejan siempre la 3
+  [passed] fee_schedule.published: inbox, duplicados y desorden las versiones 1, 2 y 3 llegando en el orden 3 dejan siempre la 3
+  [passed] fee_schedule.published: inbox, duplicados y desorden concurrencia: las tres versiones a la vez, cada una repetida, dejan la más nueva y un evento por versión en el inbox
+
+## test/nats.spec.ts — 5/5 pasan
+  [passed] consumidores durables sobre NATS JetStream real ledger.transfer.posted de pay-ledger registra al comercio; fee_schedule.published de pay-merchants guarda el abono
+  [passed] consumidores durables sobre NATS JetStream real un mensaje duplicado (mismo id, entregado dos veces) tiene efecto una sola vez
+  [passed] consumidores durables sobre NATS JetStream real payment_intent.contradiction_detected de pay-payments (stream PAY_PAYMENTS) abre una excepción; entregado dos veces, una sola
+  [passed] consumidores durables sobre NATS JetStream real basura, JSON inválido, sobres inválidos y eventos ajenos no traban el consumidor ni se reintentan sin fin; el siguiente evento válido pasa
+  [passed] el relé del outbox publica los eventos propios en PAY_SETTLEMENT un payout.paid encolado en el outbox llega al stream, con el contrato y su Nats-Msg-Id
+
+## test/drift.spec.ts — 6/6 pasan
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) sin deriva: el SQL aplicado coincide con lo que el código asume
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) columna obligatoria no mapeada
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) columna opcional que el mapa no conoce
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) tabla ausente, columna ausente, tipo y nulabilidad divergentes
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) tabla sin mapear e índice con nombre generado
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) las restricciones del esquema rechazan lo que el código nunca debe escribir

@@ -24,8 +24,16 @@ async function main(): Promise<number> {
     process.stdout.write(result.state ? `Limpiado: ${result.killed.length} proceso(s) terminados (${result.killed.join(', ') || 'ninguno'}), bases vaciadas, streams borrados.\n` : 'No había ningún stack registrado.\n');
     return 0;
   }
+  if (command === 'envprobe') {
+    const { probeEnv } = await import('./lib/envprobe.ts');
+    const rows = await probeEnv();
+    mkdirSync(RUN_DIR, { recursive: true });
+    writeFileSync(`${RUN_DIR}/envprobe.json`, JSON.stringify(rows, null, 2));
+    for (const r of rows) process.stdout.write(`${r.service.padEnd(15)} ${r.variable.padEnd(42)} ${r.outcome}${r.detail ? `  ← ${r.detail}` : ''}\n`);
+    return 0;
+  }
   if (!['up', 'boot', 'smoke'].includes(command)) {
-    process.stderr.write('uso: node e2e/cli.ts up|down|boot|smoke\n');
+    process.stderr.write('uso: node e2e/cli.ts up|down|boot|smoke|envprobe\n');
     return 2;
   }
 
