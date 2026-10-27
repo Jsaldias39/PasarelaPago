@@ -17,6 +17,8 @@ export interface ServiceConfig {
   readonly callbackRatePerMinute: number;
   /** El simulador entrega sus callbacks en proceso cada tantos ms (0 = no, las pruebas lo disparan a mano). */
   readonly mockPumpIntervalMs: number;
+  /** Conciliación por extracto: cada cuánto corre (0 = no, las pruebas la disparan a mano) y cuántas horas hacia atrás mira. */
+  readonly reconcile: { readonly intervalMs: number; readonly lookbackHours: number };
 }
 
 function integer(env: NodeJS.ProcessEnv, name: string, fallback: number, min = 0): number {
@@ -69,6 +71,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
     timeoutRetries: integer(env, 'TIMEOUT_RETRIES', 2),
     callbackRatePerMinute: integer(env, 'CALLBACK_RATE_PER_MINUTE', 600, 1),
     mockPumpIntervalMs: integer(env, 'MOCK_PUMP_INTERVAL_MS', 1_000),
+    reconcile: { intervalMs: integer(env, 'RECONCILE_INTERVAL_MS', 300_000), lookbackHours: integer(env, 'RECONCILE_LOOKBACK_HOURS', 48, 1) },
   };
 }
 

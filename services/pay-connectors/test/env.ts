@@ -13,3 +13,4 @@ process.env.POLLER_INTERVAL_MS ??= '0';
 process.env.HEALTH_INTERVAL_MS ??= '0';
 // [DEV] secreto del simulador (Standard Webhooks). Solo vale para el conector `mock`; en producción lo entrega OpenBao.
 process.env.PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET ??= 'whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==';
+process.env.RECONCILE_INTERVAL_MS ??= '0';

@@ -68,7 +68,9 @@ export class UpstreamDouble {
     const matched = matchRoute(request.method, path);
     if (!matched) return { status: 404, body: { type: 'urn:alovida:pay:problem:resource_not_found', title: 'No existe el recurso', status: 404, code: 'resource_not_found' } };
     const merchant = String(request.headers['x-merchant-id'] ?? '');
-    const id = /\/([a-z]{2,3}_[a-z0-9]+)(?:\/|$)/.exec(path)?.[1];
+    // El id es el segmento que ocupa `{id}` en la plantilla (no se adivina por la forma del texto).
+    const idIndex = matched.rule.template.split('/').indexOf('{id}');
+    const id = idIndex >= 0 ? path.split('/')[idIndex] : undefined;
     // Aislamiento por comercio: si hay un id y no es de este comercio ⇒ 404 (nunca 403).
     if (id && !this.owned.get(merchant)?.has(id)) {
       const body = { type: 'urn:alovida:pay:problem:resource_not_found', title: 'No existe el recurso', status: 404, code: 'resource_not_found' };
