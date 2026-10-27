@@ -436,7 +436,11 @@ describe('POST /transfers — carrera entre envíos concurrentes (HIGH: doble pa
     try {
       const b = body();
       const responses = await Promise.all([order(b), order(b)]);
-      expect(responses.map((r) => r.status).sort()).toEqual([200, 502]);
+      // Quien inserta la fila (201) no siempre es quien gana el candado de envío: el otro pedido puede encontrarla ya creada (200),
+      // enviar y recibir el 502, y entonces el creador ve el estado resuelto y responde 201. Las dos órdenes son válidas.
+      const statuses = responses.map((r) => r.status).sort();
+      expect(statuses.filter((s) => s === 502)).toHaveLength(1);
+      expect([[200, 502], [201, 502]]).toContainEqual(statuses);
       expect(calls).toBe(1);
       expect(await flags()).toEqual([{ status: 'failed', flag: true, claims: 1, failure_code: 'connector_unavailable' }]);
       expect(bank.transferCount()).toBe(0);
