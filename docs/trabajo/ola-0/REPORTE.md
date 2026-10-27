@@ -63,7 +63,7 @@ Además, y fuera de las microtareas contadas: `@pay/outbox` (outbox, relé con c
 
 ## Pendiente
 
-Las 99 microtareas restantes están en `TODO` (ver cada carril). Lo que destraba lo más cercano:
+Las otras 99 microtareas son 94 en `TODO` y las 5 `A MEDIAS` descritas arriba (ver cada carril). Lo que destraba lo más cercano:
 
 | Qué | Estado | Qué lo destraba |
 |---|---|---|
@@ -88,7 +88,7 @@ Las 99 microtareas restantes están en `TODO` (ver cada carril). Lo que destraba
 
 ## Desvíos del plan
 
-- Los spikes y el borrador de contratos los hicieron cuatro agentes en paralelo; yo verifiqué el lint de contratos y la consistencia, y rehíce la integración de sus hallazgos. Los contratos **no los escribieron sus dueños** (todavía no existen).
+- Los spikes y el borrador de contratos los hicieron cuatro agentes en paralelo; yo verifiqué el lint de contratos y la consistencia, y integré sus hallazgos al plan. Los contratos **no los escribieron sus dueños** (todavía no existen).
 - Este entorno no llega a Docker Hub directo: se usó el espejo `mirror.gcr.io` (variable `HUB`). Watchman se movió al perfil por defecto con la imagen `v2-static` porque la de ghcr/`latest` no arranca sin internet.
 - Se agregó `pay-mockbank` (D-26) y la ola 4; INT pasa a ola 5. Se sumaron P1.H1.M9, P2.H1.M9, P1.H5 (5) y P4.H4 (5): el plan pasó de 95 a 107 microtareas.
 - Bugs míos encontrados por las propias pruebas y corregidos: comparación de `locked_at` por milisegundos contra microsegundos (idempotencia), `SERVICE_CONFIG` sin módulo global (plantilla), `paths` del typecheck que rompían el build, `pay_test` abierta a todos los roles, y un `cleanup` con ruta relativa en `verify-template.sh`.
