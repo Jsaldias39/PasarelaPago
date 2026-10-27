@@ -5,7 +5,7 @@
 - Fecha: 2026-10-27 · Carril: [`P2-ledger-y-liquidacion.md`](../../../plan/carriles/P2-ledger-y-liquidacion.md) · Rama: `claude/adoring-allen-ly7r6f` (sin commit: lo hace el integrador)
 - **Peldaño de evidencia: `TESTED`** en las 15 `HECHO`. No hay `VERIFIED` ni `REGRESSION_VERIFIED`: falta el stack E1–E8 (ola 3) y un banco real.
 - Gates literales: [`evidencia/gates.txt`](./evidencia/gates.txt) (typecheck, build, `yarn lint` de la raíz y eslint del carril: todos `exit=0`).
-- Corridas repetidas: [`evidencia/corridas-repetidas.txt`](./evidencia/corridas-repetidas.txt): **pay-ledger 3/3 (138 pruebas)** y **pay-settlement 3/3 (404 pruebas)** con el código final, de a una suite por vez (antes de la última reforma hubo 5/5 de cada una).
+- Corridas repetidas: [`evidencia/corridas-repetidas.txt`](./evidencia/corridas-repetidas.txt): **pay-ledger 2/2 (156 pruebas)** y **pay-settlement 2/2 (404 pruebas)** con el código final (incluida la verificación de contenido de la adopción, hallazgo MEDIUM), de a una suite por vez.
 
 ## Completado (CA cumplido y DoD ejecutado; salida en `evidencia/<ID>.txt`)
 

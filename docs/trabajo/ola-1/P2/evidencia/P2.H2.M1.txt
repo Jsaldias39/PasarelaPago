@@ -5,11 +5,11 @@ Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
 Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
 
 ## pay-settlement/test/drift.spec.ts
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › sin deriva: el SQL aplicado coincide con lo que el código asume (31 ms)
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › columna obligatoria no mapeada (18 ms)
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › columna opcional que el mapa no conoce (17 ms)
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › tabla ausente, columna ausente, tipo y nulabilidad divergentes (12 ms)
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › tabla sin mapear e índice con nombre generado (28 ms)
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › las restricciones del esquema rechazan lo que el código nunca debe escribir (139 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › sin deriva: el SQL aplicado coincide con lo que el código asume (47 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › columna obligatoria no mapeada (24 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › columna opcional que el mapa no conoce (21 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › tabla ausente, columna ausente, tipo y nulabilidad divergentes (14 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › tabla sin mapear e índice con nombre generado (27 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2) › las restricciones del esquema rechazan lo que el código nunca debe escribir (129 ms)
 
 RESULTADO P2.H2.M1: 6 pasan, 0 fallan, de 6.

@@ -19,12 +19,6 @@
 ✓ pay-ledger (arranque real contra su base) › una ruta inexistente es 404 resource_not_found en RFC 9457
 ✓ pay-ledger (arranque real contra su base) › un x-request-id mal formado se reemplaza por uno nuevo
 
-## pay-settlement/test/nats.spec.ts
-✓ consumidores durables sobre NATS JetStream real › ledger.transfer.posted de pay-ledger registra al comercio; fee_schedule.published de pay-merchants guarda el abono
-✓ consumidores durables sobre NATS JetStream real › un mensaje duplicado (mismo id, entregado dos veces) tiene efecto una sola vez
-✓ consumidores durables sobre NATS JetStream real › basura, JSON inválido, sobres inválidos y eventos ajenos no traban el consumidor ni se reintentan sin fin; el siguiente evento válido pasa
-✓ el relé del outbox publica los eventos propios en PAY_SETTLEMENT › un payout.paid encolado en el outbox llega al stream, con el contrato y su Nats-Msg-Id
-
 ## pay-settlement/test/public-payouts.spec.ts
 ✓ GET /payouts público (vía pay-edge), contrato public-v1 › el comercio ve SOLO sus liquidaciones, con la forma pública y sin campos internos
 ✓ GET /payouts público (vía pay-edge), contrato public-v1 › IDOR: probar otro comercio por la consulta no filtra nada (merchant_id y status no existen en la API pública)
@@ -32,6 +26,12 @@
 ✓ GET /payouts público (vía pay-edge), contrato public-v1 › pagina del más nuevo al más viejo sin repetir ni saltar, y el cursor roto es 422
 ✓ GET /payouts público (vía pay-edge), contrato public-v1 › un pago fallido muestra su failure_code y uno en tránsito su estado, sin detalles del riel
 ✓ GET /payouts público (vía pay-edge), contrato public-v1 › el mismo recurso lo ven los servicios internos con la forma interna (completa) y con filtros; pay-edge no lee /payouts/{id}
+
+## pay-settlement/test/nats.spec.ts
+✓ consumidores durables sobre NATS JetStream real › ledger.transfer.posted de pay-ledger registra al comercio; fee_schedule.published de pay-merchants guarda el abono
+✓ consumidores durables sobre NATS JetStream real › un mensaje duplicado (mismo id, entregado dos veces) tiene efecto una sola vez
+✓ consumidores durables sobre NATS JetStream real › basura, JSON inválido, sobres inválidos y eventos ajenos no traban el consumidor ni se reintentan sin fin; el siguiente evento válido pasa
+✓ el relé del outbox publica los eventos propios en PAY_SETTLEMENT › un payout.paid encolado en el outbox llega al stream, con el contrato y su Nats-Msg-Id
 
 ## pay-settlement/test/contract.spec.ts
 ✓ el servicio implementa el contrato interno de liquidación y nada más que lo propuesto › cada operación de internal-settlement-v1.yaml tiene su ruta

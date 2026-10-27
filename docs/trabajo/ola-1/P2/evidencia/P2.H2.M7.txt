@@ -5,15 +5,15 @@ Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
 Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
 
 ## pay-settlement/test/export.spec.ts
-✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › por comercio: cada cobro con bruto = neto + comisión, el abono y la comisión programada; cuadra con platform:fees del ledger (589 ms)
-✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › un contracargo sale como línea del comercio pero NO suma a las comisiones (351 ms)
-✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › NO cuadra si hay comisión en el ledger sin comercio: se devuelve igual, con la diferencia a la vista (311 ms)
-✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › un periodo sin movimientos exporta vacío y cuadra (331 ms)
-✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › propiedad (30 casos con semilla fija): lo exportado suma exactamente lo que el ledger tiene en platform:fees (260 ms)
-✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › periodo cerrado y forma del pedido › un periodo que no terminó es 409; invertido o mal escrito, 422; un campo de más, 422 (233 ms)
-✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › periodo cerrado y forma del pedido › un corte del periodo que no se completó impide exportar (409): no se exporta a medias (494 ms)
-✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › periodo cerrado y forma del pedido › solo la consola de operación exporta (343 ms)
-✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › periodo cerrado y forma del pedido › el ledger caído es 503 y no se devuelve un documento parcial (272 ms)
-✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › CSV para M16: una fila por línea, importes enteros en centavos, sin datos personales (383 ms)
+✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › por comercio: cada cobro con bruto = neto + comisión, el abono y la comisión programada; cuadra con platform:fees del ledger (621 ms)
+✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › un contracargo sale como línea del comercio pero NO suma a las comisiones (271 ms)
+✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › NO cuadra si hay comisión en el ledger sin comercio: se devuelve igual, con la diferencia a la vista (287 ms)
+✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › un periodo sin movimientos exporta vacío y cuadra (269 ms)
+✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › propiedad (30 casos con semilla fija): lo exportado suma exactamente lo que el ledger tiene en platform:fees (301 ms)
+✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › periodo cerrado y forma del pedido › un periodo que no terminó es 409; invertido o mal escrito, 422; un campo de más, 422 (308 ms)
+✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › periodo cerrado y forma del pedido › un corte del periodo que no se completó impide exportar (409): no se exporta a medias (344 ms)
+✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › periodo cerrado y forma del pedido › solo la consola de operación exporta (236 ms)
+✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › periodo cerrado y forma del pedido › el ledger caído es 503 y no se devuelve un documento parcial (260 ms)
+✓ exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21) › CSV para M16: una fila por línea, importes enteros en centavos, sin datos personales (259 ms)
 
 RESULTADO P2.H2.M7: 10 pasan, 0 fallan, de 10.

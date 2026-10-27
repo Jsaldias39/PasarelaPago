@@ -5,17 +5,18 @@ Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
 Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
 
 ## pay-ledger/test/holds.spec.ts
-✓ POST /holds — primera fase › reserva el monto: el disponible baja y NO se puede gastar dos veces lo retenido (684 ms)
-✓ POST /holds — primera fase › idempotente por (business_ref, attempt) y con la regla de intentos (161 ms)
+✓ POST /holds — primera fase › reserva el monto: el disponible baja y NO se puede gastar dos veces lo retenido (663 ms)
+✓ POST /holds — primera fase › idempotente por (business_ref, attempt) y con la regla de intentos (155 ms)
 ✓ POST /holds — primera fase › valida la entrada y los permisos (12 ms)
-✓ POST /holds/{id}/post y /void — segunda fase › post total: mueve el monto, deja pata y extracto, y publica los eventos (121 ms)
-✓ POST /holds/{id}/post y /void — segunda fase › post parcial: lo no confirmado vuelve a la cuenta de origen (97 ms)
-✓ POST /holds/{id}/post y /void — segunda fase › post por más de lo retenido ⇒ 422 y la retención sigue pendiente (69 ms)
-✓ POST /holds/{id}/post y /void — segunda fase › void devuelve el monto y publica ledger.hold.voided (92 ms)
-✓ POST /holds/{id}/post y /void — segunda fase › se resuelve UNA sola vez: post o void de una retención ya resuelta ⇒ 409 (116 ms)
-✓ POST /holds/{id}/post y /void — segunda fase › con la misma Idempotency-Key se repite la respuesta guardada, incluso un error de negocio (118 ms)
-✓ POST /holds/{id}/post y /void — segunda fase › 5 confirmaciones simultáneas con claves distintas ⇒ UNA efectiva y cuatro 409; el dinero se mueve una vez (118 ms)
-✓ POST /holds/{id}/post y /void — segunda fase › id inexistente o con una forma que ninguna retención puede tener ⇒ 404 (23 ms)
-✓ vencimiento de una retención (REQ-P2-3) › pasado el plazo sin resolver, el monto vuelve solo; no se puede confirmar; el barrido deja constancia y publica el evento (1172 ms)
+✓ POST /holds/{id}/post y /void — segunda fase › post total: mueve el monto, deja pata y extracto, y publica los eventos (73 ms)
+✓ POST /holds/{id}/post y /void — segunda fase › post parcial: lo no confirmado vuelve a la cuenta de origen (59 ms)
+✓ POST /holds/{id}/post y /void — segunda fase › post por más de lo retenido ⇒ 422 y la retención sigue pendiente (74 ms)
+✓ POST /holds/{id}/post y /void — segunda fase › void devuelve el monto y publica ledger.hold.voided (67 ms)
+✓ POST /holds/{id}/post y /void — segunda fase › se resuelve UNA sola vez: post o void de una retención ya resuelta ⇒ 409 (74 ms)
+✓ POST /holds/{id}/post y /void — segunda fase › con la misma Idempotency-Key se repite la respuesta guardada, incluso un error de negocio (81 ms)
+✓ POST /holds/{id}/post y /void — segunda fase › 5 confirmaciones simultáneas con claves distintas ⇒ UNA efectiva y cuatro 409; el dinero se mueve una vez (103 ms)
+✓ POST /holds/{id}/post y /void — segunda fase › id inexistente o con una forma que ninguna retención puede tener ⇒ 404 (24 ms)
+✓ vencimiento de una retención (REQ-P2-3) › pasado el plazo sin resolver, el monto vuelve solo; no se puede confirmar; el barrido deja constancia y publica el evento (1125 ms)
+✓ POST /holds — reutilizar (business_ref, attempt) con otro contenido tras una caída › TigerBeetle ya tiene esa retención con OTRO monto: 422 idempotency_key_reused, nada se registra ni se mueve (antes: 500) (39 ms)
 
-RESULTADO P2.H1.M5: 12 pasan, 0 fallan, de 12.
+RESULTADO P2.H1.M5: 13 pasan, 0 fallan, de 13.

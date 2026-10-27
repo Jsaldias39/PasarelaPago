@@ -1,32 +1,24 @@
 # Corridas repetidas de las suites completas (una suite a la vez; Postgres compartido, max_connections=100)
 
-## pay-ledger — $ TB_ADDRESS=127.0.0.1:54300 yarn test   (3 corridas consecutivas, código final; antes de la última reforma hubo 5/5 verdes)
+## pay-ledger — $ TB_ADDRESS=127.0.0.1:54300 yarn test   (2 corridas consecutivas con el código final, tras la verificación de contenido de la adopción)
 run 1 exit=0
 Test Suites: 10 passed, 10 total
-Tests:       138 passed, 138 total
-Time:        11.846 s, estimated 13 s
+Tests:       156 passed, 156 total
+Time:        12.723 s, estimated 15 s
 run 2 exit=0
 Test Suites: 10 passed, 10 total
-Tests:       138 passed, 138 total
-Time:        13.661 s
-run 3 exit=0
-Test Suites: 10 passed, 10 total
-Tests:       138 passed, 138 total
-Time:        13.649 s, estimated 14 s
+Tests:       156 passed, 156 total
+Time:        12.654 s, estimated 13 s
 
-## pay-settlement — $ yarn test   (3 corridas consecutivas, código final; antes hubo 5/5 verdes con 404 pruebas)
+## pay-settlement — $ yarn test   (2 corridas consecutivas con el código final; antes se rebuildeó pay-ledger para ledger-real.spec)
 run 1 exit=0
 Test Suites: 20 passed, 20 total
 Tests:       404 passed, 404 total
-Time:        49.191 s
+Time:        39.853 s, estimated 44 s
 run 2 exit=0
 Test Suites: 20 passed, 20 total
 Tests:       404 passed, 404 total
-Time:        54.973 s
-run 3 exit=0
-Test Suites: 20 passed, 20 total
-Tests:       404 passed, 404 total
-Time:        45.24 s, estimated 55 s
+Time:        42.626 s
 
 ## Fallas observadas durante el trabajo y su clase (regla: clasificar con evidencia)
 1. ENVIRONMENT — pay-ledger, corrida con 79 fallas y otra con 5: `53300 too many connections` / «remaining connection slots are reserved for roles with the
@@ -47,3 +39,13 @@ Time:        45.24 s, estimated 55 s
 5. PRODUCT_BUG latente (hallado por la prueba de recuperación del contracargo, corregido) — pay-ledger `ledger.service.ts`: reintentar un asiento de VARIAS patas que TigerBeetle ya
    había aplicado daba 500: en un lote enlazado un `exists` hace fallar la cadena (`linked_event_failed` en las demás). Ahora se verifica por id que están todas las patas y se
    lo trata como repetición. Prueba: `un asiento de varias patas ya aplicado por TigerBeetle … también se retoma sin duplicar`.
+6. PRODUCT_BUG (hallazgo de seguridad MEDIUM del coordinador, corregido) — pay-ledger `ledger.service.ts` / `chargeback.ts`: en un lote enlazado con estados mezclados
+   `exists`/`linked_event_failed` se adoptaba TODO como «ya aplicado» solo por contar ids encontrados, sin comparar contenido: reutilizar el mismo (business_ref, attempt) con otro
+   monto/destino/código habría devuelto éxito sin mover dinero. Ahora `sameTransfer` (tb-engine.ts) compara id, cuenta débito, cuenta crédito, monto, ledger, código y flags de
+   CADA transferencia; solo si todas coinciden se adopta; si no, responde `422 idempotency_key_reused` (código del catálogo @pay/problem, el mismo que el servicio ya
+   devuelve cuando el hash del contenido difiere; el contrato lo declara para POST /transactions 422). `planLegs` exige además que cada mitad adoptada coincida con la
+   pata pedida (cuentas, ledger BOB, código adjustment) y `prior.main + prior.debt === bruto`; si no, mismo rechazo. Los estados `exists_with_different_*` también dan el mismo 422
+   (también en holds). Pruebas (`transactions.spec.ts`, describe «reutilizar (business_ref, attempt) con OTRO contenido tras una caída…» y `holds.spec.ts`):
+   correcto = reintento idéntico tras caída adopta; límite = +1 centavo en la 1.ª y en la 2.ª pata, destino distinto, código distinto, origen distinto, menos/más patas, solo una de
+   las dos patas aplicada, contracargo partido con bruto 151/149, otro clearing, solo una mitad, cuenta de otro comercio; inválido = en todos esos casos 422, 0 filas en
+   ledger_transactions/ledger_legs y saldos sin cambio (nunca éxito, nunca mueve dinero).

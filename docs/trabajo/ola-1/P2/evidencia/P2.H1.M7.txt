@@ -5,16 +5,16 @@ Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
 Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
 
 ## pay-ledger/test/events.spec.ts
-✓ eventos del ledger (outbox, en la misma transacción) › un asiento de cobro + comisión publica un ledger.transfer.posted POR PATA, válido contra el AsyncAPI, con kind y merchantid correctos (64 ms)
-✓ eventos del ledger (outbox, en la misma transacción) › un movimiento `release` (pending → available) no publica evento: el contrato de eventos no tiene ese kind (PROPUESTAS.md #2) (47 ms)
-✓ eventos del ledger (outbox, en la misma transacción) › un rechazo NO deja evento: sin asiento no hay evento (24 ms)
-✓ eventos del ledger (outbox, en la misma transacción) › los eventos de retención (created, posted, voided) cumplen el AsyncAPI (124 ms)
-✓ eventos del ledger (outbox, en la misma transacción) › el relé del outbox lleva los eventos a NATS JetStream, en orden y una sola vez (100 ms)
-✓ eventos del ledger (outbox, en la misma transacción) › merchantid sale del lado crédito si lo hay y del débito si no (0 ms)
+✓ eventos del ledger (outbox, en la misma transacción) › un asiento de cobro + comisión publica un ledger.transfer.posted POR PATA, válido contra el AsyncAPI, con kind y merchantid correctos (62 ms)
+✓ eventos del ledger (outbox, en la misma transacción) › un movimiento `release` (pending → available) no publica evento: el contrato de eventos no tiene ese kind (PROPUESTAS.md #2) (35 ms)
+✓ eventos del ledger (outbox, en la misma transacción) › un rechazo NO deja evento: sin asiento no hay evento (18 ms)
+✓ eventos del ledger (outbox, en la misma transacción) › los eventos de retención (created, posted, voided) cumplen el AsyncAPI (95 ms)
+✓ eventos del ledger (outbox, en la misma transacción) › el relé del outbox lleva los eventos a NATS JetStream, en orden y una sola vez (97 ms)
+✓ eventos del ledger (outbox, en la misma transacción) › merchantid sale del lado crédito si lo hay y del débito si no (1 ms)
 
 ## pay-ledger/test/invariant.spec.ts
-✓ invariante global (REQ-P2-4) › con actividad real (cobros, liberación, retención pendiente, retención confirmada, rechazos) débitos = créditos y TigerBeetle coincide con el extracto (664 ms)
-✓ invariante global (REQ-P2-4) › se rompe a propósito: si falta una línea de extracto, el job lo detecta, lo registra como error y lo deja en `last` (44 ms)
-✓ invariante global (REQ-P2-4) › el job periódico corre solo y se detiene (107 ms)
+✓ invariante global (REQ-P2-4) › con actividad real (cobros, liberación, retención pendiente, retención confirmada, rechazos) débitos = créditos y TigerBeetle coincide con el extracto (755 ms)
+✓ invariante global (REQ-P2-4) › se rompe a propósito: si falta una línea de extracto, el job lo detecta, lo registra como error y lo deja en `last` (75 ms)
+✓ invariante global (REQ-P2-4) › el job periódico corre solo y se detiene (108 ms)
 
 RESULTADO P2.H1.M7: 9 pasan, 0 fallan, de 9.
