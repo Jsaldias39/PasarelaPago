@@ -161,24 +161,9 @@ export async function createSettlementContext(options: { config?: Partial<Settle
   };
 }
 
-/**
- * Divergencias CONOCIDAS entre el contrato y el servicio: el contrato declara 400 para un cuerpo o consulta inválidos pero el catálogo de
- * `@pay/problem` no tiene un código de 400 genérico, así que el servicio responde 422 `validation_failed` (como el ledger). Ver PROPUESTAS.md.
- */
-export const KNOWN_422_GAPS = new Set(['POST /payouts', 'GET /payouts', 'GET /payouts/{id}', 'POST /batches', 'GET /batches', 'POST /reconciliation_runs', 'GET /reconciliation_runs/{id}', 'GET /reconciliation_exceptions', 'POST /reconciliation_exceptions/{id}/resolve']);
-
 /** Valida la respuesta contra el contrato y la devuelve, para que cada prueba la use ya validada. */
 export function checked(ctx: SettlementTestContext, method: string, path: string, res: request.Response, contract: ContractValidator = ctx.settlementContract): request.Response {
   const input = { method, path: path.split('?')[0], status: res.status, body: res.body };
-  const errors = contract.validateResponse(input);
-  if (errors.length === 0) return res;
-  const template = contract.operations().find((op) => {
-    const [m, t] = op.split(' ');
-    return m === method.toUpperCase() && new RegExp(`^${t.replace(/\{[^}]+\}/g, '[^/]+')}$`).test(input.path);
-  });
-  if (res.status === 422 && template && KNOWN_422_GAPS.has(template) && contract.validateResponse({ ...input, status: 400 }).length === 0) return res;
-  // El contrato no declara 503 (el ledger o un conector caído): se valida como el `ServerError` que sí declara. Ver PROPUESTAS.md.
-  if (res.status === 503 && res.body?.code === 'ledger_unavailable' && contract.validateResponse({ ...input, status: 500 }).length === 0) return res;
   contract.assertResponse(input);
   return res;
 }

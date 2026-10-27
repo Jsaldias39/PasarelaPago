@@ -22,6 +22,22 @@ Libro mayor de partida doble de la pasarela. Carril P2 ([`docs/plan/carriles/P2-
 - **Deuda por contracargo:** `pending` y `available` nunca quedan en negativo (TigerBeetle lo impide). Un contracargo (pata `adjustment` de `pending` a la compensación de un conector) lo parte el servidor en un lote enlazado: `min(bruto, pendiente)` desde `pending` y el exceso desde `merchant:{id}:debt`, cuenta deudora que no se puede pagar de más; el corte de `pay-settlement` la netea contra el disponible.
 - **Rastro de rechazos** (`ledger_rejections`): TigerBeetle no guarda las transferencias rechazadas.
 
+## Modo `test` / `live` (D-28)
+
+Todas las rutas (internas y `GET /balance`) exigen `X-Pay-Mode: test|live`; ausente o distinto ⇒ `403 forbidden`, nunca se cae en `live`. El modo sale **solo** de la
+cabecera (un `mode` en el cuerpo o en la consulta es un campo desconocido, `422`).
+
+Cómo se separa, sin reglas de negocio nuevas:
+
+- **Identidad:** el modo entra en el id de cada cuenta de TigerBeetle, en el de cada transferencia y en los ids públicos `tx_`/`hd_`. `merchant:X:pending` de `test` y de `live`
+  son DOS cuentas distintas; una pata no puede nombrar una cuenta del otro modo (el modo es uno por petición) ni gastar su saldo (rechazo por saldo).
+- **Registro:** columna `mode` en las seis tablas (`CHECK IN ('test','live')`), claves únicas `(mode, …)`, y las claves foráneas de las patas y del extracto son
+  compuestas `(mode, account)`. Toda consulta filtra por modo.
+- Pedir por un id, un `business_ref`, una cuenta o una retención del OTRO modo da `404 resource_not_found`: no se revela que existe.
+- La `Idempotency-Key` de `post`/`void` se guarda por `(llamador, modo)`.
+- El invariante global verifica cada `(modo, cuenta)` por separado.
+- Los eventos `ledger.*` NO llevan `mode`: el AsyncAPI es `additionalProperties: false` y no lo declara (propuesta en `docs/trabajo/ola-2/P2/PROPUESTAS.md`).
+
 ## Probar
 
 ```bash

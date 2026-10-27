@@ -17,7 +17,8 @@
     "lint": "eslint --no-error-on-unmatched-pattern \"contracts/**/*.ts\" \"services/**/*.ts\" \"platform/**/*.ts\"",
     "test": "yarn workspaces foreach -A --topological-dev run test",
     "contracts:lint": "node contracts/scripts/lint-contracts.mjs",
-    "contracts:events": "node contracts/scripts/validate-events.mjs"
+    "contracts:events": "node contracts/scripts/validate-events.mjs",
+    "contracts:breaking": "node contracts/scripts/check-breaking.mjs"
   },
   "devDependencies": {
     "@asyncapi/parser": "^3.6.6",

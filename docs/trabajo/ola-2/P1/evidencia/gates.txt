@@ -35,3 +35,73 @@ $ (cd contracts/packages/orm-queryable && yarn build)
 exit=0
 
 $ yarn eslint services/pay-edge services/pay-webhooks contracts/packages platform
+exit=0
+
+$ (cd contracts/packages/money && yarn test --maxWorkers=2)
+
+Test Suites: 4 passed, 4 total
+Tests:       73 passed, 73 total
+Snapshots:   0 total
+Time:        3.794 s, estimated 4 s
+Ran all test suites.
+exit=0
+
+$ (cd contracts/packages/testing && yarn test --maxWorkers=2)
+
+Test Suites: 3 passed, 3 total
+Tests:       15 passed, 15 total
+Snapshots:   0 total
+Time:        1.707 s
+Ran all test suites.
+exit=0
+
+$ (cd contracts/packages/idempotency && yarn test --maxWorkers=2)
+Test Suites: 1 passed, 1 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        1.596 s, estimated 2 s
+Ran all test suites.
+exit=0
+
+$ (cd services/pay-edge && yarn test --maxWorkers=2)  corrida 1/2
+Test Suites: 10 passed, 10 total
+Tests:       340 passed, 340 total
+
+$ (cd services/pay-edge && yarn test --maxWorkers=2)  corrida 2/2
+Test Suites: 10 passed, 10 total
+Tests:       340 passed, 340 total
+
+$ (cd services/pay-webhooks && yarn test --maxWorkers=2)  corrida 1/2
+Test Suites: 10 passed, 10 total
+Tests:       358 passed, 358 total
+
+$ (cd services/pay-webhooks && yarn test --maxWorkers=2)  corrida 2/2
+Test Suites: 10 passed, 10 total
+Tests:       358 passed, 358 total
+
+$ (cd contracts/packages/orm-queryable && yarn test --maxWorkers=2)
+Tests:       7 passed, 7 total
+
+$ yarn contracts:lint
+OK    contracts/asyncapi/payments.yaml
+
+13 contrato(s) válido(s)
+
+$ OASDIFF=oasdiff node --test contracts/scripts/check-breaking.test.mjs
+# tests 12
+# pass 12
+# fail 0
+
+$ yarn contracts:breaking --base HEAD   (contra el último commit)
+OK     internal-connectors-v1.yaml
+OK     internal-ledger-v1.yaml
+OK     internal-merchants-v1.yaml
+OK     internal-payments-v1.yaml
+OK     internal-qr-v1.yaml
+OK     internal-risk-v1.yaml
+OK     internal-settlement-v1.yaml
+OK     internal-vault-v1.yaml
+OK     public-v1.yaml
+
+Sin rupturas en contratos congelados · 0 aviso(s) en borradores
+exit=0

@@ -31,10 +31,10 @@ describe('el servicio implementa el contrato interno de liquidación y nada más
     expect(ctx.publicContract.operations()).toContain('GET /payouts');
   });
 
-  it('las únicas rutas fuera del contrato son las dos PROPUESTAS declaradas (POST /charges, GET /exports/accounting)', () => {
+  it('no hay rutas fuera del contrato (POST /charges y GET /exports/accounting ya están declaradas)', () => {
     const contract = new Set(ctx.settlementContract.operations().map(normalize));
     const extra = mountedRoutes().filter((route) => !contract.has(route));
-    expect(extra).toEqual(['GET /exports/accounting', 'POST /charges']);
+    expect(extra).toEqual([]);
   });
 
   it('toda ruta exige identidad de servicio: sin X-Service-Id válido ninguna responde distinto de 403', async () => {
