@@ -2,7 +2,7 @@
 
 > **Estado:** `TODO` · **AVANCE: 0 / 5 — 0,0 %** · **Peldaño:** `UNKNOWN`
 > **Predecesor:** ola 3 cerrada (los flujos E1–E6 en verde contra el stack real). **Lidera:** P3, con P1 (SDK y webhooks).
-> **Repos:** `mdavila-2001/mantra-core-health-api` (consumidor) · este repo (sin cambios de contrato).
+> **Issue:** [mdavila-2001/mantra-core-health-api#1026](https://github.com/mdavila-2001/mantra-core-health-api/issues/1026) · **Repos:** `mdavila-2001/mantra-core-health-api` (consumidor) · este repo (sin cambios de contrato).
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md) · Decisión: D-12 en [`../DECISIONES.md`](../DECISIONES.md)
 
 **Skills:** `github-multirepo-coordination`, `refactoring-safely`, `release-and-rollback`, `api-testing`,
