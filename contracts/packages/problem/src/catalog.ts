@@ -24,6 +24,7 @@ export const PROBLEM_CATALOG = {
   insufficient_funds: { status: 422, title: 'Fondos insuficientes' },
   fee_exceeds_amount: { status: 422, title: 'La comisión supera el importe' },
   invalid_state_transition: { status: 409, title: 'La operación no es válida en el estado actual' },
+  transfer_not_found: { status: 404, title: 'No existe la transferencia' },
   // Dependencias
   risk_unavailable: { status: 503, title: 'El control de riesgo no está disponible' },
   connector_unavailable: { status: 502, title: 'El proveedor de pago no está disponible' },

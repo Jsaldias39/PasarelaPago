@@ -10,3 +10,11 @@ coverage/
 .DS_Store
 *.tsbuildinfo
 .tools/
+
+# Salida de compilación dentro de src/: Jest resuelve .js antes que .ts y esconde los cambios del código fuente.
+contracts/packages/*/src/**/*.js
+contracts/packages/*/src/**/*.js.map
+contracts/packages/*/src/**/*.d.ts
+services/*/src/**/*.js
+services/*/src/**/*.js.map
+services/*/src/**/*.d.ts

@@ -36,6 +36,7 @@ security:
   - mTLS: []
 tags:
   - { name: Charges, description: Cobros y reembolsos }
+  - { name: Transfers, description: 'Transferencias SALIENTES (pagos a comercios, liquidaciones)' }
   - { name: Statements, description: Extractos para conciliar }
   - { name: Callbacks, description: Notificaciones del proveedor }
   - { name: Health, description: Salud de los conectores }
@@ -150,6 +151,81 @@ paths:
         '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
         '502':
           description: '`connector_unavailable`. Sin efecto: el llamador anula la retención del ledger.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /transfers:
+    post:
+      operationId: connectorsCreateTransfer
+      tags: [Transfers]
+      x-owner: P4
+      summary: Ordena una transferencia SALIENTE (pago a un comercio)
+      description: |
+        Dinero que SALE hacia la cuenta de liquidación de un comercio (payouts; procesos 7.4 a 7.9). Solo la llama
+        `pay-settlement`.
+
+        - Idempotente por `business_ref` + `attempt`: el mismo par devuelve la misma transferencia (`200`) y nunca
+          genera un segundo pago.
+        - **Un fallo después de enviar la orden es AMBIGUO.** Un `502`, `503`, `504`, un timeout, un corte de
+          conexión o un cuerpo ilegible NO prueban que no se pagó (un proxy intermedio puede responder después de
+          que el proveedor ejecutó). Quien llama debe mantener la retención y consultar `GET /transfers/{reference}`
+          antes de decidir. Solo es un rechazo DEFINITIVO una respuesta `application/problem+json` con
+          `code: connector_unavailable` emitida por el conector, que garantiza que no se envió nada al proveedor.
+      x-open-question: >-
+        Dónde vive el registro de cuentas de liquidación de cada comercio no está definido (Q-22). Por ahora
+        `destination_ref` es una referencia opaca que el conector sabe resolver; la pasarela no mueve números de cuenta.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TransferCreate' } } }
+      responses:
+        '201': { description: Transferencia ordenada., content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } } }
+        '200': { description: 'Ya existía este `business_ref` + `attempt`. Misma transferencia.', content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409':
+          description: '`invalid_state_transition`: ese `business_ref` ya tiene una transferencia pagada, o `attempt` no es el siguiente al último fallido.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '422':
+          description: '`validation_failed`, o `idempotency_key_reused` si el contenido difiere del primero con ese `attempt`.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+        '502':
+          description: >-
+            Definitivo (no se ejecutó nada) SOLO si el cuerpo es problem+json con `code: connector_unavailable`. Cualquier otro
+            502 es ambiguo (ver la descripción de la operación).
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+  /transfers/{reference}:
+    get:
+      operationId: connectorsGetTransfer
+      tags: [Transfers]
+      x-owner: P4
+      summary: Estado de una transferencia saliente, por la referencia con la que se ordenó
+      description: |
+        Consulta autoritativa: el conector pregunta al proveedor. Es lo que resuelve un resultado ambiguo de
+        `POST /transfers`.
+
+        - `200`: la transferencia existe; `status` dice en qué punto está.
+        - `404` con `application/problem+json` y `code: transfer_not_found`: el conector consultó al proveedor y
+          **no hay registro**. Es la ÚNICA prueba de inexistencia. Un `404` con cualquier otro código (por ejemplo el
+          `resource_not_found` genérico de una ruta desconocida), sin cuerpo problem+json o devuelto por un proxy NO
+          prueba nada: quien llama lo trata como ambiguo y escala a una persona.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - name: reference
+          in: path
+          required: true
+          description: '`business_ref:attempt` con el que se ordenó, por ejemplo `po_x:payout:1`.'
+          schema: { type: string, pattern: '^[A-Za-z0-9:._-]{3,200}$' }
+      responses:
+        '200': { description: La transferencia., content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404':
+          description: '`transfer_not_found` (y solo ese código) prueba que no hay registro.'
           content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
         '500': { $ref: 'common.yaml#/components/responses/ServerError' }
   /statements:
@@ -276,6 +352,36 @@ components:
     Method:
       type: string
       enum: [qr, card, bank_transfer]
+    TransferStatus:
+      type: string
+      enum: [pending, in_transit, paid, failed]
+      description: '`paid` y `failed` son terminales. `failed` con `failure_code` prueba que NO se pagó.'
+    TransferCreate:
+      type: object
+      required: [business_ref, attempt, connector, amount_minor, currency, destination_ref]
+      additionalProperties: false
+      properties:
+        business_ref: { type: string, pattern: '^[A-Za-z0-9:._-]{3,150}$', description: Referencia estable de la operación de negocio (por ejemplo `po_x:payout`). }
+        attempt: { type: integer, minimum: 1 }
+        connector: { $ref: '#/components/schemas/Connector' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        destination_ref: { type: string, minLength: 1, maxLength: 100, description: Referencia opaca de la cuenta de liquidación (Q-22); nunca un número de cuenta. }
+    Transfer:
+      type: object
+      required: [id, object, reference, connector, mode, amount_minor, currency, status, created_at, updated_at]
+      properties:
+        id: { type: string, pattern: '^tr_[a-z0-9]{10,40}$' }
+        object: { const: transfer }
+        reference: { type: string, description: '`business_ref:attempt`.' }
+        connector: { $ref: '#/components/schemas/Connector' }
+        mode: { $ref: '#/components/schemas/Mode' }
+        amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        status: { $ref: '#/components/schemas/TransferStatus' }
+        failure_code: { type: [string, 'null'] }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        updated_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
     ChargeStatus:
       type: object
       required: [charge_id, status, connector, mode, checked_at]
