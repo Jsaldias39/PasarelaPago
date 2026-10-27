@@ -58,13 +58,17 @@ export class HttpsTransport implements DeliveryTransport {
   send({ target, headers, body, timeoutMs, idleTimeoutMs }: TransportRequest): Promise<TransportResponse> {
     return new Promise((resolve, reject) => {
       let settled = false;
-      let deadline: NodeJS.Timeout | undefined;
       const done = (fn: () => void) => {
         if (settled) return;
         settled = true;
-        if (deadline) clearTimeout(deadline);
+        clearTimeout(deadline);
         fn();
       };
+      // Plazo duro de pared: arranca ya, antes de conectar, y no se renueva con nada.
+      const deadline = setTimeout(() => {
+        req.destroy();
+        done(() => reject(new TransportError('timeout')));
+      }, timeoutMs);
       const req = request(
         {
           host: target.hostname,
@@ -87,10 +91,6 @@ export class HttpsTransport implements DeliveryTransport {
           req.destroy();
         },
       );
-      deadline = setTimeout(() => {
-        req.destroy();
-        done(() => reject(new TransportError('timeout')));
-      }, timeoutMs);
       req.on('timeout', () => {
         req.destroy();
         done(() => reject(new TransportError('timeout')));

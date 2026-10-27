@@ -1,0 +1,64 @@
+$ E6_LOG=1 yarn test test/e6.spec.ts
+E6 línea de tiempo del trabajador:
+  t+0s {"claimed":22,"succeeded":0,"retrying":12,"dead":10}
+  t+5s {"claimed":12,"succeeded":0,"retrying":12,"dead":0}
+  t+305s {"claimed":12,"succeeded":0,"retrying":12,"dead":0}
+  t+2105s {"claimed":12,"succeeded":12,"retrying":0,"dead":0}
+E6 receptor sano (webhook-id, estado, resultado):
+  e733e357-f46b-49cd-8e1a-622e5f1ed2c7 500 overridden
+  13a4c8f7-efbe-4453-a450-d7e5291724aa 500 overridden
+  6798a438-fa82-4ac2-a948-49d2e566b918 500 overridden
+  16b1e0bc-ab6e-4f6e-9ee4-0843e9758fda 500 overridden
+  1fea62f7-164d-4b18-a363-fec04c029c73 500 overridden
+  96459a2c-eaa2-40bf-aa02-938fb4157a6a 500 overridden
+  a78b9d31-a721-46f2-8029-8e5ab23739e4 500 overridden
+  7ac70a5c-e70a-4c89-990a-213a62b3159f 500 overridden
+  52c77883-0406-4ead-9b5f-2a6ccf2e2ad4 500 overridden
+  77968ff8-c982-40c4-866c-4cd4747f57fd 500 overridden
+  e63cc0a7-1327-46bc-ad74-2d26f159826c 500 overridden
+  081b2c06-439a-4ee7-a214-3646c3059a32 500 overridden
+  e733e357-f46b-49cd-8e1a-622e5f1ed2c7 500 overridden
+  13a4c8f7-efbe-4453-a450-d7e5291724aa 500 overridden
+  6798a438-fa82-4ac2-a948-49d2e566b918 500 overridden
+  16b1e0bc-ab6e-4f6e-9ee4-0843e9758fda 500 overridden
+  1fea62f7-164d-4b18-a363-fec04c029c73 500 overridden
+  96459a2c-eaa2-40bf-aa02-938fb4157a6a 500 overridden
+  a78b9d31-a721-46f2-8029-8e5ab23739e4 500 overridden
+  7ac70a5c-e70a-4c89-990a-213a62b3159f 500 overridden
+  52c77883-0406-4ead-9b5f-2a6ccf2e2ad4 500 overridden
+  77968ff8-c982-40c4-866c-4cd4747f57fd 500 overridden
+  081b2c06-439a-4ee7-a214-3646c3059a32 500 overridden
+  e63cc0a7-1327-46bc-ad74-2d26f159826c 500 overridden
+  e733e357-f46b-49cd-8e1a-622e5f1ed2c7 500 overridden
+  13a4c8f7-efbe-4453-a450-d7e5291724aa 500 overridden
+  16b1e0bc-ab6e-4f6e-9ee4-0843e9758fda 500 overridden
+  6798a438-fa82-4ac2-a948-49d2e566b918 500 overridden
+  1fea62f7-164d-4b18-a363-fec04c029c73 500 overridden
+  96459a2c-eaa2-40bf-aa02-938fb4157a6a 500 overridden
+  7ac70a5c-e70a-4c89-990a-213a62b3159f 500 overridden
+  a78b9d31-a721-46f2-8029-8e5ab23739e4 500 overridden
+  52c77883-0406-4ead-9b5f-2a6ccf2e2ad4 500 overridden
+  77968ff8-c982-40c4-866c-4cd4747f57fd 500 overridden
+  081b2c06-439a-4ee7-a214-3646c3059a32 500 overridden
+  e63cc0a7-1327-46bc-ad74-2d26f159826c 500 overridden
+  e733e357-f46b-49cd-8e1a-622e5f1ed2c7 200 ok
+  13a4c8f7-efbe-4453-a450-d7e5291724aa 200 ok
+  16b1e0bc-ab6e-4f6e-9ee4-0843e9758fda 200 ok
+  6798a438-fa82-4ac2-a948-49d2e566b918 200 ok
+  96459a2c-eaa2-40bf-aa02-938fb4157a6a 200 ok
+  1fea62f7-164d-4b18-a363-fec04c029c73 200 ok
+  a78b9d31-a721-46f2-8029-8e5ab23739e4 200 ok
+  7ac70a5c-e70a-4c89-990a-213a62b3159f 200 ok
+  77968ff8-c982-40c4-866c-4cd4747f57fd 200 ok
+  52c77883-0406-4ead-9b5f-2a6ccf2e2ad4 200 ok
+  e63cc0a7-1327-46bc-ad74-2d26f159826c 200 ok
+  081b2c06-439a-4ee7-a214-3646c3059a32 200 ok
+E6 receptor 410:
+  6798a438-fa82-4ac2-a948-49d2e566b918 410 overridden
+  081b2c06-439a-4ee7-a214-3646c3059a32 410 overridden
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        1.997 s, estimated 4 s
+Ran all test suites matching test/e6.spec.ts.
+exit=0

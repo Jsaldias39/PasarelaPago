@@ -263,12 +263,10 @@ describe('HttpsTransport — conexión real fijada a la IP validada', () => {
     const sockets: Socket[] = [];
     let dripped = 0;
     let closedAt: number | undefined;
-    let acceptedAt = 0;
 
     beforeAll(async () => {
       tls = createTlsServer({ cert: cert.cert, key: cert.key }, (socket: TLSSocket) => {
         sockets.push(socket);
-        acceptedAt = Date.now();
         socket.on('close', () => (closedAt = Date.now()));
         socket.on('error', () => undefined);
         socket.once('data', () => {

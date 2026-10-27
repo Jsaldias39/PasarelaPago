@@ -566,10 +566,13 @@ components:
         period_from: { $ref: 'common.yaml#/components/schemas/Timestamp' }
         period_to: { $ref: 'common.yaml#/components/schemas/Timestamp' }
         created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
-    MandateCreate:
+    MandateFields:
       type: object
+      description: >-
+        Campos comunes del mandato. NO lleva `additionalProperties: false`: con `allOf`, esa restricción valdría también para
+        los campos que agrega `Mandate` y ninguna respuesta real podría cumplirla. El rechazo de campos desconocidos está en
+        `MandateCreate` (`unevaluatedProperties: false`).
       required: [kind, beneficiary_merchant_id, amount_minor, currency, schedule]
-      additionalProperties: false
       properties:
         kind:
           type: string
@@ -588,9 +591,13 @@ components:
             start_date: { type: string, format: date }
             end_date: { type: [string, 'null'], format: date }
         description: { type: string, maxLength: 200 }
+    MandateCreate:
+      allOf:
+        - $ref: '#/components/schemas/MandateFields'
+      unevaluatedProperties: false
     Mandate:
       allOf:
-        - $ref: '#/components/schemas/MandateCreate'
+        - $ref: '#/components/schemas/MandateFields'
         - type: object
           required: [id, object, status, created_at]
           properties:

@@ -1,6 +1,6 @@
 # Carril P1 — Plataforma, contratos y borde
 
-> **Estado:** `EN CURSO` (ola 0) · **AVANCE: 5 / 27 — 18,5 %** · **Peldaño:** `TESTED` en lo marcado HECHO; `UNKNOWN` en el resto
+> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 15 / 27 — 55,6 %** · **Peldaño:** `TESTED` en lo marcado HECHO (integración contra Postgres, Redis y NATS reales; Svix y mTLS sin ejecutar); `UNKNOWN` en el resto
 > **Predecesor:** ninguno. **Este carril es el predecesor de la ola 0 de todos los demás**: sin `pay-platform` sano y la plantilla publicada, nadie arranca.
 > **Carpetas del monorepo:** `contracts/`, `platform/`, `services/pay-edge/`, `services/pay-webhooks/` · cumplimiento en `docs/cumplimiento/`.
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md) · Investigación: [`../INVESTIGACION.md`](../INVESTIGACION.md)
@@ -54,7 +54,7 @@ original, tampoco.
 | P1.H1.M6 | `@pay/webhook-signature`: Standard Webhooks `v1` y `v1a`, comparación en tiempo constante | Los vectores de prueba de la especificación verifican | `yarn workspace @pay/webhook-signature test` → [evidencia](../../trabajo/ola-0/evidencia/P1.H1.M6-webhook-signature.txt) | HECHO |
 | P1.H1.M7 | Sobre CloudEvents + plantilla AsyncAPI 3 + CI de `pay-contracts` (lint de OpenAPI y AsyncAPI, detección de cambios que rompen) | Un PR que borra un campo requerido falla en CI | CI rojo sobre una rama de prueba, con la salida pegada | A MEDIAS |
 | P1.H1.M8 | CI reutilizable: typecheck, lint, test, imagen y la prueba de separación de bases (REQ-P1-7) | El servicio *hello* falla al intentar leer `pay_ledger` | Log del job pegado | A MEDIAS |
-| P1.H1.M9 | Adaptador que expone la transacción de MikroORM como `Queryable`, para escribir una entidad y encolar su evento en **la misma** transacción | Un evento encolado dentro de `em.transactional` no existe si la transacción se deshace | Test de integración con MikroORM y Postgres reales | TODO |
+| P1.H1.M9 | Adaptador que expone la transacción de MikroORM como `Queryable`, para escribir una entidad y encolar su evento en **la misma** transacción | Un evento encolado dentro de `em.transactional` no existe si la transacción se deshace | Test de integración con MikroORM y Postgres reales | HECHO |
 
 ## H2 — `pay-edge` (olas 1 y 2)
 
@@ -63,10 +63,10 @@ original, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P1.H2.M1 | Réplica de API keys hasheadas (SHA-256, `@pay/api-key`, D-27) desde los eventos `api_key.*`, con inbox | Clave creada → usable; revocada → `401` | Test de integración con NATS JetStream real | TODO |
-| P1.H2.M2 | *Rate limit* por clave y por IP (Redis), con `429` y `Retry-After` | El pedido 101 en la ventana devuelve `429` | Test de carga corto pegado | TODO |
-| P1.H2.M3 | Enrutamiento a los servicios con mTLS y propagación de `traceparent` y `request_id` | La traza en Jaeger cruza borde → servicio | Captura de la traza en `evidencia/` | TODO |
-| P1.H2.M4 | Matriz de autorización negativa (otro comercio, sin clave, clave revocada, entorno *test* contra *live*) | Todos los casos dan `401`/`404` | Suite `authz.e2e` en verde | TODO |
+| P1.H2.M1 | Réplica de API keys hasheadas (SHA-256, `@pay/api-key`, D-27) desde los eventos `api_key.*`, con inbox | Clave creada → usable; revocada → `401` | Test de integración con NATS JetStream real | HECHO |
+| P1.H2.M2 | *Rate limit* por clave y por IP (Redis), con `429` y `Retry-After` | El pedido 101 en la ventana devuelve `429` | Test de carga corto pegado | HECHO |
+| P1.H2.M3 | Enrutamiento a los servicios con mTLS y propagación de `traceparent` y `request_id` | La traza en Jaeger cruza borde → servicio | Captura de la traza en `evidencia/` | A MEDIAS |
+| P1.H2.M4 | Matriz de autorización negativa (otro comercio, sin clave, clave revocada, entorno *test* contra *live*) | Todos los casos dan `401`/`404` | Suite `authz.e2e` en verde | HECHO |
 
 ## H3 — `pay-webhooks` sobre Svix (olas 1 y 2)
 
@@ -75,12 +75,12 @@ original, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P1.H3.M1 | Consumidor de eventos públicos → `svix.message.create` con `eventId` = id del CloudEvent | Republicar el mismo evento no duplica la entrega | Test de integración contra Svix real | TODO |
-| P1.H3.M2 | API `webhook_endpoints` (alta, rotación de secreto con dos firmas en paralelo, baja) | Durante la rotación verifican la firma vieja y la nueva | Test pegado | TODO |
-| P1.H3.M3 | Receptor de prueba que verifica la firma (para E6 y como ejemplo para comercios) | Una firma alterada se rechaza | Test pegado | TODO |
-| P1.H3.M4 | E6: endpoint caído 10 min, `500` y después `200`; `410` lo deshabilita | Todos los eventos llegan una vez cada uno | Salida del E2E + log del receptor | TODO |
-| P1.H3.M5 | Política de payload: sin datos personales, solo ids y montos | grep de documento, nombre o teléfono en los payloads → 0 | Salida del grep pegada | TODO |
-| P1.H3.M6 | **Entrega a salvo de SSRF**: resolver y fijar la IP al registrar y en cada entrega; rechazar privadas, loopback, link-local, CGNAT, metadatos de nube y nombres internos; sin redirecciones; salida por un proxy sin ruta a la red interna | Un endpoint que apunta a `127.0.0.1`, `169.254.169.254`, `10.x`, un servicio interno o a un DNS que cambia a una IP privada tras el registro (rebinding) NO recibe nada | Test con esos destinos falsos: 0 entregas y 422 al registrar | TODO |
+| P1.H3.M1 | Consumidor de eventos públicos → `svix.message.create` con `eventId` = id del CloudEvent | Republicar el mismo evento no duplica la entrega | Test de integración contra Svix real | A MEDIAS |
+| P1.H3.M2 | API `webhook_endpoints` (alta, rotación de secreto con dos firmas en paralelo, baja) | Durante la rotación verifican la firma vieja y la nueva | Test pegado | HECHO |
+| P1.H3.M3 | Receptor de prueba que verifica la firma (para E6 y como ejemplo para comercios) | Una firma alterada se rechaza | Test pegado | HECHO |
+| P1.H3.M4 | E6: endpoint caído 10 min, `500` y después `200`; `410` lo deshabilita | Todos los eventos llegan una vez cada uno | Salida del E2E + log del receptor | HECHO |
+| P1.H3.M5 | Política de payload: sin datos personales, solo ids y montos | grep de documento, nombre o teléfono en los payloads → 0 | Salida del grep pegada | HECHO |
+| P1.H3.M6 | **Entrega a salvo de SSRF**: resolver y fijar la IP al registrar y en cada entrega; rechazar privadas, loopback, link-local, CGNAT, metadatos de nube y nombres internos; sin redirecciones; salida por un proxy sin ruta a la red interna | Un endpoint que apunta a `127.0.0.1`, `169.254.169.254`, `10.x`, un servicio interno o a un DNS que cambia a una IP privada tras el registro (rebinding) NO recibe nada | Test con esos destinos falsos: 0 entregas y 422 al registrar | HECHO |
 
 ## H4 — Cumplimiento: PCI DSS y regulación (olas 0 a 3)
 
@@ -89,8 +89,8 @@ original, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P1.H4.M1 | Mapa de alcance PCI: qué servicios tocan datos de tarjeta (CDE), cuáles están conectados y cuáles fuera de alcance, requisito por requisito de v4.0.1 | Cada servicio con su clasificación y la razón | `docs/cumplimiento/pci-alcance.md` revisado por P3 (dueño de `pay-vault`) | TODO |
-| P1.H4.M2 | Cuestionario para la asesoría legal: encuadre del modo A en el reglamento del BCB (RD 079/2022 y RD 069/2021), rol de la ASFI, cuenta recaudadora, custodia de fondos de terceros, facturación de la comisión | Cada pregunta con su fuente y el supuesto que hoy toma el software | `docs/cumplimiento/preguntas-legales.md` | TODO |
+| P1.H4.M1 | Mapa de alcance PCI: qué servicios tocan datos de tarjeta (CDE), cuáles están conectados y cuáles fuera de alcance, requisito por requisito de v4.0.1 | Cada servicio con su clasificación y la razón | `docs/cumplimiento/pci-alcance.md` revisado por P3 (dueño de `pay-vault`) | A MEDIAS |
+| P1.H4.M2 | Cuestionario para la asesoría legal: encuadre del modo A en el reglamento del BCB (RD 079/2022 y RD 069/2021), rol de la ASFI, cuenta recaudadora, custodia de fondos de terceros, facturación de la comisión | Cada pregunta con su fuente y el supuesto que hoy toma el software | `docs/cumplimiento/preguntas-legales.md` | HECHO |
 | P1.H4.M3 | Segmentación de red en Coolify: `pay-vault` en una red aislada, solo alcanzable por `pay-payments` | Desde `pay-edge`, una conexión a `pay-vault` falla; desde `pay-payments`, funciona | Salida de las dos pruebas pegada | TODO |
 
 ## H5 — Sandbox de punta a punta (ola 4, D-26)

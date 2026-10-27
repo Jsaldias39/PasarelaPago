@@ -151,6 +151,17 @@ describe('[DOBLE] autorización del borde — identidad, aislamiento entre comer
     expect(forwarded.authorization).toBeUndefined();
   });
 
+  it('D-28: el X-Pay-Mode reenviado es EXACTAMENTE el modo del registro de la clave (test|live), nunca «sandbox» ni lo que diga el token', async () => {
+    const k = await h.seedKey({ mode: 'test' });
+    h.doubles['pay-merchants'].requests.length = 0;
+    await h.http().get('/v1/api_keys').set('Authorization', `Bearer ${k.token}`);
+    const registry = await h.db.pool.query('SELECT mode FROM api_key_replica WHERE key_id = $1', [k.keyId]);
+    const forwarded = h.doubles['pay-merchants'].requests[0].headers['x-pay-mode'];
+    expect(forwarded).toBe(registry.rows[0].mode);
+    expect(forwarded).toMatch(/^(test|live)$/);
+    expect(forwarded).not.toBe('sandbox');
+  });
+
   it('no se puede elegir comercio por la consulta: ?merchant_id= es un parámetro desconocido (422) y no llega al servicio', async () => {
     const k = await h.seedKey();
     const res = await h.http().get('/v1/payment_intents?merchant_id=mc_otro').set('Authorization', bearer(k.token));
@@ -182,6 +193,8 @@ describe('[DOBLE] autorización del borde — modo live', () => {
     const ok = await h.http().get('/v1/balance').set('Authorization', bearer(live.token));
     expect(ok.status).toBe(200);
     expect(h.doubles['pay-ledger'].requests[0].headers['x-pay-mode']).toBe('live');
+    const registry = await h.db.pool.query('SELECT mode FROM api_key_replica WHERE key_id = $1', [live.keyId]);
+    expect(h.doubles['pay-ledger'].requests[0].headers['x-pay-mode']).toBe(registry.rows[0].mode);
     expect(ok.headers['x-pay-mode']).toBeUndefined();
   });
 });

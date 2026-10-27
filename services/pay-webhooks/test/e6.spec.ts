@@ -87,7 +87,14 @@ describe('[DOBLE de Svix] E6 — eventos por NATS real, endpoint caído, 410', (
     const timeline: string[] = [];
     for (const step of [0, 5_000, 300_000, 1_800_000]) {
       h.clock.advance(step);
-      const summary = await h.worker.runOnce();
+      // el tope por endpoint reparte el lote: se vacía lo vencido igual que lo hace el bucle del servicio
+      const summary = { claimed: 0, succeeded: 0, retrying: 0, dead: 0 };
+      for (let run = await h.worker.runOnce(); run.claimed > 0; run = await h.worker.runOnce()) {
+        summary.claimed += run.claimed;
+        summary.succeeded += run.succeeded;
+        summary.retrying += run.retrying;
+        summary.dead += run.dead;
+      }
       timeline.push(`t+${Math.round((h.clock.now().getTime() - (outageEnd - 10 * 60_000)) / 1000)}s ${JSON.stringify(summary)}`);
     }
     if (process.env.E6_LOG) process.stdout.write(`E6 línea de tiempo del trabajador:\n  ${timeline.join('\n  ')}\nE6 receptor sano (webhook-id, estado, resultado):\n${healthy.log.map((l) => `  ${l.webhookId} ${l.status} ${l.outcome}`).join('\n')}\nE6 receptor 410:\n${gone.log.map((l) => `  ${l.webhookId} ${l.status} ${l.outcome}`).join('\n')}\n`);
@@ -99,8 +106,9 @@ describe('[DOBLE de Svix] E6 — eventos por NATS real, endpoint caído, 410', (
     for (const e of events) expect(healthy.log.filter((l) => l.webhookId === e.id).map((l) => l.status)).toEqual([500, 500, 500, 200]);
     expect(healthy.log.filter((l) => l.outcome === 'duplicate')).toHaveLength(0);
 
-    // el 410: una sola petición en total y el endpoint queda deshabilitado
-    expect(gone.log).toHaveLength(1);
+    // el 410: solo las que ya iban en vuelo (a lo sumo `perEndpointConcurrency`), ninguna después; el endpoint queda deshabilitado
+    expect(gone.log.length).toBeGreaterThanOrEqual(1);
+    expect(gone.log.length).toBeLessThanOrEqual(h.config.delivery.perEndpointConcurrency);
     const listed = (await h.as(merchant).get('/webhook_endpoints')).body.data as { id: string; status: string; disabled_reason: string | null }[];
     expect(listed.find((e) => e.id === b.id)).toMatchObject({ status: 'disabled', disabled_reason: 'gone_410' });
     expect(listed.find((e) => e.id === a.id)).toMatchObject({ status: 'enabled', disabled_reason: null });

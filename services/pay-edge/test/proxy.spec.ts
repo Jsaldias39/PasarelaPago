@@ -12,13 +12,6 @@ const ID_FOR: Record<string, string> = {
 };
 const concrete = (template: string): string => template.replace('{id}', ID_FOR[template.split('/')[1]]);
 const KEY = 'clave-de-idempotencia-0001';
-/**
- * DEFECTO CONOCIDO DEL CONTRATO (docs/trabajo/ola-1/P1/PROPUESTAS.md, propuesta 3): `Mandate` se arma con `allOf` sobre
- * `MandateCreate`, que lleva `additionalProperties: false`; por eso NINGUNA respuesta real de `Mandate` puede validar. Se
- * declara acá, acotado a estas dos operaciones, y una prueba avisa cuando el contrato se corrija (hay que borrar este Set).
- */
-const KNOWN_CONTRACT_DEFECT = new Set(['POST /mandates', 'GET /mandates']);
-const isKnownDefect = (violation: string) => [...KNOWN_CONTRACT_DEFECT].some((op) => violation.startsWith(`${op.split(' ')[0]} /mandates`));
 const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/;
 
 async function authed(h: EdgeHarness) {
@@ -48,8 +41,7 @@ describe('[DOBLE] reenvío a los servicios dueños — nivel CORRECTO', () => {
     expect(res.status).toBe(sample.status);
     if (sample.body !== undefined) expect(res.body).toEqual(sample.body);
     const errors = h.contract.validateResponse({ method: route.method, path, status: res.status, body: sample.body === undefined ? undefined : res.body });
-    if (KNOWN_CONTRACT_DEFECT.has(name)) expect(errors.join()).toMatch(/additional properties/i);
-    else expect(errors).toEqual([]);
+    expect(errors).toEqual([]);
 
     const seen = h.doubles[route.upstream].requests;
     expect(seen).toHaveLength(1);
@@ -65,13 +57,7 @@ describe('[DOBLE] reenvío a los servicios dueños — nivel CORRECTO', () => {
   });
 
   it('ningún doble devolvió una respuesta fuera del contrato', () => {
-    for (const d of Object.values(h.doubles)) expect(d.violations.filter((v) => !isKnownDefect(v))).toEqual([]);
-  });
-
-  it('DEFECTO CONOCIDO vigente: el contrato todavía rechaza una respuesta real de Mandate (si falla, se corrigió: borrá KNOWN_CONTRACT_DEFECT)', () => {
-    const violations = h.doubles['pay-schedules'].violations;
-    expect(violations.length).toBeGreaterThan(0);
-    expect(violations.every(isKnownDefect)).toBe(true);
+    for (const d of Object.values(h.doubles)) expect(d.violations).toEqual([]);
   });
 
   it('reenvía los BYTES exactos del cuerpo (espacios, orden de claves, unicode, números grandes), sin reserializar', async () => {

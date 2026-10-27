@@ -167,7 +167,8 @@ describe('EventIngest — sobre, tipos internos y comercios sin endpoints', () =
 
   it('el merchantid de la extensión manda; si falta se usa data.merchant_id', async () => {
     const event = cloudEvent('payment_intent.succeeded', merchant);
-    const { merchantid: _omit, ...withoutExtension } = event;
+    const withoutExtension: Record<string, unknown> = { ...event };
+    delete withoutExtension.merchantid;
     expect((await h.ingest.ingest(withoutExtension)).kind).toBe('queued');
   });
 });

@@ -34,9 +34,11 @@ export class WorkerRunner implements OnModuleInit, OnApplicationShutdown {
 
   private async tick(): Promise<void> {
     try {
+      // Sigue mientras haya entregas vencidas: el tope por endpoint reparte el lote, no limita el caudal. Las que fallan se
+      // reprograman hacia adelante, así que el bucle termina.
       let summary;
       do summary = await this.worker.runOnce();
-      while (summary.claimed >= this.config.delivery.batchSize && !this.stopped);
+      while (summary.claimed > 0 && !this.stopped);
     } catch (error) {
       // Solo nombre y SQLSTATE: el mensaje de un error de base puede traer valores (regla 90.2.1).
       this.logger.error({ err: error instanceof Error ? error.name : 'desconocido', code: (error as { code?: string }).code }, 'El trabajador de entregas falló');

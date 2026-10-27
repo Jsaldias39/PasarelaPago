@@ -1,0 +1,12 @@
+$ wc -l docs/cumplimiento/*.md
+   92 docs/cumplimiento/pci-alcance.md
+  158 docs/cumplimiento/preguntas-legales.md
+  250 total
+
+$ grep -c "^| \`pay-" docs/cumplimiento/pci-alcance.md   # filas que empiezan con un servicio pay-* (12 son los de la tabla §3, uno por servicio de producto y de sandbox)
+13
+
+$ grep -c "^\*\*L-" docs/cumplimiento/preguntas-legales.md   # preguntas
+30
+
+NOTA: documentos de análisis. Peldaño WRITTEN: sin revisión de P3 ni de QSA/abogado (ver «No cubierto» del REPORTE).

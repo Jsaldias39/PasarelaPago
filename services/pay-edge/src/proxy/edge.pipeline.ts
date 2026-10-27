@@ -8,7 +8,7 @@ import { EdgeProblemError, fail } from '../edge-problem';
 import { RateLimiter } from '../rate-limiter';
 import { ReplicaRepository } from '../replica/replica.repository';
 import { matchRoute } from '../routes';
-import { containsCardNumber } from './pan-guard';
+import { inspectBody } from './pan-guard';
 import { UpstreamClient } from './upstream.client';
 
 /** Hash que nunca coincide: se compara igual cuando la clave no existe, para que el tiempo no delate qué claves existen. */
@@ -74,8 +74,11 @@ export class EdgePipeline {
     }
     // El cuerpo se lee RECIÉN acá: después de autenticar, limitar y validar. Nada se bufferea de quien no se autenticó.
     const body = await this.readBody(req);
-    // El PAN no puede entrar por el borde (PCI): se rechaza sin guardarlo ni registrarlo.
-    if (containsCardNumber(body)) {
+    // El PAN no puede entrar por el borde (PCI): se rechaza sin guardarlo ni registrarlo. Un JSON que no se puede interpretar
+    // tampoco pasa: no se sabe qué lleva, y el contrato público solo habla JSON.
+    const verdict = inspectBody(body);
+    if (verdict === 'invalid_json') throw fail('validation_failed', { errors: [{ field: 'body', code: 'invalid_json', message: 'El cuerpo no es un JSON válido' }] });
+    if (verdict === 'card_number') {
       throw fail('validation_failed', { errors: [{ field: 'body', code: 'card_number_detected', message: 'No envíes números de tarjeta: usá un token (card_token)' }] });
     }
 

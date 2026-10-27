@@ -59,7 +59,7 @@ export class DeliveryWorker {
     for (const delivery of claimed) byEndpoint.set(delivery.endpoint_id, [...(byEndpoint.get(delivery.endpoint_id) ?? []), delivery]);
     await Promise.all(
       [...byEndpoint.values()].map(async (queue) => {
-        const lanes = Array.from({ length: queue.length }, async () => {
+        const lanes = Array.from({ length: Math.min(this.config.delivery.perEndpointConcurrency, queue.length) }, async () => {
           for (let next = queue.shift(); next; next = queue.shift()) summary[await this.deliver(next)] += 1;
         });
         await Promise.all(lanes);
