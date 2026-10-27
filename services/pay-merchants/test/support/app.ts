@@ -7,6 +7,7 @@ import { AppModule } from '../../src/app.module';
 import { PG_POOL } from '../../src/database.module';
 import { logSink, type LogTarget } from '../../src/logging.sink';
 import { FsObjectStore, OBJECT_STORE } from '../../src/kyc/object-store';
+import { SETTINGS, loadSettings } from '../../src/settings';
 import { OPERATOR_AUTHENTICATOR } from '../../src/operators/operator-auth';
 import { OperatorAuthenticatorDouble } from '../doubles/operator-auth.double';
 import { loadEventContract } from './event-contract';
@@ -36,7 +37,7 @@ export interface TestContext {
 }
 
 /** App completa contra Postgres REAL (esquema propio) con el [DOBLE] de operadores. Captura los logs. */
-export async function createTestContext(options: { realOperatorAuthenticator?: boolean } = {}): Promise<TestContext> {
+export async function createTestContext(options: { realOperatorAuthenticator?: boolean; operator?: { publicKeyPem: string; issuer: string; audience: string }; payMode?: 'sandbox' | 'live' } = {}): Promise<TestContext> {
   const db = await createIsolatedDatabase(SQL);
   const logs: string[] = [];
   const capture: LogTarget = { write: (chunk) => (logs.push(String(chunk)), true) };
@@ -48,7 +49,9 @@ export async function createTestContext(options: { realOperatorAuthenticator?: b
     .overrideProvider(PG_POOL).useValue(new Proxy(db.pool, { get: (target, prop) => (prop === 'end' ? async () => undefined : (typeof target[prop as keyof typeof target] === 'function' ? (target[prop as keyof typeof target] as (...a: unknown[]) => unknown).bind(target) : target[prop as keyof typeof target])) }))
     .overrideProvider(OBJECT_STORE).useValue(store);
   // Con `realOperatorAuthenticator` se usa el que trae el servicio por defecto (niega a todos), no el [DOBLE].
-  if (!options.realOperatorAuthenticator) builder.overrideProvider(OPERATOR_AUTHENTICATOR).useValue(new OperatorAuthenticatorDouble());
+  // Con `operator` NO se usa el [DOBLE]: el verificador lo arma el módulo desde la configuración, como en producción (JWT RS256 atado al modo).
+  if (options.operator) builder.overrideProvider(SETTINGS).useValue({ ...loadSettings(), operator: options.operator, payMode: options.payMode ?? 'sandbox' });
+  else if (!options.realOperatorAuthenticator) builder.overrideProvider(OPERATOR_AUTHENTICATOR).useValue(new OperatorAuthenticatorDouble());
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication({ bufferLogs: true });
   app.useLogger(app.get(Logger));

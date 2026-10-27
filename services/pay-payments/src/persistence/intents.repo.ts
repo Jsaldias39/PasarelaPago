@@ -53,6 +53,8 @@ export interface NewIntent {
   readonly source?: IntentRow['source'];
   readonly kind?: string | undefined;
   readonly beneficiaryMerchantId?: string | undefined;
+  /** Nombre del pagador, solo para cribarlo (D-29). `undefined` = pagador invitado sin nombre. */
+  readonly payerName?: string | undefined;
 }
 
 const COLUMNS = `id, merchant_id, mode, amount_minor, currency, method, status, fee_minor, net_minor, description, metadata, next_action,
@@ -98,13 +100,13 @@ export const intentsRepo = {
   async insert(db: Db, intent: NewIntent): Promise<{ inserted: boolean }> {
     const result = await db.query(
       `INSERT INTO payment_intents (id, merchant_id, mode, amount_minor, method, status, fee_minor, net_minor, description, metadata, expires_at,
-                                    card_token, wallet_user_ref, source, kind, beneficiary_merchant_id)
-       VALUES ($1, $2, $15, $3, $4, 'processing', $5, $6, $7, $8::jsonb, $9, $10, $11, $12::jsonb, $13, $14)
+                                    card_token, wallet_user_ref, source, kind, beneficiary_merchant_id, payer_name)
+       VALUES ($1, $2, $15, $3, $4, 'processing', $5, $6, $7, $8::jsonb, $9, $10, $11, $12::jsonb, $13, $14, $16)
        ON CONFLICT (id) DO NOTHING`,
       [
         intent.id, intent.merchantId, intent.amountMinor, intent.method, intent.feeMinor, intent.netMinor, intent.description ?? null,
         JSON.stringify(intent.metadata), intent.expiresAt, intent.cardToken ?? null, intent.walletUserRef ?? null,
-        intent.source ? JSON.stringify(intent.source) : null, intent.kind ?? null, intent.beneficiaryMerchantId ?? null, intent.mode,
+        intent.source ? JSON.stringify(intent.source) : null, intent.kind ?? null, intent.beneficiaryMerchantId ?? null, intent.mode, intent.payerName ?? null,
       ],
     );
     return { inserted: (result.rowCount ?? 0) === 1 };
@@ -175,7 +177,8 @@ export const intentsRepo = {
          charge_status = COALESCE($9, charge_status),
          ledger_transfer_id = COALESCE($10, ledger_transfer_id),
          succeeded_at = CASE WHEN $3 = 'succeeded' THEN now() ELSE succeeded_at END,
-         completed_at = CASE WHEN $11::boolean THEN now() ELSE completed_at END
+         completed_at = CASE WHEN $11::boolean THEN now() ELSE completed_at END,
+         payer_name = CASE WHEN $11::boolean THEN NULL ELSE payer_name END
        WHERE id = $1 AND status = ANY($2::text[])
        RETURNING ${COLUMNS}`,
       [
@@ -184,6 +187,12 @@ export const intentsRepo = {
       ],
     );
     return rows[0] ? map(rows[0]) : null;
+  },
+
+  /** Nombre a cribar del pagador (D-29). Es lo único que lee `payer_name`: no forma parte de `IntentRow`, así no puede salir en una respuesta ni en un evento. */
+  async payerName(db: Db, id: string): Promise<string | null> {
+    const { rows } = await db.query('SELECT payer_name FROM payment_intents WHERE id = $1', [id]);
+    return (rows[0]?.payer_name as string | null | undefined) ?? null;
   },
 
   /** Aplica el último estado del cargo que informó el conector (la máquina `decideCallback` ya dijo `aplicar`). */

@@ -305,7 +305,7 @@ describe('payout (P2.H2.M4, REQ-P2-1/2 del lado del pago)', () => {
     it('solo pay-schedules y la consola pagan; el resto, incluido pay-payments y pay-edge, recibe 403', async () => {
       const m = await funded(1_000);
       for (const caller of ['pay-edge', 'pay-payments', 'pay-risk', 'pay-ledger']) expect((await create(body(m, 100), key(), caller)).status).toBe(403);
-      expect((await create(body(m, 100), key(), 'pay-console')).status).toBe(201);
+      expect((await create(body(m, 100), key(), 'pay-backoffice')).status).toBe(201);
       expect(await rows()).toHaveLength(1);
     });
 
@@ -321,19 +321,19 @@ describe('payout (P2.H2.M4, REQ-P2-1/2 del lado del pago)', () => {
       for (let i = 0; i < 5; i += 1) await create(body(m, 100 + i));
       ctx.connectors.scenario = 'in_transit';
       await create(body(m, 999));
-      const page1 = checked(ctx, 'GET', '/payouts', await ctx.as('pay-console').get('/payouts?limit=4'));
+      const page1 = checked(ctx, 'GET', '/payouts', await ctx.as('pay-backoffice').get('/payouts?limit=4'));
       expect(page1.body.data).toHaveLength(4);
       expect(page1.body.data[0].amount_minor).toBe(999);
-      const page2 = checked(ctx, 'GET', '/payouts', await ctx.as('pay-console').get(`/payouts?limit=4&starting_after=${page1.body.next_cursor}`));
+      const page2 = checked(ctx, 'GET', '/payouts', await ctx.as('pay-backoffice').get(`/payouts?limit=4&starting_after=${page1.body.next_cursor}`));
       expect(page2.body.data).toHaveLength(2);
       expect(page2.body.has_more).toBe(false);
       const ids = [...page1.body.data, ...page2.body.data].map((p: { id: string }) => p.id);
       expect(new Set(ids).size).toBe(6); // sin repetidos ni huecos entre páginas
-      expect((await ctx.as('pay-console').get(`/payouts?status=in_transit&merchant_id=${m}`)).body.data).toHaveLength(1);
-      expect((await ctx.as('pay-console').get(`/payouts?merchant_id=${merchantId()}`)).body.data).toEqual([]);
-      expect((await ctx.as('pay-console').get('/payouts?status=raro')).status).toBe(422);
-      expect((await ctx.as('pay-console').get('/payouts?limit=0')).status).toBe(422);
-      expect((await ctx.as('pay-console').get('/payouts?limit=101')).status).toBe(422);
+      expect((await ctx.as('pay-backoffice').get(`/payouts?status=in_transit&merchant_id=${m}`)).body.data).toHaveLength(1);
+      expect((await ctx.as('pay-backoffice').get(`/payouts?merchant_id=${merchantId()}`)).body.data).toEqual([]);
+      expect((await ctx.as('pay-backoffice').get('/payouts?status=raro')).status).toBe(422);
+      expect((await ctx.as('pay-backoffice').get('/payouts?limit=0')).status).toBe(422);
+      expect((await ctx.as('pay-backoffice').get('/payouts?limit=101')).status).toBe(422);
     });
   });
 });

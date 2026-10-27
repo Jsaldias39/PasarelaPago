@@ -15,13 +15,13 @@ import { SETTLEMENT_CONFIG, type SettlementConfig } from './settlement.config';
 
 /**
  * Quién llama a qué (decisión de la ola 1, DECISIONES-TOMADAS.md): `pay-schedules` ordena pagos y cobros programados (7.7, 7.8);
- * `pay-payments` registra deudas por contracargo; `pay-console` es el nombre PROVISORIO de la consola interna de operación (el contrato
+ * `pay-payments` registra deudas por contracargo; `pay-backoffice` (nombre fijado por D-31; antes provisorio `pay-console`) es la consola interna de operación (el contrato
  * dice «consola interna, fuera de este plan») y es la única que corre cortes y concilia; `pay-edge` solo lee los pagos de un comercio.
  */
-export const PAYOUT_WRITERS = ['pay-schedules', 'pay-console'];
-export const PAYOUT_READERS = ['pay-schedules', 'pay-console', 'pay-edge'];
-export const OPERATIONS = ['pay-console'];
-export const CHARGE_WRITERS = ['pay-schedules', 'pay-payments', 'pay-console'];
+export const PAYOUT_WRITERS = ['pay-schedules', 'pay-backoffice'];
+export const PAYOUT_READERS = ['pay-schedules', 'pay-backoffice', 'pay-edge'];
+export const OPERATIONS = ['pay-backoffice'];
+export const CHARGE_WRITERS = ['pay-schedules', 'pay-payments', 'pay-backoffice'];
 
 interface Stored {
   status: number;
@@ -62,7 +62,7 @@ export class SettlementController {
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const mode = requirePayMode(payMode);
+    const mode = requirePayMode(payMode, this.config.payMode);
     return send(res, await this.payouts.create(body, caller, mode, requireIdempotencyKey(key)));
   }
 
@@ -73,7 +73,7 @@ export class SettlementController {
   @Get('payouts')
   @AllowedServices(...PAYOUT_READERS)
   async listPayouts(@Query() query: unknown, @Headers('x-service-id') caller: string, @Headers('x-pay-mode') payMode: string | undefined, @Headers('x-merchant-id') merchant: string | undefined) {
-    const mode = requirePayMode(payMode);
+    const mode = requirePayMode(payMode, this.config.payMode);
     if (caller === 'pay-edge') {
       const parsed = merchantId.safeParse(merchant);
       if (!parsed.success) throw new ProblemError('unauthorized');
@@ -86,9 +86,9 @@ export class SettlementController {
   }
 
   @Get('payouts/:id')
-  @AllowedServices('pay-schedules', 'pay-console')
+  @AllowedServices('pay-schedules', 'pay-backoffice')
   async getPayout(@Param('id') id: string, @Headers('x-pay-mode') payMode: string | undefined) {
-    return payoutDto(await this.payouts.get(id, requirePayMode(payMode)));
+    return payoutDto(await this.payouts.get(id, requirePayMode(payMode, this.config.payMode)));
   }
 
   @Post('batches')
@@ -100,14 +100,14 @@ export class SettlementController {
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const mode = requirePayMode(payMode);
+    const mode = requirePayMode(payMode, this.config.payMode);
     return send(res, await this.batches.run(body, caller, mode, requireIdempotencyKey(key)));
   }
 
   @Get('batches')
   @AllowedServices(...OPERATIONS)
   async listBatches(@Query() query: unknown, @Headers('x-pay-mode') payMode: string | undefined) {
-    const result = await this.batches.list(query, requirePayMode(payMode));
+    const result = await this.batches.list(query, requirePayMode(payMode, this.config.payMode));
     return page(result.rows, result.has_more, result.next_cursor, batchDto);
   }
 
@@ -120,20 +120,20 @@ export class SettlementController {
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const mode = requirePayMode(payMode);
+    const mode = requirePayMode(payMode, this.config.payMode);
     return send(res, await this.reconciliation.createRun(body, caller, mode, requireIdempotencyKey(key)));
   }
 
   @Get('reconciliation_runs/:id')
   @AllowedServices(...OPERATIONS)
   async getRun(@Param('id') id: string, @Headers('x-pay-mode') payMode: string | undefined) {
-    return runDto(await this.reconciliation.getRun(id, requirePayMode(payMode)));
+    return runDto(await this.reconciliation.getRun(id, requirePayMode(payMode, this.config.payMode)));
   }
 
   @Get('reconciliation_exceptions')
   @AllowedServices(...OPERATIONS)
   async listExceptions(@Query() query: unknown, @Headers('x-pay-mode') payMode: string | undefined) {
-    const result = await this.reconciliation.listExceptions(query, requirePayMode(payMode));
+    const result = await this.reconciliation.listExceptions(query, requirePayMode(payMode, this.config.payMode));
     return page(result.rows, result.has_more, result.next_cursor, exceptionDto);
   }
 
@@ -155,7 +155,7 @@ export class SettlementController {
   ) {
     const operator = await this.operators.verify(authorization);
     if (!operator) throw new ProblemError('unauthorized');
-    const mode = requirePayMode(payMode);
+    const mode = requirePayMode(payMode, this.config.payMode);
     return send(res, await this.reconciliation.resolve(id, body, operator, caller, mode, requireIdempotencyKey(key)));
   }
 
@@ -169,7 +169,7 @@ export class SettlementController {
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const mode = requirePayMode(payMode);
+    const mode = requirePayMode(payMode, this.config.payMode);
     return send(res, await this.netting.register(body, caller, mode, requireIdempotencyKey(key)));
   }
 
@@ -177,7 +177,7 @@ export class SettlementController {
   @Get('exports/accounting')
   @AllowedServices(...OPERATIONS)
   async exportAccounting(@Query() query: unknown, @Headers('x-pay-mode') payMode: string | undefined, @Res({ passthrough: true }) res: Response) {
-    const doc = await this.exports.build(query, requirePayMode(payMode));
+    const doc = await this.exports.build(query, requirePayMode(payMode, this.config.payMode));
     if ((query as { format?: string }).format === 'csv') {
       res.type('text/csv');
       return exportToCsv(doc);

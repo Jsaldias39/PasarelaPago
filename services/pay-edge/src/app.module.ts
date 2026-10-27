@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { type DynamicModule, Module } from '@nestjs/common';
+import { type DynamicModule, Module, RequestMethod } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'nestjs-pino';
@@ -18,6 +18,9 @@ export class AppModule {
       module: AppModule,
       imports: [
         LoggerModule.forRoot({
+          // Comodín con nombre (path-to-regexp 8): el `*` por defecto de nestjs-pino, con el prefijo `/v1`, hace que Nest avise
+          // «Unsupported route path: /v1/*» en cada arranque.
+          forRoutes: [{ path: '{*path}', method: RequestMethod.ALL }],
           pinoHttp: {
             level: config.logLevel,
             // Id de correlación: el del cliente si viene bien formado; si no, uno nuevo. Se devuelve en la respuesta.

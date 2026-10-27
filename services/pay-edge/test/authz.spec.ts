@@ -101,19 +101,29 @@ describe('[DOBLE] autorización del borde — claves y modos', () => {
     expect(seen(h)).toBe(0);
   });
 
-  it('un comercio suspendido o cerrado da 403 merchant_suspended aunque su clave sea válida; reactivarlo lo habilita', async () => {
+  it('D-32: un comercio SUSPENDIDO bloquea sus claves con 403 merchant_suspended; reactivarlo las restaura', async () => {
     const k = await h.seedKey();
-    for (const status of ['suspended', 'closed'] as const) {
-      await h.setMerchantStatus(k.merchantId, status);
-      const res = await balance(bearer(k.token));
-      expect(res.status).toBe(403);
-      expect(res.body).toMatchObject({ code: 'merchant_suspended', status: 403 });
-      // GET /balance no declara 403 (PROPUESTA 5): se valida contra la operación que sí lo declara.
-      h.contract.assertResponse({ method: 'POST', path: '/payment_intents', status: 403, body: res.body });
-    }
+    await h.setMerchantStatus(k.merchantId, 'suspended');
+    const res = await balance(bearer(k.token));
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ code: 'merchant_suspended', status: 403 });
+    // GET /balance no declara 403 (PROPUESTA 5): se valida contra la operación que sí lo declara.
+    h.contract.assertResponse({ method: 'POST', path: '/payment_intents', status: 403, body: res.body });
     expect(seen(h)).toBe(0);
     await h.setMerchantStatus(k.merchantId, 'active');
     expect((await balance(bearer(k.token))).status).toBe(200);
+  });
+
+  it('D-32: un comercio CERRADO tiene las claves revocadas: 401 indistinguible de una clave inexistente, aunque la clave sea válida', async () => {
+    const k = await h.seedKey();
+    await h.setMerchantStatus(k.merchantId, 'closed');
+    const res = await balance(bearer(k.token));
+    const unknown = await balance(bearer(generateApiKey('test').token));
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ code: 'unauthorized', status: 401 });
+    expect({ code: res.body.code, title: res.body.title, detail: res.body.detail, status: res.body.status }).toEqual({ code: unknown.body.code, title: unknown.body.title, detail: unknown.body.detail, status: unknown.body.status });
+    expect(res.headers['www-authenticate']).toBe('Bearer realm="pay"');
+    expect(seen(h)).toBe(0);
   });
 });
 
@@ -203,7 +213,7 @@ describe('[DOBLE] autorización del borde — identidad, aislamiento entre comer
 describe('[DOBLE] autorización del borde — modo live', () => {
   let h: EdgeHarness;
   beforeAll(async () => {
-    h = await startEdge({ env: { PAY_MODE: 'live' } });
+    h = await startEdge({ liveAfterLoad: true });
   });
   afterAll(async () => h.stop());
 

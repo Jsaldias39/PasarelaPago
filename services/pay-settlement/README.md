@@ -37,6 +37,7 @@ Corte semanal, pagos a comercios, cobros netos (abono y comisiones), conciliaci�
 3. **El saldo nunca queda negativo**: lo impide el ledger, y este servicio cobra `min(deuda, disponible)`.
 4. **Quién decide sale de la credencial**, nunca del cuerpo. Un rol insuficiente es 403 antes de tocar la idempotencia (el 403 no se guarda).
 5. **El modo B es un doble** y se niega a arrancar con `PAY_MODE=live`.
+6. **`PAY_MODE=sandbox|live` es obligatorio y no tiene valor por defecto.** Bajo `live` se niega a arrancar con cualquier doble: cliente del ledger o de conectores que no sea el HTTP real, riel simulado, modo B o el conector `mock` (`src/settlement/deployment.ts`). Una clave `test` solo opera contra `sandbox`; una `live`, contra `live` (`403` en cualquier otra combinación).
 
 ## Modo `test` / `live` (D-28)
 

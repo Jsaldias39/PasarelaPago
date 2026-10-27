@@ -95,6 +95,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
   if (payMode === 'live' && (sandboxTargets.length > 0 || env.WEBHOOKS_SANDBOX_CA_FILE)) {
     throw new Error('WEBHOOKS_SANDBOX_TARGETS y WEBHOOKS_SANDBOX_CA_FILE no pueden usarse con PAY_MODE=live: abren la entrega a la red local');
   }
+  // D-26: la escalera de reintentos acortada es un acelerador de sandbox; en live rige la de Svix (la escalera por defecto).
+  if (payMode === 'live' && env.WEBHOOKS_RETRY_SCHEDULE_MS) {
+    throw new Error('WEBHOOKS_RETRY_SCHEDULE_MS no puede usarse con PAY_MODE=live: es un acelerador de sandbox y en live rige la escalera por defecto');
+  }
   const kek = Buffer.from(required(env, 'WEBHOOKS_SECRET_KEK'), 'base64');
   if (kek.length !== 32) throw new Error('WEBHOOKS_SECRET_KEK debe ser una clave de 32 bytes en base64');
   if (env.DB_SCHEMA && !SCHEMA.test(env.DB_SCHEMA)) throw new Error(`DB_SCHEMA inválido: ${env.DB_SCHEMA}`);

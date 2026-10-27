@@ -45,7 +45,10 @@ export class ReplicaRepository {
  *   fila ya existe (tombstone) y el `created` tardío NO la resucita.
  * - `api_key.revoked` conserva la revocación MÁS TEMPRANA (una revocación no se deshace, y la más temprana es la más estricta);
  *   puede llevar un instante futuro (gracia de una rotación).
- * - `merchant.*` solo aplica si es igual o más nuevo que el estado guardado, y `closed` es terminal.
+ * - `merchant.*` solo aplica si es igual o más nuevo que el estado guardado, y `closed` es terminal (y gana aunque llegue
+ *   con un instante anterior al estado guardado: en el origen no hay vuelta atrás).
+ * - D-32: `merchant.closed` REVOCA todas las claves del comercio que la réplica conoce (la revocación más temprana manda);
+ *   las que lleguen después las atrapa el borde por el estado `closed`. Suspender solo bloquea y se revierte con `activated`.
  */
 export async function applyReplicaEvent(client: Queryable, event: ReplicaEvent): Promise<void> {
   if (event.kind === 'api_key.created') {
@@ -76,7 +79,13 @@ export async function applyReplicaEvent(client: Queryable, event: ReplicaEvent):
      VALUES ($1, $2, $3::timestamptz, $4)
      ON CONFLICT (merchant_id) DO UPDATE
         SET status = EXCLUDED.status, status_at = EXCLUDED.status_at, last_event_id = EXCLUDED.last_event_id, updated_at = now()
-      WHERE merchant_replica.status <> 'closed' AND merchant_replica.status_at <= EXCLUDED.status_at`,
+      WHERE merchant_replica.status <> 'closed' AND (EXCLUDED.status = 'closed' OR merchant_replica.status_at <= EXCLUDED.status_at)`,
     [event.merchantId, event.status, event.at, event.eventId],
   );
+  if (event.status === 'closed') {
+    await client.query(
+      `UPDATE api_key_replica SET revoked_at = LEAST(revoked_at, $2::timestamptz), updated_at = now() WHERE merchant_id = $1`,
+      [event.merchantId, event.at],
+    );
+  }
 }

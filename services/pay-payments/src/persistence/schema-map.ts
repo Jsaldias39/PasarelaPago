@@ -43,6 +43,7 @@ export const PAYMENTS_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<string
     status: { type: 'text', nullable: false },
     occurred_at: { type: 'timestamp with time zone', nullable: false },
     updated_at: { type: 'timestamp with time zone', nullable: false },
+    legal_name: { type: 'text', nullable: true },
   },
   payment_cancellation_requests: {
     id: { type: 'bigint', nullable: false },
@@ -75,6 +76,7 @@ export const PAYMENTS_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<string
     source: { type: 'jsonb', nullable: true },
     kind: { type: 'text', nullable: true },
     beneficiary_merchant_id: { type: 'text', nullable: true },
+    payer_name: { type: 'text', nullable: true },
     created_at: { type: 'timestamp with time zone', nullable: false },
     expires_at: { type: 'timestamp with time zone', nullable: false },
     succeeded_at: { type: 'timestamp with time zone', nullable: true },

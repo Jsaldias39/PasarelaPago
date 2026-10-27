@@ -14,7 +14,11 @@ export type ScreeningOutcome =
 
 export type ScreeningEntityType = 'person' | 'business';
 
+export type ScreeningParty = 'merchant' | 'payer';
+
 export interface ScreeningResult {
+  /** A quién pertenece la mejor coincidencia (D-29: se criba al comercio y, si dio nombre, al pagador). */
+  readonly party?: ScreeningParty;
   readonly outcome: ScreeningOutcome;
   /** Mayor puntaje devuelto por Watchman (0–1), si hubo respuesta. */
   readonly topScore?: number;

@@ -39,7 +39,7 @@ Ninguna en mi carril. Las propuestas 1–7 de [PROPUESTAS.md](./PROPUESTAS.md) d
 3. **DATA/ENVIRONMENT** — el invariante global del ledger se rompe en pruebas si dos suites comparten las cuentas de plataforma de TigerBeetle: `mode.spec` usa `useIdNamespace` como `invariant.spec`.
 
 ## No cubierto
-- **Los otros servicios no se corrieron.** `pay-payments` ya manda `X-Pay-Mode` al ledger (`clients/ledger.client.ts`) y `pay-schedules` también (`ledger.client.ts:74`); **no verifiqué** que `pay-schedules`, `pay-payments` ni `pay-console` lo manden a `pay-settlement` (`POST /payouts`, `/charges`): si no lo mandan, reciben `403`.
+- **Los otros servicios no se corrieron.** `pay-payments` ya manda `X-Pay-Mode` al ledger (`clients/ledger.client.ts`) y `pay-schedules` también (`ledger.client.ts:74`); **no verifiqué** que `pay-schedules`, `pay-payments` ni `pay-backoffice` lo manden a `pay-settlement` (`POST /payouts`, `/charges`): si no lo mandan, reciben `403`.
 - `pay-edge` → `pay-settlement` `GET /payouts`: el borde reenvía `x-pay-mode`; no ejercité el borde real, solo la cabecera en la prueba.
 - Los dobles siguen siendo dobles (`FakeLedger`, `FakeConnectors`, `ConnectorsServer`); el modo contra el ledger real se probó en `ledger-real.spec` (payouts), no el corte con ventana de tiempo ni la conciliación.
 - Los eventos `ledger.*`, `settlement.batch.closed` y `reconciliation.exception.opened` **no llevan `mode`** (el AsyncAPI no lo declara): propuesta 1.

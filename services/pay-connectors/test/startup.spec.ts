@@ -1,0 +1,87 @@
+import { createIsolatedDatabase, TEST_DATABASE_URL, type IsolatedDatabase } from '@pay/testing';
+import { buildService, freePort, startService, stop, until, type Started } from './support/process';
+import { SQL } from './support/app';
+
+// Arranque REAL (`node dist/main.js`, entorno armado desde cero): `PAY_MODE` explícito y sin dobles bajo `live` (D-26).
+// Los casos de fallo salen antes de abrir la base; los de éxito usan un esquema aislado de Postgres real (PGOPTIONS).
+const url = new URL(TEST_DATABASE_URL);
+const dbEnv = {
+  DB_HOST: url.hostname,
+  DB_PORT: url.port || '5432',
+  DB_NAME: url.pathname.slice(1),
+  DB_USER: decodeURIComponent(url.username),
+  DB_PASSWORD: decodeURIComponent(url.password),
+};
+const MOCK_SECRET = { PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET: 'whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==' };
+const started: Started[] = [];
+let db: IsolatedDatabase;
+
+beforeAll(async () => {
+  buildService();
+  db = await createIsolatedDatabase(SQL);
+}, 240_000);
+afterAll(async () => {
+  await Promise.all(started.map(stop));
+  await db.drop();
+});
+
+/** El servicio tiene que terminar solo, con código distinto de cero y nombrando el problema (un proceso terminado no escucha en ningún puerto). */
+async function refuses(env: Record<string, string | undefined>, message: RegExp): Promise<void> {
+  const service = startService({ ...dbEnv, PORT: '3199', ...env });
+  started.push(service);
+  let timer: NodeJS.Timeout | undefined;
+  const code = await Promise.race([service.exited, new Promise<'timeout'>((resolve) => (timer = setTimeout(() => resolve('timeout'), 30_000)))]);
+  clearTimeout(timer);
+  expect(code).not.toBe('timeout');
+  expect(code).not.toBe(0);
+  expect(service.output()).toMatch(message);
+}
+
+/** Arranca de verdad: responde `/health/live` y `/health/ready`. */
+async function boots(env: Record<string, string | undefined>): Promise<{ service: Started; port: number }> {
+  const port = await freePort();
+  const service = startService({ ...dbEnv, PGOPTIONS: `-c search_path=${db.schema}`, PORT: String(port), POLLER_INTERVAL_MS: '0', HEALTH_INTERVAL_MS: '0', RECONCILE_INTERVAL_MS: '0', ...env });
+  started.push(service);
+  const ready = await until(async () => ((await fetch(`http://127.0.0.1:${port}/health/ready`, { headers: { connection: 'close' } })).status === 200 ? true : undefined), 60_000, service.exited);
+  if (!ready) throw new Error(`el servicio no llegó a estar listo:\n${service.output()}`);
+  return { service, port };
+}
+
+/** Códigos de los conectores que el proceso tiene cargados (`GET /connectors/health`). */
+async function connectorsHealth(port: number): Promise<string[]> {
+  const response = await fetch(`http://127.0.0.1:${port}/connectors/health`, { headers: { 'x-service-id': 'pay-payments', connection: 'close' } });
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as { data: Array<{ connector: string }> };
+  return body.data.map((entry) => entry.connector);
+}
+
+describe('PAY_MODE: explícito, sin valor por defecto', () => {
+  it('inválido: sin definir, vacío o mal escrito NO arranca (ninguno cae en live ni en sandbox)', async () => {
+    for (const mode of [undefined, '', 'LIVE', 'Sandbox', 'prod', 'production', 'test', 'live ', 'sandbox,live']) {
+      await refuses({ PAY_MODE: mode, ...MOCK_SECRET }, /PAY_MODE debe ser sandbox o live/);
+    }
+  });
+
+  it('correcto: sandbox arranca, y lo informa (conector mock cargado)', async () => {
+    const { port } = await boots({ PAY_MODE: 'sandbox', ...MOCK_SECRET });
+    expect((await connectorsHealth(port)).sort()).toEqual(['bank_transfer', 'mock']);
+  }, 90_000);
+});
+
+describe('PAY_MODE=live se niega a arrancar con conector mock o doble configurado', () => {
+  it('inválido: el secreto del simulador, su bomba de callbacks o una cuenta con rótulo SANDBOX', async () => {
+    await refuses({ PAY_MODE: 'live', ...MOCK_SECRET }, /PAY_MODE=live no admite.*PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET/);
+    await refuses({ PAY_MODE: 'live', MOCK_PUMP_INTERVAL_MS: '1000' }, /PAY_MODE=live no admite.*MOCK_PUMP_INTERVAL_MS/);
+    await refuses({ PAY_MODE: 'live', MOCK_PUMP_INTERVAL_MS: '0' }, /MOCK_PUMP_INTERVAL_MS/);
+    await refuses({ PAY_MODE: 'live', BANK_TRANSFER_BANK_NAME: 'BANCO SIMULADO (SANDBOX)', BANK_TRANSFER_ACCOUNT_HOLDER: 'ALOVIDA PAY (SANDBOX)', BANK_TRANSFER_ACCOUNT_NUMBER: 'SANDBOX-0000-0001' }, /PAY_MODE=live no admite.*BANK_TRANSFER_BANK_NAME/);
+  });
+
+  it('límite: la cuenta a medias bajo live tampoco arranca, ni siquiera sin dobles', async () => {
+    await refuses({ PAY_MODE: 'live', BANK_TRANSFER_BANK_NAME: 'Banco X' }, /van los tres o ninguno/);
+  });
+
+  it('correcto: live limpio (sin mock, sin cuenta: T-03) arranca y NO carga ningún conector de sandbox', async () => {
+    const { port } = await boots({ PAY_MODE: 'live' });
+    expect(await connectorsHealth(port)).toEqual([]);
+  }, 90_000);
+});

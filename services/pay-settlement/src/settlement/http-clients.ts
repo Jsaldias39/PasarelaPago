@@ -60,6 +60,8 @@ function problemDetail(reply: Reply): string | undefined {
 
 /** Cliente HTTP de `internal-ledger-v1.yaml`. */
 export class HttpLedgerClient implements LedgerPort {
+  readonly isReal = true;
+
   constructor(
     private readonly baseUrl: string,
     private readonly timeoutMs: number,
@@ -185,6 +187,8 @@ const ACCEPT: Record<StatementFormat, string> = { json: 'application/json', camt
 
 /** Cliente HTTP de `internal-connectors-v1.yaml`: extractos y transferencias salientes (`POST /transfers`, `GET /transfers/{reference}`). */
 export class HttpConnectorsClient implements ConnectorsPort {
+  readonly isReal = true;
+
   constructor(
     private readonly baseUrl: string,
     private readonly timeoutMs: number,

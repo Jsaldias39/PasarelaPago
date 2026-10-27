@@ -44,6 +44,20 @@ function schemaName(value: string): string {
   return value;
 }
 
+/** Destinos que solo existen en una máquina de desarrollo o de pruebas: un doble local, nunca un servicio desplegado. */
+const LOOPBACK_HOST = /^(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1?\]|\[::ffff:127(?:\.\d{1,3}){3}\])$/i;
+
+/**
+ * Guardia de modo (D-26, P1.H5.M5): bajo `PAY_MODE=live` el borde se niega a arrancar con restos de sandbox.
+ * - Un servicio dueño en loopback es un doble local: un cobro `live` no puede terminar en él.
+ * - Sin `NATS_URL` la réplica de claves nunca se actualizaría: una clave revocada o un comercio cerrado seguirían sirviendo.
+ */
+function assertLiveHasNoDoubles(env: NodeJS.ProcessEnv, upstreams: Record<UpstreamName, string>): void {
+  const offenders = UPSTREAMS.filter((name) => LOOPBACK_HOST.test(new URL(upstreams[name]).hostname)).map((name) => `UPSTREAM_${name.toUpperCase().replace(/-/g, '_')}_URL`);
+  if (offenders.length > 0) throw new Error(`PAY_MODE=live no admite servicios dueños en loopback (dobles locales); corregí: ${offenders.join(', ')}`);
+  if (!env.NATS_URL) throw new Error('PAY_MODE=live exige NATS_URL: sin él la réplica de claves no se entera de revocaciones ni de cierres');
+}
+
 /** Lee y valida el entorno. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {
   const payMode = required(env, 'PAY_MODE');
@@ -56,6 +70,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
       return [name, url];
     }),
   ) as Record<UpstreamName, string>;
+  if (payMode === 'live') assertLiveHasNoDoubles(env, upstreams);
   return {
     port: integer(env, 'PORT', 3101, 1, 65535),
     logLevel: env.LOG_LEVEL ?? 'info',

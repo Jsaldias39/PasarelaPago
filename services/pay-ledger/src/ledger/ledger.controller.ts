@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Headers, HttpCode, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { AllowedServices, ServiceIdentityGuard } from '@pay/service-auth';
 import { PROBLEM_CONTENT_TYPE } from '@pay/problem';
 import { LEDGER_CALLERS } from './accounts';
 import { HoldService } from './hold.service';
+import { LEDGER_CONFIG, type LedgerConfig } from './ledger.config';
 import { LedgerService } from './ledger.service';
 import { requirePayMode } from './mode';
 import { requireIdempotencyKey } from './schemas';
@@ -16,6 +17,7 @@ export class LedgerController {
   constructor(
     private readonly ledger: LedgerService,
     private readonly holds: HoldService,
+    @Inject(LEDGER_CONFIG) private readonly config: LedgerConfig,
   ) {}
 
   @Post('transactions')
@@ -26,7 +28,7 @@ export class LedgerController {
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const mode = requirePayMode(payMode);
+    const mode = requirePayMode(payMode, this.config.payMode);
     requireIdempotencyKey(key);
     const result = await this.ledger.createTransaction(body, caller, mode);
     res.status(result.created ? 201 : 200);
@@ -35,7 +37,7 @@ export class LedgerController {
 
   @Get('transactions/:businessRef')
   getTransaction(@Param('businessRef') businessRef: string, @Headers('x-pay-mode') payMode: string | undefined) {
-    return this.ledger.getTransaction(businessRef, requirePayMode(payMode));
+    return this.ledger.getTransaction(businessRef, requirePayMode(payMode, this.config.payMode));
   }
 
   @Post('holds')
@@ -46,7 +48,7 @@ export class LedgerController {
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const mode = requirePayMode(payMode);
+    const mode = requirePayMode(payMode, this.config.payMode);
     requireIdempotencyKey(key);
     const result = await this.holds.createHold(body, caller, mode);
     res.status(result.created ? 201 : 200);
@@ -55,7 +57,7 @@ export class LedgerController {
 
   @Get('holds/:id')
   getHold(@Param('id') id: string, @Headers('x-pay-mode') payMode: string | undefined) {
-    return this.holds.getHold(id, requirePayMode(payMode));
+    return this.holds.getHold(id, requirePayMode(payMode, this.config.payMode));
   }
 
   @Post('holds/:id/post')
@@ -68,7 +70,7 @@ export class LedgerController {
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const mode = requirePayMode(payMode);
+    const mode = requirePayMode(payMode, this.config.payMode);
     return this.sendStored(res, await this.holds.postHold(id, body, caller, mode, requireIdempotencyKey(key)));
   }
 
@@ -81,18 +83,18 @@ export class LedgerController {
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const mode = requirePayMode(payMode);
+    const mode = requirePayMode(payMode, this.config.payMode);
     return this.sendStored(res, await this.holds.voidHold(id, caller, mode, requireIdempotencyKey(key)));
   }
 
   @Get('balances')
   getBalance(@Query() query: unknown, @Headers('x-pay-mode') payMode: string | undefined) {
-    return this.ledger.getBalance(query, requirePayMode(payMode));
+    return this.ledger.getBalance(query, requirePayMode(payMode, this.config.payMode));
   }
 
   @Get('statements')
   listStatement(@Query() query: unknown, @Headers('x-pay-mode') payMode: string | undefined) {
-    return this.ledger.listStatement(query, requirePayMode(payMode));
+    return this.ledger.listStatement(query, requirePayMode(payMode, this.config.payMode));
   }
 
   /** Respuesta que pasó por la tabla de idempotencia: puede ser un error de negocio guardado (se repite tal cual). */
@@ -109,10 +111,13 @@ export class LedgerController {
 @UseGuards(ServiceIdentityGuard)
 @AllowedServices('pay-edge')
 export class PublicLedgerController {
-  constructor(private readonly ledger: LedgerService) {}
+  constructor(
+    private readonly ledger: LedgerService,
+    @Inject(LEDGER_CONFIG) private readonly config: LedgerConfig,
+  ) {}
 
   @Get('balance')
   getMerchantBalance(@Headers('x-merchant-id') merchantId: string | undefined, @Headers('x-pay-mode') payMode: string | undefined) {
-    return this.ledger.getMerchantBalance(merchantId, requirePayMode(payMode));
+    return this.ledger.getMerchantBalance(merchantId, requirePayMode(payMode, this.config.payMode));
   }
 }

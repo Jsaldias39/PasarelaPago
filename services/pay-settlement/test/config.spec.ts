@@ -2,6 +2,7 @@ import { loadSettlementConfig } from '../src/settlement/settlement.config';
 
 const PEM = '-----BEGIN PUBLIC KEY-----\\nMIIB\\n-----END PUBLIC KEY-----';
 const base = (over: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
+  PAY_MODE: 'sandbox',
   LEDGER_URL: 'http://pay-ledger:3000',
   CONNECTORS_URL: 'http://pay-connectors:3000/',
   OPERATOR_TOKEN_PUBLIC_KEY: PEM,
@@ -27,6 +28,12 @@ describe('configuración de pay-settlement: falla al arrancar con algo faltante 
       statementFormats: {},
     });
     expect(config.operator.publicKeyPem).toContain('\n'); // los \n escapados de una variable de entorno se vuelven saltos de línea
+  });
+
+  it('PAY_MODE es obligatorio y NO tiene valor por defecto: ausente o vacío no arranca; nunca se asume sandbox ni live', () => {
+    expect(() => loadSettlementConfig(base({ PAY_MODE: undefined }))).toThrow(/PAY_MODE.*sandbox \| live.*no tiene valor por defecto/);
+    expect(() => loadSettlementConfig(base({ PAY_MODE: '' }))).toThrow(/PAY_MODE.*no tiene valor por defecto/);
+    expect(loadSettlementConfig(base({ PAY_MODE: 'sandbox' })).payMode).toBe('sandbox');
   });
 
   it.each(['LEDGER_URL', 'CONNECTORS_URL', 'OPERATOR_TOKEN_PUBLIC_KEY', 'OPERATOR_TOKEN_ISSUER', 'OPERATOR_TOKEN_AUDIENCE'])('falta %s ⇒ no arranca y dice cuál', (name) => {

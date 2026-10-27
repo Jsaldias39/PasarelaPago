@@ -189,7 +189,7 @@ export class MerchantsService {
     return this.view(this.pool, id);
   }
 
-  /** Cierre: terminal. Los consumidores dejan de aceptar al comercio por `merchant.closed`. */
+  /** Cierre: terminal. Revoca sus claves (D-32) y los consumidores dejan de aceptar al comercio por `merchant.closed`. */
   async close(id: string): Promise<MerchantAdminView> {
     await withTx(this.pool, async (client) => {
       const merchant = await lockMerchant(client, id);
@@ -198,6 +198,20 @@ export class MerchantsService {
       }
       const now = new Date();
       await client.query(`UPDATE merchants SET status = 'closed', closed_at = $2 WHERE id = $1`, [id, now]);
+      // D-32: cerrar REVOCA las claves de API (suspender solo las bloquea y es reversible). En la misma transacción, con su evento por clave.
+      // Solo las que siguen vivas: una clave ya revocada conserva su motivo y su hora originales y no se vuelve a anunciar.
+      const live = await client.query('SELECT key_id, mode FROM api_keys WHERE merchant_id = $1 AND revoked_at IS NULL ORDER BY created_at, key_id FOR UPDATE', [id]);
+      for (const key of live.rows as { key_id: string; mode: 'test' | 'live' }[]) {
+        await client.query(`UPDATE api_keys SET revoked_at = $2, revoke_reason = 'merchant_closed' WHERE key_id = $1`, [key.key_id, now]);
+        await emit(client, {
+          type: 'api_key.revoked',
+          merchantId: id,
+          subject: key.key_id,
+          aggregateType: 'api_key',
+          aggregateId: key.key_id,
+          data: { key_id: key.key_id, merchant_id: id, mode: key.mode, reason: 'merchant_closed', revoked_at: iso(now) },
+        });
+      }
       await emit(client, {
         type: 'merchant.closed',
         merchantId: id,

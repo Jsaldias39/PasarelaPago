@@ -38,6 +38,13 @@ Cómo se separa, sin reglas de negocio nuevas:
 - El invariante global verifica cada `(modo, cuenta)` por separado.
 - Los eventos `ledger.*` NO llevan `mode` todavía: el AsyncAPI es `additionalProperties: false` y no lo declara (propuesta 1 en `docs/trabajo/ola-2/P2/PROPUESTAS.md`). El código ya lo conoce: con `EVENTS_CARRY_MODE=true` cada evento lo lleva, sin tocar código.
 
+## `PAY_MODE`: modo de despliegue (D-26)
+
+`PAY_MODE=sandbox|live` es **obligatorio y no tiene valor por defecto**: sin él, o con otro valor, el servicio no arranca y el mensaje dice qué falta. Relación con `X-Pay-Mode` (la clave, D-28):
+**una clave `test` solo opera contra un despliegue `sandbox`; una `live`, contra uno `live`**. Cualquier otra combinación es `403 forbidden` sin asentar nada (en las 8 rutas internas y en `GET /balance`).
+Con `PAY_MODE=live` el servicio **se niega a arrancar con cualquier doble** (`src/ledger/deployment.ts`): el motor de TigerBeetle tiene que declararse real (`isReal`). Cada despliegue
+tiene su propio ledger y su propia base; las columnas `mode` y los ids por modo siguen garantizando que, si algún día compartieran almacenamiento, no se mezclarían.
+
 ## Cambiar la derivación de ids (migración obligatoria)
 
 Los ids de TigerBeetle (cuentas y transferencias) y los públicos (`tx_`, `hd_`, `tf_`, `sl_`) **no se guardan como un contador: se derivan** con SHA-256 de

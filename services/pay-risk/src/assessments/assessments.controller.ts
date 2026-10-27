@@ -19,9 +19,12 @@ const parseAssessment = compile<AssessmentInput>({
     payer_fingerprint: { type: 'string', maxLength: 128 },
     screening: {
       type: 'object',
-      required: ['name'],
       additionalProperties: false,
       properties: {
+        // D-29 (extensión del contrato, PR-17): nombre legal del comercio, que SIEMPRE debe venir para poder cribar.
+        merchant_name: { type: 'string', minLength: 1, maxLength: 200 },
+        merchant_entity_type: { type: 'string', enum: ['person', 'business'] },
+        // Contrato vigente: nombre del pagador (opcional: el invitado sin nombre no bloquea).
         name: { type: 'string', minLength: 1, maxLength: 200 },
         entity_type: { type: 'string', enum: ['person', 'business'] },
       },
@@ -47,7 +50,18 @@ export class AssessmentsController {
     const key = requireIdempotencyKey(idem);
     const input = parseAssessment(body);
     // El nombre no entra en el hash de la petición: se sustituye por su huella para que el almacén de idempotencia no lo conserve.
-    const hashable = { ...input, ...(input.screening && { screening: { name_digest: this.assessments.digest('screening', input.screening.name.trim()), ...(input.screening.entity_type && { entity_type: input.screening.entity_type }) } }) };
+    const screening = input.screening;
+    const hashable = {
+      ...input,
+      ...(screening && {
+        screening: {
+          ...(screening.merchant_name !== undefined && { merchant_digest: this.assessments.digest('merchant', screening.merchant_name.trim()) }),
+          ...(screening.merchant_entity_type && { merchant_entity_type: screening.merchant_entity_type }),
+          ...(screening.name !== undefined && { name_digest: this.assessments.digest('screening', screening.name.trim()) }),
+          ...(screening.entity_type && { entity_type: screening.entity_type }),
+        },
+      }),
+    };
     const result = await this.assessments.create(service, key, hashRequest({ method: 'POST', path: '/assessments', body: hashable }), input);
     res.status(result.status);
     if (result.status === 200) res.setHeader('Idempotency-Replayed', 'true');

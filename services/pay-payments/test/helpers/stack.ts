@@ -99,8 +99,11 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
   };
 }
 
-export async function seedMerchant(stack: Pick<Stack, 'deps'>, merchantId: string, status: 'active' | 'suspended' | 'pending' | 'closed' = 'active', channels = QR_FEES): Promise<void> {
-  await replicasRepo.upsertMerchantStatus(stack.deps.pool, merchantId, status, new Date());
+/** Razón social sintética de los comercios de prueba (el cribado de sanciones de D-29 la exige). */
+export const TEST_LEGAL_NAME = 'Comercio de Prueba S.R.L.';
+
+export async function seedMerchant(stack: Pick<Stack, 'deps'>, merchantId: string, status: 'active' | 'suspended' | 'pending' | 'closed' = 'active', channels = QR_FEES, legalName: string | undefined = TEST_LEGAL_NAME): Promise<void> {
+  await replicasRepo.upsertMerchantStatus(stack.deps.pool, merchantId, status, new Date(), legalName);
   await replicasRepo.upsertFeeSchedule(stack.deps.pool, { merchantId, version: 1, currency: 'BOB', channels, effectiveFrom: new Date(Date.now() - 86_400_000), effectiveTo: null });
 }
 
@@ -127,12 +130,13 @@ export async function eventsOf(stack: Pick<Stack, 'db'>, subject: string): Promi
 }
 
 /** Crea un intento directo en la base (con vencimiento a medida) y arranca su workflow: para probar vencimientos sin esperar 60 s. */
-export async function startDirectIntent(stack: Stack, input: { id: string; merchantId?: string; amountMinor?: number; method?: 'qr' | 'card' | 'bank_transfer' | 'wallet'; expiresInMs: number; walletUserRef?: string }): Promise<string> {
+export async function startDirectIntent(stack: Stack, input: { id: string; merchantId?: string; amountMinor?: number; method?: 'qr' | 'card' | 'bank_transfer' | 'wallet'; expiresInMs: number; walletUserRef?: string; payerName?: string }): Promise<string> {
   const amount = input.amountMinor ?? 10000;
   await stack.deps.tx(async (db) => {
     const { inserted } = await intentsRepo.insert(db, {
       id: input.id, merchantId: input.merchantId ?? MC, mode: 'test', amountMinor: amount, method: input.method ?? 'qr', feeMinor: Math.round(amount * 0.03), netMinor: amount - Math.round(amount * 0.03),
       metadata: {}, expiresAt: new Date(Date.now() + input.expiresInMs), ...(input.walletUserRef ? { walletUserRef: input.walletUserRef } : {}),
+      ...(input.payerName ? { payerName: input.payerName } : {}),
     });
     if (inserted) {
       const row = await intentsRepo.byId(db, input.id);

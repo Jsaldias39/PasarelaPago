@@ -59,7 +59,7 @@
 | ID | Microtarea | CA | DoD | Estado |
 |---|---|---|---|---|
 | O2.P2.H4.M1 | Proponer `mode` en `ledger.*`, `settlement.batch.closed`, `reconciliation.exception.opened` y dejar el código listo (`EVENTS_CARRY_MODE`) | apagado: eventos válidos sin `mode`; encendido: `mode` en cada evento | `yarn test events events-mode config` | HECHO |
-| O2.P2.H4.M2 | Prueba de contrato de las llamadas entrantes documentadas (pay-edge, pay-console, pay-schedules, pay-payments) | llevan modo; 403 sin él; ningún llamador nuevo | `yarn test inbound-mode` | HECHO |
+| O2.P2.H4.M2 | Prueba de contrato de las llamadas entrantes documentadas (pay-edge, pay-backoffice, pay-schedules, pay-payments) | llevan modo; 403 sin él; ningún llamador nuevo | `yarn test inbound-mode` | HECHO |
 | O2.P2.H4.M3 | Consumir `payment_intent.contradiction_detected` (lo declara `receive` pay-settlement) con inbox y abrir una excepción sin mover dinero | 1 excepción por hecho; sin ledger/conector/payout | `yarn test consumers nats drift` | HECHO |
 | O2.P2.H4.M4 | Ids `tx_`/`hd_` con modo: deterministas entre reinicios y réplicas (prueba) + aviso de migración en el README | valores fijados iguales en procesos aparte | `yarn test ids` | HECHO |
 | O2.P2.H4.M5 | Consumidores de settlement con inbox, duplicados y desorden (pruebas) | un efecto por evento; mismo resultado en cualquier orden | `yarn test consumers nats` | HECHO |

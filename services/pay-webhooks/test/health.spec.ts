@@ -57,6 +57,22 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
     expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_SANDBOX_CA_FILE: '/tmp/ca.pem' })).toThrow(/PAY_MODE=live/);
   });
 
+  it('PAY_MODE=live arranca con la configuración de producción (sin dobles) y rige la escalera por defecto', () => {
+    const live = loadConfig({ ...base, PAY_MODE: 'live' });
+    expect(live.payMode).toBe('live');
+    expect(live.sandboxTargets).toEqual([]);
+    expect(live.delivery.scheduleMs).toHaveLength(8);
+  });
+
+  it('D-26: la escalera de reintentos acortada es de sandbox y NO se admite con PAY_MODE=live', () => {
+    expect(loadConfig({ ...base, WEBHOOKS_RETRY_SCHEDULE_MS: '0,200,400' }).delivery.scheduleMs).toEqual([0, 200, 400]);
+    expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_RETRY_SCHEDULE_MS: '0,200,400' })).toThrow(/PAY_MODE=live/);
+  });
+
+  it.each(['', ' ', 'Live', 'SANDBOX', 'test', 'production'])('PAY_MODE=%j ⇒ no arranca (sin valor por defecto, sin tolerancia a variantes)', (value) => {
+    expect(() => loadConfig({ ...base, PAY_MODE: value })).toThrow(/PAY_MODE/);
+  });
+
   it.each(['PAY_MODE', 'WEBHOOKS_SECRET_KEK', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'])('falta %s ⇒ no arranca', (name) => {
     expect(() => loadConfig(without(name))).toThrow();
   });

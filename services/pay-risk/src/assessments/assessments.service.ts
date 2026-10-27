@@ -10,6 +10,7 @@ import { newAssessmentId } from '../db';
 import { rethrowStoredProblem } from '../idempotent';
 import { evaluate, type History, type RuleSet } from '../rules/engine';
 import { CLOCK, type Clock, RuleSetsService } from '../rules/rule-sets.service';
+import { combineScreenings } from '../screening/combine';
 import { SANCTIONS_SCREENER, type SanctionsScreener, type ScreeningResult } from '../screening/screener';
 import { RISK_SETTINGS, type RiskSettings } from '../settings';
 
@@ -20,7 +21,11 @@ export interface AssessmentInput {
   currency: 'BOB';
   method: 'qr' | 'card' | 'bank_transfer' | 'wallet';
   payer_fingerprint?: string;
-  screening?: { name: string; entity_type?: 'person' | 'business' };
+  /**
+   * D-29. `merchant_name` (nombre legal del comercio) es lo que SIEMPRE se criba; `name` es el del pagador, solo si lo dio.
+   * `merchant_*` es una EXTENSIÓN del contrato vigente (PROPUESTAS PR-17): el contrato solo conoce `name` y `entity_type`.
+   */
+  screening?: { merchant_name?: string; merchant_entity_type?: 'person' | 'business'; name?: string; entity_type?: 'person' | 'business' };
 }
 
 export interface AssessmentView {
@@ -85,9 +90,22 @@ export class AssessmentsService {
       }
       const started = performance.now();
       // El cribado va FUERA de la transacción y de los candados: es una llamada de red.
-      // Un nombre en blanco (válido para el contrato) equivale a no haber mandado nombre: no hay a quién cribar.
-      const name = input.screening?.name.trim();
-      const screening: ScreeningResult | 'not_provided' = input.screening && name ? await this.screener.screen(name, input.screening.entity_type) : 'not_provided';
+      // D-29: sin el nombre del COMERCIO no hay cribado (review). El pagador sin nombre (invitado) no bloquea. Un nombre en blanco, válido para el
+      // contrato, equivale a no haberlo mandado.
+      const merchantName = input.screening?.merchant_name?.trim();
+      const payerName = input.screening?.name?.trim();
+      let screening: ScreeningResult | 'not_provided' = 'not_provided';
+      const [merchantResult, payerResult] = await Promise.all([
+        // Un comercio es una persona jurídica: sin tipo explícito se busca como empresa (UNA búsqueda, la de menor costo; supuesto D5-40).
+        merchantName ? this.screener.screen(merchantName, input.screening?.merchant_entity_type ?? 'business') : undefined,
+        payerName ? this.screener.screen(payerName, input.screening?.entity_type) : undefined,
+      ]);
+      if (merchantResult) {
+        screening = combineScreenings([{ party: 'merchant', result: merchantResult }, ...(payerResult ? [{ party: 'payer' as const, result: payerResult }] : [])]);
+      } else if (payerResult?.outcome === 'match') {
+        // Falta el nombre del comercio (review), pero una coincidencia fuerte del pagador ya es un `deny`: no se oculta.
+        screening = { ...payerResult, party: 'payer' };
+      }
       const view = await ctx.atomic('evaluated', (client) => this.decideAndRecord(client, callerService, idempotencyKey, input, screening, started));
       return { status: 201, body: view };
     });
@@ -150,11 +168,11 @@ export class AssessmentsService {
     const scored = screening !== 'not_provided' && screening.topScore !== undefined ? screening : undefined;
     const { rows } = await client.query(
       `INSERT INTO risk_assessments (id, caller_service, request_key, merchant_id, payment_intent_id, amount_minor, currency, method, payer_hash, decision,
-          reason_code, reason_codes, rule_version, screened, screening_top_score, screening_list, screening_source_id, duration_ms, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING ${VIEW_COLUMNS}`,
+          reason_code, reason_codes, rule_version, screened, screening_top_score, screening_list, screening_source_id, screening_party, duration_ms, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING ${VIEW_COLUMNS}`,
       [
         newAssessmentId(), callerService, idempotencyKey, input.merchant_id, input.payment_intent_id, input.amount_minor, input.currency, input.method, payerHash,
-        verdict.decision, verdict.reasonCode, verdict.reasonCodes, rules.version, verdict.screened, scored?.topScore ?? null, scored?.list ?? null, scored?.sourceId ?? null,
+        verdict.decision, verdict.reasonCode, verdict.reasonCodes, rules.version, verdict.screened, scored?.topScore ?? null, scored?.list ?? null, scored?.sourceId ?? null, scored?.party ?? null,
         Math.round(performance.now() - started), now,
       ],
     );

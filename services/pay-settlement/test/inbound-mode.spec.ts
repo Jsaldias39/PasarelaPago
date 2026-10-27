@@ -59,11 +59,11 @@ describe('llamadas entrantes que el contrato documenta', () => {
 
   it('la tabla del contrato es la que se espera (si cambia, esta prueba lo avisa; no se asumen llamadores)', () => {
     const byService = Object.fromEntries(documented.map((d) => [d.service, d.operations.slice().sort()]));
-    expect(Object.keys(byService).sort()).toEqual(['pay-console', 'pay-edge', 'pay-payments', 'pay-schedules']);
+    expect(Object.keys(byService).sort()).toEqual(['pay-backoffice', 'pay-edge', 'pay-payments', 'pay-schedules']);
     expect(byService['pay-schedules']).toEqual(['GET /payouts', 'GET /payouts/{id}', 'POST /charges', 'POST /payouts']);
     expect(byService['pay-payments']).toEqual(['POST /charges']);
     expect(byService['pay-edge']).toEqual(['GET /payouts']);
-    expect(byService['pay-console']).toHaveLength(ctx.settlementContract.operations().length);
+    expect(byService['pay-backoffice']).toHaveLength(ctx.settlementContract.operations().length);
   });
 
   it('cada par (servicio, operación) documentado: CON modo no es 403; SIN modo o con un valor inválido, 403 forbidden', async () => {

@@ -69,7 +69,7 @@ describe('deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2)', () => {
     const bad = async (sql: string, params: unknown[] = []) => db.pool.query(sql, params).then(() => 'aceptó', (e: { code?: string }) => e.code);
     // payout terminal sin step resolved, o failed sin failure_code, o monto 0
     const base = `INSERT INTO settlement_payouts (id, mode, merchant_id, amount_minor, currency, rail, simulated, reason, status, step, hold_business_ref, requested_by, period_from, period_to)
-                  VALUES ($1, 'test', 'mc_x', $2, 'BOB', 'bank_transfer', false, 'manual', $3, $4, 'r', 'pay-console', now(), now())`;
+                  VALUES ($1, 'test', 'mc_x', $2, 'BOB', 'bank_transfer', false, 'manual', $3, $4, 'r', 'pay-backoffice', now(), now())`;
     expect(await bad(base, ['po_a', 0, 'pending', 'created'])).toBe('23514');
     expect(await bad(base, ['po_b', 10, 'paid', 'created'])).toBe('23514');
     expect(await bad(base, ['po_c', 10, 'failed', 'resolved'])).toBe('23514');

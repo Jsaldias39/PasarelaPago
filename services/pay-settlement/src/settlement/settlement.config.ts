@@ -59,7 +59,9 @@ function url(env: NodeJS.ProcessEnv, name: string): string {
 export function loadSettlementConfig(env: NodeJS.ProcessEnv = process.env): SettlementConfig {
   const rawMode = env.SETTLEMENT_MODE ?? 'bank';
   if (rawMode !== 'bank' && rawMode !== 'acquirer') throw new Error(`SETTLEMENT_MODE inválido: ${rawMode} (bank | acquirer)`);
-  const rawPay = env.PAY_MODE ?? 'sandbox';
+  // Sin valor por defecto (decisión de la ola 2): un despliegue que no dice qué es no arranca; nunca se asume `sandbox` ni `live`.
+  const rawPay = env.PAY_MODE;
+  if (rawPay === undefined || rawPay === '') throw new Error('Falta la variable de entorno PAY_MODE (sandbox | live): no tiene valor por defecto');
   if (rawPay !== 'sandbox' && rawPay !== 'live') throw new Error(`PAY_MODE inválido: ${rawPay} (sandbox | live)`);
   // El riel del modo B es un doble: «paga» sin mover dinero. En producción marcaría como pagado un pago que nunca salió.
   if (rawPay === 'live' && rawMode === 'acquirer') {

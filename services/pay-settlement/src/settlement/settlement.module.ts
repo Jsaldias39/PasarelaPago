@@ -2,12 +2,13 @@ import { Inject, Injectable, Logger, Module, type OnApplicationShutdown, type On
 import { ServiceIdentityGuard } from '@pay/service-auth';
 import { BatchService } from './batch.service';
 import { SettlementConsumers } from './consumers';
+import { assertDeploymentSafe } from './deployment';
 import { AccountingExportService } from './export.service';
 import { HttpConnectorsClient, HttpLedgerClient } from './http-clients';
 import { NettingService } from './netting.service';
 import { JwtOperatorVerifier } from './operator-token';
 import { PayoutService, type RailMap } from './payout.service';
-import { CONNECTORS_PORT, type ConnectorsPort, LEDGER_PORT, OPERATOR_VERIFIER, PAYOUT_RAILS } from './ports';
+import { CONNECTORS_PORT, type ConnectorsPort, LEDGER_PORT, type LedgerPort, OPERATOR_VERIFIER, PAYOUT_RAILS } from './ports';
 import { AcquirerSettlementRail, BankTransferRail } from './rails';
 import { setEventsCarryMode } from './event-mode';
 import { ReconciliationService } from './reconciliation.service';
@@ -21,12 +22,16 @@ class SettlementLifecycle implements OnModuleInit, OnApplicationShutdown {
 
   constructor(
     @Inject(SETTLEMENT_CONFIG) private readonly config: SettlementConfig,
+    @Inject(LEDGER_PORT) private readonly ledger: LedgerPort,
+    @Inject(CONNECTORS_PORT) private readonly connectors: ConnectorsPort,
     private readonly payouts: PayoutService,
     private readonly batches: BatchService,
     private readonly reconciliation: ReconciliationService,
   ) {}
 
   async onModuleInit(): Promise<void> {
+    // Antes que nada: con PAY_MODE=live no se acepta ningún doble ni el conector mock.
+    assertDeploymentSafe(this.config, { ledger: this.ledger, connectors: this.connectors, rail: this.payouts.activeRail });
     setEventsCarryMode(this.config.eventsCarryMode);
     if (this.config.mode === 'acquirer') {
       new Logger('SettlementMode').warn('settlement.mode=acquirer: el riel acquirer_settlement es un DOBLE declarado (D-02); los pagos salen marcados simulated=true y NO mueven dinero');

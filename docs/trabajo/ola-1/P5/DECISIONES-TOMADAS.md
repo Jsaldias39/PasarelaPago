@@ -49,3 +49,12 @@ los números de pruebas son de prueba y están marcados como tales.
 | D5-38 | Un `executed` sin `tf_…` del libro mayor ⇒ el pago queda `executed` con `needs_review` y sin evento (PR-09). | P2 |
 
 > **Ola 2:** D5-38 queda sin efecto. `ledger_transfer_id` cita el `tx_…` de `Transaction.id` (docs/trabajo/ola-2/CONTRATOS.md §3 fila 1), el asiento inverso usa `code: adjustment` y los eventos de mandatos llevan `mode`.
+
+## Ola 2, tanda 2c
+
+| ID | Decisión / supuesto | Confirmar con |
+|---|---|---|
+| D5-40 | **D-29:** `pay-risk` criba siempre `screening.merchant_name` (por defecto como empresa, UNA búsqueda) y, si viene, `screening.name` del pagador. El resultado es el más grave de los dos (`match > unavailable > possible_match > clear`). `screening_not_provided` solo si falta el nombre del comercio; aun así, una coincidencia fuerte del pagador es `deny`. Pagador invitado sin nombre no bloquea. | P3 |
+| D5-41 | **Credencial de operador (`pay-merchants`):** JWT RS256 con `iss`, `aud`, `exp`, `sub`, `roles` y **`mode`** (`sandbox\|live`) atado al despliegue; `OPERATOR_TOKEN_PUBLIC_KEY/ISSUER/AUDIENCE` completas o ninguna; sin valores por defecto; sandbox sin ellas arranca y NADIE es operador (401); `live` sin ellas no arranca. `scripts/sandbox-operator-token.mjs` emite credenciales sintéticas solo con `PAY_MODE=sandbox`. 401 si falta/no verifica/otro modo; 403 si falta el rol. | Identidad |
+| D5-42 | **PAY_MODE** explícito (sandbox\|live), sin valor por defecto, en los tres servicios. Bajo `live` NO arrancan: `pay-merchants` con el almacén de KYC `fs` (doble [DEV]; hoy `live` no puede arrancar hasta que exista el almacén de producción) o con `DISABLE_BACKGROUND_JOBS=1`; `pay-risk` sin `WATCHMAN_LISTS=current` (las estáticas de 2019 son un doble) ; `pay-schedules` con `DISABLE_BACKGROUND_JOBS=1` (no embebe ningún doble). | Coordinador |
+| D5-43 | **D-32:** cerrar revoca todas las claves vivas (también las que están en gracia de rotación) con motivo `merchant_closed`; las ya revocadas conservan su motivo y su hora; suspender no revoca y reactivar restaura (mismo secreto, mismo hash). | P1 (PR-16) |

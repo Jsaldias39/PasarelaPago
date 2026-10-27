@@ -7,20 +7,29 @@ import { LegalService } from './legal/legal.service';
 import { BackofficeController, ContractVersionsController } from './merchants/backoffice.controller';
 import { MerchantsService } from './merchants/merchants.service';
 import { PublicController } from './merchants/public.controller';
+import { JwtOperatorAuthenticator } from './operators/jwt-operator-authenticator';
 import { DenyAllOperatorAuthenticator, OPERATOR_AUTHENTICATOR, OperatorGuard } from './operators/operator-auth';
 import { SETTINGS, loadSettings, type Settings } from './settings';
 
 /**
  * Cableado del dominio de comercios. Los puntos de extensión (`OBJECT_STORE`, `OPERATOR_AUTHENTICATOR`) traen por defecto
- * una implementación que NO es de producción: un filesystem local y un verificador que niega a todos. Se reemplazan
- * cuando existan el almacén de objetos y el servicio de identidad.
+ * una implementación que NO es de producción: un filesystem local (doble [DEV], que `live` no admite) y, sin credencial
+ * configurada, un verificador que niega a todos. Con `OPERATOR_TOKEN_*` el verificador es JWT RS256 atado al modo.
  */
 @Module({
   controllers: [PublicController, BackofficeController, ContractVersionsController],
   providers: [
     { provide: SETTINGS, useFactory: () => loadSettings() },
     { provide: OBJECT_STORE, inject: [SETTINGS], useFactory: (settings: Settings) => new FsObjectStore(settings.kycStoreDir) },
-    { provide: OPERATOR_AUTHENTICATOR, useClass: DenyAllOperatorAuthenticator },
+    {
+      provide: OPERATOR_AUTHENTICATOR,
+      inject: [SETTINGS],
+      // Sin credencial configurada (solo sandbox) NADIE es operador: falla cerrado. Con ella, JWT RS256 atado al modo del despliegue.
+      useFactory: (settings: Settings) =>
+        settings.operator
+          ? new JwtOperatorAuthenticator(settings.operator.publicKeyPem, settings.operator.issuer, settings.operator.audience, settings.payMode)
+          : new DenyAllOperatorAuthenticator(),
+    },
     OperatorGuard,
     MerchantsService,
     KycService,

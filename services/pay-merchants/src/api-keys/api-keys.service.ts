@@ -22,7 +22,7 @@ export interface ApiKeyView {
   expires_at: string | null;
 }
 
-export type RevokeReason = 'revoked_by_merchant' | 'rotated' | 'compromised';
+export type RevokeReason = 'revoked_by_merchant' | 'rotated' | 'compromised' | 'merchant_closed';
 
 interface KeyRow {
   key_id: string;

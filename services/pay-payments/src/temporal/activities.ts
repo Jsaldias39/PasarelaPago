@@ -9,6 +9,7 @@ import { settleIntent } from '../payments/settle';
 import { contradictionsRepo } from '../persistence/contradictions.repo';
 import type { Db } from '../persistence/db';
 import { intentsRepo, type IntentRow } from '../persistence/intents.repo';
+import { replicasRepo } from '../persistence/replicas.repo';
 import type { ChargeSignal, ChargeStatusName, LedgerOutcome, NextStep, PaymentPlan } from './types';
 
 const EVENT_FOR: Record<'succeeded' | 'failed' | 'canceled' | 'expired', IntentEventType> = {
@@ -50,6 +51,11 @@ export function createActivities(deps: Deps) {
     const row = await intentsRepo.byId(deps.pool, intentId);
     if (!row) throw ApplicationFailure.nonRetryable(`El intento ${intentId} no existe`, 'IntentNotFound');
     return row;
+  };
+
+  const denyByRisk = async (intentId: string): Promise<{ proceed: false }> => {
+    await settle(intentId, 'failed', { failureCode: 'risk_denied' });
+    return { proceed: false };
   };
 
   const settle = async (intentId: string, to: 'succeeded' | 'failed' | 'canceled' | 'expired', patch: { failureCode?: string; failureReason?: string; ledgerTransferId?: string } = {}): Promise<IntentRow> => {
@@ -135,11 +141,20 @@ export function createActivities(deps: Deps) {
       const intent = await load(intentId);
       if (isTerminal(intent.status)) return { proceed: false };
       try {
-        const assessment = await clients.risk.assess({ merchantId: intent.merchantId, paymentIntentId: intent.id, amountMinor: intent.amountMinor, currency: intent.currency, method: intent.method });
-        if (assessment.decision === 'allow') return { proceed: true };
-        // D4: `review` se trata como `deny` hasta que exista cola de revisión manual.
-        await settle(intentId, 'failed', { failureCode: 'risk_denied' });
-        return { proceed: false };
+        const base = { merchantId: intent.merchantId, paymentIntentId: intent.id, amountMinor: intent.amountMinor, currency: intent.currency, method: intent.method };
+        // D-29: se cribe SIEMPRE la razón social del comercio y, si se conoce, el nombre del pagador. Sin razón social en la réplica (PROP-17: el
+        // contrato no la entrega) no se inventa: la evaluación sale sin `screening` y pay-risk responde `review` (screening_not_provided) ⇒ risk_denied.
+        const merchantName = await replicasRepo.merchantLegalName(deps.pool, intent.merchantId);
+        const merchant = await clients.risk.assess({ ...base, ...(merchantName ? { screening: { name: merchantName, entityType: 'business' as const } } : {}) });
+        // D4/D-30: `review` se trata como `deny` hasta que exista cola de revisión manual.
+        if (merchant.decision !== 'allow') return await denyByRisk(intentId);
+        // Pagador invitado sin nombre: no hay nada que cribar y eso NO bloquea el cobro.
+        const payerName = await intentsRepo.payerName(deps.pool, intentId);
+        if (payerName) {
+          const payer = await clients.risk.assess({ ...base, keySuffix: 'payer', screening: { name: payerName, entityType: 'person' } });
+          if (payer.decision !== 'allow') return await denyByRisk(intentId);
+        }
+        return { proceed: true };
       } catch (error) {
         if (isUpstreamError(error)) {
           const failClosed = BigInt(intent.amountMinor) >= config.policy.riskFailClosedThresholdMinor || !config.policy.riskAllowBelowThreshold;

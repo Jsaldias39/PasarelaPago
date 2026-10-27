@@ -15,3 +15,4 @@ process.env.WATCHMAN_URL ??= 'http://127.0.0.1:54084';
 process.env.SANCTIONS_DENY_SCORE ??= '0.80';
 process.env.SANCTIONS_REVIEW_SCORE ??= '0.60';
 process.env.PAYER_HASH_KEY ??= 'clave-de-prueba-no-es-un-secreto';
+process.env.PAY_MODE ??= 'sandbox';

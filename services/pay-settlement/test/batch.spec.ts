@@ -20,7 +20,7 @@ beforeEach(async () => {
 });
 afterEach(async () => ctx.close());
 
-const runBatch = (body: object, idem = key()) => ctx.as('pay-console').post('/batches', body).set('idempotency-key', idem);
+const runBatch = (body: object, idem = key()) => ctx.as('pay-backoffice').post('/batches', body).set('idempotency-key', idem);
 const pending = (m: string) => ctx.ledger.balanceOf(`merchant:${m}:pending`);
 const available = (m: string) => ctx.ledger.balanceOf(`merchant:${m}:available`);
 const valid = async (type: string) => {
@@ -46,7 +46,7 @@ describe('corte semanal (P2.H2.M2, REQ-P2-5)', () => {
     expect(pending(a)).toBe(1940); // lo de después del corte queda pendiente
     expect(pending(b)).toBe(0);
     expect(available(a)).toBe(0); // todo lo liberado salió como payout
-    const payouts = checked(ctx, 'GET', '/payouts', await ctx.as('pay-console').get('/payouts'));
+    const payouts = checked(ctx, 'GET', '/payouts', await ctx.as('pay-backoffice').get('/payouts'));
     expect(payouts.body.data.map((p: { amount_minor: number }) => p.amount_minor).sort((x: number, y: number) => x - y)).toEqual([975, 14550]);
     expect(payouts.body.data.every((p: { status: string; batch_id: string }) => p.status === 'paid' && p.batch_id === res.body.id)).toBe(true);
     expect(ctx.connectors.executedCount).toBe(2);
@@ -349,9 +349,9 @@ describe('corte semanal (P2.H2.M2, REQ-P2-5)', () => {
       cutAt('2026-10-12');
       ctx.ledger.failNext('createTransaction', undefined, 1, true); // el neteo SE aplica y la respuesta se pierde
       const idem = key();
-      expect((await ctx.as('pay-console').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', idem)).status).toBe(503);
+      expect((await ctx.as('pay-backoffice').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', idem)).status).toBe(503);
       expect(owed(m)).toBe(0);
-      expect((await ctx.as('pay-console').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', idem)).body.status).toBe('completed');
+      expect((await ctx.as('pay-backoffice').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', idem)).body.status).toBe('completed');
       await runBatch(BATCH_BODY('2026-10-12'));
       expect(ctx.ledger.entries.filter((e) => e.account === `merchant:${m}:debt` && e.code === 'adjustment' && e.direction === 'credit')).toHaveLength(1);
       expect(owed(m)).toBe(0);
@@ -387,8 +387,8 @@ describe('corte semanal (P2.H2.M2, REQ-P2-5)', () => {
     expect((await ctx.as('pay-schedules').post('/batches', BATCH_BODY(CUT_1)).set('idempotency-key', key())).status).toBe(403);
     expect((await ctx.as('pay-edge').get('/batches')).status).toBe(403);
     expect((await ctx.as('pay-payments').post('/batches', BATCH_BODY(CUT_1)).set('idempotency-key', key())).status).toBe(403);
-    expect((await ctx.as('pay-console').post('/batches', BATCH_BODY(CUT_1))).status).toBe(400); // sin Idempotency-Key
-    const anonymous = await ctx.as('pay-console').post('/batches', BATCH_BODY(CUT_1)).set('x-service-id', 'no-es-un-servicio').set('idempotency-key', key());
+    expect((await ctx.as('pay-backoffice').post('/batches', BATCH_BODY(CUT_1))).status).toBe(400); // sin Idempotency-Key
+    const anonymous = await ctx.as('pay-backoffice').post('/batches', BATCH_BODY(CUT_1)).set('x-service-id', 'no-es-un-servicio').set('idempotency-key', key());
     expect(anonymous.status).toBe(403);
     expect((await ctx.db.pool.query('SELECT count(*)::int AS n FROM settlement_batches')).rows[0].n).toBe(0);
   });
@@ -396,13 +396,13 @@ describe('corte semanal (P2.H2.M2, REQ-P2-5)', () => {
   it('lista los lotes del más nuevo al más viejo, con paginación estable', async () => {
     // creados en este orden: el más nuevo es el último
     for (const date of [CUT_1, CUT_2, '2026-10-12']) await runBatch(BATCH_BODY(date));
-    const page1 = checked(ctx, 'GET', '/batches', await ctx.as('pay-console').get('/batches?limit=2'));
+    const page1 = checked(ctx, 'GET', '/batches', await ctx.as('pay-backoffice').get('/batches?limit=2'));
     expect(page1.body.data.map((b: { cutoff_date: string }) => b.cutoff_date)).toEqual(['2026-10-12', CUT_2]);
     expect(page1.body.has_more).toBe(true);
-    const page2 = checked(ctx, 'GET', '/batches', await ctx.as('pay-console').get(`/batches?limit=2&starting_after=${page1.body.next_cursor}`));
+    const page2 = checked(ctx, 'GET', '/batches', await ctx.as('pay-backoffice').get(`/batches?limit=2&starting_after=${page1.body.next_cursor}`));
     expect(page2.body.data.map((b: { cutoff_date: string }) => b.cutoff_date)).toEqual([CUT_1]);
     expect(page2.body.has_more).toBe(false);
-    expect((await ctx.as('pay-console').get('/batches?starting_after=%%%')).status).toBe(422);
+    expect((await ctx.as('pay-backoffice').get('/batches?starting_after=%%%')).status).toBe(422);
   });
 });
 

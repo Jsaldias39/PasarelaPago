@@ -5,6 +5,7 @@ import { HoldService } from './hold.service';
 import { InvariantService } from './invariant.service';
 import { LEDGER_CONFIG, type LedgerConfig, loadLedgerConfig } from './ledger.config';
 import { LedgerController, PublicLedgerController } from './ledger.controller';
+import { assertDeploymentSafe } from './deployment';
 import { setEventsCarryMode } from './event-mode';
 import { useIdNamespace } from './ids';
 import { LedgerService } from './ledger.service';
@@ -22,7 +23,9 @@ class LedgerLifecycle implements OnModuleInit, OnApplicationShutdown {
   ) {}
 
   onModuleInit(): void {
-    // Antes de la primera petición: ningún id se calcula hasta que el servicio escucha.
+    // Antes de la primera petición. Con PAY_MODE=live no se acepta ningún doble.
+    assertDeploymentSafe(this.config, { 'motor de TigerBeetle': this.tb });
+    // Ningún id se calcula hasta que el servicio escucha.
     if (this.config.idNamespace) useIdNamespace(this.config.idNamespace);
     setEventsCarryMode(this.config.eventsCarryMode);
     this.invariant.start(this.config.invariantIntervalMs);

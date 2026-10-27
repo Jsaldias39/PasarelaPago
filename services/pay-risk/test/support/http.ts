@@ -17,8 +17,10 @@ const id = (prefix: string): string => {
 export const newIntent = (): string => id('pi');
 export const newMerchant = (): string => id('mc');
 
-/** Nombre SINTÉTICO que no figura en ninguna lista. */
+/** Nombre SINTÉTICO que no figura en ninguna lista (pagador). */
 export const CLEAN_NAME = 'Zyxwvut Qwerty Holdings SRL';
+/** Nombre legal SINTÉTICO de un comercio que no figura en ninguna lista (D-29: siempre se criba). */
+export const CLEAN_MERCHANT_NAME = 'Comercio Sintetico Qwerty SRL';
 /** Entrada pública de la lista OFAC de 2019 del Watchman de pruebas (una organización, no una persona). Ver docs/spikes/watchman.md. */
 export const SANCTIONED_ORG = 'Hizballah';
 /** Misma organización con una letra cambiada: puntúa por debajo del umbral de rechazo de las pruebas. */
@@ -31,21 +33,28 @@ export interface AssessmentBody {
   currency?: string;
   method?: string;
   payer_fingerprint?: string;
-  screening?: { name: string; entity_type?: string } | null;
+  screening?: { merchant_name?: string; merchant_entity_type?: string; name?: string; entity_type?: string } | null;
   [key: string]: unknown;
 }
 
+/**
+ * Cuerpo de evaluación. Por defecto lleva el nombre legal del COMERCIO (D-29: siempre se criba) y el del pagador. Un `screening` de las
+ * pruebas se MEZCLA con el de por defecto (así `{ name: X }` cambia solo el pagador); `null` lo quita entero y `{ name: undefined }` quita al pagador.
+ */
 export function assessmentBody(overrides: AssessmentBody = {}): Record<string, unknown> {
+  const { screening, ...rest } = overrides;
   const body: Record<string, unknown> = {
     merchant_id: newMerchant(),
     payment_intent_id: newIntent(),
     amount_minor: 10_000,
     currency: 'BOB',
     method: 'qr',
-    screening: { name: CLEAN_NAME },
-    ...overrides,
+    ...rest,
   };
-  if (body.screening === null) delete body.screening;
+  if (screening !== null) {
+    const merged = { merchant_name: CLEAN_MERCHANT_NAME, name: CLEAN_NAME, ...screening };
+    body.screening = Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined));
+  }
   return body;
 }
 

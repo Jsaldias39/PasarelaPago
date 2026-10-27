@@ -17,6 +17,10 @@ Cada fase se guarda antes de la siguiente y cada llamada lleva una clave estable
 - **Sin fondos:** `paused_insufficient_funds`, aviso `scheduled_payment.insufficient_funds` con `retry_at`, y reintento con un `attempt` nuevo del libro mayor. Agotada la política: `scheduled_payment.failed`.
 - **La política de reintentos no tiene valor por defecto** (`RETRY_DELAYS_SECONDS`): la fija el negocio; sin ella el servicio no arranca.
 
+## Modo
+
+`PAY_MODE` (`sandbox` \| `live`) es obligatorio y sin valor por defecto; bajo `live` no arranca con `DISABLE_BACKGROUND_JOBS=1`. No llama a `pay-payments` (ver PR-18 en `docs/trabajo/ola-2/P5/PROPUESTAS.md`).
+
 ## Entorno
 
 Ver `.env.example`. Obligatorias y sin valor por defecto: `LEDGER_URL`, `RETRY_DELAYS_SECONDS`.

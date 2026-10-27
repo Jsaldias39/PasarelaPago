@@ -236,6 +236,31 @@ describe('inválido: sin un modo válido NO se atiende, NO se asienta nada y NO 
     expect([res.status, res.body.code]).toEqual([403, 'forbidden']);
   });
 
+  it.each([
+    ['sandbox', 'live'],
+    ['live', 'test'],
+  ] as const)('una clave %2$s contra un despliegue %1$s ⇒ 403 en TODAS las rutas, sin asentar nada (test solo opera contra sandbox; live, contra live)', async (deployment, keyMode) => {
+    const before = await count('SELECT count(*) AS n FROM ledger_transactions');
+    const as = (service: string) => ctx.as(service, keyMode, deployment);
+    const calls = [
+      ['POST /transactions', as('pay-payments').post('/transactions', body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:pending`, 100)])).set('idempotency-key', key())],
+      ['POST /holds', as('pay-settlement').post('/holds', holdBody(m, 100)).set('idempotency-key', key())],
+      ['GET /transactions/{business_ref}', as('pay-payments').get(`/transactions/${encodeURIComponent(businessRef())}`)],
+      ['GET /holds/{id}', as('pay-settlement').get('/holds/hd_aaaaaaaaaaaa')],
+      ['POST /holds/{id}/post', as('pay-settlement').post('/holds/hd_aaaaaaaaaaaa/post').set('idempotency-key', key())],
+      ['POST /holds/{id}/void', as('pay-settlement').post('/holds/hd_aaaaaaaaaaaa/void').set('idempotency-key', key())],
+      ['GET /balances', as('pay-settlement').get(`/balances?account=${encodeURIComponent(`merchant:${m}:pending`)}`)],
+      ['GET /statements', as('pay-settlement').get(`/statements?account=${encodeURIComponent(`merchant:${m}:pending`)}`)],
+      ['GET /balance', as('pay-edge').get('/balance').set('x-merchant-id', m)],
+    ] as const;
+    for (const [name, call] of calls) {
+      const res = await call;
+      expect([name, res.status, res.body.code]).toEqual([name, 403, 'forbidden']);
+    }
+    expect(await count('SELECT count(*) AS n FROM ledger_transactions')).toBe(before);
+    expect(await count('SELECT count(*) AS n FROM ledger_accounts WHERE account = $1', [`merchant:${m}:pending`])).toBe(0);
+  });
+
   it('el modo solo sale de la cabecera: un `mode` en el cuerpo o en la consulta se rechaza como campo desconocido y no cambia de modo', async () => {
     const ref = businessRef();
     const viaBody = await ctx.as('pay-payments', 'test').post('/transactions', { ...body(ref, 1, [leg(CLEARING, `merchant:${m}:pending`, 100)]), mode: 'live' }).set('idempotency-key', key());

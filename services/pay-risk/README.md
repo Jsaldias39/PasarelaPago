@@ -17,11 +17,16 @@ Evaluación de riesgo de un cobro antes de mandarlo al proveedor (carril P5, `P5
 | `allow` | cribado limpio y nada superado | `ok`, o `no_limits_configured` si no hay ningún límite cargado (para que se vea que la regla no está activa) |
 
 - **Nunca `allow` sin cribar** (`screened: false` ⇒ como mucho `review`); la tabla lo impide con una restricción.
+- **Cribado (D-29):** se criba siempre el nombre legal del comercio (`screening.merchant_name`, por defecto como empresa) y, si el pagador dio nombre, también el suyo (`screening.name`); gana el más grave. `screening_not_provided` solo si falta el nombre del comercio; un pagador invitado sin nombre no bloquea. `merchant_name` es una extensión pendiente del contrato (PR-17).
 - **Sin límites por defecto (D-23):** la versión 1 del conjunto de reglas es «sin límites» (todo `NULL`). Los límites los carga el negocio o el banco.
 - **Los umbrales de sanciones no tienen valor por defecto** (`SANCTIONS_DENY_SCORE`, `SANCTIONS_REVIEW_SCORE`): los fija cumplimiento; sin ellos el servicio no arranca. Se decide por umbral, nunca por «hubo resultados».
 - **Datos personales:** el nombre se manda a Watchman (solo nombre y tipo) y **no se guarda ni se registra**; el pagador se guarda como HMAC (`PAYER_HASH_KEY`). El rastro es inmutable (triggers).
 - **Latencia:** la prueba de carga real (2× el volumen objetivo, T-01) es de la ola 3; `test/latency.spec.ts` mide en la máquina compartida y es sensible a la carga externa (P5.H2.M4 sigue A MEDIAS).
 - **Watchman en el entorno local es `v2-static` con listas de 2019, SOLO sandbox.** Nunca se presenta como el cribado real.
+
+## Modo
+
+`PAY_MODE` (`sandbox` \| `live`) es obligatorio y sin valor por defecto. Bajo `live` hay que declarar `WATCHMAN_LISTS=current`: las listas estáticas de 2019 son un doble de sandbox y el servicio no arranca con ellas.
 
 ## Entorno
 

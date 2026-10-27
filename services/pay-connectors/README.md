@@ -67,13 +67,44 @@ Reproducible por semilla (`SimulatedBank({ seed })`). `SimulatedBank.reset()` lo
 En sandbox, `MockPumpService` firma los callbacks que programa el simulador y los entrega a `CallbacksService`, que los verifica como
 a los de un proveedor real (cada `MOCK_PUMP_INTERVAL_MS`).
 
+### Cobro de punta a punta sin banco real (arnés e2e)
+
+En `PAY_MODE=sandbox` un cobro QR de importe normal (cualquier importe cuyos centavos no sean un escenario especial; p. ej. `10000` = Bs 100,00)
+termina cobrado **sin tocar nada a mano**, por dos caminos independientes (los dos probados en `test/end-to-end.spec.ts`, con temporizadores reales):
+
+1. **Callback firmado (el camino principal).** `POST /charges` crea el cobro (`requires_action`, `next_action.type = display_qr`) y el simulador programa su
+   callback `captured`. La bomba interna (`MockPumpService`) corre cada **`MOCK_PUMP_INTERVAL_MS`** (por defecto `1000`; `0` la apaga), lo firma con el secreto del
+   conector (`PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET`, Standard Webhooks) y lo entrega a `CallbacksService`, que lo verifica como a uno de un proveedor real.
+   Resultado: `GET /charges/{id}` ⇒ `succeeded`; evento `connector.transaction.status_changed` con `observed_via: callback`. Sin esa variable de secreto el
+   conector `mock` no firma y el servicio no cobra.
+2. **Polling (si el callback no llega).** El poller consulta el estado cada **`POLLER_INTERVAL_MS`** (por defecto `15000`) a los cobros abiertos que ya cumplieron
+   **`POLLER_MIN_AGE_MS`** (por defecto `30000`) y aplica lo que revela el banco con `observed_via: status_inquiry`. Para que el arnés no espere 30 s:
+   `POLLER_MIN_AGE_MS=1000 POLLER_INTERVAL_MS=500`. También se puede forzar un cobro con `GET /charges/{id}/status?refresh=true`.
+
+Los dos caminos son idempotentes entre sí: si el poller cobra primero, el callback que llega tarde se absorbe sin repetir el evento. Para probar el
+camino de fallo del arnés, los centavos eligen el escenario (tabla de arriba): `05` = callback perdido (solo el polling lo revela), `08` = nunca pagado.
+Con `MOCK_PUMP_INTERVAL_MS=0` y `POLLER_INTERVAL_MS=0` nada corre solo (las pruebas disparan cada tarea a mano).
+
+### Cuenta recaudadora (`BANK_TRANSFER_*`)
+
+- **sandbox:** las tres variables son **opcionales**. La que falta toma el valor **SINTÉTICO declarado** (`SANDBOX_BANK_ACCOUNT` en `src/config.ts`):
+  `BANCO SIMULADO (SANDBOX)` · `ALOVIDA PAY (SANDBOX)` · `SANDBOX-0000-0001`. Llevan el rótulo SANDBOX a propósito: ninguno parece una cuenta real.
+- **live:** los tres o ninguno. Sin ninguna (T-03: la cuenta recaudadora no existe) NO se inventa nada. A medias, o con el rótulo del simulador, el servicio no arranca.
+- Un valor presente se valida igual en los dos modos (nombre y titular ≤ 100 caracteres; número de 4 a 40: letras, números, espacio, punto o guion).
+
+## `PAY_MODE` al arrancar (D-26)
+
+`PAY_MODE` es **explícito**: `sandbox` o `live`, sin valor por defecto (ausente, vacío o mal escrito ⇒ el proceso termina con código ≠ 0). Bajo `live` el servicio
+**se niega a arrancar** si el entorno trae algún doble de sandbox: `PAY_SECRET_CONNECTOR_MOCK_*`, `MOCK_PUMP_INTERVAL_MS` (aunque sea `0`) o una cuenta con el
+rótulo SANDBOX/simulado. Además el registro de conectores no deja cargar `mock` bajo `live` (`domain.spec.ts`). Probado con el binario real (`test/startup.spec.ts`).
+
 ## Contratos de la ola 2
 
 - **`GET /refunds/{id}`** (`cr_…`, solo `pay-payments`): con `refresh=true` y el reembolso `pending`, pregunta al proveedor (`Connector.getRefund`); `captured` ⇒ `succeeded`, `failed` ⇒ `failed`. Sin respuesta, con rechazo, sin `getRefund` o con `not_found` explícito ⇒ lo último que se sabe (`stale: true` salvo `not_found`); **nunca** se toca la fila ni la reserva por un silencio. `404` solo si este servicio no tiene la fila.
 - **`refund_id`** (`re_…`) opcional en el pedido: se guarda, vuelve en `ConnectorRefund` y se copia al evento. Un mismo `refund_id` con otra `Idempotency-Key` ⇒ `409` (jamás un segundo `cr_…`).
 - **Eventos:** el conector sale como `mock` (no `simulator`); `connector_transaction_id` y `subject` son el `ch_…`/`cr_…` de la API (sin `ct_…`); `failure_code` admite `card_declined`. `connector.transfer.status_changed` se publica por outbox, en la misma transacción que el cambio de estado de la transferencia (señal; la fuente autoritativa sigue siendo `GET /transfers/{reference}`).
-- **`bank_transfer_instructions`** lleva `bank_name`, `account_holder` y `account_number` desde `BANK_TRANSFER_*` (los tres o ninguno). Sin cuenta (T-03) NO se inventa: salen solo `type` y `reference` y `pay-payments` responde `422 payment_method_unavailable`.
-- Pendiente: `X-Pay-Mode` (D-28) y el adaptador del Mercantil.
+- **`bank_transfer_instructions`** lleva `bank_name`, `account_holder` y `account_number` desde `BANK_TRANSFER_*` (ver «Cuenta recaudadora» abajo). Bajo `live` y sin cuenta (T-03) NO se inventa: salen solo `type` y `reference` y `pay-payments` responde `422 payment_method_unavailable`.
+- Pendiente: el adaptador del Mercantil (el banco no publica su documentación).
 
 ## Modo de la clave (`X-Pay-Mode`, D-28)
 
@@ -87,7 +118,7 @@ a los de un proveedor real (cada `MOCK_PUMP_INTERVAL_MS`).
 
 ## Variables de entorno
 
-Ver `.env.example`. Obligatorias: `DB_*`, `PAY_MODE`. Secretos [DEV]: `PAY_SECRET_CONNECTOR_<CODIGO>_<NOMBRE>` (lista separada por comas
+Ver `.env.example` (coherente con lo que levanta el arnés e2e: `PAY_QR_URL`, el secreto del mock y la cuenta sintética). Obligatorias: `DB_*`, `PAY_MODE`. Secretos [DEV]: `PAY_SECRET_CONNECTOR_<CODIGO>_<NOMBRE>` (lista separada por comas
 para rotar sin corte); en producción los entrega OpenBao a través de `SecretProvider` (no corre en el entorno de trabajo).
 
 ## Comandos

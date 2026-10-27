@@ -2,6 +2,7 @@ import { Inject, Logger, Module, type OnApplicationBootstrap, type OnApplication
 import type { Pool } from 'pg';
 import { DisabledWalletAuthorizer } from '../clients/wallet-authorizer';
 import { SERVICE_CONFIG, type ServiceConfig } from '../config';
+import { assertNoDoublesInLive } from '../live-guard';
 import { PG_POOL } from '../database.module';
 import { createDeps, type Deps } from '../deps';
 import { EventHandlers } from '../events/handlers';
@@ -40,6 +41,8 @@ export class PaymentsModule implements OnApplicationBootstrap, OnApplicationShut
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    // Antes de abrir worker o consumidores: en `live` no se arranca sobre un simulador.
+    await assertNoDoublesInLive(this.config.payMode, this.deps.clients.connectors);
     if (this.config.temporal.runWorker) this.worker = await startPaymentsWorker(this.deps);
     if (!this.config.natsUrl || !this.config.consumeEvents) {
       this.logger.warn('Sin NATS_URL (o CONSUME_EVENTS=false): no se consumen eventos (réplicas y estado de los conectores)');

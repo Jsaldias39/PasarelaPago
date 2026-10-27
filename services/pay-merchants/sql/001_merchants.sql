@@ -134,7 +134,7 @@ CREATE TABLE api_keys (
   CONSTRAINT api_keys_merchant_fk FOREIGN KEY (merchant_id) REFERENCES merchants (id),
   CONSTRAINT api_keys_mode_valid CHECK (mode IN ('test', 'live')),
   CONSTRAINT api_keys_hash_format CHECK (key_hash ~ '^sha256\$[0-9a-f]{64}$'),
-  CONSTRAINT api_keys_reason_valid CHECK (revoke_reason IS NULL OR revoke_reason IN ('revoked_by_merchant', 'rotated', 'compromised')),
+  CONSTRAINT api_keys_reason_valid CHECK (revoke_reason IS NULL OR revoke_reason IN ('revoked_by_merchant', 'rotated', 'compromised', 'merchant_closed')),
   CONSTRAINT api_keys_revoked_has_reason CHECK ((revoked_at IS NULL) = (revoke_reason IS NULL))
 );
 CREATE INDEX api_keys_merchant_created_idx ON api_keys (merchant_id, created_at DESC, key_id DESC);

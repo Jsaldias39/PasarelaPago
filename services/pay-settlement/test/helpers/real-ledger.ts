@@ -29,7 +29,7 @@ export interface RealLedger {
  * Arranca el pay-ledger REAL (`services/pay-ledger/dist/main.js`, el binario que se despliega) como un proceso aparte, contra
  * TigerBeetle real y un esquema aislado de Postgres. pay-settlement no importa su código: solo le habla por HTTP, como en producción.
  */
-export async function startRealLedger(): Promise<RealLedger> {
+export async function startRealLedger(options: { payMode?: 'sandbox' | 'live' } = {}): Promise<RealLedger> {
   const entry = repoPath('services/pay-ledger/dist/main.js');
   if (!existsSync(entry)) throw new Error('Falta services/pay-ledger/dist/main.js: corré `yarn build` en services/pay-ledger');
   const db = await createIsolatedDatabase([
@@ -46,6 +46,7 @@ export async function startRealLedger(): Promise<RealLedger> {
       HOME: process.env.HOME,
       PORT: String(port),
       LOG_LEVEL: 'warn',
+      PAY_MODE: options.payMode ?? 'sandbox',
       DB_HOST: url.hostname,
       DB_PORT: url.port || '5432',
       DB_NAME: url.pathname.slice(1),
@@ -75,7 +76,7 @@ export async function startRealLedger(): Promise<RealLedger> {
   return {
     url: base,
     db,
-    async post(path, body, key = `seed-${Math.random().toString(36).slice(2, 14)}`, mode = 'test') {
+    async post(path, body, key = `seed-${Math.random().toString(36).slice(2, 14)}`, mode = options.payMode === 'live' ? 'live' : 'test') {
       const res = await fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-id': 'pay-payments', 'x-pay-mode': mode, 'idempotency-key': key }, body: JSON.stringify(body) });
       return { status: res.status, body: await res.json() };
     },

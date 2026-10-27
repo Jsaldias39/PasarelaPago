@@ -114,6 +114,9 @@ export function transferStatusName(status: number): string {
  * mismo (business_ref, attempt) devuelve `exists` en vez de duplicar.
  */
 export class TigerBeetleEngine {
+  /** El motor de verdad (TigerBeetle). Un doble no lo declara y `PAY_MODE=live` se niega a arrancar con él (`deployment.ts`). */
+  readonly isReal = true;
+
   private readonly client: Client;
 
   constructor(private readonly config: LedgerConfig['tb']) {

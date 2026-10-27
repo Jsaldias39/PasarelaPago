@@ -70,16 +70,16 @@ describe('payment_intent.contradiction_detected (pay-payments → pay-settlement
       },
     ]);
     expect(await inbox('pay-settlement.payment_intent.contradiction_detected')).toBe(1);
-    const mine = await ctx.as('pay-console', 'live').get('/reconciliation_exceptions?status=open');
+    const mine = await ctx.as('pay-backoffice', 'live').get('/reconciliation_exceptions?status=open');
     expect(mine.body.data).toHaveLength(1);
     expect(mine.body.data[0]).toMatchObject({ object: 'reconciliation_exception', kind: 'payment_contradiction', run_id: null, status: 'open', payment_intent_id: e.data.payment_intent_id, merchant_id: e.data.merchant_id });
-    expect((await ctx.as('pay-console', 'test').get('/reconciliation_exceptions?status=open')).body.data).toEqual([]);
+    expect((await ctx.as('pay-backoffice', 'test').get('/reconciliation_exceptions?status=open')).body.data).toEqual([]);
     await moneyUntouched();
   });
 
   it('la lista con una contradicción difiere del contrato SOLO en `kind` y `run_id` (propuesta de contrato; si el contrato ya los admite, esta prueba sigue verde)', async () => {
     await ctx.consumers.handle(contradiction());
-    const res = await ctx.as('pay-console', 'test').get('/reconciliation_exceptions');
+    const res = await ctx.as('pay-backoffice', 'test').get('/reconciliation_exceptions');
     const errors = ctx.settlementContract.validateResponse({ method: 'GET', path: '/reconciliation_exceptions', status: 200, body: res.body });
     expect(errors.filter((x) => !/kind|run_id/.test(x))).toEqual([]);
   });
@@ -130,25 +130,25 @@ describe('payment_intent.contradiction_detected (pay-payments → pay-settlement
   it('límite: sin `mode` (el productor aún no lo informa) la excepción queda con modo desconocido, se ve desde los dos modos y se puede resolver desde cualquiera; nunca se asume live', async () => {
     await ctx.consumers.handle(contradiction({ mode: null }));
     expect((await rows())[0].mode).toBeNull();
-    for (const mode of ['test', 'live'] as const) expect((await ctx.as('pay-console', mode).get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
-    const id = (await ctx.as('pay-console', 'test').get('/reconciliation_exceptions?status=open')).body.data[0].id as string;
-    const res = await ctx.as('pay-console', 'live').post(`/reconciliation_exceptions/${id}/resolve`, { resolution: 'dismiss', note: 'Revisado: sin efecto' }).set('idempotency-key', key()).set('authorization', `Bearer ${operatorToken(['settlement_operator'])}`);
+    for (const mode of ['test', 'live'] as const) expect((await ctx.as('pay-backoffice', mode).get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
+    const id = (await ctx.as('pay-backoffice', 'test').get('/reconciliation_exceptions?status=open')).body.data[0].id as string;
+    const res = await ctx.as('pay-backoffice', 'live').post(`/reconciliation_exceptions/${id}/resolve`, { resolution: 'dismiss', note: 'Revisado: sin efecto' }).set('idempotency-key', key()).set('authorization', `Bearer ${operatorToken(['settlement_operator'])}`);
     expect(res.status).toBe(200);
-    for (const mode of ['test', 'live'] as const) expect((await ctx.as('pay-console', mode).get('/reconciliation_exceptions?status=open')).body.data).toEqual([]);
+    for (const mode of ['test', 'live'] as const) expect((await ctx.as('pay-backoffice', mode).get('/reconciliation_exceptions?status=open')).body.data).toEqual([]);
   });
 
   it('una contradicción con modo no se resuelve desde el otro modo (404) y sigue abierta', async () => {
     await ctx.consumers.handle(contradiction({ mode: 'test' }));
-    const id = (await ctx.as('pay-console', 'test').get('/reconciliation_exceptions?status=open')).body.data[0].id as string;
-    const cross = await ctx.as('pay-console', 'live').post(`/reconciliation_exceptions/${id}/resolve`, { resolution: 'dismiss', note: 'cruzado' }).set('idempotency-key', key()).set('authorization', `Bearer ${operatorToken(['settlement_admin'])}`);
+    const id = (await ctx.as('pay-backoffice', 'test').get('/reconciliation_exceptions?status=open')).body.data[0].id as string;
+    const cross = await ctx.as('pay-backoffice', 'live').post(`/reconciliation_exceptions/${id}/resolve`, { resolution: 'dismiss', note: 'cruzado' }).set('idempotency-key', key()).set('authorization', `Bearer ${operatorToken(['settlement_admin'])}`);
     expect(cross.status).toBe(404);
     expect((await rows())[0].status).toBe('open');
   });
 
   it('resolver es una decisión de una persona y NO toca el ledger: request_adjustment solo deja un pedido', async () => {
     await ctx.consumers.handle(contradiction({ kind: 'compensation_failed', incoming: 'compensation_failed' }));
-    const id = (await ctx.as('pay-console', 'test').get('/reconciliation_exceptions?status=open')).body.data[0].id as string;
-    const res = await ctx.as('pay-console', 'test').post(`/reconciliation_exceptions/${id}/resolve`, { resolution: 'request_adjustment', note: 'Corresponde revisar la compensación' }).set('idempotency-key', key()).set('authorization', `Bearer ${operatorToken(['settlement_admin'], { sub: 'op_carla02' })}`);
+    const id = (await ctx.as('pay-backoffice', 'test').get('/reconciliation_exceptions?status=open')).body.data[0].id as string;
+    const res = await ctx.as('pay-backoffice', 'test').post(`/reconciliation_exceptions/${id}/resolve`, { resolution: 'request_adjustment', note: 'Corresponde revisar la compensación' }).set('idempotency-key', key()).set('authorization', `Bearer ${operatorToken(['settlement_admin'], { sub: 'op_carla02' })}`);
     expect(res.body).toMatchObject({ status: 'resolved', resolved_by: 'op_carla02' });
     expect(await count('SELECT count(*) AS n FROM settlement_adjustment_requests')).toBe(1);
     await moneyUntouched();

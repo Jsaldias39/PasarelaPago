@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { loadConfig } from '../src/config';
+import { loadConfig, SANDBOX_BANK_ACCOUNT } from '../src/config';
 import { MockConnector } from '../src/connectors/mock/mock.connector';
 import type { SimulatedBank } from '../src/connectors/mock/simulated-bank';
 import { HealthService } from '../src/core/health.service';
@@ -272,19 +272,70 @@ describe('transferencia bancaria: datos de la cuenta en las instrucciones', () =
     }
   });
 
-  it('configuración: los tres datos o ninguno; valores inválidos fallan al arrancar', () => {
-    const env = { DB_HOST: 'h', DB_NAME: 'n', DB_USER: 'u', DB_PASSWORD: 'p', PAY_MODE: 'sandbox' };
-    expect(loadConfig({ ...env }).bankTransferAccount).toBeUndefined();
+  describe('configuración de la cuenta (BANK_TRANSFER_*) en tres niveles', () => {
+    const base = { DB_HOST: 'h', DB_NAME: 'n', DB_USER: 'u', DB_PASSWORD: 'p' };
+    const sandbox = { ...base, PAY_MODE: 'sandbox' };
+    const live = { ...base, PAY_MODE: 'live' };
     const full = { BANK_TRANSFER_BANK_NAME: 'Banco X', BANK_TRANSFER_ACCOUNT_HOLDER: 'Empresa SA', BANK_TRANSFER_ACCOUNT_NUMBER: '1234-5678' };
-    expect(loadConfig({ ...env, ...full }).bankTransferAccount).toEqual({ bankName: 'Banco X', accountHolder: 'Empresa SA', accountNumber: '1234-5678' });
-    for (const missing of Object.keys(full)) {
-      const partial = { ...full } as Record<string, string>;
-      delete partial[missing];
-      expect(() => loadConfig({ ...env, ...partial })).toThrow(/los tres o ninguno/);
-    }
-    expect(() => loadConfig({ ...env, ...full, BANK_TRANSFER_ACCOUNT_NUMBER: '12' })).toThrow(/BANK_TRANSFER_ACCOUNT_NUMBER/);
-    expect(() => loadConfig({ ...env, ...full, BANK_TRANSFER_ACCOUNT_NUMBER: '1234; DROP TABLE' })).toThrow(/BANK_TRANSFER_ACCOUNT_NUMBER/);
-    expect(() => loadConfig({ ...env, ...full, BANK_TRANSFER_BANK_NAME: 'x'.repeat(101) })).toThrow(/BANK_TRANSFER_BANK_NAME/);
+    const synthetic = { bankName: 'BANCO SIMULADO (SANDBOX)', accountHolder: 'ALOVIDA PAY (SANDBOX)', accountNumber: 'SANDBOX-0000-0001' };
+    const without = (...names: string[]) => Object.fromEntries(Object.entries(full).filter(([name]) => !names.includes(name)));
+
+    // Nivel correcto
+    it('sandbox sin ninguna variable: arranca con la cuenta SINTÉTICA declarada (lleva el rótulo SANDBOX)', () => {
+      expect(loadConfig({ ...sandbox }).bankTransferAccount).toEqual(synthetic);
+      expect(SANDBOX_BANK_ACCOUNT).toEqual(synthetic);
+      for (const value of Object.values(synthetic)) expect(value).toMatch(/SANDBOX/);
+    });
+
+    it('sandbox con las tres, o live con las tres: se usan tal cual', () => {
+      const expected = { bankName: 'Banco X', accountHolder: 'Empresa SA', accountNumber: '1234-5678' };
+      expect(loadConfig({ ...sandbox, ...full }).bankTransferAccount).toEqual(expected);
+      expect(loadConfig({ ...live, ...full }).bankTransferAccount).toEqual(expected);
+    });
+
+    it('live sin ninguna: NO se inventa cuenta (T-03)', () => {
+      expect(loadConfig({ ...live }).bankTransferAccount).toBeUndefined();
+      expect(loadConfig({ ...live, BANK_TRANSFER_BANK_NAME: '  ', BANK_TRANSFER_ACCOUNT_HOLDER: '' }).bankTransferAccount).toBeUndefined();
+    });
+
+    // Nivel límite
+    it('sandbox parcial: la variable que falta (o viene vacía) toma el valor sintético; las dadas se respetan', () => {
+      for (const missing of Object.keys(full)) {
+        const account = loadConfig({ ...sandbox, ...without(missing) }).bankTransferAccount;
+        expect(account).toBeDefined();
+        const [field, synth] = { BANK_TRANSFER_BANK_NAME: ['bankName', synthetic.bankName], BANK_TRANSFER_ACCOUNT_HOLDER: ['accountHolder', synthetic.accountHolder], BANK_TRANSFER_ACCOUNT_NUMBER: ['accountNumber', synthetic.accountNumber] }[missing] as [keyof typeof synthetic, string];
+        expect(account?.[field]).toBe(synth);
+      }
+      expect(loadConfig({ ...sandbox, BANK_TRANSFER_ACCOUNT_NUMBER: '   ' }).bankTransferAccount?.accountNumber).toBe(synthetic.accountNumber);
+    });
+
+    it('los límites de longitud: 100 caracteres pasan, 101 no; número de 4 y 40 pasan, 3 y 41 no', () => {
+      expect(loadConfig({ ...sandbox, BANK_TRANSFER_BANK_NAME: 'x'.repeat(100) }).bankTransferAccount?.bankName).toHaveLength(100);
+      expect(loadConfig({ ...sandbox, BANK_TRANSFER_ACCOUNT_NUMBER: '1234' }).bankTransferAccount?.accountNumber).toBe('1234');
+      expect(loadConfig({ ...sandbox, BANK_TRANSFER_ACCOUNT_NUMBER: 'A'.repeat(40) }).bankTransferAccount?.accountNumber).toHaveLength(40);
+      expect(() => loadConfig({ ...sandbox, BANK_TRANSFER_ACCOUNT_NUMBER: '123' })).toThrow(/BANK_TRANSFER_ACCOUNT_NUMBER/);
+      expect(() => loadConfig({ ...sandbox, BANK_TRANSFER_ACCOUNT_NUMBER: 'A'.repeat(41) })).toThrow(/BANK_TRANSFER_ACCOUNT_NUMBER/);
+    });
+
+    // Nivel inválido
+    it('live con la cuenta a medias (una o dos de las tres) NO arranca', () => {
+      for (const missing of Object.keys(full)) expect(() => loadConfig({ ...live, ...without(missing) })).toThrow(/los tres o ninguno/);
+      for (const keep of Object.keys(full)) expect(() => loadConfig({ ...live, [keep]: (full as Record<string, string>)[keep] })).toThrow(/los tres o ninguno/);
+    });
+
+    it('valores inválidos fallan al arrancar en los dos modos', () => {
+      for (const env of [sandbox, live]) {
+        expect(() => loadConfig({ ...env, ...full, BANK_TRANSFER_ACCOUNT_NUMBER: '12' })).toThrow(/BANK_TRANSFER_ACCOUNT_NUMBER/);
+        expect(() => loadConfig({ ...env, ...full, BANK_TRANSFER_ACCOUNT_NUMBER: '1234; DROP TABLE' })).toThrow(/BANK_TRANSFER_ACCOUNT_NUMBER/);
+        expect(() => loadConfig({ ...env, ...full, BANK_TRANSFER_BANK_NAME: 'x'.repeat(101) })).toThrow(/BANK_TRANSFER_BANK_NAME/);
+      }
+      expect(() => loadConfig({ ...sandbox, BANK_TRANSFER_ACCOUNT_HOLDER: 'x'.repeat(101) })).toThrow(/BANK_TRANSFER_ACCOUNT_HOLDER/);
+    });
+
+    it('live con el rótulo del simulador en la cuenta NO arranca (una cuenta de mentira no se muestra como real)', () => {
+      expect(() => loadConfig({ ...live, ...full, BANK_TRANSFER_BANK_NAME: 'BANCO SIMULADO (SANDBOX)' })).toThrow(/PAY_MODE=live no admite.*BANK_TRANSFER_BANK_NAME/);
+      expect(() => loadConfig({ ...live, ...full, BANK_TRANSFER_ACCOUNT_NUMBER: 'SANDBOX-0000-0001' })).toThrow(/BANK_TRANSFER_ACCOUNT_NUMBER/);
+    });
   });
 });
 

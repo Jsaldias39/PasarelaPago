@@ -153,7 +153,7 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
         const key = uniqueKey();
         await post(counted, body, key);
         const callsAfterFirst = double.requests.length;
-        expect(callsAfterFirst).toBe(2); // persona y empresa
+        expect(callsAfterFirst).toBe(3); // comercio (empresa) + pagador sin tipo (persona y empresa)
         await post(counted, body, key);
         expect(double.requests.length).toBe(callsAfterFirst);
       } finally {
@@ -298,11 +298,12 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
       expect((await rows(ctx, 'SELECT count(*)::int AS n FROM risk_assessments'))[0].n).toBe(before);
     });
 
-    it('el contrato admite un nombre en blanco y una huella vacía: no se rechazan, se tratan como ausentes (review conservador, nunca allow)', async () => {
+    it('el contrato admite nombres en blanco y una huella vacía: no se rechazan, se tratan como ausentes (D-29: el del comercio falta ⇒ review; el del pagador falta ⇒ no pasa nada)', async () => {
       const own = await createTestContext(); // reglas propias: v1 «sin límites»
       try {
         const ask = async (body: Record<string, unknown>) => verified(own.contract, 'post', '/assessments', await post(own, body), 201);
-        expect(await ask(assessmentBody({ screening: { name: '    ' } }))).toMatchObject({ decision: 'review', reason_code: 'screening_not_provided', screened: false });
+        expect(await ask(assessmentBody({ screening: { merchant_name: '    ' } }))).toMatchObject({ decision: 'review', reason_code: 'screening_not_provided', screened: false });
+        expect(await ask(assessmentBody({ screening: { name: '    ' } }))).toMatchObject({ decision: 'allow', screened: true }); // pagador en blanco = invitado sin nombre
         const emptyPrint = await ask(assessmentBody({ payer_fingerprint: '' }));
         expect(emptyPrint).toMatchObject({ decision: 'allow', reason_code: 'no_limits_configured', screened: true });
         expect((await own.db.pool.query('SELECT payer_hash FROM risk_assessments WHERE id = $1', [emptyPrint.id])).rows[0].payer_hash).toBeNull();
@@ -397,7 +398,7 @@ describe('rastro auditable (P5.H2.M5) y privacidad (regla 90.2)', () => {
     const columns = (await rows(ctx, `SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'risk_assessments' ORDER BY ordinal_position`)).map((r) => r.column_name);
     expect(columns).toEqual([
       'id', 'caller_service', 'request_key', 'merchant_id', 'payment_intent_id', 'amount_minor', 'currency', 'method', 'payer_hash', 'decision', 'reason_code',
-      'reason_codes', 'rule_version', 'screened', 'screening_top_score', 'screening_list', 'screening_source_id', 'duration_ms', 'created_at',
+      'reason_codes', 'rule_version', 'screened', 'screening_top_score', 'screening_list', 'screening_source_id', 'screening_party', 'duration_ms', 'created_at',
     ]);
   });
 });

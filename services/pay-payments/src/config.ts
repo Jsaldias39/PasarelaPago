@@ -4,7 +4,14 @@ export interface UpstreamConfig {
   readonly timeoutMs: number;
 }
 
+export type PayMode = 'sandbox' | 'live';
+
 export interface ServiceConfig {
+  /**
+   * Modo de DESPLIEGUE (D-26): obligatorio y sin valor por defecto. En `live` el servicio se niega a arrancar si hay un doble o un
+   * conector `mock` detrás (ver `assertNoDoublesInLive`). No es el modo de la clave del comercio (`test|live`, D-28).
+   */
+  readonly payMode: PayMode;
   readonly port: number;
   readonly logLevel: string;
   readonly db: { readonly host: string; readonly port: number; readonly name: string; readonly user: string; readonly password: string };
@@ -21,6 +28,8 @@ export interface ServiceConfig {
     /** Si es `false` el proceso no ejecuta el worker (solo el cliente), para separar API y workers. */
     readonly runWorker: boolean;
   };
+  /** `pay-vault` (red aislada). Opcional: hoy ningún flujo de pay-payments llama a la bóveda (la tarjeta viaja como token); sin ella el cliente apunta a un puerto cerrado. */
+  readonly vaultUrl?: string;
   readonly upstream: { readonly risk: UpstreamConfig; readonly connectors: UpstreamConfig; readonly ledger: UpstreamConfig };
   readonly policy: {
     /**
@@ -49,6 +58,16 @@ export interface ServiceConfig {
   };
   /** Temas de los eventos que se consumen (configurables para aislar las pruebas). */
   readonly subjects: { readonly connectorStatus: string; readonly merchantEvents: string; readonly feeSchedule: string };
+}
+
+function validUrl(value: string, name: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('protocolo');
+    return value.replace(/\/+$/, '');
+  } catch {
+    throw new Error(`${name} inválida: tiene que ser una URL http(s)`);
+  }
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -81,13 +100,22 @@ function bankTransfer(env: NodeJS.ProcessEnv): { bankTransfer?: { bankName: stri
   return { bankTransfer: { bankName, accountHolder, accountNumber } };
 }
 
+/** `PAY_MODE` es obligatorio y solo admite `sandbox` o `live`: un valor mal escrito o ausente no puede dar un servicio en `live` por accidente. */
+export function parsePayMode(raw: string | undefined): PayMode {
+  if (raw === 'sandbox' || raw === 'live') return raw;
+  throw new Error(`PAY_MODE debe ser «sandbox» o «live» y no tiene valor por defecto (llegó: ${raw === undefined || raw === '' ? 'sin definir' : raw})`);
+}
+
 /** Lee y valida el entorno. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig {
+  const payMode = parsePayMode(env.PAY_MODE);
   const port = Number(env.PORT ?? 3102);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`PORT inválido: ${env.PORT}`);
   const dbPort = Number(env.DB_PORT ?? 5432);
   if (!Number.isInteger(dbPort)) throw new Error(`DB_PORT inválido: ${env.DB_PORT}`);
   return {
+    payMode,
+    ...(env.VAULT_URL ? { vaultUrl: validUrl(env.VAULT_URL, 'VAULT_URL') } : {}),
     port,
     logLevel: env.LOG_LEVEL ?? 'info',
     db: {

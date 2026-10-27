@@ -23,6 +23,8 @@ export interface Principal {
   readonly merchantId: string;
   readonly keyId: string;
   readonly mode: 'test' | 'live';
+  /** Estado del comercio en la réplica; `closed` nunca llega acá (D-32: cerrar revoca las claves ⇒ 401). */
+  readonly merchantStatus: 'active' | 'suspended' | undefined;
 }
 
 /**
@@ -56,8 +58,8 @@ export class EdgePipeline {
 
     const principal = await this.authenticate(req, ip);
 
-    const merchant = await this.replica.merchantStatus(principal.merchantId);
-    if (merchant === 'suspended' || merchant === 'closed') throw fail('merchant_suspended');
+    // D-32: suspender BLOQUEA (403, reactivable); cerrar REVOCA las claves y se resuelve en `authenticate` (401).
+    if (principal.merchantStatus === 'suspended') throw fail('merchant_suspended');
 
     await this.enforce(await this.limiter.hit(`key:${principal.keyId}`, rateLimit.keyPerWindow));
 
@@ -141,12 +143,16 @@ export class EdgePipeline {
     const hashOk = parsed ? verifyApiKey(token, stored) : false;
     const allowedMode = this.config.payMode === 'live' ? 'live' : 'test';
 
-    if (!parsed || !record || !record.keyHash || !hashOk || record.revoked || record.mode !== allowedMode) {
+    const credentialOk = Boolean(parsed && record && record.keyHash && hashOk && !record.revoked && record.mode === allowedMode);
+    // D-32: las claves de un comercio cerrado están revocadas. Se aplica aunque `api_key.revoked` aún no haya llegado (o llegue
+    // después de un `api_key.created` tardío), así el cierre rige en cuanto la réplica conoce `merchant.closed`.
+    const merchantStatus = credentialOk && record ? await this.replica.merchantStatus(record.merchantId) : undefined;
+    if (!credentialOk || merchantStatus === 'closed' || !record) {
       await this.limiter.hit(`authfail:${ip}`, Number.MAX_SAFE_INTEGER);
-      // Una sola respuesta para clave inexistente, mal formada, revocada o de otro modo: no se distingue (no se filtra qué existe).
+      // Una sola respuesta para clave inexistente, mal formada, revocada, de comercio cerrado o de otro modo: no se distingue (no se filtra qué existe).
       throw fail('unauthorized', { headers: { 'WWW-Authenticate': 'Bearer realm="pay"' } });
     }
-    return { merchantId: record.merchantId, keyId: record.keyId, mode: record.mode };
+    return { merchantId: record.merchantId, keyId: record.keyId, mode: record.mode, merchantStatus };
   }
 
   private filterQuery(req: Request, allowed: readonly string[]): string {

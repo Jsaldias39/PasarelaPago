@@ -199,9 +199,145 @@ describe('[DOBLE] réplica de claves por eventos (NATS JetStream real)', () => {
       await publish('merchant.closed', { merchant_id: merchantId, closed_at: new Date(t0).toISOString() });
       await publish('merchant.activated', { merchant_id: merchantId, activated_at: new Date(t0 + 60_000).toISOString() });
       await eventually(() => pending(), (p) => p.unprocessed === 0 && p.inFlight === 0);
-      expect(await status(key.token)).toBe(403);
+      expect(await status(key.token)).toBe(401);
       const row = await h.db.pool.query('SELECT status FROM merchant_replica WHERE merchant_id = $1', [merchantId]);
       expect(row.rows[0].status).toBe('closed');
+    });
+  });
+
+  /**
+   * D-32 — cerrar un comercio REVOCA sus claves; suspender solo las bloquea y se revierte. Tres niveles (regla 65): correcto,
+   * límite e inválido, contra NATS/Postgres/Redis reales; el publicador es el [DOBLE] de pay-merchants de este archivo.
+   */
+  describe('D-32: cierre revoca las claves, suspensión solo bloquea', () => {
+    const seedActive = async () => {
+      const key = generateApiKey('test');
+      const merchantId = newMerchant();
+      await publish('api_key.created', created(key, merchantId));
+      await eventually(() => status(key.token), (s) => s === 200);
+      return { key, merchantId };
+    };
+    const revokedAt = async (keyId: string) => (await h.db.pool.query('SELECT revoked_at FROM api_key_replica WHERE key_id = $1', [keyId])).rows[0]?.revoked_at as Date | null | undefined;
+
+    describe('nivel correcto', () => {
+      it('merchant.closed ⇒ 401 en menos de 5 s, y la réplica deja revocadas TODAS las claves del comercio (test y live)', async () => {
+        const { key, merchantId } = await seedActive();
+        const live = generateApiKey('live');
+        await publish('api_key.created', created(live, merchantId));
+        await eventually(() => revokedAt(live.keyId), (v) => v === null);
+
+        await publish('merchant.closed', { merchant_id: merchantId, closed_at: new Date().toISOString() });
+        const { elapsedMs } = await eventually(() => status(key.token), (s) => s === 401);
+        expect(elapsedMs).toBeLessThan(5_000);
+        expect(await revokedAt(key.keyId)).toBeInstanceOf(Date);
+        expect(await revokedAt(live.keyId)).toBeInstanceOf(Date);
+      });
+
+      it('merchant.suspended ⇒ 403 (bloqueada) SIN tocar las claves; merchant.activated ⇒ 200 (restaurada)', async () => {
+        const { key, merchantId } = await seedActive();
+        const t0 = Date.now();
+        await publish('merchant.suspended', { merchant_id: merchantId, suspended_at: new Date(t0).toISOString() });
+        await eventually(() => status(key.token), (s) => s === 403);
+        expect(await revokedAt(key.keyId)).toBeNull();
+        await publish('merchant.activated', { merchant_id: merchantId, activated_at: new Date(t0 + 1_000).toISOString() });
+        await eventually(() => status(key.token), (s) => s === 200);
+      });
+
+      it('el ciclo completo: activa ⇒ suspendida (403) ⇒ reactivada (200) ⇒ cerrada (401 para siempre)', async () => {
+        const { key, merchantId } = await seedActive();
+        const t0 = Date.now();
+        await publish('merchant.suspended', { merchant_id: merchantId, suspended_at: new Date(t0).toISOString() });
+        await eventually(() => status(key.token), (s) => s === 403);
+        await publish('merchant.activated', { merchant_id: merchantId, activated_at: new Date(t0 + 1_000).toISOString() });
+        await eventually(() => status(key.token), (s) => s === 200);
+        await publish('merchant.closed', { merchant_id: merchantId, closed_at: new Date(t0 + 2_000).toISOString() });
+        await eventually(() => status(key.token), (s) => s === 401);
+        await publish('merchant.activated', { merchant_id: merchantId, activated_at: new Date(t0 + 3_000).toISOString() });
+        await eventually(() => pending(), (p) => p.unprocessed === 0 && p.inFlight === 0);
+        expect(await status(key.token)).toBe(401);
+      });
+    });
+
+    describe('nivel límite', () => {
+      it('la clave que llega DESPUÉS de merchant.closed (api_key.created tardío) tampoco sirve', async () => {
+        const merchantId = newMerchant();
+        const key = generateApiKey('test');
+        await publish('merchant.closed', { merchant_id: merchantId, closed_at: new Date().toISOString() });
+        await publish('api_key.created', created(key, merchantId));
+        await eventually(() => h.db.pool.query('SELECT 1 FROM api_key_replica WHERE key_id = $1', [key.keyId]), (r) => r.rowCount === 1);
+        expect(await status(key.token)).toBe(401);
+      });
+
+      it('un merchant.closed con instante ANTERIOR al estado guardado igual gana (cerrado es terminal en el origen)', async () => {
+        const { key, merchantId } = await seedActive();
+        const t0 = Date.now();
+        await publish('merchant.activated', { merchant_id: merchantId, activated_at: new Date(t0).toISOString() });
+        await publish('merchant.closed', { merchant_id: merchantId, closed_at: new Date(t0 - 60_000).toISOString() });
+        await eventually(() => status(key.token), (s) => s === 401);
+        const row = await h.db.pool.query('SELECT status FROM merchant_replica WHERE merchant_id = $1', [merchantId]);
+        expect(row.rows[0].status).toBe('closed');
+      });
+
+      it('una revocación individual MÁS temprana que el cierre se conserva (LEAST): el cierre no la relaja', async () => {
+        const { key, merchantId } = await seedActive();
+        const early = new Date(Date.now() - 3_600_000).toISOString();
+        await publish('api_key.revoked', { key_id: key.keyId, merchant_id: merchantId, mode: key.mode, revoked_at: early });
+        await eventually(() => status(key.token), (s) => s === 401);
+        await publish('merchant.closed', { merchant_id: merchantId, closed_at: new Date().toISOString() });
+        await eventually(() => pending(), (p) => p.unprocessed === 0 && p.inFlight === 0);
+        expect((await revokedAt(key.keyId))?.toISOString()).toBe(early);
+      });
+
+      it('el cierre de un comercio NO toca las claves de otro comercio', async () => {
+        const a = await seedActive();
+        const b = await seedActive();
+        await publish('merchant.closed', { merchant_id: a.merchantId, closed_at: new Date().toISOString() });
+        await eventually(() => status(a.key.token), (s) => s === 401);
+        expect(await status(b.key.token)).toBe(200);
+        expect(await revokedAt(b.key.keyId)).toBeNull();
+      });
+
+      it('el mismo merchant.closed entregado dos veces tiene un solo efecto (inbox) y es idempotente', async () => {
+        const { key, merchantId } = await seedActive();
+        const event = cloudEvent('merchant.closed', { merchant_id: merchantId, closed_at: new Date().toISOString() });
+        for (const msgId of ['a', 'b']) {
+          const hdrs = natsHeaders();
+          hdrs.set('Nats-Msg-Id', `${event.id}-${msgId}`);
+          await nc.jetstream().publish(`${prefix}.merchant.closed`, JSON.stringify(event), { headers: hdrs });
+        }
+        await eventually(() => status(key.token), (s) => s === 401);
+        await eventually(() => pending(), (p) => p.unprocessed === 0 && p.inFlight === 0);
+        const inbox = await h.db.pool.query(`SELECT count(*)::int AS n FROM inbox_events WHERE event_id = $1`, [event.id]);
+        expect(inbox.rows[0].n).toBe(1);
+      });
+    });
+
+    describe('nivel inválido', () => {
+      it.each([
+        ['merchant_id con formato de inyección', { merchant_id: "mc_x'; UPDATE api_key_replica SET revoked_at=NULL;--", closed_at: new Date().toISOString() }],
+        ['sin merchant_id', { closed_at: new Date().toISOString() }],
+        ['closed_at que no es una fecha', { merchant_id: 'mc_aaaaaaaaaaaa', closed_at: 'mañana' }],
+        ['sin closed_at', { merchant_id: 'mc_aaaaaaaaaaaa' }],
+      ])('merchant.closed mal formado (%s) se descarta sin revocar nada ni frenar el consumo', async (_name, data) => {
+        const { key } = await seedActive();
+        await publish('merchant.closed', data);
+        await eventually(() => pending(), (p) => p.unprocessed === 0 && p.inFlight === 0);
+        expect(await status(key.token)).toBe(200);
+      });
+
+      it('un merchant.closed con fuente falsificada (source distinta de /pay-merchants) no revoca nada', async () => {
+        const { key, merchantId } = await seedActive();
+        await publish('merchant.closed', { merchant_id: merchantId, closed_at: new Date().toISOString() }, { source: '/pay-evil' });
+        await eventually(() => pending(), (p) => p.unprocessed === 0 && p.inFlight === 0);
+        expect(await status(key.token)).toBe(200);
+      });
+
+      it('un merchant.closed de un comercio desconocido para la réplica se acepta sin error y no afecta a otros', async () => {
+        const { key } = await seedActive();
+        await publish('merchant.closed', { merchant_id: newMerchant(), closed_at: new Date().toISOString() });
+        await eventually(() => pending(), (p) => p.unprocessed === 0 && p.inFlight === 0);
+        expect(await status(key.token)).toBe(200);
+      });
     });
   });
 });

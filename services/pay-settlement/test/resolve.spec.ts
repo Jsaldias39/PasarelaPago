@@ -13,13 +13,13 @@ async function openException(): Promise<string> {
   const r = ref();
   ctx.ledger.seedCharge({ merchant: m, net: 1000, fee: 0, at: new Date('2026-10-21T14:30:00Z'), ref: r });
   ctx.connectors.statements.set('mock', { format: 'json', lines: [{ provider_reference: 'B1', our_reference: r, direction: 'credit', amount_minor: 900, value_date: '2026-10-21', booked_at: '2026-10-21T14:30:00.000Z' }] });
-  const started = await ctx.as('pay-console').post('/reconciliation_runs', { connector: 'mock', period_from: '2026-10-19T04:00:00.000Z', period_to: '2026-10-26T04:00:00.000Z' }).set('idempotency-key', key());
+  const started = await ctx.as('pay-backoffice').post('/reconciliation_runs', { connector: 'mock', period_from: '2026-10-19T04:00:00.000Z', period_to: '2026-10-26T04:00:00.000Z' }).set('idempotency-key', key());
   expect(started.status).toBe(202);
   await ctx.reconciliation.idle();
-  const { body } = await ctx.as('pay-console').get('/reconciliation_exceptions?status=open');
+  const { body } = await ctx.as('pay-backoffice').get('/reconciliation_exceptions?status=open');
   return body.data[0].id as string;
 }
-const resolve = (id: string, body: object, auth: string | undefined, idem = key(), caller = 'pay-console') => {
+const resolve = (id: string, body: object, auth: string | undefined, idem = key(), caller = 'pay-backoffice') => {
   const req = ctx.as(caller).post(`/reconciliation_exceptions/${id}/resolve`, body).set('idempotency-key', idem);
   return auth === undefined ? req : req.set('authorization', auth);
 };
@@ -54,7 +54,7 @@ describe('resolver una excepción (REQ-P2-6: lo decide una persona)', () => {
     const denied = checked(ctx, 'POST', `/reconciliation_exceptions/${id}/resolve`, await resolve(id, ADJUST, bearer(['settlement_operator'])));
     expect(denied.status).toBe(403);
     expect(denied.body.code).toBe('forbidden');
-    expect((await ctx.as('pay-console').get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
+    expect((await ctx.as('pay-backoffice').get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
     expect((await resolve(id, DISMISS, bearer(['settlement_admin']))).status).toBe(200);
   });
 
@@ -62,7 +62,7 @@ describe('resolver una excepción (REQ-P2-6: lo decide una persona)', () => {
     const id = await openException();
     const res = checked(ctx, 'POST', `/reconciliation_exceptions/${id}/resolve`, await resolve(id, { ...DISMISS, resolved_by: 'op_jefe' }, bearer(['settlement_operator'], 'op_maria01')));
     expect(res.status).toBe(422);
-    expect((await ctx.as('pay-console').get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
+    expect((await ctx.as('pay-backoffice').get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
     expect(await audit()).toEqual([]);
   });
 
@@ -81,7 +81,7 @@ describe('resolver una excepción (REQ-P2-6: lo decide una persona)', () => {
       expect(res.status).toBe(401);
       expect(res.body.code).toBe('unauthorized');
       expect(JSON.stringify(res.body)).not.toMatch(/token|expir|firma|signature|audience/i);
-      expect((await ctx.as('pay-console').get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
+      expect((await ctx.as('pay-backoffice').get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
       expect(await audit()).toEqual([]);
     });
 
@@ -98,7 +98,7 @@ describe('resolver una excepción (REQ-P2-6: lo decide una persona)', () => {
     const again = checked(ctx, 'POST', `/reconciliation_exceptions/${id}/resolve`, await resolve(id, ADJUST, bearer(['settlement_admin'], 'op_carla02')));
     expect(again.status).toBe(409);
     expect(again.body.code).toBe('invalid_state_transition');
-    expect((await ctx.as('pay-console').get('/reconciliation_exceptions?status=dismissed')).body.data[0].resolved_by).toBe('op_maria01');
+    expect((await ctx.as('pay-backoffice').get('/reconciliation_exceptions?status=dismissed')).body.data[0].resolved_by).toBe('op_maria01');
     expect(checked(ctx, 'POST', '/reconciliation_exceptions/rx_abcdefghijklmn/resolve', await resolve('rx_abcdefghijklmn', DISMISS, bearer(['settlement_admin']))).status).toBe(404);
     expect((await resolve('no-es-un-id', DISMISS, bearer(['settlement_admin']))).status).toBe(404);
   });
@@ -127,7 +127,7 @@ describe('resolver una excepción (REQ-P2-6: lo decide una persona)', () => {
     expect(replay.headers['idempotency-replayed']).toBe('true');
     expect(await audit()).toHaveLength(1);
     expect((await resolve(id, DISMISS, bearer(['settlement_admin'], 'op_maria01'), idem)).body.code).toBe('idempotency_key_reused');
-    const noKey = await ctx.as('pay-console').post(`/reconciliation_exceptions/${id}/resolve`, DISMISS).set('authorization', bearer(['settlement_admin']));
+    const noKey = await ctx.as('pay-backoffice').post(`/reconciliation_exceptions/${id}/resolve`, DISMISS).set('authorization', bearer(['settlement_admin']));
     expect(noKey.status).toBe(400);
   });
 

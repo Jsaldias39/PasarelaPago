@@ -100,46 +100,50 @@ describe('payouts contra el ledger real', () => {
   });
 });
 
-describe('el modo contra el ledger real (D-28)', () => {
-  const liveBalance = async (account: string, mode: 'test' | 'live') => {
-    const res = await fetch(`${ledger.url}/balances?account=${encodeURIComponent(account)}`, { headers: { 'x-service-id': 'pay-settlement', 'x-pay-mode': mode } });
-    return res.status === 404 ? 0 : ((await res.json()) as { balance_minor: number }).balance_minor;
-  };
+describe('el modo contra el ledger real (D-28): sandbox↔test, live↔live', () => {
+  const payload = (m: string, amount: number) => ({ merchant_id: m, amount_minor: amount, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' });
 
-  it('el dinero cargado en test no se puede pagar en live: el ledger real rechaza por saldo y no mueve nada; en test el mismo pago sale', async () => {
+  it('un pay-settlement live apuntando a un ledger sandbox NO paga: el ledger real rechaza la clave live (403), el pago no sale y no hay orden al conector', async () => {
     const m = merchantId();
-    await fund(m, 20_000); // `fund` carga en modo test
-    const denied = checked(ctx, 'POST', '/payouts', await ctx.as('pay-schedules', 'live').post('/payouts', { merchant_id: m, amount_minor: 1_000, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', key()));
-    expect(denied.status).toBe(422);
-    expect(denied.body.code).toBe('insufficient_funds');
+    await fund(m, 20_000); // carga en el ledger sandbox (modo test)
+    // ctx tiene los dos despliegues de settlement contra el MISMO ledger sandbox: el live manda `X-Pay-Mode: live` y el ledger no lo acepta.
+    const res = await ctx.as('pay-schedules', 'live').post('/payouts', payload(m, 1_000)).set('idempotency-key', key());
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('ledger_unavailable');
     expect(ctx.connectors.orders).toHaveLength(0);
-    expect(await liveBalance(`merchant:${m}:available`, 'test')).toBe(20_000);
-    expect(await liveBalance(`merchant:${m}:available`, 'live')).toBe(0);
-    const ok = checked(ctx, 'POST', '/payouts', await pay(m, 1_000));
-    expect(ok.body).toMatchObject({ status: 'paid' });
-    expect(ctx.connectors.orders.map((o) => o.order.mode)).toEqual(['test']);
-    // la retención vive solo en el modo en que se creó
-    const asLive = await fetch(`${ledger.url}/holds/${ok.body.hold_id}`, { headers: { 'x-service-id': 'pay-settlement', 'x-pay-mode': 'live' } });
-    expect(asLive.status).toBe(404);
+    expect(await balance(`merchant:${m}:available`)).toBe(20_000);
+    // y el cliente directo contra el ledger sandbox con modo live no lee ni escribe nada
+    await expect(new HttpLedgerClient(ledger.url, 5000).getBalance('live', `merchant:${m}:available`)).rejects.toThrow();
   });
 
-  it('el mismo comercio con dinero en los dos modos: cada pago sale de SU saldo en el ledger real', async () => {
-    const m = merchantId();
-    for (const mode of ['test', 'live'] as const) {
-      const res = await ledger.post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs: [{ debit_account: 'connector:mock:clearing', credit_account: `merchant:${m}:available`, amount_minor: mode === 'test' ? 9_000 : 4_000, code: 'charge' }] }, undefined, mode);
-      expect(res.status).toBe(201);
+  it('dos despliegues reales (ledger sandbox y ledger live): el mismo comercio con dinero en cada uno paga de SU saldo; el de live no ve el de sandbox', async () => {
+    const liveLedger = await startRealLedger({ payMode: 'live' });
+    const dual = await createSettlementContext({ ledgerPort: new HttpLedgerClient(ledger.url, 5000), liveLedgerPort: new HttpLedgerClient(liveLedger.url, 5000) });
+    try {
+      const m = merchantId();
+      const seed = async (target: RealLedger, mode: 'test' | 'live', amount: number) =>
+        expect((await target.post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs: [{ debit_account: 'connector:mock:clearing', credit_account: `merchant:${m}:available`, amount_minor: amount, code: 'charge' }] }, undefined, mode)).status).toBe(201);
+      await seed(ledger, 'test', 9_000);
+      await seed(liveLedger, 'live', 4_000);
+      const balanceAt = async (url: string, mode: 'test' | 'live') => {
+        const res = await fetch(`${url}/balances?account=${encodeURIComponent(`merchant:${m}:available`)}`, { headers: { 'x-service-id': 'pay-settlement', 'x-pay-mode': mode } });
+        return res.status === 404 ? 0 : ((await res.json()) as { balance_minor: number }).balance_minor;
+      };
+      const pay2 = (mode: 'test' | 'live', amount: number) => dual.as('pay-schedules', mode).post('/payouts', payload(m, amount)).set('idempotency-key', key());
+      const [t, l] = [await pay2('test', 3_000), await pay2('live', 3_000)];
+      expect([t.body.status, l.body.status]).toEqual(['paid', 'paid']);
+      expect(await balanceAt(ledger.url, 'test')).toBe(6_000);
+      expect(await balanceAt(liveLedger.url, 'live')).toBe(1_000);
+      // en live no caben 2.000 aunque en sandbox sobren: son ledgers distintos
+      const tooMuch = await pay2('live', 2_000);
+      expect(tooMuch.status).toBe(422);
+      expect(tooMuch.body.code).toBe('insufficient_funds');
+      expect(await balanceAt(liveLedger.url, 'live')).toBe(1_000);
+      expect(dual.connectors.orders.map((o) => o.order.mode)).toEqual(['test', 'live']);
+    } finally {
+      await dual.close();
+      await liveLedger.stop();
     }
-    const [t, l] = [
-      checked(ctx, 'POST', '/payouts', await ctx.as('pay-schedules', 'test').post('/payouts', { merchant_id: m, amount_minor: 3_000, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', key())),
-      checked(ctx, 'POST', '/payouts', await ctx.as('pay-schedules', 'live').post('/payouts', { merchant_id: m, amount_minor: 3_000, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', key())),
-    ];
-    expect([t.body.status, l.body.status]).toEqual(['paid', 'paid']);
-    expect(await liveBalance(`merchant:${m}:available`, 'test')).toBe(6_000);
-    expect(await liveBalance(`merchant:${m}:available`, 'live')).toBe(1_000);
-    // y un pago de live que no cabe en SU saldo (aunque test tenga de sobra) se rechaza
-    const tooMuch = await ctx.as('pay-schedules', 'live').post('/payouts', { merchant_id: m, amount_minor: 2_000, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', key());
-    expect(tooMuch.status).toBe(422);
-    expect(await liveBalance(`merchant:${m}:available`, 'live')).toBe(1_000);
   });
 });
 
@@ -184,10 +188,10 @@ describe('cobros netos y conciliación contra el ledger real', () => {
         { provider_reference: 'B2', our_reference: bad, direction: 'credit', amount_minor: 4_900, value_date: now.toISOString().slice(0, 10), booked_at: now.toISOString() },
       ],
     });
-    const started = await ctx.as('pay-console').post('/reconciliation_runs', { connector: 'mock', period_from: new Date(now.getTime() - 3_600_000).toISOString(), period_to: new Date(now.getTime() + 3_600_000).toISOString() }).set('idempotency-key', key());
+    const started = await ctx.as('pay-backoffice').post('/reconciliation_runs', { connector: 'mock', period_from: new Date(now.getTime() - 3_600_000).toISOString(), period_to: new Date(now.getTime() + 3_600_000).toISOString() }).set('idempotency-key', key());
     expect(started.status).toBe(202);
     await ctx.reconciliation.idle();
-    const mine = (await ctx.as('pay-console').get('/reconciliation_exceptions')).body.data.filter((e: { business_ref: string }) => [ok, bad].includes(e.business_ref));
+    const mine = (await ctx.as('pay-backoffice').get('/reconciliation_exceptions')).body.data.filter((e: { business_ref: string }) => [ok, bad].includes(e.business_ref));
     expect(mine).toEqual([expect.objectContaining({ kind: 'amount_mismatch', business_ref: bad, statement_amount_minor: 4_900, ledger_amount_minor: 5_000 })]);
     expect(await balance('connector:mock:clearing')).toBe(clearingBefore);
     expect(await balance('platform:fees')).toBe(feesBefore);

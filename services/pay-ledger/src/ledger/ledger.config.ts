@@ -1,5 +1,9 @@
 /** Configuración propia de pay-ledger (la genérica está en ../config.ts). Falla al arrancar si falta lo obligatorio. */
+import type { DeploymentMode } from './mode';
+
 export interface LedgerConfig {
+  /** `PAY_MODE` (D-26): obligatorio, SIN valor por defecto. Fija con qué modo de clave opera este despliegue (sandbox↔test, live↔live). */
+  readonly payMode: DeploymentMode;
   readonly tb: { readonly address: string; readonly clusterId: bigint; readonly timeoutMs: number };
   /** 0 = el job del invariante no corre solo (se puede invocar a mano). */
   readonly invariantIntervalMs: number;
@@ -30,6 +34,7 @@ export function loadLedgerConfig(env: NodeJS.ProcessEnv = process.env): LedgerCo
   const address = env.TB_ADDRESS;
   if (!address) throw new Error('Falta la variable de entorno TB_ADDRESS');
   return {
+    payMode: payMode(env.PAY_MODE),
     tb: { address, clusterId: BigInt(integer(env, 'TB_CLUSTER_ID', 0, 0)), timeoutMs: integer(env, 'TB_TIMEOUT_MS', 8000, 100) },
     invariantIntervalMs: integer(env, 'LEDGER_INVARIANT_INTERVAL_MS', 0, 0),
     holdSweepIntervalMs: integer(env, 'LEDGER_HOLD_SWEEP_INTERVAL_MS', 0, 0),
@@ -50,4 +55,11 @@ function flag(env: NodeJS.ProcessEnv, name: string): boolean {
   if (raw === undefined || raw === '' || raw === 'false') return false;
   if (raw === 'true') return true;
   throw new Error(`${name} inválido: ${raw} (true | false)`);
+}
+
+/** Sin valor por defecto: un despliegue que no dice qué es no arranca (nunca se asume ni `sandbox` ni `live`). */
+function payMode(raw: string | undefined): DeploymentMode {
+  if (raw === undefined || raw === '') throw new Error('Falta la variable de entorno PAY_MODE (sandbox | live): no tiene valor por defecto');
+  if (raw !== 'sandbox' && raw !== 'live') throw new Error(`PAY_MODE inválido: ${raw} (sandbox | live)`);
+  return raw;
 }

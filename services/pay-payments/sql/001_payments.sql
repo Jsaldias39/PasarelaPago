@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS payment_intents (
   source                  jsonb,                                   -- {kind:'mandate', id, period} si lo inició pay-schedules
   kind                    text,                                    -- obligation | commission (solo mandatos)
   beneficiary_merchant_id text,
+  -- Nombre del pagador SOLO para cribarlo en pay-risk (D-29). Dato personal: no sale en respuestas, eventos ni logs y se BORRA al llegar el
+  -- intento a un estado terminal (la transición lo pone en NULL). NULL = pagador invitado sin nombre: no bloquea el cobro.
+  payer_name              text,
   created_at              timestamptz NOT NULL DEFAULT now(),
   expires_at              timestamptz NOT NULL,
   succeeded_at            timestamptz,
@@ -112,6 +115,7 @@ CREATE TABLE IF NOT EXISTS merchant_replica (
   status           text        NOT NULL,                           -- pending | active | suspended | closed
   occurred_at      timestamptz NOT NULL,                           -- del evento: un evento atrasado no pisa a uno más nuevo
   updated_at       timestamptz NOT NULL DEFAULT now(),
+  legal_name       text,                                           -- razón social (D-29): solo si el evento la trae (PROP-17); NULL = sin fuente contractual
   CONSTRAINT merchant_replica_pkey PRIMARY KEY (merchant_id),
   CONSTRAINT merchant_replica_status_chk CHECK (status IN ('pending', 'active', 'suspended', 'closed'))
 );

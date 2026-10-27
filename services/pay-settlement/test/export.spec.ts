@@ -10,7 +10,7 @@ beforeEach(async () => {
 });
 afterEach(async () => ctx.close());
 
-const exportOf = async (query = '', caller = 'pay-console') => {
+const exportOf = async (query = '', caller = 'pay-backoffice') => {
   const to = new Date(Date.now() - 5).toISOString();
   return ctx.as(caller).get(`/exports/accounting?period_from=${FROM}&period_to=${to}${query}`);
 };
@@ -27,7 +27,7 @@ describe('exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21)', () => {
     ctx.ledger.seedCharge({ merchant: b, net: 975, fee: 25, at: at(4), ref: r3 });
     // reembolso parcial del primer cobro (la comisión no se devuelve en este escenario)
     ctx.ledger.seedMovement({ debit: `merchant:${a}:pending`, credit: 'connector:mock:clearing', amount: 2000, at: at(5), ref: r1, code: 'refund' });
-    await ctx.as('pay-console').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', key()); // cobra el abono de `a`
+    await ctx.as('pay-backoffice').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', key()); // cobra el abono de `a`
     await ctx.as('pay-schedules').post('/charges', { merchant_id: b, kind: 'provider_commission', reference: 'sp_abcdefghijklmn:2026-10', amount_minor: 0 + 1, currency: 'BOB' }).set('idempotency-key', key());
 
     const res = await exportOf();
@@ -104,11 +104,11 @@ describe('exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21)', () => {
   describe('periodo cerrado y forma del pedido', () => {
     it('un periodo que no terminó es 409; invertido o mal escrito, 422; un campo de más, 422', async () => {
       const future = new Date(Date.now() + 86_400_000).toISOString();
-      const res = await ctx.as('pay-console').get(`/exports/accounting?period_from=${FROM}&period_to=${future}`);
+      const res = await ctx.as('pay-backoffice').get(`/exports/accounting?period_from=${FROM}&period_to=${future}`);
       expect(res.status).toBe(409);
       expect(res.body.code).toBe('invalid_state_transition');
-      expect((await ctx.as('pay-console').get(`/exports/accounting?period_from=${FROM}&period_to=${FROM}`)).status).toBe(422);
-      expect((await ctx.as('pay-console').get('/exports/accounting?period_from=ayer&period_to=hoy')).status).toBe(422);
+      expect((await ctx.as('pay-backoffice').get(`/exports/accounting?period_from=${FROM}&period_to=${FROM}`)).status).toBe(422);
+      expect((await ctx.as('pay-backoffice').get('/exports/accounting?period_from=ayer&period_to=hoy')).status).toBe(422);
       expect((await exportOf('&merchant_id=mc_x')).status).toBe(422);
       expect((await exportOf('&format=xml')).status).toBe(422);
     });
@@ -118,13 +118,13 @@ describe('exportación de asientos para M16 (P2.H2.M7, REQ-P2-8, D-21)', () => {
       await registerMerchant(ctx, m);
       ctx.ledger.seedCharge({ merchant: m, net: 800, fee: 0, at: new Date('2026-10-01T10:00:00Z'), ref: ref() });
       ctx.ledger.rejectNextTransaction();
-      await ctx.as('pay-console').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', key());
+      await ctx.as('pay-backoffice').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', key());
       expect((await ctx.db.pool.query('SELECT status FROM settlement_batches')).rows[0].status).toBe('failed');
       const res = await exportOf();
       expect(res.status).toBe(409);
       expect(res.body.detail).toMatch(/cortes/);
       // al reintentar el corte y completarlo, se puede exportar
-      await ctx.as('pay-console').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', key());
+      await ctx.as('pay-backoffice').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', key());
       expect((await exportOf()).status).toBe(200);
     });
 

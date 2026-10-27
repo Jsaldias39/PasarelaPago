@@ -28,9 +28,9 @@ async function exercise(mode: Mode) {
   await registerMerchant(ctx, m);
   const r = ref();
   ctx.ledger.seedCharge({ merchant: m, net: 5_000, fee: 0, at: new Date('2026-10-05T15:00:00Z'), ref: r, mode });
-  await ctx.as('pay-console', mode).post('/batches', BATCH_BODY('2026-10-19')).set('idempotency-key', key());
+  await ctx.as('pay-backoffice', mode).post('/batches', BATCH_BODY('2026-10-19')).set('idempotency-key', key());
   ctx.connectors.statements.set('mock', { format: 'json', lines: [{ provider_reference: 'B9', our_reference: ref(), direction: 'credit', amount_minor: 321, value_date: '2026-10-21', booked_at: '2026-10-21T14:30:00.000Z' }] });
-  await ctx.as('pay-console', mode).post('/reconciliation_runs', { connector: 'mock', period_from: '2026-10-19T04:00:00.000Z', period_to: '2026-10-26T04:00:00.000Z' }).set('idempotency-key', key());
+  await ctx.as('pay-backoffice', mode).post('/reconciliation_runs', { connector: 'mock', period_from: '2026-10-19T04:00:00.000Z', period_to: '2026-10-26T04:00:00.000Z' }).set('idempotency-key', key());
   await ctx.reconciliation.idle();
 }
 
@@ -61,7 +61,7 @@ describe('mode en los eventos de settlement', () => {
   });
 
   it('EVENTS_CARRY_MODE: apagado por defecto, true|false, otro valor falla al arrancar', () => {
-    const env = { LEDGER_URL: 'http://l', CONNECTORS_URL: 'http://c', OPERATOR_TOKEN_PUBLIC_KEY: 'k', OPERATOR_TOKEN_ISSUER: 'i', OPERATOR_TOKEN_AUDIENCE: 'a' };
+    const env = { PAY_MODE: 'sandbox', LEDGER_URL: 'http://l', CONNECTORS_URL: 'http://c', OPERATOR_TOKEN_PUBLIC_KEY: 'k', OPERATOR_TOKEN_ISSUER: 'i', OPERATOR_TOKEN_AUDIENCE: 'a' };
     expect(loadSettlementConfig(env).eventsCarryMode).toBe(false);
     expect(loadSettlementConfig({ ...env, EVENTS_CARRY_MODE: 'true' }).eventsCarryMode).toBe(true);
     expect(() => loadSettlementConfig({ ...env, EVENTS_CARRY_MODE: '1' })).toThrow(/EVENTS_CARRY_MODE/);

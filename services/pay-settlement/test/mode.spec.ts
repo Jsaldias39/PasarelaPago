@@ -25,7 +25,7 @@ afterEach(async () => ctx.close());
 
 const body = (m: string, amount: number, extra: object = {}) => ({ merchant_id: m, amount_minor: amount, currency: 'BOB', rail: 'bank_transfer', reason: 'manual', ...extra });
 const pay = (mode: string | null, payload: object, idem = key(), caller = 'pay-schedules') => ctx.as(caller, mode).post('/payouts', payload).set('idempotency-key', idem);
-const batch = (mode: string | null, cutoff = CUT, idem = key()) => ctx.as('pay-console', mode).post('/batches', BATCH_BODY(cutoff)).set('idempotency-key', idem);
+const batch = (mode: string | null, cutoff = CUT, idem = key()) => ctx.as('pay-backoffice', mode).post('/batches', BATCH_BODY(cutoff)).set('idempotency-key', idem);
 /** `amount` disponibles al comercio en ESE modo (cobro ya liberado). */
 const fund = (mode: Mode, m: string, amount: number) => ctx.ledger.seedMovement({ debit: 'connector:mock:clearing', credit: `merchant:${m}:available`, amount, at: new Date('2026-10-01T10:00:00Z'), ref: ref(), code: 'release', mode });
 const count = async (sql: string, params: unknown[] = []) => Number((await ctx.db.pool.query(sql, params)).rows[0].n);
@@ -97,9 +97,9 @@ describe('límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otr
     const m = merchantId();
     fund(mode, m, 5_000);
     const created = await pay(mode, body(m, 1_000));
-    expect(checked(ctx, 'GET', '/payouts', await ctx.as('pay-console', mode).get('/payouts')).body.data.map((p: { id: string }) => p.id)).toContain(created.body.id);
-    expect(checked(ctx, 'GET', '/payouts', await ctx.as('pay-console', other(mode)).get('/payouts')).body.data).toEqual([]);
-    expect((await ctx.as('pay-console', other(mode)).get(`/payouts/${created.body.id}`)).status).toBe(404);
+    expect(checked(ctx, 'GET', '/payouts', await ctx.as('pay-backoffice', mode).get('/payouts')).body.data.map((p: { id: string }) => p.id)).toContain(created.body.id);
+    expect(checked(ctx, 'GET', '/payouts', await ctx.as('pay-backoffice', other(mode)).get('/payouts')).body.data).toEqual([]);
+    expect((await ctx.as('pay-backoffice', other(mode)).get(`/payouts/${created.body.id}`)).status).toBe(404);
     // la vista pública (pay-edge) también filtra por el modo de la clave
     expect((await ctx.as('pay-edge', other(mode)).get('/payouts').set('x-merchant-id', m)).body.data).toEqual([]);
     expect((await ctx.as('pay-edge', mode).get('/payouts').set('x-merchant-id', m)).body.data).toHaveLength(1);
@@ -138,7 +138,7 @@ describe('límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otr
     expect(ctx.connectors.executedCount).toBe(2);
     // listados y marcas por modo
     for (const [mode, batchId] of [['test', t.body.id], ['live', l.body.id]] as const) {
-      expect(checked(ctx, 'GET', '/batches', await ctx.as('pay-console', mode).get('/batches')).body.data.map((b: { id: string }) => b.id)).toEqual([batchId]);
+      expect(checked(ctx, 'GET', '/batches', await ctx.as('pay-backoffice', mode).get('/batches')).body.data.map((b: { id: string }) => b.id)).toEqual([batchId]);
     }
     expect(await count("SELECT count(*) AS n FROM settlement_merchant_marks WHERE merchant_id = $1", [m])).toBe(2);
     expect(ctx.ledger.balanceOf(`merchant:${m}:pending`, 'test')).toBe(0);
@@ -174,7 +174,7 @@ describe('límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otr
     ctx.ledger.seedCharge({ merchant: m, net: 9_700, fee: 300, at: BEFORE_CUT, ref: ref(), mode: 'test' });
     ctx.ledger.seedCharge({ merchant: m, net: 970, fee: 30, at: BEFORE_CUT, ref: ref(), mode: 'live' });
     const to = new Date(Date.now() - 5).toISOString();
-    const exportOf = async (mode: Mode) => ctx.as('pay-console', mode).get(`/exports/accounting?period_from=2026-10-01T00:00:00.000Z&period_to=${to}`);
+    const exportOf = async (mode: Mode) => ctx.as('pay-backoffice', mode).get(`/exports/accounting?period_from=2026-10-01T00:00:00.000Z&period_to=${to}`);
     const [t, l] = [checked(ctx, 'GET', '/exports/accounting', await exportOf('test')), checked(ctx, 'GET', '/exports/accounting', await exportOf('live'))];
     expect(t.body.totals).toMatchObject({ fee_minor: 300, net_minor: 9_700 });
     expect(l.body.totals).toMatchObject({ fee_minor: 30, net_minor: 970 });
@@ -184,7 +184,7 @@ describe('límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otr
   describe('conciliación', () => {
     const line = (r: string, amount: number) => ({ provider_reference: `B-${r.slice(0, 12)}`, our_reference: r, direction: 'credit' as const, amount_minor: amount, value_date: '2026-10-21', booked_at: '2026-10-21T14:30:00.000Z' });
     const run = async (mode: Mode) => {
-      const started = await ctx.as('pay-console', mode).post('/reconciliation_runs', { connector: 'mock', period_from: '2026-10-19T04:00:00.000Z', period_to: '2026-10-26T04:00:00.000Z' }).set('idempotency-key', key());
+      const started = await ctx.as('pay-backoffice', mode).post('/reconciliation_runs', { connector: 'mock', period_from: '2026-10-19T04:00:00.000Z', period_to: '2026-10-26T04:00:00.000Z' }).set('idempotency-key', key());
       await ctx.reconciliation.idle();
       return started;
     };
@@ -199,7 +199,7 @@ describe('límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otr
       expect(t.body.id).not.toBe(l.body.id);
       expect(ctx.ledger.calls.filter((c) => c.op === 'listStatement').map((c) => c.mode).sort()).toEqual(['live', 'test']);
       for (const mode of MODES) {
-        const ex = checked(ctx, 'GET', '/reconciliation_exceptions', await ctx.as('pay-console', mode).get('/reconciliation_exceptions?status=open'));
+        const ex = checked(ctx, 'GET', '/reconciliation_exceptions', await ctx.as('pay-backoffice', mode).get('/reconciliation_exceptions?status=open'));
         expect(ex.body.data).toHaveLength(1);
         expect(ex.body.data[0]).toMatchObject({ kind: 'amount_mismatch' });
       }
@@ -212,13 +212,13 @@ describe('límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otr
       ctx.ledger.seedCharge({ merchant: m, net: 1_000, fee: 0, at: new Date('2026-10-21T14:30:00Z'), ref: r, mode: 'test' });
       ctx.connectors.statements.set('mock', { format: 'json', lines: [line(r, 900)] });
       const started = await run('test');
-      expect((await ctx.as('pay-console', 'live').get(`/reconciliation_runs/${started.body.id}`)).status).toBe(404);
-      const id = (await ctx.as('pay-console', 'test').get('/reconciliation_exceptions?status=open')).body.data[0].id as string;
+      expect((await ctx.as('pay-backoffice', 'live').get(`/reconciliation_runs/${started.body.id}`)).status).toBe(404);
+      const id = (await ctx.as('pay-backoffice', 'test').get('/reconciliation_exceptions?status=open')).body.data[0].id as string;
       const auth = `Bearer ${operatorToken(['settlement_admin'])}`;
-      const cross = await ctx.as('pay-console', 'live').post(`/reconciliation_exceptions/${id}/resolve`, { resolution: 'dismiss', note: 'cruzado' }).set('idempotency-key', key()).set('authorization', auth);
+      const cross = await ctx.as('pay-backoffice', 'live').post(`/reconciliation_exceptions/${id}/resolve`, { resolution: 'dismiss', note: 'cruzado' }).set('idempotency-key', key()).set('authorization', auth);
       expect(cross.status).toBe(404);
-      expect((await ctx.as('pay-console', 'test').get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
-      expect((await ctx.as('pay-console', 'live').get('/reconciliation_exceptions?status=open')).body.data).toEqual([]);
+      expect((await ctx.as('pay-backoffice', 'test').get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
+      expect((await ctx.as('pay-backoffice', 'live').get('/reconciliation_exceptions?status=open')).body.data).toEqual([]);
       expect(await count('SELECT count(*) AS n FROM settlement_audit')).toBe(0);
     });
 
@@ -230,11 +230,11 @@ describe('límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otr
       expect(payout.body.status).toBe('in_transit');
       ctx.connectors.statements.set('mock', { format: 'json', lines: [{ ...line(`${payout.body.id}:payout`, 2_000), direction: 'debit' as const }] });
       await run('test'); // el extracto es el del conector mock, pero la corrida es de test: ese pago es de live
-      expect((await ctx.as('pay-console', 'live').get(`/payouts/${payout.body.id}`)).body.status).toBe('in_transit');
+      expect((await ctx.as('pay-backoffice', 'live').get(`/payouts/${payout.body.id}`)).body.status).toBe('in_transit');
       expect(ctx.ledger.balanceOf('payout:clearing', 'live')).toBe(0);
       // control positivo: la misma corrida en el modo del pago sí lo confirma
       await run('live');
-      expect((await ctx.as('pay-console', 'live').get(`/payouts/${payout.body.id}`)).body.status).toBe('paid');
+      expect((await ctx.as('pay-backoffice', 'live').get(`/payouts/${payout.body.id}`)).body.status).toBe('paid');
       expect(ctx.ledger.balanceOf('payout:clearing', 'live')).toBe(2_000);
     });
   });
@@ -258,7 +258,7 @@ describe('inválido: sin un modo válido NO se atiende, NO se escribe nada y NO 
       ['POST', '/payouts', await pay(mode, body(m, 100))],
       ['POST', '/batches', await batch(mode)],
       ['POST', '/charges', await ctx.as('pay-schedules', mode).post('/charges', { merchant_id: m, kind: 'monthly_fee', reference: '2026-10', amount_minor: 100, currency: 'BOB' }).set('idempotency-key', key())],
-      ['POST', '/reconciliation_runs', await ctx.as('pay-console', mode).post('/reconciliation_runs', { connector: 'mock', period_from: '2026-10-19T04:00:00.000Z', period_to: '2026-10-26T04:00:00.000Z' }).set('idempotency-key', key())],
+      ['POST', '/reconciliation_runs', await ctx.as('pay-backoffice', mode).post('/reconciliation_runs', { connector: 'mock', period_from: '2026-10-19T04:00:00.000Z', period_to: '2026-10-26T04:00:00.000Z' }).set('idempotency-key', key())],
     ] as const;
     for (const [method, template, res] of calls) {
       checked(ctx, method, template, res);
@@ -272,23 +272,54 @@ describe('inválido: sin un modo válido NO se atiende, NO se escribe nada y NO 
 
   it.each(BAD)('las lecturas y la resolución %s ⇒ 403 en cada ruta', async (_name, mode) => {
     const reads = [
-      ['GET', '/payouts', await ctx.as('pay-console', mode).get('/payouts')],
+      ['GET', '/payouts', await ctx.as('pay-backoffice', mode).get('/payouts')],
       ['GET', '/payouts', await ctx.as('pay-edge', mode).get('/payouts').set('x-merchant-id', m)],
-      ['GET', '/payouts/{id}', await ctx.as('pay-console', mode).get('/payouts/po_abcdefghijklmn')],
-      ['GET', '/batches', await ctx.as('pay-console', mode).get('/batches')],
-      ['GET', '/reconciliation_runs/{id}', await ctx.as('pay-console', mode).get('/reconciliation_runs/rr_abcdefghijklmn')],
-      ['GET', '/reconciliation_exceptions', await ctx.as('pay-console', mode).get('/reconciliation_exceptions')],
-      ['GET', '/exports/accounting', await ctx.as('pay-console', mode).get(`/exports/accounting?period_from=2026-10-01T00:00:00.000Z&period_to=${new Date(Date.now() - 5).toISOString()}`)],
-      ['POST', '/reconciliation_exceptions/{id}/resolve', await ctx.as('pay-console', mode).post('/reconciliation_exceptions/rx_abcdefghijklmn/resolve', { resolution: 'dismiss', note: 'x' }).set('idempotency-key', key()).set('authorization', auth())],
+      ['GET', '/payouts/{id}', await ctx.as('pay-backoffice', mode).get('/payouts/po_abcdefghijklmn')],
+      ['GET', '/batches', await ctx.as('pay-backoffice', mode).get('/batches')],
+      ['GET', '/reconciliation_runs/{id}', await ctx.as('pay-backoffice', mode).get('/reconciliation_runs/rr_abcdefghijklmn')],
+      ['GET', '/reconciliation_exceptions', await ctx.as('pay-backoffice', mode).get('/reconciliation_exceptions')],
+      ['GET', '/exports/accounting', await ctx.as('pay-backoffice', mode).get(`/exports/accounting?period_from=2026-10-01T00:00:00.000Z&period_to=${new Date(Date.now() - 5).toISOString()}`)],
+      ['POST', '/reconciliation_exceptions/{id}/resolve', await ctx.as('pay-backoffice', mode).post('/reconciliation_exceptions/rx_abcdefghijklmn/resolve', { resolution: 'dismiss', note: 'x' }).set('idempotency-key', key()).set('authorization', auth())],
     ] as const;
     for (const [method, template, res] of reads) expect([method, template, res.status, res.body.code]).toEqual([method, template, 403, 'forbidden']);
+  });
+
+  it.each([
+    ['sandbox', 'live'],
+    ['live', 'test'],
+  ] as const)('una clave %2$s contra un despliegue %1$s ⇒ 403 en TODAS las rutas, sin escribir nada ni llamar al ledger o al conector (test solo opera contra sandbox; live, contra live)', async (deployment, keyMode) => {
+    fund('test', m, 9_000);
+    fund('live', m, 9_000);
+    const as = (service: string) => ctx.as(service, keyMode, deployment);
+    const window = `period_from=2026-10-01T00:00:00.000Z&period_to=${new Date(Date.now() - 5).toISOString()}`;
+    const calls = [
+      ['POST /payouts', as('pay-schedules').post('/payouts', body(m, 100)).set('idempotency-key', key())],
+      ['GET /payouts', as('pay-backoffice').get('/payouts')],
+      ['GET /payouts (pay-edge)', as('pay-edge').get('/payouts').set('x-merchant-id', m)],
+      ['GET /payouts/{id}', as('pay-backoffice').get('/payouts/po_abcdefghijklmn')],
+      ['POST /batches', as('pay-backoffice').post('/batches', BATCH_BODY(CUT)).set('idempotency-key', key())],
+      ['GET /batches', as('pay-backoffice').get('/batches')],
+      ['POST /reconciliation_runs', as('pay-backoffice').post('/reconciliation_runs', { connector: 'mock', period_from: '2026-10-19T04:00:00.000Z', period_to: '2026-10-26T04:00:00.000Z' }).set('idempotency-key', key())],
+      ['GET /reconciliation_runs/{id}', as('pay-backoffice').get('/reconciliation_runs/rr_abcdefghijklmn')],
+      ['GET /reconciliation_exceptions', as('pay-backoffice').get('/reconciliation_exceptions')],
+      ['POST /reconciliation_exceptions/{id}/resolve', as('pay-backoffice').post('/reconciliation_exceptions/rx_abcdefghijklmn/resolve', { resolution: 'dismiss', note: 'x' }).set('idempotency-key', key()).set('authorization', auth())],
+      ['POST /charges', as('pay-schedules').post('/charges', { merchant_id: m, kind: 'monthly_fee', reference: '2026-10', amount_minor: 100, currency: 'BOB' }).set('idempotency-key', key())],
+      ['GET /exports/accounting', as('pay-backoffice').get(`/exports/accounting?${window}`)],
+    ] as const;
+    for (const [name, call] of calls) {
+      const res = await call;
+      expect([name, res.status, res.body.code]).toEqual([name, 403, 'forbidden']);
+    }
+    for (const table of ['settlement_payouts', 'settlement_batches', 'settlement_charges', 'settlement_reconciliation_runs']) expect(await count(`SELECT count(*) AS n FROM ${table}`)).toBe(0);
+    expect(ctx.ledger.calls).toEqual([]);
+    expect(ctx.connectors.orders).toEqual([]);
   });
 
   it('el modo solo sale de la cabecera: un `mode` en el cuerpo o en la consulta se rechaza como campo desconocido y no cambia de modo', async () => {
     fund('test', m, 9_000);
     const viaBody = await pay('test', body(m, 100, { mode: 'live' }));
     expect([viaBody.status, viaBody.body.code]).toEqual([422, 'validation_failed']);
-    const viaQuery = await ctx.as('pay-console', 'test').get('/payouts?mode=live');
+    const viaQuery = await ctx.as('pay-backoffice', 'test').get('/payouts?mode=live');
     expect(viaQuery.status).toBe(422);
     expect(await count('SELECT count(*) AS n FROM settlement_payouts')).toBe(0);
   });

@@ -31,8 +31,8 @@ export function createDeps(pool: PoolLike, config: ServiceConfig, overrides: { w
       risk: new RiskClient(http('pay-risk', config.upstream.risk)),
       connectors: new ConnectorsClient(http('pay-connectors', config.upstream.connectors)),
       ledger: new LedgerClient(http('pay-ledger', config.upstream.ledger)),
-      // La bóveda se alcanza por su propia URL (VAULT_URL); sin ella no se verifica la tarjeta y el medio queda sin validar.
-      vault: new VaultClient(http('pay-vault', { baseUrl: process.env.VAULT_URL ?? 'http://127.0.0.1:1', timeoutMs: 2000 })),
+      // La bóveda se alcanza por `VAULT_URL`; ningún flujo la llama hoy (la tarjeta viaja como token), así que sin ella apunta a un puerto cerrado.
+      vault: new VaultClient(http('pay-vault', { baseUrl: config.vaultUrl ?? 'http://127.0.0.1:1', timeoutMs: 2000 })),
     },
     wallet: overrides.wallet ?? new DisabledWalletAuthorizer(),
     now: overrides.now ?? (() => new Date()),

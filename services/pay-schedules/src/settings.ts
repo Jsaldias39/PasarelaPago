@@ -1,3 +1,5 @@
+import { payModeOf, type PayMode } from './config';
+
 /**
  * Parámetros propios de pay-schedules (aparte de `ServiceConfig`, que es el de la plantilla).
  *
@@ -6,6 +8,8 @@
  * con supuesto registrado en docs/trabajo/ola-1/P5/DECISIONES-TOMADAS.md.
  */
 export interface ScheduleSettings {
+  /** Despliegue (D-26). */
+  readonly payMode: PayMode;
   /** URL base de pay-ledger (red interna). */
   readonly ledgerUrl: string;
   readonly ledgerTimeoutMs: number;
@@ -45,6 +49,10 @@ function intIn(env: NodeJS.ProcessEnv, name: string, fallback: number, min: numb
 }
 
 export function loadScheduleSettings(env: NodeJS.ProcessEnv = process.env): ScheduleSettings {
+  const payMode = payModeOf(env);
+  // Bajo `live` no se arranca con interruptores de prueba (el ejecutor apagado dejaría los pagos sin correr, en silencio).
+  // pay-schedules no embebe ningún doble: el libro mayor es `pay-ledger` por HTTP.
+  if (payMode === 'live' && env.DISABLE_BACKGROUND_JOBS === '1') throw new Error('PAY_MODE=live no arranca con DISABLE_BACKGROUND_JOBS=1: es un interruptor de pruebas (apagaría el ejecutor)');
   const ledgerUrl = required(env, 'LEDGER_URL').replace(/\/+$/, '');
   if (!/^https?:\/\/[^\s/]+/.test(ledgerUrl)) throw new Error('LEDGER_URL debe ser una URL http(s)');
   const rawDelays = required(env, 'RETRY_DELAYS_SECONDS');
@@ -58,6 +66,7 @@ export function loadScheduleSettings(env: NodeJS.ProcessEnv = process.env): Sche
   const cap = env.MANDATE_MAX_AMOUNT_MINOR;
   if (cap !== undefined && cap !== '' && (!/^[1-9]\d{0,15}$/.test(cap) || !Number.isSafeInteger(Number(cap)))) throw new Error(`MANDATE_MAX_AMOUNT_MINOR debe ser un entero positivo seguro: ${cap}`);
   return {
+    payMode,
     ledgerUrl,
     ledgerTimeoutMs: intIn(env, 'LEDGER_TIMEOUT_MS', 3000, 1, 30000),
     retryDelaysSeconds,

@@ -38,6 +38,8 @@ export interface LedgerStatementEntry {
  * @throws LedgerRejectedError cuando el ledger rechaza por una razón de negocio; LedgerUnavailableError cuando no se sabe qué pasó.
  */
 export interface LedgerPort {
+  /** `true` solo en el cliente HTTP real. Un doble no lo declara y `PAY_MODE=live` se niega a arrancar con él (`deployment.ts`). */
+  readonly isReal?: boolean;
   createTransaction(mode: PayMode, input: { businessRef: string; attempt: number; legs: readonly LedgerLeg[] }, idempotencyKey: string): Promise<void>;
   createHold(
     mode: PayMode,
@@ -112,6 +114,8 @@ export interface StatementDocument {
 
 /** Lo que pay-settlement necesita de pay-connectors (`internal-connectors-v1.yaml`: extractos y transferencias salientes). */
 export interface ConnectorsPort {
+  /** `true` solo en el cliente HTTP real (ver `LedgerPort.isReal`). */
+  readonly isReal?: boolean;
   getStatement(input: { connector: string; from: string; to: string; format: StatementFormat }): Promise<StatementDocument>;
   /** `POST /transfers`: ordena una transferencia saliente (idempotente por `business_ref` + `attempt`). */
   createTransfer(order: PayoutOrder, idempotencyKey: string): Promise<RailOutcome>;

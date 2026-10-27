@@ -18,6 +18,13 @@ export interface RiskRequest {
   readonly method: 'qr' | 'card' | 'bank_transfer' | 'wallet';
   /** Huella opaca del pagador; nunca datos personales. */
   readonly payerFingerprint?: string;
+  /**
+   * Nombre a cribar contra listas de sanciones (D-29). Dato personal: viaja solo en el cuerpo de esta llamada, nunca en logs, errores ni eventos.
+   * `business` para la razón social del comercio, `person` para el pagador. Dos nombres = dos evaluaciones (el contrato admite un `screening` por evaluación).
+   */
+  readonly screening?: { readonly name: string; readonly entityType: 'person' | 'business' };
+  /** Distingue la clave de idempotencia de la evaluación del pagador (`${intentId}:risk:payer`) de la del comercio (`${intentId}:risk`). */
+  readonly keySuffix?: 'payer';
 }
 
 /** Cliente de `internal/risk/v1` (contracts/openapi/internal-risk-v1.yaml). */
@@ -33,7 +40,7 @@ export class RiskClient {
     const response = await this.http.request<RiskAssessment>({
       method: 'POST',
       path: '/assessments',
-      idempotencyKey: `${request.paymentIntentId}:risk`,
+      idempotencyKey: `${request.paymentIntentId}:risk${request.keySuffix ? `:${request.keySuffix}` : ''}`,
       body: {
         merchant_id: request.merchantId,
         payment_intent_id: request.paymentIntentId,
@@ -41,6 +48,7 @@ export class RiskClient {
         currency: request.currency,
         method: request.method,
         ...(request.payerFingerprint ? { payer_fingerprint: request.payerFingerprint } : {}),
+        ...(request.screening ? { screening: { name: request.screening.name, entity_type: request.screening.entityType } } : {}),
       },
     });
     if (response.status === 200 || response.status === 201) return response.body;

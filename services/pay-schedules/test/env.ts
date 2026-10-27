@@ -14,3 +14,4 @@ process.env.LEDGER_URL ??= 'http://127.0.0.1:1';
 // POLÍTICA DE PRUEBA, no de negocio: la de producción la fija el negocio y no tiene valor por defecto.
 process.env.RETRY_DELAYS_SECONDS ??= '3600,7200,14400';
 process.env.DISABLE_BACKGROUND_JOBS ??= '1';
+process.env.PAY_MODE ??= 'sandbox';

@@ -32,6 +32,12 @@ export interface StartOptions {
   readonly env?: Record<string, string>;
   /** Cambia la base de las URLs de los destinos (por ejemplo, un puerto cerrado). */
   readonly upstreamUrls?: Partial<Record<UpstreamName, string>>;
+  /**
+   * Pone el borde en `live` DESPUÉS de cargar la configuración. `loadConfig` se niega a arrancar `live` con destinos en loopback
+   * (D-26), y los dobles de estas pruebas son de loopback: acá lo que se prueba es la tubería en modo live, no la guardia
+   * (la guardia tiene su propia prueba en config.spec.ts).
+   */
+  readonly liveAfterLoad?: boolean;
 }
 
 /** Levanta el borde COMPLETO con Postgres y Redis reales, un esquema propio, un prefijo de Redis propio y dobles de los destinos. */
@@ -44,7 +50,7 @@ export async function startEdge(options: StartOptions = {}): Promise<EdgeHarness
     doubles[name] = new UpstreamDouble(contract);
     urls[`UPSTREAM_${name.toUpperCase().replace(/-/g, '_')}_URL`] = options.upstreamUrls?.[name] ?? (await doubles[name].start());
   }
-  const config = loadConfig({
+  const loaded = loadConfig({
     ...process.env,
     ...urls,
     DB_SCHEMA: db.schema,
@@ -52,6 +58,7 @@ export async function startEdge(options: StartOptions = {}): Promise<EdgeHarness
     LOG_LEVEL: 'silent',
     ...options.env,
   });
+  const config: ServiceConfig = options.liveAfterLoad ? { ...loaded, payMode: 'live' } : loaded;
   const moduleRef = await Test.createTestingModule({ imports: [AppModule.forRoot(config)] }).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false });
   configureApp(app, config);

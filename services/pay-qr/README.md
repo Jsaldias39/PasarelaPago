@@ -27,7 +27,7 @@ SQL de referencia, a mover a `mantra-core-health-model` (D-18): [`sql/001_qr_cod
 
 ## Configuración
 
-`QR_ACCOUNT_GUID` es obligatorio (lo asigna el banco o el regulador; el de las pruebas es provisional). El resto: ver `.env.example`.
+`QR_ACCOUNT_GUID` es obligatorio (lo asigna el banco o el regulador; el de las pruebas es provisional y el del arnés e2e es `e2e.sandbox.guid`). **Bajo `PAY_MODE=live` un GUID provisional, sandbox, e2e o simulado no arranca** (un QR de pruebas no puede salir como real); `PAY_MODE` ausente o mal escrito tampoco. Probado con el binario real en `test/startup.spec.ts`. El resto: ver `.env.example`.
 
 ## Pruebas
 

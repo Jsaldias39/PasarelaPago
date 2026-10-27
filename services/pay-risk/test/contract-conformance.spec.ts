@@ -32,18 +32,30 @@ describe('conformidad con internal-risk-v1.yaml', () => {
     expect(mounted).toEqual(declared);
   });
 
-  it('un pedido con TODOS los campos del esquema `AssessmentCreate` (incluido screening.entity_type) cumple el contrato y se acepta', async () => {
+  it('un pedido con TODOS los campos del esquema `AssessmentCreate` vigente (screening.name + entity_type del pagador) cumple el contrato y se acepta; sin el nombre del comercio (D-29) queda en review', async () => {
     const doc = await contractDoc();
     const top = Object.keys(doc.components.schemas.AssessmentCreate.properties ?? {}).sort();
     const screening = Object.keys((doc.components.schemas.AssessmentCreate.properties?.screening as Schema).properties ?? {}).sort();
-    const body = assessmentBody({ payer_fingerprint: 'huella-conformidad', screening: { name: 'Nombre Sintético Conformidad', entity_type: 'business' } });
+    const body: Record<string, unknown> = { ...assessmentBody({ payer_fingerprint: 'huella-conformidad', screening: null }), screening: { name: 'Nombre Sintético Conformidad', entity_type: 'business' } };
     expect(Object.keys(body).sort()).toEqual(top);
     expect(Object.keys(body.screening as object).sort()).toEqual(screening);
     expect(ctx.contract.validateRequest({ method: 'post', path: '/assessments', body })).toEqual([]);
     const created = verified(ctx.contract, 'post', '/assessments', await post(ctx, body), 201);
-    expect(created).toMatchObject({ object: 'risk_assessment', payment_intent_id: body.payment_intent_id });
+    expect(created).toMatchObject({ object: 'risk_assessment', payment_intent_id: body.payment_intent_id, decision: 'review', reason_code: 'screening_not_provided', screened: false });
     // La respuesta trae todos los campos que el esquema `Assessment` declara.
     expect(Object.keys(created).sort()).toEqual(Object.keys(doc.components.schemas.Assessment.properties ?? {}).sort());
+  });
+
+  it('D-29: lo ÚNICO que el servicio acepta de más que el contrato vigente es el nombre legal del comercio (merchant_name, merchant_entity_type; PR-17)', async () => {
+    const doc = await contractDoc();
+    const contractFields = Object.keys((doc.components.schemas.AssessmentCreate.properties?.screening as Schema).properties ?? {});
+    const body = assessmentBody({ screening: { merchant_entity_type: 'business' } });
+    const accepted = Object.keys(body.screening as object).filter((k) => !contractFields.includes(k)).sort();
+    expect(accepted).toEqual(['merchant_entity_type', 'merchant_name']);
+    const res = await post(ctx, body);
+    expect(res.status).toBe(201);
+    // Un campo que no es ni del contrato ni de la extensión sigue rechazado.
+    expect((await post(ctx, assessmentBody({ screening: { dob: '1980-01-01' } as never }))).status).toBe(422);
   });
 
   it('un pedido con TODOS los campos de `RuleSetCreate` cumple el contrato, se acepta y la respuesta trae todos los de `RuleSet`', async () => {

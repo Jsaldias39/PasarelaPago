@@ -21,7 +21,13 @@ Comercios de la pasarela de pagos ALOVIDA (carril P5, `P5.H1`): alta, KYC, contr
 | Pieza | Por defecto | Falta |
 |---|---|---|
 | `OBJECT_STORE` | `FsObjectStore` **[DEV]** (filesystem local) | S3/MinIO con acceso autorizado y cifrado (DECISIONES-TOMADAS D5-07) |
-| `OPERATOR_AUTHENTICATOR` | `DenyAllOperatorAuthenticator`: niega a todos (el back-office responde 401) | Servicio de identidad de operadores (Q-21, Q-23, PR-08) |
+| `OPERATOR_AUTHENTICATOR` | Con `OPERATOR_TOKEN_PUBLIC_KEY/ISSUER/AUDIENCE`: JWT RS256 atado al modo (`mode: sandbox\|live`). Sin ellas (solo sandbox): `DenyAllOperatorAuthenticator`, nadie es operador (401) | El servicio de identidad que emita las credenciales (Q-21, Q-23) |
+
+## Modo y credencial de operador
+
+- `PAY_MODE` (`sandbox` \| `live`) es **obligatorio y sin valor por defecto**. Bajo `live` el servicio no arranca con el almacén `fs` ni con `DISABLE_BACKGROUND_JOBS=1`, y exige la credencial de operador completa.
+- Para dar de alta al primer comercio en sandbox: `PAY_MODE=sandbox node scripts/sandbox-operator-token.mjs --roles … --issuer … --audience pay-merchants` imprime la clave pública para el servicio y una credencial sintética para el operador (nunca emite credenciales de `live`).
+- Cerrar un comercio **revoca sus claves de API** (D-32; motivo `merchant_closed`, ver PR-16); suspender solo las bloquea y es reversible.
 
 ## Entorno
 

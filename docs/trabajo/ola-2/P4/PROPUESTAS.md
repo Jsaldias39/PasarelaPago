@@ -1,4 +1,4 @@
-# Propuestas de P4 — ola 2, tanda 2b
+# Propuestas de P4 — ola 2, tandas 2b y 2c
 
 | # | Cambio propuesto | Por qué |
 |---|---|---|
@@ -6,3 +6,4 @@
 | 2 | `contracts/openapi/internal-qr-v1.yaml`: declarar el parámetro `PayMode` (`common.yaml`) en las 6 operaciones y el `403` | `pay-qr` ya lo exige en toda ruta (D-28); el contrato no lo dice. |
 | 3 | `contracts/openapi/internal-connectors-v1.yaml`: aclarar que `GET /statements` acepta `X-Pay-Mode` pero `pay-settlement` no lo manda | Hoy el contrato lo lista; la implementación lo trata como opcional (D-P4-30). Decidir si `pay-settlement` debe mandarlo y, entonces, exigirlo. |
 | 4 | Plantilla (`platform/templates/service`) y los 10 `test/health.spec.ts`: `expect(text).not.toContain('4111')` es **intermitente** (≈ 1–2 % por corrida): el `request_id` es un UUID aleatorio y puede contener `4111` (p. ej. `…a641118`). | Pasó en `pay-qr` durante esta tanda. Afirmar con el número completo (`4111111111111111`), como ya hicieron `pay-connectors` y `pay-qr`. **Los otros 8 servicios siguen con el defecto.** Es una de las causas posibles de «fallos intermitentes bajo carga». |
+| 5 | Arnés e2e (`e2e/lib/services.ts`, P1): fijar `POLLER_MIN_AGE_MS=1000` y `POLLER_INTERVAL_MS=500` para `pay-connectors` | Con los valores por defecto (30 s) un cobro con callback perdido (`…05`) tarda 30 s en resolverse por polling. El camino normal (callback por la bomba, 1 s) no lo necesita. |

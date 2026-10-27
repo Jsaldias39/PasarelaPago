@@ -38,6 +38,9 @@ export class ConnectorsDouble {
   /** `GET /refunds/{id}` y `GET /charges/{id}/status` responden `404` con el cuerpo exacto: «este servicio no tiene eso». */
   refundInquiryNotFound = false;
   chargeStatusNotFound = false;
+  /** Lo que informa `GET /connectors/health`: por defecto un simulador en sandbox (como el despliegue de desarrollo). */
+  health: { connector: 'mock' | 'mercantil_qr' | 'mercantil_card' | 'bank_transfer'; mode: 'sandbox' | 'live'; status: 'up' | 'degraded' | 'down' }[] = [{ connector: 'mock', mode: 'sandbox', status: 'up' }];
+  healthDown = false;
   /** Cuántos cargos DISTINTOS se crearon por intento (debe ser 1 aunque la llamada se repita). */
   readonly chargeCreations = new Map<string, number>();
   readonly server: DoubleServer;
@@ -100,6 +103,10 @@ export class ConnectorsDouble {
 
   private handle(req: DoubleRequest): DoubleResponse {
     const { method, path } = req;
+    if (method === 'GET' && path === '/connectors/health') {
+      if (this.healthDown) return problem('internal_error', 500);
+      return { status: 200, body: { data: this.health.map((h) => ({ ...h, latency_ms: 5, checked_at: new Date().toISOString() })) } };
+    }
     if (method === 'POST' && path === '/charges') {
       if (this.scenario === 'down') return problem('connector_unavailable', 502);
       if (this.scenario === 'charge_ambiguous') return problem('internal_error', 500);

@@ -1,3 +1,5 @@
+import { payModeOf, type PayMode } from './config';
+
 /**
  * Parámetros propios de pay-risk (aparte de `ServiceConfig`, que es el de la plantilla).
  *
@@ -6,6 +8,10 @@
  * registrado en docs/trabajo/ola-1/P5/DECISIONES-TOMADAS.md.
  */
 export interface RiskSettings {
+  /** Despliegue (D-26). */
+  readonly payMode: PayMode;
+  /** Listas que sirve Watchman: `static` (v2-static, congeladas de 2019, SOLO sandbox) o `current` (vigentes, declaradas por quien despliega). */
+  readonly watchmanLists: 'static' | 'current';
   /** URL base de moov Watchman (red interna: su API no autentica). */
   readonly watchmanUrl: string;
   /** Tiempo máximo de cada búsqueda en Watchman, para entrar en el presupuesto de 300 ms. */
@@ -34,6 +40,13 @@ function score(env: NodeJS.ProcessEnv, name: string): number {
 }
 
 export function loadRiskSettings(env: NodeJS.ProcessEnv = process.env): RiskSettings {
+  const payMode = payModeOf(env);
+  const lists = env.WATCHMAN_LISTS || (payMode === 'sandbox' ? 'static' : '');
+  if (lists !== 'static' && lists !== 'current') {
+    throw new Error(lists === '' ? 'PAY_MODE=live exige declarar WATCHMAN_LISTS=current (listas de sanciones vigentes)' : `WATCHMAN_LISTS inválido: ${lists} (static | current)`);
+  }
+  // Las listas congeladas de 2019 del Watchman de pruebas son un doble: bajo `live` no se arranca con ellas.
+  if (payMode === 'live' && lists === 'static') throw new Error('PAY_MODE=live no arranca con WATCHMAN_LISTS=static: son las listas congeladas de 2019 (doble de sandbox)');
   const watchmanUrl = required(env, 'WATCHMAN_URL').replace(/\/+$/, '');
   if (!/^https?:\/\/[^\s/]+/.test(watchmanUrl)) throw new Error('WATCHMAN_URL debe ser una URL http(s)');
   const timeout = Number(env.SCREENING_TIMEOUT_MS ?? 200);
@@ -43,5 +56,5 @@ export function loadRiskSettings(env: NodeJS.ProcessEnv = process.env): RiskSett
   if (sanctionsReviewScore > sanctionsDenyScore) throw new Error('SANCTIONS_REVIEW_SCORE no puede ser mayor que SANCTIONS_DENY_SCORE');
   const payerHashKey = required(env, 'PAYER_HASH_KEY');
   if (payerHashKey.length < 16) throw new Error('PAYER_HASH_KEY debe tener al menos 16 caracteres');
-  return { watchmanUrl, screeningTimeoutMs: timeout, sanctionsDenyScore, sanctionsReviewScore, payerHashKey };
+  return { payMode, watchmanLists: lists, watchmanUrl, screeningTimeoutMs: timeout, sanctionsDenyScore, sanctionsReviewScore, payerHashKey };
 }

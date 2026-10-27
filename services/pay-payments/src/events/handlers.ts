@@ -87,8 +87,10 @@ export class EventHandlers {
     const merchantId = str(data.merchant_id, 'merchant_id');
     const occurredAt = new Date(event.time);
     if (Number.isNaN(occurredAt.getTime())) throw new PoisonEventError('time inválido');
+    // `legal_name` NO está en el contrato vigente de los eventos (PROP-17): se acepta si algún día llega, y nunca se inventa.
+    const legalName = typeof data.legal_name === 'string' && data.legal_name.trim() !== '' ? data.legal_name.trim().slice(0, 300) : undefined;
     return processOnce(this.deps.pool, INBOX.merchant, event.id, async (client) => {
-      await replicasRepo.upsertMerchantStatus(client, merchantId, status, occurredAt);
+      await replicasRepo.upsertMerchantStatus(client, merchantId, status, occurredAt, legalName);
     });
   }
 

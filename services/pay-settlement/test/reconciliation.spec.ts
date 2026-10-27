@@ -25,14 +25,14 @@ const charge = (merchant: string, net: number, fee: number, at = AT) => {
   ctx.ledger.seedCharge({ merchant, net, fee, at, ref: r });
   return r;
 };
-const start = (body: object = { connector: 'mock', period_from: FROM, period_to: TO }, idem = key(), caller = 'pay-console') => ctx.as(caller).post('/reconciliation_runs', body).set('idempotency-key', idem);
+const start = (body: object = { connector: 'mock', period_from: FROM, period_to: TO }, idem = key(), caller = 'pay-backoffice') => ctx.as(caller).post('/reconciliation_runs', body).set('idempotency-key', idem);
 async function reconcileNow(body?: object) {
   const res = checked(ctx, 'POST', '/reconciliation_runs', await start(body));
   expect(res.status).toBe(202);
   await ctx.reconciliation.idle();
-  return checked(ctx, 'GET', `/reconciliation_runs/${res.body.id}`, await ctx.as('pay-console').get(`/reconciliation_runs/${res.body.id}`)).body;
+  return checked(ctx, 'GET', `/reconciliation_runs/${res.body.id}`, await ctx.as('pay-backoffice').get(`/reconciliation_runs/${res.body.id}`)).body;
 }
-const exceptions = async (status?: string) => checked(ctx, 'GET', '/reconciliation_exceptions', await ctx.as('pay-console').get(`/reconciliation_exceptions${status ? `?status=${status}` : ''}`)).body.data;
+const exceptions = async (status?: string) => checked(ctx, 'GET', '/reconciliation_exceptions', await ctx.as('pay-backoffice').get(`/reconciliation_exceptions${status ? `?status=${status}` : ''}`)).body.data;
 /** El ledger no se tocó: ninguna operación de escritura, y las mismas líneas de antes. */
 const writes = () => ['createTransaction', 'createHold', 'postHold', 'voidHold'].reduce((n, op) => n + ctx.ledger.count(op), 0);
 
@@ -226,13 +226,13 @@ describe('conciliación (P2.H2.M6, REQ-P2-6)', () => {
     charge(m, 100, 0);
     statement();
     const created = await ctx.db.pool.query(
-      `INSERT INTO settlement_reconciliation_runs (id, mode, connector, period_from, period_to, source, status, requested_by, created_at) VALUES ('rr_abcdefghijklmnop', 'test', 'mock', $1, $2, 'api', 'running', 'pay-console', now() - interval '1 hour') RETURNING id`,
+      `INSERT INTO settlement_reconciliation_runs (id, mode, connector, period_from, period_to, source, status, requested_by, created_at) VALUES ('rr_abcdefghijklmnop', 'test', 'mock', $1, $2, 'api', 'running', 'pay-backoffice', now() - interval '1 hour') RETURNING id`,
       [FROM, TO],
     );
     expect(created.rows).toHaveLength(1);
     expect(await ctx.reconciliation.resumeRunning()).toBe(1);
     await ctx.reconciliation.idle();
-    expect((await ctx.as('pay-console').get('/reconciliation_runs/rr_abcdefghijklmnop')).body).toMatchObject({ status: 'completed', exception_count: 1 });
+    expect((await ctx.as('pay-backoffice').get('/reconciliation_runs/rr_abcdefghijklmnop')).body).toMatchObject({ status: 'completed', exception_count: 1 });
   });
 
   describe('forma del pedido y autorización', () => {
@@ -254,7 +254,7 @@ describe('conciliación (P2.H2.M6, REQ-P2-6)', () => {
     it('solo la consola de operación; sin clave de idempotencia, 400; la misma clave repite la respuesta', async () => {
       expect((await start(undefined, key(), 'pay-schedules')).status).toBe(403);
       expect((await start(undefined, key(), 'pay-edge')).status).toBe(403);
-      expect((await ctx.as('pay-console').post('/reconciliation_runs', { connector: 'mock', period_from: FROM, period_to: TO })).status).toBe(400);
+      expect((await ctx.as('pay-backoffice').post('/reconciliation_runs', { connector: 'mock', period_from: FROM, period_to: TO })).status).toBe(400);
       const idem = key();
       const first = await start(undefined, idem);
       const again = await start(undefined, idem);
@@ -264,8 +264,8 @@ describe('conciliación (P2.H2.M6, REQ-P2-6)', () => {
     });
 
     it('GET /reconciliation_runs/{id}: 404 si no existe o el id está mal formado; 403 para quien no es la consola', async () => {
-      expect(checked(ctx, 'GET', '/reconciliation_runs/rr_abcdefghijklmnop', await ctx.as('pay-console').get('/reconciliation_runs/rr_abcdefghijklmnop')).status).toBe(404);
-      expect((await ctx.as('pay-console').get('/reconciliation_runs/otra-cosa')).status).toBe(404);
+      expect(checked(ctx, 'GET', '/reconciliation_runs/rr_abcdefghijklmnop', await ctx.as('pay-backoffice').get('/reconciliation_runs/rr_abcdefghijklmnop')).status).toBe(404);
+      expect((await ctx.as('pay-backoffice').get('/reconciliation_runs/otra-cosa')).status).toBe(404);
       expect((await ctx.as('pay-schedules').get('/reconciliation_runs/rr_abcdefghijklmnop')).status).toBe(403);
     });
 
@@ -274,14 +274,14 @@ describe('conciliación (P2.H2.M6, REQ-P2-6)', () => {
       const refs = [charge(m, 100, 0), charge(m, 200, 0), charge(m, 300, 0)];
       statement(...refs.map((r, i) => line({ provider_reference: `B${i}`, our_reference: r, amount_minor: 1 })));
       await reconcileNow();
-      const page1 = checked(ctx, 'GET', '/reconciliation_exceptions', await ctx.as('pay-console').get('/reconciliation_exceptions?limit=2'));
+      const page1 = checked(ctx, 'GET', '/reconciliation_exceptions', await ctx.as('pay-backoffice').get('/reconciliation_exceptions?limit=2'));
       expect(page1.body.data).toHaveLength(2);
       expect(page1.body.has_more).toBe(true);
-      const page2 = checked(ctx, 'GET', '/reconciliation_exceptions', await ctx.as('pay-console').get(`/reconciliation_exceptions?limit=2&starting_after=${page1.body.next_cursor}`));
+      const page2 = checked(ctx, 'GET', '/reconciliation_exceptions', await ctx.as('pay-backoffice').get(`/reconciliation_exceptions?limit=2&starting_after=${page1.body.next_cursor}`));
       expect(page2.body.data).toHaveLength(1);
       expect(new Set([...page1.body.data, ...page2.body.data].map((e: { id: string }) => e.id)).size).toBe(3);
-      expect((await ctx.as('pay-console').get('/reconciliation_exceptions?status=resolved')).body.data).toEqual([]);
-      expect((await ctx.as('pay-console').get('/reconciliation_exceptions?status=raro')).status).toBe(422);
+      expect((await ctx.as('pay-backoffice').get('/reconciliation_exceptions?status=resolved')).body.data).toEqual([]);
+      expect((await ctx.as('pay-backoffice').get('/reconciliation_exceptions?status=raro')).status).toBe(422);
       expect((await ctx.as('pay-edge').get('/reconciliation_exceptions')).status).toBe(403);
     });
   });

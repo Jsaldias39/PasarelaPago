@@ -58,6 +58,7 @@ CREATE TABLE risk_assessments (
   screening_top_score  numeric(8,6),          -- el mayor puntaje que devolvió Watchman, si cribó
   screening_list       text,                  -- lista pública de la coincidencia (por ejemplo us_ofac)
   screening_source_id  text,                  -- id de la entrada de la lista pública; NO es dato del pagador
+  screening_party      text,                  -- de quién fue la mejor coincidencia: merchant | payer (D-29); no guarda ningún nombre
   duration_ms          integer     NOT NULL,
   created_at           timestamptz NOT NULL,
   CONSTRAINT risk_assessments_pkey PRIMARY KEY (id),
@@ -65,6 +66,7 @@ CREATE TABLE risk_assessments (
   CONSTRAINT risk_assessments_id_format CHECK (id ~ '^ra_[a-z0-9]{10,40}$'),
   CONSTRAINT risk_assessments_decision_valid CHECK (decision IN ('allow', 'review', 'deny')),
   CONSTRAINT risk_assessments_amount_pos CHECK (amount_minor >= 1),
+  CONSTRAINT risk_assessments_party_valid CHECK (screening_party IS NULL OR screening_party IN ('merchant', 'payer')),
   CONSTRAINT risk_assessments_method_valid CHECK (method IN ('qr', 'card', 'bank_transfer', 'wallet')),
   CONSTRAINT risk_assessments_rule_version_fk FOREIGN KEY (rule_version) REFERENCES risk_rule_sets (version),
   -- Nunca `allow` si no se cribó (contrato: «pay-risk nunca responde allow si no pudo cribar»).

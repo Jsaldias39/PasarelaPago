@@ -18,7 +18,7 @@ beforeEach(async () => {
 });
 afterEach(async () => ctx.close());
 
-const runBatch = (cutoff: string) => ctx.as('pay-console').post('/batches', BATCH_BODY(cutoff)).set('idempotency-key', key());
+const runBatch = (cutoff: string) => ctx.as('pay-backoffice').post('/batches', BATCH_BODY(cutoff)).set('idempotency-key', key());
 const fees = () => ctx.ledger.balanceOf('platform:fees');
 const available = (m: string) => ctx.ledger.balanceOf(`merchant:${m}:available`);
 const plan = async (m: string, version: number, fee: number | undefined, over?: Parameters<typeof feeSchedule>[3]) => {
@@ -151,9 +151,9 @@ describe('abono mensual (P2.H2.M9, D-07)', () => {
     // la primera createTransaction del corte es la liberación; la segunda, el cobro del abono
     ctx.ledger.failNext('createTransaction', new LedgerUnavailableError(), 1, true);
     const idem = key();
-    const first = await ctx.as('pay-console').post('/batches', BATCH_BODY(CUT_OCT_19)).set('idempotency-key', idem);
+    const first = await ctx.as('pay-backoffice').post('/batches', BATCH_BODY(CUT_OCT_19)).set('idempotency-key', idem);
     expect(first.status).toBe(503);
-    const retry = await ctx.as('pay-console').post('/batches', BATCH_BODY(CUT_OCT_19)).set('idempotency-key', idem);
+    const retry = await ctx.as('pay-backoffice').post('/batches', BATCH_BODY(CUT_OCT_19)).set('idempotency-key', idem);
     expect(retry.body.status).toBe('completed');
     expect(fees()).toBe(2000);
     expect((await charges())[0]).toMatchObject({ collected_minor: '2000', status: 'collected' });
@@ -285,7 +285,7 @@ describe('comisión programada de proveedores y deuda por contracargo (P2.H2.M5,
     fund(m, 100);
     for (const caller of ['pay-edge', 'pay-risk', 'pay-vault']) expect((await charge(commission(m, 1), key(), caller)).status).toBe(403);
     expect((await charge(commission(m, 1, 'sp_unounounounou:2026-10'), key(), 'pay-schedules')).status).toBe(201);
-    expect((await charge(commission(m, 1, 'sp_dosdosdosdos:2026-10'), key(), 'pay-console')).status).toBe(201);
+    expect((await charge(commission(m, 1, 'sp_dosdosdosdos:2026-10'), key(), 'pay-backoffice')).status).toBe(201);
     expect((await ctx.as('pay-schedules').post('/charges', commission(m, 1))).status).toBe(400);
   });
 });

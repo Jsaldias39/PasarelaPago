@@ -15,3 +15,4 @@ process.env.KYC_MAX_BYTES ??= '4096';
 process.env.API_KEY_ROTATION_GRACE_SECONDS ??= '3600';
 process.env.KYC_STORE_DIR ??= '/tmp/pay-merchants-test-kyc';
 process.env.API_KEY_MAX_ACTIVE ??= '5';
+process.env.PAY_MODE ??= 'sandbox';

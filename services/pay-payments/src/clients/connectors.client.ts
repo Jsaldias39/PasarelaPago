@@ -121,6 +121,13 @@ export class ConnectorsClient {
     throw new UpstreamRejection('pay-connectors', response.status, problemCode(response.body));
   }
 
+  /** Salud de cada conector con su modo de DESPLIEGUE (`sandbox|live`): con ella `pay-payments` se niega a arrancar en `live` sobre un `mock`. */
+  async getHealth(): Promise<readonly { connector: string; mode: 'sandbox' | 'live'; status: string }[]> {
+    const response = await this.http.request<{ data: { connector: string; mode: 'sandbox' | 'live'; status: string }[] }>({ method: 'GET', path: '/connectors/health' });
+    if (response.status === 200 && Array.isArray(response.body?.data)) return response.body.data;
+    throw new UpstreamRejection('pay-connectors', response.status, problemCode(response.body));
+  }
+
   /** `502 connector_unavailable` con su cuerpo exacto: el conector garantiza que no se envió nada. Cualquier otro 5xx se relanza. */
   private async definitive502<R extends { status: number; body: unknown }>(call: () => Promise<R>): Promise<(R & { kind: 'response' }) | { kind: 'definitive'; outcome: { ok: false; status: number; code: string } }> {
     try {

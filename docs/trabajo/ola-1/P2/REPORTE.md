@@ -83,7 +83,7 @@ Quedan verificados SOLO contra el doble y pendientes contra lo real: el corte co
 ## Riesgos residuales
 
 - El mapa de esquema se generó desde la base aplicada: detecta cambios futuros del SQL, pero no habría detectado un error de transcripción inicial; lo cubren las pruebas de integración que ejecutan cada consulta.
-- `pay-console` es un nombre provisorio de llamador (P2-D6).
+- `pay-backoffice` (nombre fijado por D-31; antes provisorio `pay-console`) es el llamador de las operaciones de operación (P2-D6).
 - Dos suites (`ledger-real`, `nats`) dependen de procesos del compose (Postgres, NATS, TigerBeetle) y de `yarn build` en `pay-ledger`; sin ellos fallan con un mensaje claro, no en silencio.
 
 ## Procesos que quedaron corriendo
