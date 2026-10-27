@@ -63,6 +63,8 @@ const MAX_BACKOFF_MS = 10_000;
 export class OutboxRelay {
   private timer: NodeJS.Timeout | undefined;
   private running = false;
+  /** Ciclo en curso, para que `stop()` pueda esperarlo. */
+  private inflight: Promise<void> | undefined;
   private readonly batchSize: number;
   private readonly pollIntervalMs: number;
 
@@ -126,7 +128,7 @@ export class OutboxRelay {
     if (this.running) return;
     this.running = true;
     let failures = 0;
-    const tick = async (): Promise<void> => {
+    const cycle = async (): Promise<void> => {
       if (!this.running) return;
       let drained = 0;
       try {
@@ -140,12 +142,23 @@ export class OutboxRelay {
       const delay = failures > 0 ? Math.min(this.pollIntervalMs * 2 ** failures, MAX_BACKOFF_MS) : drained > 0 ? 0 : this.pollIntervalMs;
       if (this.running) this.timer = setTimeout(tick, delay);
     };
+    const tick = (): Promise<void> => {
+      const run = cycle().finally(() => {
+        if (this.inflight === run) this.inflight = undefined;
+      });
+      this.inflight = run;
+      return run;
+    };
     this.timer = setTimeout(tick, 0);
   }
 
-  /** Detiene el relé. */
-  stop(): void {
+  /**
+   * Detiene el relé y **espera** a que termine el ciclo en curso (si lo hay): al apagar el servicio no queda una consulta
+   * a medias contra un pool ya cerrado. Es seguro no esperarlo (`void relay.stop()`), pero el cierre ordenado sí lo hace.
+   */
+  async stop(): Promise<void> {
     this.running = false;
     if (this.timer) clearTimeout(this.timer);
+    await this.inflight;
   }
 }

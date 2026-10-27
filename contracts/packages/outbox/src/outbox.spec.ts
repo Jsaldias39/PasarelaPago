@@ -178,6 +178,42 @@ describe('outbox + relé + NATS JetStream (reales)', () => {
   });
 });
 
+describe('stop() del relé', () => {
+  it('espera al ciclo en curso: al resolver, ya no hay publicaciones ni consultas pendientes', async () => {
+    let started = 0;
+    let finished = 0;
+    const slowPool = {
+      query: async () => ({ rows: [], rowCount: 0 }),
+      connect: async () => {
+        started += 1;
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        finished += 1;
+        throw new Error('el pool ya se cerró');
+      },
+    };
+    const errors: string[] = [];
+    const relay = new OutboxRelay(slowPool, { publish: async () => undefined }, { pollIntervalMs: 10, onError: (e) => errors.push(e.message) });
+    relay.start();
+    await new Promise((resolve) => setTimeout(resolve, 40)); // el primer ciclo está en curso, dentro del connect lento
+    expect(started).toBe(1);
+    expect(finished).toBe(0);
+    await relay.stop();
+    expect(finished).toBe(1); // stop() esperó a que ese ciclo terminara
+    const errorsAtStop = errors.length;
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(started).toBe(1); // y no arrancó otro
+    expect(errors.length).toBe(errorsAtStop);
+  });
+
+  it('stop() sin ciclo en curso, o llamado dos veces, no falla', async () => {
+    const relay = new OutboxRelay({ query: async () => ({ rows: [], rowCount: 0 }), connect: async () => { throw new Error('x'); } }, { publish: async () => undefined });
+    await expect(relay.stop()).resolves.toBeUndefined();
+    relay.start();
+    await relay.stop();
+    await expect(relay.stop()).resolves.toBeUndefined();
+  });
+});
+
 describe('relé ante una base caída', () => {
   it('espacia los reintentos en vez de martillar: con 20 ms de sondeo hace pocos intentos en 700 ms', async () => {
     const errors: string[] = [];
