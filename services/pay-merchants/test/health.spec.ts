@@ -1,10 +1,12 @@
 import { Controller, Get, type INestApplication } from '@nestjs/common';
+import { PublicRoute } from '@pay/service-auth';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { ProblemError } from '@pay/problem';
 import { AppModule } from '../src/app.module';
 
 @Controller('probe')
+@PublicRoute() // controlador de sondeo solo de prueba
 class ProbeController {
   @Get('problem')
   problem(): never {

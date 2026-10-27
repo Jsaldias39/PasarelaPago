@@ -5,6 +5,10 @@ export interface ServiceConfig {
   readonly db: { readonly host: string; readonly port: number; readonly name: string; readonly user: string; readonly password: string };
   /** Opcional: sin NATS el servicio arranca pero el relé del outbox no publica y `/health/ready` lo informa. */
   readonly natsUrl?: string;
+  readonly qr: {
+    /** GUID del operador en la plantilla de cuenta del QR. Lo asigna el banco o el regulador: sin valor por defecto. */
+    readonly accountGuid: string;
+  };
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -30,6 +34,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
       password: required(env, 'DB_PASSWORD'),
     },
     ...(env.NATS_URL ? { natsUrl: env.NATS_URL } : {}),
+    qr: { accountGuid: required(env, 'QR_ACCOUNT_GUID') },
   };
 }
 

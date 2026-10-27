@@ -10,7 +10,7 @@ CREATE TABLE ledger_accounts (
   tb_id      char(32)    NOT NULL,                       -- hex del id de 128 bits
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT ledger_accounts_pkey PRIMARY KEY (account),
-  CONSTRAINT ledger_accounts_tb_id_key UNIQUE (tb_id)
+  CONSTRAINT ledger_accounts_tb_id_unique UNIQUE (tb_id)
 );
 
 -- Un asiento por (business_ref, attempt). Los rechazados también quedan: son los que fijan el siguiente attempt (H-TB1).

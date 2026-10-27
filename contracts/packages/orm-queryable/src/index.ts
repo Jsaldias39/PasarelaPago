@@ -43,10 +43,10 @@ export function ormQueryable(em: EntityManagerLike): Queryable {
     async query(text, params = []) {
       const translated = toMikroOrmSql(text, params);
       if (RETURNS_ROWS.test(text)) {
-        const rows = (await (em as unknown as { getConnection(): EntityManagerLike }).getConnection().execute(translated.sql, translated.params, 'all')) as Record<string, unknown>[];
+        const rows = (await em.execute(translated.sql, translated.params, 'all')) as Record<string, unknown>[];
         return { rows, rowCount: rows.length };
       }
-      const result = (await (em as unknown as { getConnection(): EntityManagerLike }).getConnection().execute(translated.sql, translated.params, 'run')) as { affectedRows?: number; rowCount?: number };
+      const result = (await em.execute(translated.sql, translated.params, 'run')) as { affectedRows?: number; rowCount?: number };
       return { rows: [], rowCount: result.affectedRows ?? result.rowCount ?? null };
     },
   };

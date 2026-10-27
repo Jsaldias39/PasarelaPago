@@ -8,6 +8,7 @@ import { ServiceConfigModule } from './config.module';
 import { DatabaseModule } from './database.module';
 import { EventsModule } from './events.module';
 import { HealthController } from './health.controller';
+import { LedgerModule } from './ledger/ledger.module';
 import { ProblemFilter } from './problem.filter';
 
 const config = loadConfig();
@@ -34,6 +35,7 @@ const config = loadConfig();
     TerminusModule,
     DatabaseModule,
     EventsModule,
+    LedgerModule,
   ],
   controllers: [HealthController],
   providers: [

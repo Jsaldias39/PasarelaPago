@@ -9,11 +9,20 @@ import { createHash } from 'node:crypto';
  */
 
 const MAX_U128 = (1n << 128n) - 1n;
-const NAMESPACE = 'alovida-pay|ledger|v1';
+const BASE_NAMESPACE = 'alovida-pay|ledger|v1';
+let namespace = BASE_NAMESPACE;
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
 
 function digest(...parts: (string | number)[]): Buffer {
-  return createHash('sha256').update([NAMESPACE, ...parts].join('|')).digest();
+  return createHash('sha256').update([namespace, ...parts].join('|')).digest();
+}
+
+/**
+ * SOLO PRUEBAS: aparta los ids de este proceso del resto en un TigerBeetle compartido (las cuentas de plataforma, como `platform:fees`, tienen
+ * un nombre fijo y, sin esto, todas las suites suman sobre las mismas). Cambiarlo en un servicio con datos huérfana el dinero ya registrado.
+ */
+export function useIdNamespace(suffix: string): void {
+  namespace = `${BASE_NAMESPACE}|${suffix}`;
 }
 
 /** Id de 128 bits para TigerBeetle: los primeros 16 bytes del hash. 0 y 2^128−1 están prohibidos. */

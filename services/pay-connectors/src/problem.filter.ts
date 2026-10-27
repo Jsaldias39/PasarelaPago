@@ -1,5 +1,6 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { RawProblemError } from './raw-problem';
 import { PROBLEM_CONTENT_TYPE, ProblemError, problem, type ProblemCode } from '@pay/problem';
 
 /**
@@ -19,7 +20,9 @@ export class ProblemFilter implements ExceptionFilter {
     const common = { ...(requestId !== undefined && { requestId }), ...(instance !== undefined && { instance }) };
 
     let body;
-    if (exception instanceof ProblemError) {
+    if (exception instanceof RawProblemError) {
+      body = { ...exception.body, ...(requestId !== undefined && { request_id: requestId }), ...(instance !== undefined && { instance }) };
+    } else if (exception instanceof ProblemError) {
       body = { ...exception.toProblem(), ...(requestId !== undefined && { request_id: requestId }), ...(instance !== undefined && { instance }) };
     } else if (exception instanceof HttpException) {
       const code = this.codeFor(exception.getStatus());

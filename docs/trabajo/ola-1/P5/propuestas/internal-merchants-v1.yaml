@@ -1,0 +1,435 @@
+# PROPUESTA de contrato INTERNO de pay-merchants (back-office). P5, ola 1. NO está en contracts/openapi todavía.
+# Cuando el integrador lo mueva a contracts/openapi/, reemplazar `../../../../../contracts/openapi/common.yaml` por `common.yaml`.
+# Quién lo llama (Q-23): el back-office de ALOVIDA, detrás de un servicio de identidad de operadores que aún no existe.
+openapi: 3.1.0
+info:
+  title: pay-merchants — API interna (back-office) v1
+  version: 1.0.0-draft
+  description: |
+    Alta, diligencia debida (KYC), contrato, tarifario y estado de los comercios (procesos 7.1, 7.2, 7.3 y 7.9).
+
+    - **Expone:** P5 (`pay-merchants`). **Consume:** el back-office de ALOVIDA (Q-23).
+    - **Seguridad:** mTLS + `X-Service-Id: pay-backoffice` **y** credencial de operador (`OperatorToken`). Quién actuó sale del
+      `sub` de la credencial, nunca del cuerpo; el rol exigido va en cada operación (`x-required-role`).
+    - Las rutas que ven los comercios (`/merchants/me`, `/api_keys`) están en `public-v1.yaml`.
+servers:
+  - url: http://pay-merchants:3000
+    description: Marcador de la red interna.
+security:
+  - mTLS: []
+    OperatorToken: []
+tags:
+  - { name: Merchants, description: Alta y estado }
+  - { name: KYC, description: Diligencia debida }
+  - { name: Legal contract, description: Contrato versionado }
+  - { name: Fees, description: Tarifario }
+paths:
+  /merchants:
+    post:
+      operationId: merchantsCreateMerchant
+      tags: [Merchants]
+      x-owner: P5
+      x-required-role: merchant_operator
+      summary: Da de alta un comercio (queda `pending`)
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '../../../../../contracts/openapi/common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MerchantCreate' } } }
+      responses:
+        '201': { description: Comercio creado., content: { application/json: { schema: { $ref: '#/components/schemas/MerchantAdmin' } } } }
+        '200': { description: 'Repetición con la misma Idempotency-Key.', content: { application/json: { schema: { $ref: '#/components/schemas/MerchantAdmin' } } } }
+        '400': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Conflict' }
+        '422': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}:
+    get:
+      operationId: merchantsGetMerchant
+      tags: [Merchants]
+      x-owner: P5
+      x-required-role: merchant_operator
+      summary: Vista de back-office de un comercio
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/MerchantId' }]
+      responses:
+        '200': { description: El comercio., content: { application/json: { schema: { $ref: '#/components/schemas/MerchantAdmin' } } } }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}/activate:
+    post:
+      operationId: merchantsActivate
+      tags: [Merchants]
+      x-owner: P5
+      x-required-role: merchant_operator
+      summary: Activa el comercio. Exige KYC aprobado Y contrato vigente aceptado (REQ-P5-1)
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/MerchantId' }]
+      responses:
+        '200': { description: Activado., content: { application/json: { schema: { $ref: '#/components/schemas/MerchantAdmin' } } } }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '409':
+          description: '`invalid_state_transition`; `errors[]` dice qué falta (`kyc`: `not_approved`, `contract`: `not_accepted`) o que la transición no existe.'
+          content: { application/problem+json: { schema: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}/suspend:
+    post:
+      operationId: merchantsSuspend
+      tags: [Merchants]
+      x-owner: P5
+      x-required-role: merchant_operator
+      summary: Suspende un comercio activo
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/MerchantId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/SuspendRequest' } } }
+      responses:
+        '200': { description: Suspendido., content: { application/json: { schema: { $ref: '#/components/schemas/MerchantAdmin' } } } }
+        '400': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Conflict' }
+        '422': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}/close:
+    post:
+      operationId: merchantsClose
+      tags: [Merchants]
+      x-owner: P5
+      x-required-role: merchant_operator
+      summary: Cierra el comercio (terminal) y revoca todas sus claves
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/MerchantId' }]
+      responses:
+        '200': { description: Cerrado., content: { application/json: { schema: { $ref: '#/components/schemas/MerchantAdmin' } } } }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Conflict' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}/kyc/documents:
+    post:
+      operationId: merchantsUploadKycDocument
+      tags: [KYC]
+      x-owner: P5
+      x-required-role: kyc_reviewer
+      summary: Adjunta un documento del alta legal (el archivo va al almacén de objetos, no a la base)
+      description: |
+        El tipo REAL del archivo se detecta por sus primeros bytes (PDF, PNG o JPEG); la extensión y el `Content-Type` que
+        declare el cliente no cuentan. Tamaño máximo configurable (`KYC_MAX_BYTES`).
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/MerchantId' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [kind, file]
+              properties:
+                kind: { $ref: '#/components/schemas/KycDocumentKind' }
+                file: { type: string, format: binary }
+      responses:
+        '201': { description: Documento registrado., content: { application/json: { schema: { $ref: '#/components/schemas/KycDocument' } } } }
+        '400': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Conflict' }
+        '413': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
+        '422': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}/kyc/review:
+    put:
+      operationId: merchantsReviewKyc
+      tags: [KYC]
+      x-owner: P5
+      x-required-role: kyc_reviewer
+      summary: Decide el KYC. Aprobar exige los 6 documentos y un nivel de riesgo
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/MerchantId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/KycReview' } } }
+      responses:
+        '200': { description: KYC actualizado., content: { application/json: { schema: { $ref: '#/components/schemas/MerchantAdmin' } } } }
+        '400': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Conflict' }
+        '422': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /contract_versions:
+    post:
+      operationId: merchantsPublishContractVersion
+      tags: [Legal contract]
+      x-owner: P5
+      x-required-role: legal_admin
+      summary: Publica una versión del contrato legal (solo se agregan, no se editan)
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ContractVersionCreate' } } }
+      responses:
+        '201': { description: Versión publicada., content: { application/json: { schema: { $ref: '#/components/schemas/ContractVersion' } } } }
+        '400': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}/contract_acceptances:
+    post:
+      operationId: merchantsAcceptContract
+      tags: [Legal contract]
+      x-owner: P5
+      x-required-role: merchant_operator
+      summary: Registra la aceptación de una versión del contrato (inmutable, REQ-P5-2)
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/MerchantId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ContractAcceptanceCreate' } } }
+      responses:
+        '201': { description: Aceptación registrada., content: { application/json: { schema: { $ref: '#/components/schemas/ContractAcceptance' } } } }
+        '400': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Conflict' }
+        '422': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}/fee_schedules:
+    post:
+      operationId: merchantsPublishFeeSchedule
+      tags: [Fees]
+      x-owner: P5
+      x-required-role: pricing_admin
+      summary: Publica una versión nueva del tarifario (las anteriores quedan intactas, REQ-P5-3)
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/MerchantId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/FeeScheduleCreate' } } }
+      responses:
+        '201': { description: Versión publicada., content: { application/json: { schema: { $ref: '#/components/schemas/FeeSchedule' } } } }
+        '400': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '422': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}/fee_schedules/current:
+    get:
+      operationId: merchantsGetCurrentFeeSchedule
+      tags: [Fees]
+      x-owner: P5
+      x-required-role: merchant_operator
+      summary: Versión del tarifario en vigencia ahora
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/MerchantId' }]
+      responses:
+        '200': { description: Tarifario vigente., content: { application/json: { schema: { $ref: '#/components/schemas/FeeSchedule' } } } }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}/fee_quote:
+    get:
+      operationId: merchantsQuoteFee
+      tags: [Fees]
+      x-owner: P5
+      x-required-role: merchant_operator
+      summary: Cotiza la comisión de un importe con el tarifario vigente (`@pay/money.splitFee`)
+      parameters:
+        - { $ref: '#/components/parameters/ServiceId' }
+        - { $ref: '#/components/parameters/MerchantId' }
+        - { name: channel, in: query, required: true, schema: { $ref: '#/components/schemas/Channel' } }
+        - { name: amount_minor, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 9007199254740991 } }
+      responses:
+        '200': { description: Cotización con `fee_minor + net_minor = amount_minor`., content: { application/json: { schema: { $ref: '#/components/schemas/FeeQuote' } } } }
+        '400': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/BadRequest' }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '422': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /merchants/{id}/api_keys/{keyId}/revoke:
+    post:
+      operationId: merchantsRevokeApiKeyCompromised
+      tags: [Merchants]
+      x-owner: P5
+      x-required-role: security_operator
+      summary: Revoca una clave comprometida (motivo `compromised`)
+      parameters:
+        - { $ref: '#/components/parameters/ServiceId' }
+        - { $ref: '#/components/parameters/MerchantId' }
+        - { name: keyId, in: path, required: true, schema: { type: string, pattern: '^key_[a-z0-9]{10,40}$' } }
+      responses:
+        '204': { description: Revocada (o ya lo estaba). }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/NotFound' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+components:
+  securitySchemes:
+    mTLS: { type: mutualTLS, description: Certificado de servicio; la identidad se confirma además con `X-Service-Id`. }
+    OperatorToken: { type: http, scheme: bearer, bearerFormat: JWT, description: 'Credencial de la persona operadora: de ahí salen su identidad (`sub`) y sus roles.' }
+  parameters:
+    ServiceId:
+      name: X-Service-Id
+      in: header
+      required: true
+      description: 'Servicio llamador (`pay-backoffice`).'
+      schema: { type: string, pattern: '^pay-[a-z]+$' }
+    MerchantId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, pattern: '^mc_[a-z0-9]{10,40}$' }
+  schemas:
+    Channel: { type: string, enum: [qr, card, bank_transfer, wallet, direct] }
+    LegalType:
+      type: string
+      enum: [unipersonal, srl, ltda, sa, sociedad_colectiva, sociedad_comandita_simple, sociedad_comandita_acciones, sucursal_sociedad_extranjera]
+      description: Lista cerrada del registro del stakeholder (proceso 3.1, punto 1.1).
+    KycDocumentKind:
+      type: string
+      enum: [constitucion, nit, seprec, licencia_funcionamiento, certificado_sedes, poder_representante]
+    MerchantCreate:
+      type: object
+      required: [display_name, legal_name, legal_type, tax_id]
+      additionalProperties: false
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 200 }
+        legal_name: { type: string, minLength: 1, maxLength: 300 }
+        legal_type: { $ref: '#/components/schemas/LegalType' }
+        tax_id: { type: string, minLength: 5, maxLength: 20, pattern: '^[0-9A-Za-z-]+$', description: NIT. }
+        directory_tenant_ref: { type: string, maxLength: 100, description: 'Referencia opaca al alta legal en `directory` (Q-22).' }
+    SuspendRequest:
+      type: object
+      required: [reason]
+      additionalProperties: false
+      properties:
+        reason: { type: string, enum: [kyc_expired, risk_review, contract_breach, manual] }
+    MerchantAdmin:
+      type: object
+      required: [id, object, display_name, legal_type, status, kyc, contract, created_at]
+      properties:
+        id: { type: string, pattern: '^mc_[a-z0-9]{10,40}$' }
+        object: { const: merchant }
+        display_name: { type: string }
+        legal_type: { $ref: '#/components/schemas/LegalType' }
+        status: { type: string, enum: [pending, active, suspended, closed] }
+        suspension_reason: { type: [string, 'null'] }
+        kyc:
+          type: object
+          required: [status, missing_documents]
+          properties:
+            status: { type: string, enum: [pending, in_review, approved, rejected] }
+            risk_level: { type: [string, 'null'], enum: [low, medium, high, null] }
+            missing_documents: { type: array, items: { $ref: '#/components/schemas/KycDocumentKind' } }
+        contract:
+          type: object
+          required: [current_version, accepted_version, up_to_date]
+          properties:
+            current_version: { type: [integer, 'null'] }
+            accepted_version: { type: [integer, 'null'] }
+            up_to_date: { type: boolean }
+        created_at: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/Timestamp' }
+        activated_at: { oneOf: [{ $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/Timestamp' }, { type: 'null' }] }
+    KycDocument:
+      type: object
+      required: [id, object, merchant_id, kind, detected_type, size_bytes, sha256, uploaded_at]
+      properties:
+        id: { type: string, pattern: '^kd_[a-z0-9]{10,40}$' }
+        object: { const: kyc_document }
+        merchant_id: { type: string }
+        kind: { $ref: '#/components/schemas/KycDocumentKind' }
+        detected_type: { type: string, enum: [application/pdf, image/png, image/jpeg] }
+        size_bytes: { type: integer, minimum: 1 }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        uploaded_at: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/Timestamp' }
+    KycReview:
+      type: object
+      required: [decision]
+      additionalProperties: false
+      properties:
+        decision: { type: string, enum: [in_review, approved, rejected] }
+        risk_level: { type: string, enum: [low, medium, high], description: Obligatorio al aprobar. }
+        note: { type: string, maxLength: 500, description: 'Motivo. Sin datos personales.' }
+    ContractVersionCreate:
+      type: object
+      required: [version, text_sha256]
+      additionalProperties: false
+      properties:
+        version: { type: integer, minimum: 1 }
+        text_sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        effective_from: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/Timestamp' }
+    ContractVersion:
+      type: object
+      required: [version, object, text_sha256, effective_from, published_at]
+      properties:
+        object: { const: contract_version }
+        version: { type: integer }
+        text_sha256: { type: string }
+        effective_from: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/Timestamp' }
+        published_at: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/Timestamp' }
+    ContractAcceptanceCreate:
+      type: object
+      required: [version, accepted_by_ref]
+      additionalProperties: false
+      properties:
+        version: { type: integer, minimum: 1 }
+        accepted_by_ref: { type: string, minLength: 1, maxLength: 100, description: 'Referencia opaca a quien firma (el representante). La declara el operador; quién la registró sale de su credencial.' }
+    ContractAcceptance:
+      type: object
+      required: [id, object, merchant_id, version, text_sha256, accepted_by_ref, recorded_by, accepted_at]
+      properties:
+        id: { type: string, pattern: '^ca_[a-z0-9]{10,40}$' }
+        object: { const: contract_acceptance }
+        merchant_id: { type: string }
+        version: { type: integer }
+        text_sha256: { type: string }
+        accepted_by_ref: { type: string }
+        recorded_by: { type: string }
+        accepted_at: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/Timestamp' }
+    ChannelRule:
+      type: object
+      required: [channel, percent]
+      additionalProperties: false
+      properties:
+        channel: { $ref: '#/components/schemas/Channel' }
+        percent: { type: string, pattern: '^\d{1,3}(\.\d{1,6})?$' }
+        fixed_minor: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/AmountMinor' }
+        min_minor: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/AmountMinor' }
+        cap_minor: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/AmountMinor' }
+    FeeScheduleCreate:
+      type: object
+      required: [channels]
+      additionalProperties: false
+      properties:
+        effective_from: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/Timestamp' }
+        monthly_fee_minor: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/AmountMinor' }
+        channels: { type: array, minItems: 1, maxItems: 5, items: { $ref: '#/components/schemas/ChannelRule' } }
+    FeeSchedule:
+      type: object
+      required: [object, merchant_id, version, currency, effective_from, monthly_fee_minor, channels]
+      properties:
+        object: { const: fee_schedule }
+        merchant_id: { type: string }
+        version: { type: integer }
+        currency: { const: BOB }
+        effective_from: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/Timestamp' }
+        monthly_fee_minor: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/AmountMinor' }
+        channels: { type: array, items: { $ref: '#/components/schemas/ChannelRule' } }
+    FeeQuote:
+      type: object
+      required: [object, channel, amount_minor, fee_minor, net_minor, schedule_version]
+      properties:
+        object: { const: fee_quote }
+        channel: { $ref: '#/components/schemas/Channel' }
+        amount_minor: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/AmountMinor' }
+        fee_minor: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/AmountMinor' }
+        net_minor: { $ref: '../../../../../contracts/openapi/common.yaml#/components/schemas/AmountMinor' }
+        schedule_version: { type: integer }

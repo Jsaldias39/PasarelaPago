@@ -1,43 +1,44 @@
 import { randomUUID } from 'node:crypto';
-import { Module } from '@nestjs/common';
+import { type DynamicModule, Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'nestjs-pino';
-import { loadConfig } from './config';
+import type { ServiceConfig } from './config';
 import { ServiceConfigModule } from './config.module';
 import { DatabaseModule } from './database.module';
-import { EventsModule } from './events.module';
+import { EdgeModule } from './edge.module';
 import { HealthController } from './health.controller';
 import { ProblemFilter } from './problem.filter';
 
-const config = loadConfig();
-
-@Module({
-  imports: [
-    LoggerModule.forRoot({
-      pinoHttp: {
-        level: config.logLevel,
-        // Id de correlación: el del cliente si viene bien formado; si no, uno nuevo. Se devuelve en la respuesta.
-        genReqId: (req, res) => {
-          const incoming = req.headers['x-request-id'];
-          const id = typeof incoming === 'string' && /^[A-Za-z0-9._-]{8,64}$/.test(incoming) ? incoming : randomUUID();
-          res.setHeader('x-request-id', id);
-          return id;
-        },
-        // Nunca credenciales ni cuerpos en los logs (regla 90.2.1).
-        redact: { paths: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-api-key"]'], remove: true },
-        serializers: { req: (req) => ({ id: req.id, method: req.method, url: String(req.url).split('?')[0] }), res: (res) => ({ statusCode: res.statusCode }) },
-        autoLogging: { ignore: (req) => String(req.url).startsWith('/health') },
-      },
-    }),
-    ServiceConfigModule,
-    TerminusModule,
-    DatabaseModule,
-    EventsModule,
-  ],
-  controllers: [HealthController],
-  providers: [
-    { provide: APP_FILTER, useClass: ProblemFilter },
-  ],
-})
-export class AppModule {}
+@Module({})
+export class AppModule {
+  static forRoot(config: ServiceConfig): DynamicModule {
+    return {
+      module: AppModule,
+      imports: [
+        LoggerModule.forRoot({
+          pinoHttp: {
+            level: config.logLevel,
+            // Id de correlación: el del cliente si viene bien formado; si no, uno nuevo. Se devuelve en la respuesta.
+            genReqId: (req, res) => {
+              const incoming = req.headers['x-request-id'];
+              const id = typeof incoming === 'string' && /^[A-Za-z0-9._-]{8,64}$/.test(incoming) ? incoming : randomUUID();
+              res.setHeader('x-request-id', id);
+              return id;
+            },
+            // Nunca credenciales ni cuerpos en los logs (regla 90.2.1).
+            redact: { paths: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-api-key"]', 'req.headers["idempotency-key"]'], remove: true },
+            serializers: { req: (req) => ({ id: req.id, method: req.method, url: String(req.url).split('?')[0] }), res: (res) => ({ statusCode: res.statusCode }) },
+            autoLogging: { ignore: (req) => String(req.url).startsWith('/health') },
+          },
+        }),
+        TerminusModule,
+        ServiceConfigModule.forRoot(config),
+        DatabaseModule.forRoot(config),
+        EdgeModule.forRoot(),
+      ],
+      controllers: [HealthController],
+      providers: [{ provide: APP_FILTER, useClass: ProblemFilter }],
+    };
+  }
+}

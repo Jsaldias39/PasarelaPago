@@ -1,6 +1,7 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { PROBLEM_CONTENT_TYPE, ProblemError, problem, type ProblemCode } from '@pay/problem';
+import { EdgeProblemError } from './edge-problem';
 
 /**
  * Todo error sale como RFC 9457 con `code` estable y el `request_id` del cliente.
@@ -17,18 +18,28 @@ export class ProblemFilter implements ExceptionFilter {
     const requestId = request.id !== undefined ? String(request.id) : undefined;
     const instance = request.originalUrl?.split('?')[0];
     const common = { ...(requestId !== undefined && { requestId }), ...(instance !== undefined && { instance }) };
+    const extra = { ...(requestId !== undefined && { request_id: requestId }), ...(instance !== undefined && { instance }) };
 
-    let body;
-    if (exception instanceof ProblemError) {
-      body = { ...exception.toProblem(), ...(requestId !== undefined && { request_id: requestId }), ...(instance !== undefined && { instance }) };
+    let status: number;
+    let body: Record<string, unknown>;
+    if (exception instanceof EdgeProblemError) {
+      status = exception.status;
+      body = { ...exception.body, ...extra };
+      for (const [name, value] of Object.entries(exception.headers)) response.setHeader(name, value);
+    } else if (exception instanceof ProblemError) {
+      body = { ...exception.toProblem(), ...extra };
+      status = exception.status;
     } else if (exception instanceof HttpException) {
-      const code = this.codeFor(exception.getStatus());
-      body = problem(code, common);
+      const built = problem(this.codeFor(exception.getStatus()), common);
+      body = { ...built };
+      status = built.status;
     } else {
       this.logger.error({ err: exception instanceof Error ? exception.name : 'desconocido', request_id: requestId }, 'Error no controlado');
-      body = problem('internal_error', common);
+      const built = problem('internal_error', common);
+      body = { ...built };
+      status = built.status;
     }
-    response.status(body.status).type(PROBLEM_CONTENT_TYPE).json(body);
+    response.status(status).type(PROBLEM_CONTENT_TYPE).json(body);
   }
 
   private codeFor(status: number): ProblemCode {

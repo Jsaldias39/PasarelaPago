@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS payment_intents (
   failure_code            text,
   connector               text,                                    -- conector que tomó el cobro (mock, mercantil_qr, …)
   charge_id               text,                                    -- id del cargo en pay-connectors
+  charge_status           text        NOT NULL DEFAULT 'pending',  -- último estado del cargo que APLICAMOS (máquina decideCallback)
   ledger_attempt          integer     NOT NULL DEFAULT 1,          -- sube SOLO tras un rechazo del ledger (H-TB1)
   ledger_transfer_id      text,                                    -- id del asiento aceptado (tx_… del ledger)
   card_token              text,                                    -- tok_… (nunca el número: el PAN no entra a este servicio)
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS payment_intents (
   CONSTRAINT payment_intents_fee_net_sum_chk CHECK (fee_minor >= 0 AND net_minor >= 0 AND fee_minor + net_minor = amount_minor),
   CONSTRAINT payment_intents_method_chk CHECK (method IN ('qr', 'card', 'bank_transfer', 'wallet')),
   CONSTRAINT payment_intents_status_chk CHECK (status IN ('requires_action', 'processing', 'succeeded', 'failed', 'canceled', 'expired')),
+  CONSTRAINT payment_intents_charge_status_chk CHECK (charge_status IN ('pending', 'authorized', 'captured', 'settled', 'failed', 'canceled', 'expired')),
   CONSTRAINT payment_intents_card_token_chk CHECK (card_token IS NULL OR card_token ~ '^tok_[a-z0-9]{10,60}$'),
   CONSTRAINT payment_intents_terminal_completed_chk CHECK ((status IN ('succeeded', 'failed', 'canceled', 'expired')) = (completed_at IS NOT NULL))
 );
@@ -123,6 +125,9 @@ CREATE TABLE IF NOT EXISTS intent_contradictions (
   current_status      text        NOT NULL,
   incoming_status     text        NOT NULL,
   source_event_id     text        NOT NULL,
+  -- status_conflict: el conector dice algo incompatible con lo ya aplicado; compensation_failed / refund_pending_timeout: a mano.
+  kind                text        NOT NULL DEFAULT 'status_conflict',
+  reason              text        NOT NULL DEFAULT '',
   detected_at         timestamptz NOT NULL DEFAULT now(),
   resolved_at         timestamptz,
   CONSTRAINT intent_contradictions_pkey PRIMARY KEY (id),

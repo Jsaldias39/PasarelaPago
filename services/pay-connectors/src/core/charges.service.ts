@@ -1,0 +1,204 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { hashRequest, IdempotencyStore, type HandlerResult, type IdempotencyContext, type IdempotencyResult } from '@pay/idempotency';
+import { ProblemError } from '@pay/problem';
+import type { Pool } from 'pg';
+import { SERVICE_CONFIG, type ServiceConfig } from '../config';
+import { PG_POOL } from '../database.module';
+import { ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError, type ConnectorCode } from '../domain/connector';
+import { newId } from '../ids';
+import { lockCharge, recordAndApply } from './apply';
+import { parseCreateCharge, type CreateCharge } from './charge.dto';
+import { inTransaction, uniqueViolation } from './db';
+import { ProviderGateway } from './provider-gateway';
+import { chargeView, publicStatus, TERMINAL, toChargeRow, type ChargeRow } from './rows';
+import { RoutingService } from './routing.service';
+import { CLOCK, type Clock } from './tokens';
+
+const ID = /^ch_[a-z0-9]{10,40}$/;
+
+@Injectable()
+export class ChargesService {
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(SERVICE_CONFIG) private readonly config: ServiceConfig,
+    private readonly idempotency: IdempotencyStore,
+    private readonly routing: RoutingService,
+    private readonly gateway: ProviderGateway,
+  ) {}
+
+  async byId(id: string): Promise<ChargeRow> {
+    if (!ID.test(id)) throw new ProblemError('resource_not_found');
+    const found = await this.pool.query('SELECT * FROM connector_charges WHERE id = $1', [id]);
+    if (found.rows.length === 0) throw new ProblemError('resource_not_found');
+    return toChargeRow(found.rows[0]);
+  }
+
+  private async byKey(caller: string, key: string): Promise<ChargeRow> {
+    const found = await this.pool.query('SELECT * FROM connector_charges WHERE caller = $1 AND idempotency_key = $2', [caller, key]);
+    if (found.rows.length === 0) throw new Error('Punto de recuperación sin cobro: la tabla y la Idempotency-Key se desincronizaron');
+    return toChargeRow(found.rows[0]);
+  }
+
+  // ───────────────────────── POST /charges ─────────────────────────
+
+  /**
+   * Fases (con puntos de recuperación de `@pay/idempotency`):
+   *  1. `started → charge_recorded`: el cobro queda registrado (con el ruteo elegido) en una transacción.
+   *  2. `charge_recorded → charge_sent`: se llama al proveedor FUERA de toda transacción de base y el resultado se guarda.
+   * Si el proceso muere entre una y otra, el reintento con la misma clave retoma en la fase 2 con la MISMA referencia (`ch_…`).
+   */
+  async create(caller: string, key: string, body: unknown): Promise<IdempotencyResult> {
+    const input = parseCreateCharge(body, this.clock.now());
+    return this.idempotency.execute({ scope: caller, key, requestHash: hashRequest({ method: 'POST', path: '/charges', body }) }, async (ctx): Promise<HandlerResult> => {
+      let row: ChargeRow;
+      if (ctx.recoveryPoint === 'started') {
+        row = await ctx.atomic('charge_recorded', async (client) => {
+          const choice = await this.routing.choose({ method: input.method, amountMinor: input.amountMinor, ...(input.preferred && { preferred: input.preferred }) });
+          const first = choice.candidates[0];
+          if (!first) throw new ProblemError('connector_unavailable', { detail: 'Ningún conector disponible para este medio de pago' });
+          const connector = this.gateway.connector(first);
+          const id = newId('ch');
+          try {
+            const inserted = await client.query(
+              `INSERT INTO connector_charges (id, caller, idempotency_key, payment_intent_id, merchant_id, connector, mode, method, amount_minor, currency,
+                                              routing_version, routing_rule, expires_at, next_poll_at, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'BOB', $10, $11, $12, $13, $13, $13) RETURNING *`,
+              [id, caller, key, input.paymentIntentId, input.merchantId, first, connector.mode, input.method, input.amountMinor.toString(), choice.version, choice.ruleId, input.expiresAt, this.nextPoll(this.clock.now(), 0)],
+            );
+            return toChargeRow(inserted.rows[0]);
+          } catch (error) {
+            if (uniqueViolation(error)?.constraint === 'connector_charges_live_intent_uidx') {
+              throw new ProblemError('invalid_state_transition', { detail: 'Ya hay un cobro vigente o cobrado para este intento de pago' });
+            }
+            throw error;
+          }
+        });
+      } else {
+        row = await this.byKey(caller, key);
+      }
+      if (ctx.recoveryPoint === 'charge_recorded') row = await this.send(ctx, row, input);
+      return { status: 201, body: chargeView(row) };
+    });
+  }
+
+  private nextPoll(from: Date, attempts: number): Date {
+    const { minAgeMs, baseBackoffMs, maxBackoffMs } = this.config.poller;
+    return new Date(from.getTime() + (attempts === 0 ? minAgeMs : Math.min(baseBackoffMs * 2 ** attempts, maxBackoffMs)));
+  }
+
+  private async send(ctx: IdempotencyContext, row: ChargeRow, input: CreateCharge): Promise<ChargeRow> {
+    // Un intento anterior pudo haber llegado al proveedor sin que supiéramos el resultado: solo se reintenta ese conector.
+    const candidates: ConnectorCode[] = row.ambiguous
+      ? [row.connector]
+      : [...(await this.routing.choose({ method: input.method, amountMinor: input.amountMinor, ...(input.preferred && { preferred: input.preferred }) })).candidates];
+    if (candidates.length === 0) throw new ProblemError('connector_unavailable', { detail: 'Ningún conector disponible para este medio de pago' });
+
+    for (const code of candidates) {
+      // Marca «llamada en vuelo» ANTES de llamar: si el proceso muere ahora, el reintento no cambia de conector.
+      await this.pool.query('UPDATE connector_charges SET connector = $2, mode = $3, ambiguous = true, updated_at = $4 WHERE id = $1', [row.id, code, this.gateway.connector(code).mode, this.clock.now()]);
+      try {
+        const result = await this.gateway.callIdempotent(code, row.id, 'create_charge', (connector) =>
+          connector.createCharge(
+            {
+              reference: row.id,
+              paymentIntentId: row.payment_intent_id,
+              merchantId: row.merchant_id,
+              amountMinor: row.amount_minor,
+              currency: 'BOB',
+              method: row.method,
+              expiresAt: row.expires_at,
+              ...(input.cardToken && { cardToken: input.cardToken }),
+              ...(input.description && { description: input.description }),
+            },
+            this.clock.now(),
+          ),
+        );
+        return await ctx.atomic('charge_sent', async (client) => {
+          const updated = await client.query(
+            `UPDATE connector_charges
+                SET connector = $2, mode = $3, ambiguous = false, provider_status = $4, provider_reference = $5, next_action = $6::jsonb, failure_code = $7, updated_at = $8
+              WHERE id = $1 RETURNING *`,
+            [row.id, code, this.gateway.connector(code).mode, result.status, result.providerReference, result.nextAction ? JSON.stringify(result.nextAction) : null, result.failureCode ?? null, this.clock.now()],
+          );
+          return toChargeRow(updated.rows[0]);
+        });
+      } catch (error) {
+        if (error instanceof ConnectorUnavailableError) {
+          // Seguro: el proveedor no recibió nada. Se baja la marca y se prueba con el siguiente conector.
+          await this.pool.query('UPDATE connector_charges SET ambiguous = false, updated_at = $2 WHERE id = $1', [row.id, this.clock.now()]);
+          continue;
+        }
+        if (error instanceof ConnectorTimeoutError) {
+          // Ambiguo: el cobro puede existir. Se queda marcado y NO se prueba con otro conector.
+          throw new ProblemError('connector_unavailable', { detail: 'El proveedor no respondió a tiempo; reintentá con la misma Idempotency-Key' });
+        }
+        if (error instanceof ConnectorRejectedError) {
+          await this.pool.query(`UPDATE connector_charges SET provider_status = 'failed', failure_code = $2, ambiguous = false, updated_at = $3 WHERE id = $1`, [row.id, error.code, this.clock.now()]);
+          throw new ProblemError(error.code === 'internal_error' ? 'internal_error' : 'validation_failed', { detail: 'El proveedor rechazó el cobro' });
+        }
+        throw error;
+      }
+    }
+    throw new ProblemError('connector_unavailable', { detail: 'Ningún conector disponible respondió' });
+  }
+
+  // ───────────────────────── GET /charges/{id}/status ─────────────────────────
+
+  async status(id: string, refresh: boolean): Promise<Record<string, unknown>> {
+    let row = await this.byId(id);
+    let stale = false;
+    if (refresh && !TERMINAL.has(row.provider_status) && row.provider_reference !== null) {
+      try {
+        const observed = await this.gateway.call(row.connector, row.id, 'get_status', (c) => c.getStatus(row.id, this.clock.now()));
+        if (observed.status !== row.provider_status) {
+          await inTransaction(this.pool, (client) =>
+            recordAndApply(client, row.connector, { providerEventId: `inquiry:${row.id}:${observed.status}`, chargeReference: row.id, status: observed.status, occurredAt: observed.occurredAt, ...(observed.failureCode && { failureCode: observed.failureCode }) }, 'status_inquiry', this.clock.now()),
+          );
+          row = await this.byId(id);
+        }
+      } catch (error) {
+        if (!(error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError)) throw error;
+        stale = true; // el proveedor no responde: se devuelve lo último que se sabe, marcado
+      }
+    }
+    return {
+      charge_id: row.id,
+      status: publicStatus(row),
+      connector: row.connector,
+      mode: row.mode,
+      failure_code: row.failure_code,
+      stale,
+      checked_at: this.clock.now().toISOString(),
+    };
+  }
+
+  // ───────────────────────── POST /charges/{id}/cancel ─────────────────────────
+
+  async cancel(caller: string, key: string, id: string): Promise<IdempotencyResult> {
+    if (!ID.test(id)) throw new ProblemError('resource_not_found');
+    return this.idempotency.execute({ scope: caller, key, requestHash: hashRequest({ method: 'POST', path: `/charges/${id}/cancel` }) }, async (): Promise<HandlerResult> => {
+      const row = await this.byId(id);
+      if (row.provider_status === 'canceled') return { status: 200, body: chargeView(row) }; // ya anulado: idempotente
+      if (TERMINAL.has(row.provider_status)) throw new ProblemError('invalid_state_transition', { detail: 'El cobro ya terminó' });
+      if (row.provider_reference !== null) {
+        try {
+          await this.gateway.call(row.connector, row.id, 'cancel', (c) => c.cancel(row.id, this.clock.now()));
+        } catch (error) {
+          if (error instanceof ConnectorRejectedError && error.code === 'invalid_state_transition') {
+            throw new ProblemError('invalid_state_transition', { detail: 'El proveedor no admite anular este cobro' });
+          }
+          if (error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError) throw new ProblemError('connector_unavailable');
+          throw error;
+        }
+      }
+      const applied = await inTransaction(this.pool, async (client) => {
+        const outcome = await recordAndApply(client, row.connector, { providerEventId: `cancel:${row.id}`, chargeReference: row.id, status: 'canceled', occurredAt: this.clock.now() }, 'status_inquiry', this.clock.now());
+        const fresh = await lockCharge(client, row.id);
+        return { outcome, fresh: fresh as ChargeRow };
+      });
+      if (applied.fresh.provider_status !== 'canceled') throw new ProblemError('invalid_state_transition', { detail: 'El cobro cambió de estado mientras se anulaba' });
+      return { status: 200, body: chargeView(applied.fresh) };
+    });
+  }
+}

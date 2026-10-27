@@ -43,7 +43,8 @@ export function parseAccount(name: string): AccountInfo | null {
   if (match[3]) return { name, kind: 'user_wallet', nature: 'credit', limited: true };
   if (name === 'platform:fees') return { name, kind: 'platform_fees', nature: 'credit', limited: false };
   if (match[4]) return { name, kind: 'connector_clearing', nature: 'debit', limited: false };
-  if (name === 'payout:clearing') return { name, kind: 'payout_clearing', nature: 'debit', limited: false };
+  // Recibe créditos cuando se retira saldo del comercio (dinero que debemos sacar hacia el banco): es acreedora.
+  if (name === 'payout:clearing') return { name, kind: 'payout_clearing', nature: 'credit', limited: false };
   return { name, kind: 'schedule_reserve', nature: 'credit', limited: true };
 }
 
