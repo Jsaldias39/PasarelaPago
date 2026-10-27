@@ -20,7 +20,9 @@ services:
       # Crear una base por servicio es lento en discos de CI/VM; sin esto `pg_ctl` se rinde a los 60 s al apagar la inicialización.
       PGCTLTIMEOUT: "300"
     # SOLO desarrollo local: sin fsync el stack arranca rápido y un corte de luz puede corromper los datos (son descartables).
-    command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
+    # max_connections=400: cada suite de pruebas abre un pool de hasta 60 conexiones; con 100 (el valor por defecto)
+    # tres suites a la vez agotan los cupos y fallan pruebas de concurrencia por "too many clients" (ENVIRONMENT, ola 1).
+    command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off", "-c", "max_connections=400"]
     ports: ["127.0.0.1:54321:5432"]
     volumes:
       - pg_data:/var/lib/postgresql/data

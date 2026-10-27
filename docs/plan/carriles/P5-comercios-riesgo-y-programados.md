@@ -1,6 +1,6 @@
 # Carril P5 — Comercios, riesgo y pagos programados
 
-> **Estado:** `EN CURSO` (ola 0) · **AVANCE: 0 / 18 — 0,0 %** · **Peldaño:** `TESTED` en lo marcado HECHO; `UNKNOWN` en el resto
+> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 14 / 18 — 77,8 %** · **Peldaño:** `TESTED` en lo marcado HECHO (contra Postgres real; el libro mayor, el almacén de objetos y el verificador de operadores son dobles declarados); `UNKNOWN` en el resto. Evidencia: [`../../trabajo/ola-1/P5/`](../../trabajo/ola-1/P5/evidencia/INDICE.md)
 > **Predecesor:** P1.H1 (plataforma y plantilla).
 > **Carpetas del monorepo:** `services/pay-merchants/`, `services/pay-risk/`, `services/pay-schedules/` · esquema en `mantra-core-health-model`.
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md)
@@ -48,13 +48,13 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P5.H1.M1 | Esquema `pay_merchants` en el modelo (desde `connected_accounts`, `kyc_verifications` y `fee_schedules`) + **contraste con los 18 puntos del alta legal** de los módulos 3–6 (`procesos-alovida`) | Sin deriva; los 18 puntos mapeados o escalados en un issue | Verificador de deriva + tabla de mapeo | TODO |
-| P5.H1.M2 | Máquina de estados del comercio (`pending → active → suspended → closed`) | REQ-P5-1 | Test pegado | TODO |
-| P5.H1.M3 | KYC: documentos al almacén de objetos, revisión y nivel de riesgo | REQ-P5-8 | Test pegado | TODO |
-| P5.H1.M4 | Contratos versionados y aceptación inmutable | REQ-P5-2 | Test pegado | TODO |
-| P5.H1.M5 | Tarifario por canal y acuerdo, con vigencia + evento | REQ-P5-3 | Test pegado | TODO |
-| P5.H1.M6 | API keys (`sk_test_` / `sk_live_`), hash SHA-256 con `@pay/api-key` (D-27), rotación con gracia, revocación + eventos | REQ-P5-4 | Test pegado | TODO |
-| P5.H1.M7 | **Tarifario de alcance completo** (D-07): % + fijo por transacción, mínimo y tope, descuento por canal directo (7.9) y abono mensual; el cálculo vive en `@pay/money` y lo usan P3 y P2 | Para cada combinación, comisión + neto = bruto (test de propiedades) | Test pegado | TODO |
+| P5.H1.M1 | Esquema `pay_merchants` en el modelo (desde `connected_accounts`, `kyc_verifications` y `fee_schedules`) + **contraste con los 18 puntos del alta legal** de los módulos 3–6 (`procesos-alovida`) | Sin deriva; los 18 puntos mapeados o escalados en un issue | Verificador de deriva + tabla de mapeo | A MEDIAS |
+| P5.H1.M2 | Máquina de estados del comercio (`pending → active → suspended → closed`) | REQ-P5-1 | Test pegado | HECHO |
+| P5.H1.M3 | KYC: documentos al almacén de objetos, revisión y nivel de riesgo | REQ-P5-8 | Test pegado | HECHO |
+| P5.H1.M4 | Contratos versionados y aceptación inmutable | REQ-P5-2 | Test pegado | HECHO |
+| P5.H1.M5 | Tarifario por canal y acuerdo, con vigencia + evento | REQ-P5-3 | Test pegado | HECHO |
+| P5.H1.M6 | API keys (`sk_test_` / `sk_live_`), hash SHA-256 con `@pay/api-key` (D-27), rotación con gracia, revocación + eventos | REQ-P5-4 | Test pegado | HECHO |
+| P5.H1.M7 | **Tarifario de alcance completo** (D-07): % + fijo por transacción, mínimo y tope, descuento por canal directo (7.9) y abono mensual; el cálculo vive en `@pay/money` y lo usan P3 y P2 | Para cada combinación, comisión + neto = bruto (test de propiedades) | Test pegado | HECHO |
 
 ## H2 — `pay-risk` (olas 1 y 2)
 
@@ -64,10 +64,10 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
 | P5.H2.M1 | **Spike** Watchman: cargar listas, latencia de búsqueda, licencia en su `LICENSE` | Responde sí o no con criterio | `evidencia/spike-watchman.md` | A MEDIAS |
-| P5.H2.M2 | Motor de reglas versionado (monto, velocidad por comercio y pagador, horario) | REQ-P5-5 (velocidad) | Test pegado | TODO |
-| P5.H2.M3 | Cribado de sanciones integrado | REQ-P5-5 (sanciones) | Test con nombres sintéticos de la lista de prueba | TODO |
-| P5.H2.M4 | `POST /assessments` con p99 < 300 ms | Latencia medida | Salida de la prueba de carga | TODO |
-| P5.H2.M5 | Registro auditable de cada decisión (sin datos personales en claro) | Toda decisión tiene su rastro | Consulta pegada | TODO |
+| P5.H2.M2 | Motor de reglas versionado (monto, velocidad por comercio y pagador, horario) | REQ-P5-5 (velocidad) | Test pegado | HECHO |
+| P5.H2.M3 | Cribado de sanciones integrado | REQ-P5-5 (sanciones) | Test con nombres sintéticos de la lista de prueba | HECHO |
+| P5.H2.M4 | `POST /assessments` con p99 < 300 ms | Latencia medida | Salida de la prueba de carga | A MEDIAS |
+| P5.H2.M5 | Registro auditable de cada decisión (sin datos personales en claro) | Toda decisión tiene su rastro | Consulta pegada | HECHO |
 
 ## H3 — `pay-schedules` (olas 1 y 2)
 
@@ -76,12 +76,22 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P5.H3.M1 | Esquema `pay_schedules` (desde `payment_mandates`, `installment_plans` e `installment_schedules`) | Sin deriva | Verificador de deriva | TODO |
-| P5.H3.M2 | Mandatos del médico (7.7): beneficiario, monto, calendario y tope; retención en `schedule:{id}:reserve` | REQ-P5-6 | Test pegado | TODO |
-| P5.H3.M3 | Ejecutor idempotente por `(mandato, periodo)` + reintentos + evento `scheduled_payment.*` | El job corrido dos veces → una ejecución | Test pegado | TODO |
-| P5.H3.M4 | Comisiones programadas de proveedores (7.8) | REQ-P5-7 | Test pegado | TODO |
-| P5.H3.M5 | E5 de punta a punta (fondos insuficientes → reintento → éxito) | E5 en verde | Salida del E2E | TODO |
-| P5.H3.M6 | Aviso al médico o proveedor (vía webhook o evento para el monolito) sin datos sensibles | Evento emitido con solo ids y montos | Test pegado | TODO |
+| P5.H3.M1 | Esquema `pay_schedules` (desde `payment_mandates`, `installment_plans` e `installment_schedules`) | Sin deriva | Verificador de deriva | A MEDIAS |
+| P5.H3.M2 | Mandatos del médico (7.7): beneficiario, monto, calendario y tope; retención en `schedule:{id}:reserve` | REQ-P5-6 | Test pegado | HECHO |
+| P5.H3.M3 | Ejecutor idempotente por `(mandato, periodo)` + reintentos + evento `scheduled_payment.*` | El job corrido dos veces → una ejecución | Test pegado | HECHO |
+| P5.H3.M4 | Comisiones programadas de proveedores (7.8) | REQ-P5-7 | Test pegado | HECHO |
+| P5.H3.M5 | E5 de punta a punta (fondos insuficientes → reintento → éxito) | E5 en verde | Salida del E2E | HECHO |
+| P5.H3.M6 | Aviso al médico o proveedor (vía webhook o evento para el monolito) sin datos sensibles | Evento emitido con solo ids y montos | Test pegado | HECHO |
+
+### Estado de la ola 1 (a medias, con las cuatro respuestas)
+
+**P5.H1.M1 — Esquema y los 18 puntos.** *Qué anda:* el esquema (`services/pay-merchants/sql/001_merchants.sql`) aplica sobre Postgres real y la tabla de mapeo de los 18 puntos está en `DECISIONES-TOMADAS.md` D5-01. *Qué no anda:* no hay verificador de deriva porque el pipeline del modelo (D-18) no tiene estas tablas. *Qué falta:* mover el SQL a `mantra-core-health-model` y correr el verificador; resolver Q-22 (¿`directory` se referencia o se recaptura?). *Dónde quedó:* `services/pay-merchants/sql/`, compila.
+
+**P5.H3.M1 — Esquema de `pay-schedules`.** Igual que arriba: `sql/001_schedules.sql` aplica y se usa en 129 pruebas; falta el modelo y su verificador de deriva.
+
+**P5.H2.M4 — p99 < 300 ms.** *Qué anda:* `POST /assessments` con Watchman REAL y Postgres real mide p99 52–77 ms en máquina tranquila y 142–209 ms en 3 de 5 corridas completas; el servicio solo (sin Watchman) mide p99 19–55 ms. *Qué no anda:* con la máquina compartida cargada (load average 17–38 en 4 vCPU) el p99 pasó de 300 ms en 2 de 5 corridas, hasta sin Watchman: clasificado `ENVIRONMENT` ([`P5.H2.M4.txt`](../../trabajo/ola-1/P5/evidencia/P5.H2.M4.txt)). *Qué falta:* medir en un runner dedicado; escalar Watchman (satura con > 4 clientes simultáneos, p99 400 ms con 24) o cachear/usar `entity_type` (PR-11). *Dónde quedó:* `services/pay-risk/test/latency.spec.ts`, compila; intermitente bajo carga externa.
+
+**P5.H2.M1** sigue `A MEDIAS` como en la ola 0 (no se tocó).
 
 ## Dobles (regla 65)
 

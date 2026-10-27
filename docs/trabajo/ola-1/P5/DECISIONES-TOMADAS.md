@@ -20,3 +20,30 @@ los números de pruebas son de prueba y están marcados como tales.
 | D5-11 | Cerrar un comercio no revoca sus claves: los consumidores aplican `merchant.closed` (ver PR-07). | P1 / P3 |
 | D5-12 | D-28 aplicado: el modo del llamador se lee de `X-Pay-Mode` (`test`\|`live`), nunca del cuerpo ni del token. | Coordinador |
 | D5-13 | Hallazgo propio corregido: el almacén de idempotencia devuelve un error de negocio guardado como resultado; sin tratamiento, `POST /merchants` y `POST /api_keys` lo devolvían como 2xx al repetirse. Ahora se vuelve a lanzar como RFC 9457 (`src/idempotent.ts`, con prueba de regresión). | — |
+
+## pay-risk
+
+| ID | Decisión / supuesto | Confirmar con |
+|---|---|---|
+| D5-20 | **Umbrales de sanciones** (`SANCTIONS_DENY_SCORE`, `SANCTIONS_REVIEW_SCORE`) y `PAYER_HASH_KEY` obligatorios y SIN valor por defecto: el servicio no arranca sin ellos. Los valores de las pruebas (0,80 / 0,60) son de prueba, no de negocio (Q-12). Se decide por umbral inclusivo, nunca por «hubo resultados». | Cumplimiento |
+| D5-21 | **Límites** (D-23) versionados e inmutables; la versión 1 es «sin límites» (todo `NULL`) y `POST /assessments` responde `allow` con `no_limits_configured`. «Por día» = ventana móvil de 24 h (no día calendario). Velocidad = intentos DISTINTOS por pagador/comercio en la ventana; el intento número n+1 se rechaza. Los importes diarios suman solo intentos no rechazados. Horario en hora de La Paz (UTC-4), `[from, to)`, sin rangos que crucen la medianoche. | Negocio / banco |
+| D5-22 | Sin nombre a cribar ⇒ `review` `screening_not_provided` (más conservador). Con un límite por pagador y sin huella del pagador ⇒ `review` `payer_unidentified`. | Cumplimiento + P3 (¿siempre mandan nombre?) |
+| D5-23 | **Watchman caído, lento (> `SCREENING_TIMEOUT_MS`, 200 ms por defecto, máximo 250) o con respuesta inválida ⇒ HTTP 201 con `decision: review`, `reason_code: screening_unavailable`, `screened: false`** y rastro; nunca `allow`. El contrato borrador dice `503`; se siguió el carril (PR-11c). | P3 + P5 |
+| D5-24 | Sin `entity_type` se hacen dos búsquedas (persona y empresa) y se toma el mayor puntaje; una búsqueda caída con la otra limpia ⇒ `unavailable`; una coincidencia fuerte manda aunque la otra falle. | Cumplimiento |
+| D5-25 | El nombre se manda a Watchman SOLO como nombre y tipo (URL interna, Watchman no autentica). No se guarda ni se registra; en la idempotencia entra como HMAC. El rastro guarda el puntaje máximo y la lista/id **públicos** de la mejor coincidencia. | Cumplimiento |
+| D5-26 | Listas del Watchman local: `v2-static` de 2019, SOLO sandbox. Las listas vigentes no se cargaron (sin acceso de red; spike). | Infra + cumplimiento |
+| D5-27 | La carga de límites (`POST /rule_sets`) es una propuesta de contrato con rol `risk_admin` (PR-08, PR-11). | Identidad |
+
+## pay-schedules
+
+| ID | Decisión / supuesto | Confirmar con |
+|---|---|---|
+| D5-30 | **La política de reintentos** (`RETRY_DELAYS_SECONDS`) y la URL del libro mayor son obligatorias y SIN valor por defecto. La de las pruebas (1 h, 2 h, 4 h) es de prueba. Intentos totales = esperas + 1. | Negocio |
+| D5-31 | El pagador es `merchant:{id}:available` (no `user:{id}:wallet`): el mandato es de un comercio. Si el médico paga desde una billetera de usuario, cambia la cuenta de origen. | Dueño (E5 dice «saldo AloVida») |
+| D5-32 | **Flujo del libro mayor:** retención `merchant:{pagador}:available → schedule:{mandato}:reserve` (hold) → confirmación → asiento `reserve → merchant:{beneficiario}:available` (`platform:fees` y código `fee` en las comisiones). **No se usa `pay-payments` `POST /intents`**: su respuesta no expone el asiento que exige el evento y duplicaría el movimiento del saldo. | P3 + P2 |
+| D5-33 | 7.8 (Q-15, conservador): una comisión es un mandato `pay_commission` creado por el propio proveedor (su consentimiento), con importe fijo y beneficiario = `PLATFORM_MERCHANT_ID` (sin él, no se aceptan). Frecuencia mensual (el contrato no tiene semanal). | Stakeholder (#161 y Q-15) |
+| D5-34 | Beneficiarios solo comercios de la pasarela y ACTIVOS (réplica por eventos `merchant.*`). Al crear: 422 `beneficiary_merchant_id` (`unknown`/`not_active`/`is_payer`). Al ejecutar una obligación: beneficiario no activo o inexistente ⇒ `failed` `merchant_suspended`, sin retener; si se bloquea entre fases se anula la retención (void) o se hace el asiento inverso, `needs_review`, y NUNCA se acredita. Pagador desconocido para la réplica no bloquea (manda lo que autenticó pay-edge). | Coordinador / P1 |
+| D5-35 | Resultado ambiguo (timeout, corte, 5xx, 404/403, cuerpo no contractual) ⇒ se reintenta con la MISMA clave; nada se anula ni se borra; si la política se agota ⇒ `failed` `ledger_unavailable` con `needs_review`. Solo `422 insufficient_funds`/`validation_failed` exactos son definitivos. | — |
+| D5-36 | Un periodo `failed` NO deja al mandato pausado: vuelve a `active` para los periodos siguientes. Un pago con dinero ya retenido se completa aunque se cancele el mandato. Un mandato pausado no materializa periodos nuevos hasta resolver el pendiente (se ponen al día de a uno por corrida). | Negocio |
+| D5-37 | `mandate.created` etc. llevan solo ids y montos (la descripción libre no sale por el bus). El aviso al médico/proveedor es el evento; el webhook lo arma `pay-webhooks`. | P1 |
+| D5-38 | Un `executed` sin `tf_…` del libro mayor ⇒ el pago queda `executed` con `needs_review` y sin evento (PR-09). | P2 |
