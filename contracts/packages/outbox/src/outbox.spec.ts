@@ -178,6 +178,21 @@ describe('outbox + relé + NATS JetStream (reales)', () => {
   });
 });
 
+describe('relé ante una base caída', () => {
+  it('espacia los reintentos en vez de martillar: con 20 ms de sondeo hace pocos intentos en 700 ms', async () => {
+    const errors: string[] = [];
+    const brokenPool = { query: async () => ({ rows: [], rowCount: 0 }), connect: async () => { throw new Error('base caída'); } };
+    const relay = new OutboxRelay(brokenPool, { publish: async () => undefined }, { pollIntervalMs: 20, onError: (e) => errors.push(e.message) });
+    relay.start();
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    relay.stop();
+    // Sin retroceso serían ~35 intentos; con 40, 80, 160, 320 ms son 4 o 5.
+    expect(errors.length).toBeGreaterThanOrEqual(2);
+    expect(errors.length).toBeLessThanOrEqual(7);
+    expect(new Set(errors)).toEqual(new Set(['base caída']));
+  });
+});
+
 describe('inbox (efecto único)', () => {
   const work = (label: string) => async (client: { query(t: string, p?: unknown[]): Promise<unknown> }) => {
     await client.query('INSERT INTO effects (label) VALUES ($1)', [label]);

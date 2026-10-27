@@ -49,6 +49,9 @@ export interface RelayOptions {
 /** Clave del candado de asesoría que serializa a los relés de una misma base. */
 const RELAY_LOCK_KEY = 7_340_001;
 
+/** Tope del retroceso del relé ante fallos consecutivos. */
+const MAX_BACKOFF_MS = 10_000;
+
 /**
  * Lee el outbox en orden y publica. Un candado de asesoría hace que, aunque haya varias réplicas del
  * servicio, **un solo relé drene a la vez**: se conserva el orden por agregado (la autorización antes que la
@@ -122,15 +125,20 @@ export class OutboxRelay {
   start(): void {
     if (this.running) return;
     this.running = true;
+    let failures = 0;
     const tick = async (): Promise<void> => {
       if (!this.running) return;
       let drained = 0;
       try {
         drained = await this.drainOnce();
+        failures = 0;
       } catch (error) {
+        failures += 1;
         this.options.onError?.(error instanceof Error ? error : new Error(String(error)), '');
       }
-      if (this.running) this.timer = setTimeout(tick, drained > 0 ? 0 : this.pollIntervalMs);
+      // Ante un fallo persistente (por ejemplo, la base caída) se espacia: 1×, 2×, 4× … hasta 10 s.
+      const delay = failures > 0 ? Math.min(this.pollIntervalMs * 2 ** failures, MAX_BACKOFF_MS) : drained > 0 ? 0 : this.pollIntervalMs;
+      if (this.running) this.timer = setTimeout(tick, delay);
     };
     this.timer = setTimeout(tick, 0);
   }
