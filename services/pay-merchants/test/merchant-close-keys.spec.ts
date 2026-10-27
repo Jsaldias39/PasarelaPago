@@ -5,9 +5,8 @@ import { activeMerchant, bo, createMerchant, pub, uniqueKey } from './support/ht
 /**
  * D-32: cerrar un comercio REVOCA sus claves de API; suspenderlo solo las bloquea (reversible).
  *
- * `api_key.revoked.reason = merchant_closed` NO está todavía en el enum de contracts/asyncapi/merchants-schedules.yaml (propuesta PR-16 en
- * docs/trabajo/ola-2/P5/PROPUESTAS.md). Mientras el contrato no lo incluya, la prueba comprueba que el servicio emite `merchant_closed` y valida
- * el resto del sobre contra el AsyncAPI sustituyendo SOLO ese valor por uno del enum actual.
+ * `api_key.revoked.reason = merchant_closed` ya está en el enum de contracts/asyncapi/merchants-schedules.yaml (PR-16/PR-22): los eventos se
+ * validan contra el AsyncAPI vigente SIN sustituciones.
  */
 let ctx: TestContext;
 beforeAll(async () => {
@@ -19,14 +18,12 @@ const createKey = (merchantId: string, mode: 'test' | 'live') => pub(ctx, 'post'
 const rows = async (sql: string, params: unknown[] = []) => (await ctx.db.pool.query(sql, params)).rows;
 const keyRow = async (keyId: string) => (await rows('SELECT * FROM api_keys WHERE key_id = $1', [keyId]))[0];
 
-/** Eventos `api_key.revoked` del comercio, en orden de emisión, con el sobre validado contra el AsyncAPI vigente (salvo el valor propuesto). */
+/** Eventos `api_key.revoked` del comercio, en orden de emisión, con el sobre validado contra el AsyncAPI vigente, sin sustituciones. */
 async function revokedEvents(merchantId: string) {
   const { rows: found } = await ctx.db.pool.query(`SELECT seq, subject, envelope FROM outbox_events WHERE type = 'api_key.revoked' AND envelope->'data'->>'merchant_id' = $1 ORDER BY seq`, [merchantId]);
   return found.map((r) => {
     const envelope = r.envelope as { data: { reason: string } };
-    const checked = structuredClone(envelope);
-    if (checked.data.reason === 'merchant_closed') checked.data.reason = 'compromised';
-    expect({ subject: r.subject, errors: ctx.events.validate(r.subject as string, checked) }).toEqual({ subject: r.subject, errors: [] });
+    expect({ subject: r.subject, errors: ctx.events.validate(r.subject as string, envelope) }).toEqual({ subject: r.subject, errors: [] });
     return { seq: Number(r.seq), ...(envelope as { data: Record<string, unknown> }) };
   });
 }

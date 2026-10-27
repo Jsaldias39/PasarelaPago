@@ -34,7 +34,7 @@ afterEach(() => {
   ledger.latencyMs = 0;
 });
 
-const assessInput = { merchantId: MC, paymentIntentId: PI, amountMinor: 10000, currency: 'BOB', method: 'qr' as const, screening: { name: 'Comercio de Prueba S.R.L.', entityType: 'business' as const } };
+const assessInput = { merchantId: MC, paymentIntentId: PI, amountMinor: 10000, currency: 'BOB', method: 'qr' as const, screening: { merchantName: 'Comercio de Prueba S.R.L.' } };
 // El doble es idempotente por clave como pay-risk: cada evaluación de estas pruebas usa su propio intento.
 let riskSeq = 0;
 const fresh = () => ({ ...assessInput, paymentIntentId: `pi_risk${String(riskSeq++).padStart(8, '0')}` });
@@ -54,21 +54,37 @@ describe('[DOBLE] pay-risk (internal-risk-v1)', () => {
     expect((await c.risk.assess(fresh())).decision).toBe('allow');
   });
 
-  it('límite: un nombre de la lista con otras mayúsculas, tildes y espacios ⇒ deny/sanctions_match; el mismo nombre en otra evaluación sin lista ⇒ allow', async () => {
+  it('límite: un nombre de la lista con otras mayúsculas, tildes y espacios ⇒ deny/sanctions_match, sea el del COMERCIO o el del PAGADOR; el mismo nombre sin lista ⇒ allow', async () => {
     risk.sanctions.add('entidad sancionada de prueba');
-    const hit = await c.risk.assess({ ...fresh(), screening: { name: '  ENTIDAD  Sancionáda   de Prueba ', entityType: 'person' } });
-    expect(hit).toMatchObject({ decision: 'deny', reason_code: 'sanctions_match', screened: true });
+    const listed = '  ENTIDAD  Sancionáda   de Prueba ';
+    expect(await c.risk.assess({ ...fresh(), screening: { merchantName: listed } })).toMatchObject({ decision: 'deny', reason_code: 'sanctions_match', screened: true });
+    expect(await c.risk.assess({ ...fresh(), screening: { merchantName: 'Comercio de Prueba S.R.L.', payerName: listed } })).toMatchObject({ decision: 'deny', reason_code: 'sanctions_match', screened: true });
     risk.sanctions.clear();
-    expect((await c.risk.assess({ ...fresh(), screening: { name: 'Entidad Sancionada de Prueba', entityType: 'person' } })).decision).toBe('allow');
+    expect((await c.risk.assess({ ...fresh(), screening: { merchantName: 'Comercio de Prueba S.R.L.', payerName: 'Entidad Sancionada de Prueba' } })).decision).toBe('allow');
   });
 
-  it('inválido: SIN screening el doble responde review/screening_not_provided (nunca allow, como el contrato) y screened=false; con requireScreening=false, allow', async () => {
+  it('límite: un pagador invitado (sin name) NO bloquea; con name sin coincidencia tampoco', async () => {
+    expect(await c.risk.assess(fresh())).toMatchObject({ decision: 'allow', reason_code: 'ok' });
+    expect((await c.risk.assess({ ...fresh(), screening: { merchantName: 'Comercio de Prueba S.R.L.', payerName: 'Persona Sintetica' } })).decision).toBe('allow');
+  });
+
+  it('inválido: SIN merchant_name el doble responde review/screening_not_provided (nunca allow, como el contrato) y screened=false — también si solo viene el pagador sin coincidencia; con requireScreening=false, allow', async () => {
     const base = fresh();
     const withoutScreening = { merchantId: base.merchantId, paymentIntentId: base.paymentIntentId, amountMinor: base.amountMinor, currency: base.currency, method: base.method };
     expect(await c.risk.assess(withoutScreening)).toMatchObject({ decision: 'review', reason_code: 'screening_not_provided', screened: false });
+    expect(await c.risk.assess({ ...fresh(), screening: { payerName: 'Persona Sintetica' } })).toMatchObject({ decision: 'review', reason_code: 'screening_not_provided', screened: false });
+    risk.sanctions.add('persona sancionada');
+    expect(await c.risk.assess({ ...fresh(), screening: { payerName: 'Persona Sancionada' } })).toMatchObject({ decision: 'deny', reason_code: 'sanctions_match' }); // una coincidencia fuerte no se oculta
     risk.requireScreening = false;
     expect(await c.risk.assess({ ...withoutScreening, paymentIntentId: 'pi_risknoscr001' })).toMatchObject({ decision: 'allow', screened: false });
     risk.requireScreening = true;
+  });
+
+  it('inválido: un campo fuera de contrato dentro de screening es una violación registrada por el doble', async () => {
+    const response = await fetch(`${risk.server.url}/assessments`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-id': 'pay-payments', 'idempotency-key': 'k-0002-bbbb' }, body: JSON.stringify({ merchant_id: MC, payment_intent_id: 'pi_oldformat001', amount_minor: 100, currency: 'BOB', method: 'qr', screening: { razon_social: 'x' } }) });
+    expect(response.status).toBeGreaterThanOrEqual(200);
+    expect(risk.server.violations.length).toBeGreaterThan(0);
+    risk.server.violations.length = 0;
   });
 
   it('idempotencia: la misma Idempotency-Key devuelve la MISMA evaluación (200 en la repetición), aunque el modo del doble haya cambiado', async () => {

@@ -32,30 +32,54 @@ describe('conformidad con internal-risk-v1.yaml', () => {
     expect(mounted).toEqual(declared);
   });
 
-  it('un pedido con TODOS los campos del esquema `AssessmentCreate` vigente (screening.name + entity_type del pagador) cumple el contrato y se acepta; sin el nombre del comercio (D-29) queda en review', async () => {
+  it('un pedido con TODOS los campos del esquema `AssessmentCreate` vigente (merchant_name, merchant_entity_type, name y entity_type) cumple el contrato y se acepta; la respuesta trae todos los campos de `Assessment`', async () => {
     const doc = await contractDoc();
     const top = Object.keys(doc.components.schemas.AssessmentCreate.properties ?? {}).sort();
     const screening = Object.keys((doc.components.schemas.AssessmentCreate.properties?.screening as Schema).properties ?? {}).sort();
-    const body: Record<string, unknown> = { ...assessmentBody({ payer_fingerprint: 'huella-conformidad', screening: null }), screening: { name: 'Nombre Sintético Conformidad', entity_type: 'business' } };
+    expect(screening).toEqual(['entity_type', 'merchant_entity_type', 'merchant_name', 'name']);
+    const body: Record<string, unknown> = {
+      ...assessmentBody({ payer_fingerprint: 'huella-conformidad', screening: null }),
+      screening: { merchant_name: 'Razón Social Sintética Conformidad', merchant_entity_type: 'business', name: 'Nombre Sintético Conformidad', entity_type: 'business' },
+    };
     expect(Object.keys(body).sort()).toEqual(top);
     expect(Object.keys(body.screening as object).sort()).toEqual(screening);
     expect(ctx.contract.validateRequest({ method: 'post', path: '/assessments', body })).toEqual([]);
     const created = verified(ctx.contract, 'post', '/assessments', await post(ctx, body), 201);
-    expect(created).toMatchObject({ object: 'risk_assessment', payment_intent_id: body.payment_intent_id, decision: 'review', reason_code: 'screening_not_provided', screened: false });
-    // La respuesta trae todos los campos que el esquema `Assessment` declara.
+    expect(created).toMatchObject({ object: 'risk_assessment', payment_intent_id: body.payment_intent_id, screened: true });
     expect(Object.keys(created).sort()).toEqual(Object.keys(doc.components.schemas.Assessment.properties ?? {}).sort());
   });
 
-  it('D-29: lo ÚNICO que el servicio acepta de más que el contrato vigente es el nombre legal del comercio (merchant_name, merchant_entity_type; PR-17)', async () => {
+  it('el esquema vigente NO exige ningún campo de `screening`: sin `merchant_name` (o sin `screening`, o `screening: {}`) responde 201 `review`/`screening_not_provided`, nunca 422', async () => {
     const doc = await contractDoc();
-    const contractFields = Object.keys((doc.components.schemas.AssessmentCreate.properties?.screening as Schema).properties ?? {});
-    const body = assessmentBody({ screening: { merchant_entity_type: 'business' } });
-    const accepted = Object.keys(body.screening as object).filter((k) => !contractFields.includes(k)).sort();
-    expect(accepted).toEqual(['merchant_entity_type', 'merchant_name']);
-    const res = await post(ctx, body);
-    expect(res.status).toBe(201);
-    // Un campo que no es ni del contrato ni de la extensión sigue rechazado.
-    expect((await post(ctx, assessmentBody({ screening: { dob: '1980-01-01' } as never }))).status).toBe(422);
+    expect((doc.components.schemas.AssessmentCreate.properties?.screening as { required?: string[] }).required).toBeUndefined();
+    const variants: Record<string, Record<string, unknown>> = {
+      'solo el pagador (contrato anterior)': { ...assessmentBody({ screening: null }), screening: { name: 'Nombre Sintético Conformidad', entity_type: 'business' } },
+      'screening vacío': { ...assessmentBody({ screening: null }), screening: {} },
+      'sin screening': assessmentBody({ screening: null }),
+    };
+    for (const [name, body] of Object.entries(variants)) {
+      expect({ name, errors: ctx.contract.validateRequest({ method: 'post', path: '/assessments', body }) }).toEqual({ name, errors: [] });
+      const created = verified(ctx.contract, 'post', '/assessments', await post(ctx, body), 201);
+      expect({ name, decision: created.decision, reason: created.reason_code, screened: created.screened }).toEqual({ name, decision: 'review', reason: 'screening_not_provided', screened: false });
+    }
+  });
+
+  it('el servicio acepta EXACTAMENTE los campos de `screening` del contrato: 1 y 300 caracteres de razón social sí; 0, 301, un tipo ajeno o un campo extra se rechazan (422) igual que lo hace el contrato', async () => {
+    const cases: [string, Record<string, unknown>, number][] = [
+      ['merchant_name de 1 carácter', { merchant_name: 'A' }, 201],
+      ['merchant_name de 300 caracteres', { merchant_name: 'B'.repeat(300) }, 201],
+      ['merchant_name vacío', { merchant_name: '' }, 422],
+      ['merchant_name de 301 caracteres', { merchant_name: 'C'.repeat(301) }, 422],
+      ['merchant_entity_type ajeno', { merchant_name: 'Razón Social', merchant_entity_type: 'gobierno' }, 422],
+      ['name de 201 caracteres', { merchant_name: 'Razón Social', name: 'D'.repeat(201) }, 422],
+      ['campo que no es del contrato', { merchant_name: 'Razón Social', dob: '1980-01-01' }, 422],
+    ];
+    for (const [name, screening, status] of cases) {
+      const body = { ...assessmentBody({ screening: null }), screening };
+      const contractErrors = ctx.contract.validateRequest({ method: 'post', path: '/assessments', body });
+      expect({ name, contractAccepts: contractErrors.length === 0 }).toEqual({ name, contractAccepts: status === 201 });
+      expect({ name, status: (await post(ctx, body)).status }).toEqual({ name, status });
+    }
   });
 
   it('un pedido con TODOS los campos de `RuleSetCreate` cumple el contrato, se acepta y la respuesta trae todos los de `RuleSet`', async () => {

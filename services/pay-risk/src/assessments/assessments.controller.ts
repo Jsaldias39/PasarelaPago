@@ -21,10 +21,11 @@ const parseAssessment = compile<AssessmentInput>({
       type: 'object',
       additionalProperties: false,
       properties: {
-        // D-29 (extensión del contrato, PR-17): nombre legal del comercio, que SIEMPRE debe venir para poder cribar.
-        merchant_name: { type: 'string', minLength: 1, maxLength: 200 },
+        // internal-risk-v1.yaml `AssessmentCreate.screening` (D-29): ningún campo es `required`. Sin `merchant_name` la respuesta es 201
+        // `review`/`screening_not_provided` (fail-closed, D-30), no un 422. Nombre legal del comercio: 1..300.
+        merchant_name: { type: 'string', minLength: 1, maxLength: 300 },
         merchant_entity_type: { type: 'string', enum: ['person', 'business'] },
-        // Contrato vigente: nombre del pagador (opcional: el invitado sin nombre no bloquea).
+        // Nombre del pagador (opcional: el invitado sin nombre no bloquea).
         name: { type: 'string', minLength: 1, maxLength: 200 },
         entity_type: { type: 'string', enum: ['person', 'business'] },
       },

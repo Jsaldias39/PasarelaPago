@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { EventHandlers } from '../src/events/handlers';
 import { replicasRepo } from '../src/persistence/replicas.repo';
 import { CONTRACTS } from './doubles/contracts';
+import { captureOutput } from './helpers/capture';
 import { loadEventValidators, type EventValidator } from './helpers/events-contract';
 import { asMerchant, httpApp } from './helpers/http';
 import { key, MC, QR_FEES, seedMerchant, startStack, statusOf, TEST_LEGAL_NAME, waitFor, type Stack } from './helpers/stack';
@@ -21,7 +22,7 @@ const http = () => request(app.getHttpServer());
 const post = (body: unknown, merchantId = MC, k = key()) => http().post('/payment_intents').set(asMerchant(merchantId)).set('idempotency-key', k).send(body as object);
 const PAYER = 'Persona Sintetica Dos'; // sintético
 const callsFor = (intentId: string) => stack.risk.server.calls.filter((c) => (c.body as { payment_intent_id?: string }).payment_intent_id === intentId);
-const screeningOf = (call: { body: unknown }) => (call.body as { screening?: { name: string; entity_type?: string } }).screening;
+const screeningOf = (call: { body: unknown }) => (call.body as { screening?: { merchant_name?: string; merchant_entity_type?: string; name?: string; entity_type?: string } }).screening;
 const keyOf = (call: { headers: Record<string, unknown> }) => String(call.headers['idempotency-key']);
 const payerNameOf = async (id: string) => (await stack.db.pool.query('SELECT payer_name FROM payment_intents WHERE id = $1', [id])).rows[0]?.payer_name as string | null;
 const intentCount = async () => Number((await stack.db.pool.query('SELECT count(*) AS n FROM payment_intents')).rows[0].n);
@@ -48,7 +49,7 @@ afterEach(() => {
 });
 
 describe('1 · payer_name en POST /payment_intents (public-v1, D-33)', () => {
-  it('correcto · con nombre: 201, se cribe como person con clave propia, el cobro sigue y el nombre NO sale en ninguna respuesta ni evento', async () => {
+  it('correcto · con nombre: 201, se cribe en la MISMA evaluación (merchant_name + name), el cobro sigue y el nombre NO sale en ninguna respuesta ni evento', async () => {
     const body = { ...QR, payer_name: PAYER };
     expect(publicContract.validateRequest({ method: 'POST', path: '/payment_intents', body })).toEqual([]);
     const response = await post(body);
@@ -56,8 +57,8 @@ describe('1 · payer_name en POST /payment_intents (public-v1, D-33)', () => {
     const id = response.body.id as string;
     expect(publicContract.validateResponse({ method: 'POST', path: '/payment_intents', status: 201, body: response.body })).toEqual([]);
     const calls = callsFor(id);
-    expect(calls.map(screeningOf)).toEqual([{ name: TEST_LEGAL_NAME, entity_type: 'business' }, { name: PAYER, entity_type: 'person' }]);
-    expect(calls.map(keyOf)).toEqual([`${id}:risk`, `${id}:risk:payer`]);
+    expect(calls.map(screeningOf)).toEqual([{ merchant_name: TEST_LEGAL_NAME, name: PAYER }]);
+    expect(calls.map(keyOf)).toEqual([`${id}:risk`]);
     expect(stack.connectors.chargeFor(id)).toBeDefined();
     expect(await payerNameOf(id)).toBe(PAYER);
     // Ni la respuesta, ni la lectura, ni el listado, ni la repetición idempotente, ni el outbox lo traen.
@@ -110,7 +111,7 @@ describe('1 · payer_name en POST /payment_intents (public-v1, D-33)', () => {
     const other = await post({ ...QR, payer_name: 'Otra Persona Sintetica' }, MC, k);
     expect(other.status).toBe(422);
     expect(other.body.code).toBe('idempotency_key_reused');
-    expect(callsFor(first.body.id as string).filter((c) => screeningOf(c)?.entity_type === 'person')).toHaveLength(1);
+    expect(callsFor(first.body.id as string)).toHaveLength(1);
   });
 
   it('pagador con nombre en la lista de sanciones ⇒ risk_denied sin cargo; invitado sin nombre en la misma corrida ⇒ no se bloquea', async () => {
@@ -121,6 +122,30 @@ describe('1 · payer_name en POST /payment_intents (public-v1, D-33)', () => {
     expect(await payerNameOf(denied.id as string)).toBeNull(); // terminal ⇒ borrado
     const guest = (await post(QR)).body;
     expect(guest.status).toBe('requires_action');
+  });
+});
+
+describe('1b · privacidad: ni payer_name ni legal_name en logs, salidas ni tablas ajenas', () => {
+  it('con un cobro con nombre de pagador llevado a un estado terminal: stdout/stderr no los traen; el nombre del pagador no queda en NINGUNA tabla; la razón social solo en merchant_replica', async () => {
+    const { result: id, output } = await captureOutput(async () => {
+      const created = (await post({ ...QR, payer_name: PAYER })).body.id as string;
+      await http().get(`/payment_intents/${created}`).set(asMerchant(MC));
+      await post({ ...QR, payer_name: 'C'.repeat(201) }); // un error de validación tampoco lo repite
+      await stack.orchestrator.signalCharge(created, { status: 'failed', failureCode: 'card_declined' });
+      await waitFor(async () => ((await statusOf(stack, created)) === 'failed' ? true : undefined), 20_000, 'terminal');
+      return created;
+    });
+    expect(output).not.toContain(PAYER);
+    expect(output).not.toContain(TEST_LEGAL_NAME);
+    const tables = (await stack.db.pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'")).rows as { table_name: string }[];
+    const holders: string[] = [];
+    for (const { table_name } of tables) {
+      const dump = JSON.stringify((await stack.db.pool.query(`SELECT row_to_json(t) FROM "${table_name}" t`)).rows);
+      if (dump.includes(PAYER)) holders.push(`${table_name}:payer`);
+      if (dump.includes(TEST_LEGAL_NAME)) holders.push(`${table_name}:legal`);
+    }
+    expect(holders.sort()).toEqual(['merchant_replica:legal']);
+    expect(await payerNameOf(id)).toBeNull();
   });
 });
 
@@ -148,7 +173,7 @@ describe('2 · legal_name en merchant.created|activated (AsyncAPI nuevo)', () =>
     expect(response.body.status).toBe('requires_action');
     const calls = callsFor(response.body.id as string);
     expect(calls).toHaveLength(1);
-    expect(screeningOf(calls[0]!)).toEqual({ name: 'Razon Social Sintetica Uno S.R.L.', entity_type: 'business' });
+    expect(screeningOf(calls[0]!)).toEqual({ merchant_name: 'Razon Social Sintetica Uno S.R.L.' });
     expect(stack.connectors.chargeFor(response.body.id as string)).toBeDefined();
   });
 
@@ -192,7 +217,7 @@ describe('2 · legal_name en merchant.created|activated (AsyncAPI nuevo)', () =>
 });
 
 describe('3 · cobro exitoso de punta a punta contra dobles', () => {
-  it('comercio activo con legal_name + pagador invitado sin nombre + riesgo allow ⇒ 201 con QR, cargo en el conector, una sola evaluación, y al capturarse el intento llega a succeeded con su asiento en el ledger', async () => {
+  it('comercio activo con legal_name + pagador invitado sin nombre + riesgo allow ⇒ 201 con QR, cargo en el conector, UNA evaluación, y al capturarse el intento llega a succeeded con su asiento en el ledger', async () => {
     const response = await post(QR);
     expect(response.status).toBe(201);
     const id = response.body.id as string;
@@ -200,8 +225,7 @@ describe('3 · cobro exitoso de punta a punta contra dobles', () => {
     expect(publicContract.validateResponse({ method: 'POST', path: '/payment_intents', status: 201, body: response.body })).toEqual([]);
     const calls = callsFor(id);
     expect(calls).toHaveLength(1);
-    expect(screeningOf(calls[0]!)).toEqual({ name: TEST_LEGAL_NAME, entity_type: 'business' });
-    expect(calls.some((c) => screeningOf(c)?.entity_type === 'person')).toBe(false); // el invitado no se cribó ni bloqueó
+    expect(screeningOf(calls[0]!)).toEqual({ merchant_name: TEST_LEGAL_NAME }); // el invitado no se cribó ni bloqueó (sin `name`)
     const charge = stack.connectors.chargeFor(id)!;
     expect(charge).toBeDefined();
     stack.connectors.setChargeStatus(charge.id, 'succeeded');

@@ -75,3 +75,10 @@ FAIL test/latency.spec.ts (55.923 s)
 Test Suites: 2 failed, 11 passed, 13 total
 Tests:       3 failed, 194 passed, 197 total
 ### corrida 2 pay-risk
+FAIL test/contract-conformance.spec.ts
+  ● conformidad con internal-risk-v1.yaml › un pedido con TODOS los campos del esquema `AssessmentCreate` vigente (screening.name + entity_type del pagador) cumple el contrato y se acepta; sin el nombre del comercio (D-29) queda en review
+  ● conformidad con internal-risk-v1.yaml › D-29: lo ÚNICO que el servicio acepta de más que el contrato vigente es el nombre legal del comercio (merchant_name, merchant_entity_type; PR-17)
+FAIL test/latency.spec.ts (61.113 s)
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas
+Test Suites: 2 failed, 11 passed, 13 total
+Tests:       3 failed, 194 passed, 197 total

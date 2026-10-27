@@ -32,7 +32,7 @@ const freePort = (): Promise<number> =>
   });
 const nextId = () => `pi_ola2c${String(Date.now()).slice(-7)}${String(seq++).padStart(3, '0')}`;
 const callsFor = (intentId: string) => stack.risk.server.calls.filter((c) => (c.body as { payment_intent_id?: string }).payment_intent_id === intentId);
-const screeningOf = (call: { body: unknown }) => (call.body as { screening?: { name: string; entity_type?: string } }).screening;
+const screeningOf = (call: { body: unknown }) => (call.body as { screening?: { merchant_name?: string; merchant_entity_type?: string; name?: string; entity_type?: string } }).screening;
 const keyOf = (call: { headers: Record<string, unknown> }) => String(call.headers['idempotency-key']);
 const failureOf = async (id: string) => (await stack.db.pool.query('SELECT status, failure_code FROM payment_intents WHERE id = $1', [id])).rows[0] as { status: string; failure_code: string | null };
 const chargeCreated = (id: string) => waitFor(async () => stack.connectors.chargeFor(id), 15_000, `cargo de ${id} en el conector`);
@@ -56,24 +56,26 @@ afterEach(() => {
 });
 
 describe('1 · D-29: se cribe la razón social del comercio y, si se da, el nombre del pagador', () => {
-  it('correcto · comercio con razón social ⇒ UNA evaluación con screening {name, entity_type: business}; allow; el cobro sigue', async () => {
+  it('correcto · comercio con razón social ⇒ UNA evaluación con screening {merchant_name}; allow; el cobro sigue', async () => {
     const response = await post();
     expect(response.status).toBe(201);
     const id = response.body.id as string;
     const calls = callsFor(id);
     expect(calls).toHaveLength(1);
-    expect(screeningOf(calls[0]!)).toEqual({ name: TEST_LEGAL_NAME, entity_type: 'business' });
+    expect(screeningOf(calls[0]!)).toEqual({ merchant_name: TEST_LEGAL_NAME }); // sin tipo de pagador ni nombre: el invitado no se cribó
     expect(keyOf(calls[0]!)).toBe(`${id}:risk`);
     expect(await chargeCreated(id)).toBeDefined();
     expect((await failureOf(id)).failure_code).toBeNull();
   });
 
-  it('correcto · pagador con nombre ⇒ TAMBIÉN se cribe (segunda evaluación, entity_type person, clave propia); allow en las dos ⇒ el cobro sigue', async () => {
+  it('correcto · pagador con nombre ⇒ TAMBIÉN se cribe, en la MISMA evaluación (merchant_name + name); no hay segunda llamada ni clave :risk:payer', async () => {
     const id = await startDirectIntent(stack, { id: nextId(), expiresInMs: 60_000, payerName: PAYER });
     expect(await chargeCreated(id)).toBeDefined();
     const calls = callsFor(id);
-    expect(calls.map((c) => screeningOf(c))).toEqual([{ name: TEST_LEGAL_NAME, entity_type: 'business' }, { name: PAYER, entity_type: 'person' }]);
-    expect(calls.map(keyOf)).toEqual([`${id}:risk`, `${id}:risk:payer`]);
+    expect(calls).toHaveLength(1);
+    expect(screeningOf(calls[0]!)).toEqual({ merchant_name: TEST_LEGAL_NAME, name: PAYER });
+    expect(keyOf(calls[0]!)).toBe(`${id}:risk`);
+    expect(stack.risk.server.calls.filter((c) => keyOf(c).endsWith(':risk:payer'))).toHaveLength(0);
     expect((await failureOf(id)).failure_code).toBeNull();
   });
 
@@ -82,7 +84,7 @@ describe('1 · D-29: se cribe la razón social del comercio y, si se da, el nomb
     expect(await chargeCreated(id)).toBeDefined();
     const calls = callsFor(id);
     expect(calls).toHaveLength(1);
-    expect(calls.some((c) => screeningOf(c)?.entity_type === 'person')).toBe(false);
+    expect(screeningOf(calls[0]!)).toEqual({ merchant_name: TEST_LEGAL_NAME }); // sin `name`
     expect(JSON.stringify(calls.map((c) => c.body))).not.toContain('"payer_name"');
     expect((await failureOf(id)).failure_code).toBeNull();
   });
@@ -93,16 +95,16 @@ describe('1 · D-29: se cribe la razón social del comercio y, si se da, el nomb
     await seedMerchant(stack, merchant, 'active', QR_FEES, 'ENTIDAD   Sancionáda de Prueba');
     const response = await post(merchant);
     expect(response.body).toMatchObject({ status: 'failed', last_error: { code: 'risk_denied' } });
-    expect(callsFor(response.body.id as string)).toHaveLength(1); // denegó el comercio: no se llama por el pagador
+    expect(callsFor(response.body.id as string)).toHaveLength(1);
     expect(stack.connectors.chargeFor(response.body.id as string)).toBeUndefined();
   });
 
-  it('límite · el comercio pasa pero el PAGADOR coincide con la lista ⇒ risk_denied, sin cargo en el conector', async () => {
+  it('límite · el comercio no está en la lista pero el PAGADOR coincide ⇒ risk_denied, sin cargo en el conector', async () => {
     stack.risk.sanctions.add(BLOCKED_NAME.toLowerCase());
     const id = await startDirectIntent(stack, { id: nextId(), expiresInMs: 60_000, payerName: BLOCKED_NAME });
     await waitFor(async () => ((await statusOf(stack, id)) === 'failed' ? true : undefined), 15_000, 'risk_denied del pagador');
     expect((await failureOf(id)).failure_code).toBe('risk_denied');
-    expect(callsFor(id)).toHaveLength(2);
+    expect(callsFor(id)).toHaveLength(1); // UNA evaluación con las dos partes: gana la más grave
     expect(stack.connectors.chargeFor(id)).toBeUndefined();
   });
 
@@ -116,6 +118,18 @@ describe('1 · D-29: se cribe la razón social del comercio y, si se da, el nomb
     expect(calls).toHaveLength(1);
     expect(screeningOf(calls[0]!)).toBeUndefined();
     expect(JSON.stringify(calls[0]!.body)).not.toContain(merchant.replace('mc_', 'name')); // ni el id ni nada derivado se manda como nombre
+  });
+
+  it('inválido · sin razón social PERO con nombre de pagador: la evaluación sale con `name` y SIN merchant_name (no se inventa) ⇒ review ⇒ risk_denied', async () => {
+    const merchant = 'mc_screen0000006';
+    await seedMerchant(stack, merchant, 'active', QR_FEES, null);
+    const id = await startDirectIntent(stack, { id: nextId(), merchantId: merchant, expiresInMs: 60_000, payerName: PAYER });
+    await waitFor(async () => ((await statusOf(stack, id)) === 'failed' ? true : undefined), 15_000, 'risk_denied sin razón social');
+    expect((await failureOf(id)).failure_code).toBe('risk_denied');
+    const calls = callsFor(id);
+    expect(calls).toHaveLength(1);
+    expect(screeningOf(calls[0]!)).toEqual({ name: PAYER });
+    expect(stack.connectors.chargeFor(id)).toBeUndefined();
   });
 
   it('inválido · pay-risk caído ⇒ fail-closed como siempre (risk_unavailable), con y sin nombre de pagador', async () => {

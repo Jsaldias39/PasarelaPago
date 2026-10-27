@@ -19,12 +19,27 @@ export interface RiskRequest {
   /** Huella opaca del pagador; nunca datos personales. */
   readonly payerFingerprint?: string;
   /**
-   * Nombre a cribar contra listas de sanciones (D-29). Dato personal: viaja solo en el cuerpo de esta llamada, nunca en logs, errores ni eventos.
-   * `business` para la razón social del comercio, `person` para el pagador. Dos nombres = dos evaluaciones (el contrato admite un `screening` por evaluación).
+   * Partes a cribar contra listas de sanciones (D-29, `internal-risk-v1`): la razón social del comercio SIEMPRE que se conozca y el nombre del
+   * pagador SOLO si lo dio. Una sola evaluación por intento. Son datos personales: viajan solo en el cuerpo de esta llamada, nunca en logs,
+   * errores ni eventos. Sin `merchantName` pay-risk responde `review/screening_not_provided` (⇒ risk_denied): no se inventa un nombre.
+   * Los tipos de entidad solo se mandan si se SABEN (el comercio es `business` por defecto en pay-risk; el del pagador no se conoce: pay-risk
+   * busca como persona y como empresa y manda el puntaje mayor).
    */
-  readonly screening?: { readonly name: string; readonly entityType: 'person' | 'business' };
-  /** Distingue la clave de idempotencia de la evaluación del pagador (`${intentId}:risk:payer`) de la del comercio (`${intentId}:risk`). */
-  readonly keySuffix?: 'payer';
+  readonly screening?: {
+    readonly merchantName?: string;
+    readonly merchantEntityType?: 'person' | 'business';
+    readonly payerName?: string;
+    readonly payerEntityType?: 'person' | 'business';
+  };
+}
+
+function screeningBody(screening: NonNullable<RiskRequest['screening']>): Record<string, string> {
+  return {
+    ...(screening.merchantName ? { merchant_name: screening.merchantName } : {}),
+    ...(screening.merchantEntityType ? { merchant_entity_type: screening.merchantEntityType } : {}),
+    ...(screening.payerName ? { name: screening.payerName } : {}),
+    ...(screening.payerEntityType ? { entity_type: screening.payerEntityType } : {}),
+  };
 }
 
 /** Cliente de `internal/risk/v1` (contracts/openapi/internal-risk-v1.yaml). */
@@ -40,7 +55,7 @@ export class RiskClient {
     const response = await this.http.request<RiskAssessment>({
       method: 'POST',
       path: '/assessments',
-      idempotencyKey: `${request.paymentIntentId}:risk${request.keySuffix ? `:${request.keySuffix}` : ''}`,
+      idempotencyKey: `${request.paymentIntentId}:risk`,
       body: {
         merchant_id: request.merchantId,
         payment_intent_id: request.paymentIntentId,
@@ -48,7 +63,7 @@ export class RiskClient {
         currency: request.currency,
         method: request.method,
         ...(request.payerFingerprint ? { payer_fingerprint: request.payerFingerprint } : {}),
-        ...(request.screening ? { screening: { name: request.screening.name, entity_type: request.screening.entityType } } : {}),
+        ...(request.screening ? { screening: screeningBody(request.screening) } : {}),
       },
     });
     if (response.status === 200 || response.status === 201) return response.body;

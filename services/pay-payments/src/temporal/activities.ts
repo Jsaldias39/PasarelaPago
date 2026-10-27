@@ -141,19 +141,16 @@ export function createActivities(deps: Deps) {
       const intent = await load(intentId);
       if (isTerminal(intent.status)) return { proceed: false };
       try {
-        const base = { merchantId: intent.merchantId, paymentIntentId: intent.id, amountMinor: intent.amountMinor, currency: intent.currency, method: intent.method };
-        // D-29: se cribe SIEMPRE la razón social del comercio y, si se conoce, el nombre del pagador. Sin razón social en la réplica (PROP-17: el
-        // contrato no la entrega) no se inventa: la evaluación sale sin `screening` y pay-risk responde `review` (screening_not_provided) ⇒ risk_denied.
-        const merchantName = await replicasRepo.merchantLegalName(deps.pool, intent.merchantId);
-        const merchant = await clients.risk.assess({ ...base, ...(merchantName ? { screening: { name: merchantName, entityType: 'business' as const } } : {}) });
+        // D-29: UNA evaluación por intento con las dos partes. SIEMPRE la razón social del comercio; sin ella en la réplica (D-33: llega en
+        // merchant.created|activated) no se inventa: la evaluación sale sin `merchant_name` y pay-risk responde `review` ⇒ risk_denied (D-30).
+        // El pagador, solo si dio un nombre: un invitado sin nombre no se cribó y no bloquea.
+        const [merchantName, payerName] = await Promise.all([replicasRepo.merchantLegalName(deps.pool, intent.merchantId), intentsRepo.payerName(deps.pool, intentId)]);
+        const assessment = await clients.risk.assess({
+          merchantId: intent.merchantId, paymentIntentId: intent.id, amountMinor: intent.amountMinor, currency: intent.currency, method: intent.method,
+          ...(merchantName || payerName ? { screening: { ...(merchantName ? { merchantName } : {}), ...(payerName ? { payerName } : {}) } } : {}),
+        });
         // D4/D-30: `review` se trata como `deny` hasta que exista cola de revisión manual.
-        if (merchant.decision !== 'allow') return await denyByRisk(intentId);
-        // Pagador invitado sin nombre: no hay nada que cribar y eso NO bloquea el cobro.
-        const payerName = await intentsRepo.payerName(deps.pool, intentId);
-        if (payerName) {
-          const payer = await clients.risk.assess({ ...base, keySuffix: 'payer', screening: { name: payerName, entityType: 'person' } });
-          if (payer.decision !== 'allow') return await denyByRisk(intentId);
-        }
+        if (assessment.decision !== 'allow') return await denyByRisk(intentId);
         return { proceed: true };
       } catch (error) {
         if (isUpstreamError(error)) {
