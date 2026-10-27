@@ -8,7 +8,15 @@ beforeAll(async () => {
 });
 afterAll(async () => v.close());
 
-const SECRETS = ['4111111111111111', '4111 1111 1111 1111', '5555555555554444', 'TITULAR SENTINELA', '7391'];
+const CVV = '7391';
+const SECRETS = ['4111111111111111', '4111 1111 1111 1111', '5555555555554444', 'TITULAR SENTINELA'];
+/**
+ * El CVV son 4 dígitos: como subcadena aparece por azar en los microsegundos de un timestamp (`…08.739115+00:00`), en un epoch en milisegundos
+ * o en un id hexadecimal (se reprodujo en 1 de ~215 corridas). Un CVV filtrado es un VALOR suelto, así que se busca como token: sin letra, dígito,
+ * punto ni guion bajo pegados. Los PAN y el titular siguen buscándose como subcadena.
+ */
+const CVV_AS_TOKEN = new RegExp(`(?<![0-9A-Za-z._-])${CVV}(?![0-9A-Za-z])`);
+const leaks = (haystack: string): string[] => [...SECRETS.filter((s) => haystack.includes(s)), ...(CVV_AS_TOKEN.test(haystack) ? [CVV] : [])];
 const http = () => request(v.app.getHttpServer());
 let n = 0;
 const k = () => `k-leak-${randomBytes(4).toString('hex')}-${n++}`;
@@ -21,6 +29,11 @@ async function dumpDatabase(): Promise<string> {
   return parts.join('\n');
 }
 
+describe('P3.H3.M3 · el buscador de CVV (control positivo)', () => {
+  it.each(['{"cvv":"7391"}', 'cvv=7391', '[7391]', ' 7391 ', '"7391"'])('detecta el CVV suelto en %j', (text) => expect(leaks(text)).toEqual([CVV]));
+  it.each(['"at":"2026-10-27T22:26:08.739115+00:00"', '1793138678739127', 'ch_a7391bcdef', 'k-leak-24b7d9f4-7391x', '.7391+00:00'])('no confunde el azar con un CVV en %j', (text) => expect(leaks(text)).toEqual([]));
+});
+
 describe('P3.H3.M3 · grep del PAN de prueba: bases, logs y respuestas fuera de `reveal` → 0 apariciones', () => {
   it('el número, el CVV y el titular no aparecen en ninguna tabla, ningún log ni ninguna respuesta (salvo el reveal, que es su función)', async () => {
     const responses: string[] = [];
@@ -30,7 +43,7 @@ describe('P3.H3.M3 · grep del PAN de prueba: bases, logs y respuestas fuera de 
     };
     const { output } = await captureOutput(async () => {
       const tokens: string[] = [];
-      for (const [merchant, card] of [[MC, { number: '4111111111111111', expMonth: 12, expYear: 2031, cvv: '7391', holderName: 'TITULAR SENTINELA' }], [MC2, { number: '5555555555554444', expMonth: 6, expYear: 2029, cvv: '7391', holderName: 'TITULAR SENTINELA' }]] as const) {
+      for (const [merchant, card] of [[MC, { number: '4111111111111111', expMonth: 12, expYear: 2031, cvv: CVV, holderName: 'TITULAR SENTINELA' }], [MC2, { number: '5555555555554444', expMonth: 6, expYear: 2029, cvv: CVV, holderName: 'TITULAR SENTINELA' }]] as const) {
         const session = record(await http().post('/capture_sessions').set(PAYMENTS).set('idempotency-key', k()).send({ merchant_id: merchant, expires_in_seconds: 600, save_card: true }));
         v.backend.completeCapture(session.body.id, card);
         const done = record(await http().get(`/capture_sessions/${session.body.id}`).set(PAYMENTS));
@@ -53,7 +66,7 @@ describe('P3.H3.M3 · grep del PAN de prueba: bases, logs y respuestas fuera de 
     });
 
     const database = await dumpDatabase();
-    const hits = (haystack: string) => SECRETS.filter((s) => haystack.includes(s));
+    const hits = leaks;
     expect({ donde: 'tablas', hits: hits(database) }).toEqual({ donde: 'tablas', hits: [] });
     expect({ donde: 'logs', hits: hits(output) }).toEqual({ donde: 'logs', hits: [] });
     expect({ donde: 'respuestas', hits: hits(responses.join('\n')) }).toEqual({ donde: 'respuestas', hits: [] });
