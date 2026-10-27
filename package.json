@@ -23,7 +23,8 @@
     "e2e:down": "node --no-warnings e2e/cli.ts down",
     "e2e:boot": "node --no-warnings e2e/cli.ts boot",
     "e2e:smoke": "node --no-warnings e2e/cli.ts smoke",
-    "e2e": "jest --config e2e/jest.config.cjs --runInBand"
+    "e2e": "jest --config e2e/jest.config.cjs --runInBand",
+    "e2e:typecheck": "tsc -p e2e/tsconfig.json"
   },
   "devDependencies": {
     "@asyncapi/parser": "^3.6.6",

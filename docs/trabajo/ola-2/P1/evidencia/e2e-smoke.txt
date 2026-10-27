@@ -1,0 +1,18 @@
+servicio        puerto pid      estado
+pay-ledger      42885  27026    SANO (4223 ms)
+pay-risk        34329  27033    SANO (4103 ms)
+pay-qr          38579  27034    SANO (2954 ms)
+pay-vault       32833  27035    SANO (3398 ms)
+pay-merchants   37613  27041    SANO (3859 ms)
+pay-webhooks    43783  27052    SANO (2008 ms)
+pay-connectors  33327  27430    SANO (1540 ms)
+pay-payments    44523  27498    SANO (3991 ms)
+pay-settlement  45581  27499    SANO (1699 ms)
+pay-schedules   33031  27431    SANO (1717 ms)
+pay-edge        33907  27717    SANO (1268 ms)
+
+Humo e2e (e2emvr4bkca)
+salud: 22/22 OK · interna: 52/52 OK · control: 7/7 OK · borde: 20/20 OK
+Sin fallas.
+
+Apagado: {"terminated":{"pay-webhooks":"exited","pay-qr":"exited","pay-risk":"exited","pay-schedules":"exited","pay-edge":"exited","pay-connectors":"exited","pay-merchants":"exited","pay-vault":"exited","pay-ledger":"exited","pay-settlement":"exited","pay-payments":"exited"},"streamsDeleted":8,"databasesReset":11,"tigerbeetleStopped":true,"leftoverPids":[]}

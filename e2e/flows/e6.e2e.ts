@@ -86,11 +86,10 @@ describe('E6 — entrega de webhooks contra el stack real', () => {
     expect(delivered).toEqual({ ok: true });
 
     const accepted = [...receiver.accepted.entries()].filter(([, a]) => a.path === '/hook-healthy');
-    const events = accepted.map(([id, a]) => ({ id, ...(JSON.parse(a.body) as { id: string; object: string; type: string; mode: string; data: { object: Record<string, unknown> } }) }));
+    const events = accepted.map(([, a]) => JSON.parse(a.body) as { id: string; object: string; type: string; mode: string; data: { object: Record<string, unknown> } });
     // una sola vez: el webhook-id es el id del evento y no hay dos aceptados iguales
     expect(new Set(events.map((e) => e.id)).size).toBe(events.length);
     for (const e of events) {
-      expect(e.id).toBe(e.id);
       expect(e.object).toBe('event');
       expect(e.mode).toBe('test');
       expect(JSON.stringify(e.data)).not.toMatch(/@|nombre|documento/i);

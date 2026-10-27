@@ -28,9 +28,14 @@ export interface Managed {
 
 /** Arranca `node dist/main.js` del servicio como proceso hijo, con SOLO el entorno que se le arma (nada heredado). */
 export function spawnNode(name: string, cwd: string, entry: string, env: Record<string, string>, logFile: string): Managed {
+  return spawnProcess(name, process.execPath, [entry], cwd, env, logFile);
+}
+
+/** Arranca cualquier ejecutable como proceso hijo con un entorno mínimo; su salida va a `logFile`. */
+export function spawnProcess(name: string, command: string, args: string[], cwd: string, env: Record<string, string>, logFile: string): Managed {
   mkdirSync(dirname(logFile), { recursive: true });
   const fd = openSync(logFile, 'a');
-  const child = spawn(process.execPath, [entry], {
+  const child = spawn(command, args, {
     cwd,
     env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ...env },
     stdio: ['ignore', fd, fd],

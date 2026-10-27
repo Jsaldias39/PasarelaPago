@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { connect as netConnect } from 'node:net';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { connect } from 'nats';
 import { Client } from 'pg';
+import { spawnProcess, tailLog, waitFor, type Managed } from './process.ts';
 import { SERVICE_STREAMS, type Infra, type ServiceName } from './services.ts';
 
 /** Raíz del monorepo: sube desde el directorio actual hasta el `package.json` de `pasarela-pago` (sirve igual en Node y en Jest). */
@@ -45,17 +46,46 @@ export async function checkInfra(infra: Infra): Promise<InfraReport[]> {
 }
 
 const TB_SCRIPT = join(ROOT, 'platform/scripts/tigerbeetle-dev.sh');
+const TB_BIN = join(ROOT, '.tools/tigerbeetle/tigerbeetle');
 
-/** Arranca TigerBeetle por el script de la plataforma si no estaba corriendo. Devuelve `true` si lo arrancó ESTA llamada. */
-export function ensureTigerBeetle(): { startedHere: boolean; detail: string } {
-  const status = execFileSync('bash', [TB_SCRIPT, 'status'], { encoding: 'utf8' }).trim();
-  if (status.startsWith('corriendo')) return { startedHere: false, detail: status };
-  const out = execFileSync('bash', [TB_SCRIPT, 'start'], { encoding: 'utf8' }).trim();
-  return { startedHere: true, detail: out };
+const TB_CACHE = join(ROOT, 'e2e/.run/bin/tigerbeetle');
+
+/**
+ * Binario de TigerBeetle. Se guarda una copia propia en `e2e/.run/bin` porque otro proceso (el script de la plataforma, que
+ * re-descomprime o borra `.tools/tigerbeetle`) puede quitar el del script a mitad de una corrida. Si no hay ninguno, lo baja el script.
+ */
+function ensureTigerBeetleBinary(): string {
+  if (existsSync(TB_CACHE)) return TB_CACHE;
+  if (!existsSync(TB_BIN)) {
+    const running = execFileSync('bash', [TB_SCRIPT, 'status'], { encoding: 'utf8' }).trim().startsWith('corriendo');
+    execFileSync('bash', [TB_SCRIPT, 'start'], { encoding: 'utf8' });
+    if (!running) execFileSync('bash', [TB_SCRIPT, 'stop'], { encoding: 'utf8' });
+  }
+  mkdirSync(dirname(TB_CACHE), { recursive: true });
+  copyFileSync(TB_BIN, TB_CACHE);
+  chmodSync(TB_CACHE, 0o755);
+  return TB_CACHE;
 }
 
-export function stopTigerBeetle(): void {
-  execFileSync('bash', [TB_SCRIPT, 'stop'], { encoding: 'utf8' });
+/**
+ * TigerBeetle PROPIO de la corrida: mismo binario que usa `platform/scripts/tigerbeetle-dev.sh` (si falta, el script lo descarga),
+ * pero con archivo de datos y puerto propios, para no pisar al TigerBeetle compartido del script ni que otro lo detenga a mitad de
+ * una corrida. Los datos viven en el directorio de la corrida y se borran al apagar.
+ */
+export async function startPrivateTigerBeetle(runDir: string, port: number): Promise<{ managed: Managed; address: string; dataFile: string }> {
+  const source = ensureTigerBeetleBinary();
+  // Copia del binario a la carpeta de la corrida: otro agente puede volver a descomprimir el del script mientras este corre.
+  mkdirSync(runDir, { recursive: true });
+  const bin = join(runDir, 'tigerbeetle');
+  copyFileSync(source, bin);
+  chmodSync(bin, 0o755);
+  const dataFile = join(runDir, '0_0.tigerbeetle');
+  execFileSync(bin, ['format', '--cluster=0', '--replica=0', '--replica-count=1', dataFile], { stdio: 'ignore' });
+  const address = `127.0.0.1:${port}`;
+  const managed = spawnProcess('tigerbeetle', bin, ['start', `--addresses=${address}`, dataFile], ROOT, {}, join(runDir, 'tigerbeetle.log'));
+  const ready = await waitFor(() => tcpOpen(address), 30_000, () => (managed.exit ? 'tigerbeetle terminó antes de abrir el puerto' : undefined));
+  if (!ready.ok) throw new Error(`TigerBeetle no quedó listo: ${ready.reason}\n${tailLog(join(runDir, 'tigerbeetle.log'))}`);
+  return { managed, address, dataFile };
 }
 
 const dbName = (name: ServiceName) => `pay_${name.replace('pay-', '')}`;

@@ -31,3 +31,15 @@ Gates: `typecheck`, `build`, `yarn eslint` (servicios) y `yarn lint` (raíz) en 
 - `mode` en los consumidores de `connector.transaction.status_changed` (el evento no lo trae: se correlaciona por `payment_intent_id`/`refund_id`).
 - El listado de reembolsos (diferido por el contrato).
 - `fallos-p3.md` de la ola 1 lo reescribe la suite en cada corrida; se dejó como estaba en git.
+
+
+# Tanda 2b
+
+Evidencia: `evidencia/2b-*.txt` (typecheck, build, `yarn eslint` y `yarn lint` de la raíz en exit 0; pay-payments 19 suites / 245 pruebas ×2 y pay-vault 58 ×2, `--maxWorkers=2`; la corrida fallida previa está en `2b-pay-payments-test-0-FALLA-PREVIA.txt` con su clasificación). Pruebas nuevas: `test/ola2.tanda2b.spec.ts` (19).
+
+1. **`payment_method_unavailable`**: no es del catálogo, así que respuesta, fila, `last_error` y evento usan el MISMO `validation_failed`; el motivo va en `detail` y en el código de campo documentado. El motivo fino se guarda aparte (`payment_intents.failure_reason`). Propuesta del código al catálogo: `PROPUESTAS.md` PROP-15 (con el parche exacto).
+2. **Llamadas salientes**: todas llevan `X-Service-Id: pay-payments`; ledger y conectores llevan `X-Pay-Mode` igual al del cobro (probado en `test` y `live` con cobro, cancelación, reembolso+consulta y contracargo). Riesgo no lleva `X-Pay-Mode` porque su contrato no lo declara (PROP-16). pay-settlement: pay-payments no lo llama.
+3. **`X-Pay-Mode` en TODA ruta**: prueba que recorre cada ruta del controlador público y del interno (los GET de reembolsos incluidos) y exige 403 sin modo o con modo inválido. Las disputas no tienen rutas HTTP (decisión del dueño, D-4): se prueba que no existen.
+4. **Regla 11 con consultas autoritativas**: un `404` de `GET /refunds/{id}` o de `GET /charges/{id}/status` ya no anula nada. El reembolso queda `pending` con la retención puesta; se escala (`refund_not_found_at_connector` / `charge_not_found_at_connector`, con evento) y el workflow sigue vivo y se resuelve cuando el conector responde. Al vencer, un cargo que el conector dice no conocer NO vence ni se cancela: queda escalado y el workflow falla visible (decisión: no hay forma de saber si se pagó).
+5. **Conector lento y refund_id**: consulta que tarda menos que el timeout (se aplica), más que el timeout (ambigua: no anula, se resuelve al recuperarse) y dos reembolsos del mismo cobro que el doble distingue por `refund_id`, resueltos de forma independiente.
+6. **Arreglo de una falla intermitente propia**: el primer request de los dobles pagaba la compilación de Ajv dentro del timeout de 300 ms de riesgo; ahora `DoubleServer.start()` precalienta los validadores.

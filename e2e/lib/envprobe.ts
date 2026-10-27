@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import { deleteServiceStreams, ensureTigerBeetle, resetDatabase, ROOT, stopTigerBeetle } from './infra.ts';
+import { rmSync } from 'node:fs';
+import { deleteServiceStreams, resetDatabase, ROOT, startPrivateTigerBeetle } from './infra.ts';
 import { freePorts, spawnNode, tailLog, terminate, waitFor } from './process.ts';
 import { DEFAULT_INFRA, envFor, generateSecrets, SERVICES, type EnvContext, type ServiceName } from './services.ts';
 
@@ -20,12 +21,14 @@ export interface EnvProbeRow {
 export async function probeEnv(options: { concurrency?: number; perBootTimeoutMs?: number } = {}): Promise<EnvProbeRow[]> {
   const infra = DEFAULT_INFRA;
   const runId = `probe${Date.now().toString(36)}`;
-  const ports = await freePorts(SERVICES.length + 1);
+  const ports = await freePorts(SERVICES.length + 2);
   const portOf = Object.fromEntries(SERVICES.map((n, i) => [n, ports[i]])) as Record<ServiceName, number>;
-  const ctx: EnvContext = { runId, ports: portOf, infra, secrets: generateSecrets(), receiverPort: ports[SERVICES.length], receiverCaFile: join(ROOT, 'e2e/.run', 'no-ca.pem'), kycDir: join(ROOT, 'e2e/.run', runId, 'kyc') };
+  const infraWithTb = { ...infra, tigerbeetleAddress: `127.0.0.1:${ports[SERVICES.length + 1]}` };
+  const ctx: EnvContext = { runId, ports: portOf, infra: infraWithTb, secrets: generateSecrets(), receiverPort: ports[SERVICES.length], receiverCaFile: join(ROOT, 'e2e/.run', 'no-ca.pem'), kycDir: join(ROOT, 'e2e/.run', runId, 'kyc') };
   await deleteServiceStreams(infra);
   await Promise.all(SERVICES.map((n) => resetDatabase(infra, n, true)));
-  const tb = ensureTigerBeetle();
+  const runDir = join(ROOT, 'e2e/.run', runId);
+  const tb = await startPrivateTigerBeetle(runDir, ports[SERVICES.length + 1]);
   const rows: EnvProbeRow[] = [];
   const timeout = options.perBootTimeoutMs ?? 20_000;
 
@@ -57,7 +60,9 @@ export async function probeEnv(options: { concurrency?: number; perBootTimeoutMs
   } finally {
     await Promise.all(SERVICES.map((n) => resetDatabase(infra, n, false)));
     await deleteServiceStreams(infra);
-    if (tb.startedHere) stopTigerBeetle();
+    await terminate(tb.managed);
+    rmSync(tb.dataFile, { force: true });
+    rmSync(join(runDir, 'tigerbeetle'), { force: true });
   }
   return rows.sort((a, b) => a.service.localeCompare(b.service) || a.variable.localeCompare(b.variable));
 }

@@ -33,12 +33,14 @@ interface Operation {
   params: { name: string; pattern?: string }[];
 }
 
-function loadOperations(file: string): Operation[] {
-  const doc = parse(readFileSync(join(ROOT, 'contracts/openapi', file), 'utf8')) as { paths: Record<string, Record<string, { parameters?: { name?: string; in?: string; schema?: { pattern?: string } }[] }>> };
+export function loadOperations(file: string): Operation[] {
+  type Param = { name?: string; in?: string; schema?: { pattern?: string } };
+  type PathItem = { parameters?: Param[] } & Record<string, { parameters?: Param[] } | Param[] | undefined>;
+  const doc = parse(readFileSync(join(ROOT, 'contracts/openapi', file), 'utf8')) as { paths: Record<string, PathItem> };
   const out: Operation[] = [];
   for (const [path, item] of Object.entries(doc.paths)) {
     for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
-      const op = item[method];
+      const op = item[method] as { parameters?: Param[] } | undefined;
       if (!op) continue;
       // Los parámetros de ruta salen de la PLANTILLA (los de `$ref` no traen nombre en línea); el patrón, si es inline, mejora el valor.
       const inline = [...(item.parameters ?? []), ...(op.parameters ?? [])].filter((p) => p.in === 'path' && p.name);
@@ -59,7 +61,7 @@ function sampleValue(param: { name: string; pattern?: string }): string {
   return 'abcdefghij12';
 }
 
-const fill = (op: Operation) => op.params.reduce((path, p) => path.replace(`{${p.name}}`, sampleValue(p)), op.path);
+export const fill = (op: Operation) => op.params.reduce((path, p) => path.replace(`{${p.name}}`, sampleValue(p)), op.path);
 
 /**
  * Quién llama a quién, tomado de los contratos internos («Consume», la matriz de `internal-ledger-v1` y de `internal-settlement-v1`).
@@ -98,7 +100,7 @@ const STRANGER: Partial<Record<ServiceName, string>> = {
   'pay-settlement': 'pay-qr',
 };
 
-function classify(status: number, op: Operation): { verdict: Verdict; note?: string } {
+export function classify(status: number, op: Operation): { verdict: Verdict; note?: string } {
   if (status === 0) return { verdict: 'INALCANZABLE' };
   if (status === 401 || status === 403) return { verdict: 'FALLA_IDENTIDAD', note: status === 401 ? '401: el servicio no reconoce al llamador' : '403: identidad o X-Pay-Mode rechazados' };
   if (status >= 500) return { verdict: 'FALLA_5XX' };

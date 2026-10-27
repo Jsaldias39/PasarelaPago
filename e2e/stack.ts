@@ -13,7 +13,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { checkInfra, deleteServiceStreams, ensureTigerBeetle, resetDatabase, ROOT, stopTigerBeetle } from './lib/infra.ts';
+import { checkInfra, deleteServiceStreams, resetDatabase, ROOT, startPrivateTigerBeetle } from './lib/infra.ts';
 import { freePorts, isOurProcess, type Managed, spawnNode, tailLog, terminate, waitFor } from './lib/process.ts';
 import { DEFAULT_INFRA, DEPENDS_ON, envFor, generateSecrets, type EnvContext, type Infra, type RunSecrets, SERVICES, type ServiceName } from './lib/services.ts';
 
@@ -62,7 +62,8 @@ export interface Stack {
   readonly processes: Map<ServiceName, Managed>;
   /** Receptor de webhooks de la prueba: puerto reservado y certificado autofirmado para 127.0.0.1 (la CA que confía pay-webhooks en sandbox). */
   readonly receiver: { readonly port: number; readonly certFile: string; readonly keyFile: string };
-  readonly tigerbeetleStartedHere: boolean;
+  /** TigerBeetle propio de la corrida (archivo y puerto propios); `undefined` si no se pidió `pay-ledger`. */
+  readonly tigerbeetle: Managed | undefined;
   url(name: ServiceName): string;
   /** Llamada HTTP a un servicio (sin identidad de servicio: la pone quien llama). */
   call(name: ServiceName, method: string, path: string, options?: CallOptions): Promise<HttpResult>;
@@ -80,6 +81,8 @@ export interface StartOptions {
   /** Escalera de reintentos de webhooks, en ms (por defecto la de producción). */
   readonly webhookRetryScheduleMs?: string;
   readonly infra?: Infra;
+  /** Cambios al entorno de un servicio (`null` borra la variable): para probar arranques degradados y armar la matriz del arnés. */
+  readonly envOverrides?: Partial<Record<ServiceName, Record<string, string | null>>>;
 }
 
 function request(stackUrl: string, method: string, path: string, options: CallOptions = {}): Promise<HttpResult> {
@@ -121,13 +124,14 @@ export async function startStack(options: StartOptions = {}): Promise<Stack> {
   const runId = `e2e${Date.now().toString(36)}`;
   const runDir = join(RUN_DIR, runId);
   mkdirSync(runDir, { recursive: true });
-  const ports = await freePorts(SERVICES.length + 1);
+  const ports = await freePorts(SERVICES.length + 2);
   const portOf = Object.fromEntries(SERVICES.map((n, i) => [n, ports[i]])) as Record<ServiceName, number>;
   const receiver = { port: ports[SERVICES.length], ...makeReceiverCertificate(runDir) };
   const secrets = generateSecrets();
   const kycDir = join(runDir, 'kyc');
   mkdirSync(kycDir, { recursive: true });
-  const ctx: EnvContext = { runId, ports: portOf, infra, secrets, receiverPort: receiver.port, receiverCaFile: receiver.certFile, kycDir, ...(options.webhookRetryScheduleMs ? { webhookRetryScheduleMs: options.webhookRetryScheduleMs } : {}) };
+  const tbPort = ports[SERVICES.length + 1];
+  const ctx: EnvContext = { runId, ports: portOf, infra: { ...infra, tigerbeetleAddress: `127.0.0.1:${tbPort}` }, secrets, receiverPort: receiver.port, receiverCaFile: receiver.certFile, kycDir, ...(options.webhookRetryScheduleMs ? { webhookRetryScheduleMs: options.webhookRetryScheduleMs } : {}) };
 
   const services = {} as Record<ServiceName, ServiceStatus>;
   for (const name of SERVICES) {
@@ -138,7 +142,7 @@ export async function startStack(options: StartOptions = {}): Promise<Stack> {
   // Estado limpio: bases vacías con su DDL, sin streams heredados.
   await deleteServiceStreams(infra);
   await Promise.all(names.map((n) => resetDatabase(infra, n, true)));
-  const tb = names.includes('pay-ledger') ? ensureTigerBeetle() : { startedHere: false, detail: 'no se necesita' };
+  const tb = names.includes('pay-ledger') ? await startPrivateTigerBeetle(runDir, tbPort) : undefined;
 
   const stack: Stack = {
     runId,
@@ -148,7 +152,7 @@ export async function startStack(options: StartOptions = {}): Promise<Stack> {
     services,
     processes,
     receiver,
-    tigerbeetleStartedHere: tb.startedHere,
+    tigerbeetle: tb?.managed,
     url: (name) => services[name].url,
     call: (name, method, path, opts) => request(services[name].url, method, path, opts),
     callAs: (from, name, method, path, opts = {}) => {
@@ -158,16 +162,21 @@ export async function startStack(options: StartOptions = {}): Promise<Stack> {
     },
   };
 
-  writeFileSync(STATE_FILE, JSON.stringify({ runId, runDir, startedAt: new Date().toISOString(), pids: {}, ports: portOf, tigerbeetleStartedHere: tb.startedHere }, null, 2));
+  writeFileSync(STATE_FILE, JSON.stringify({ runId, runDir, startedAt: new Date().toISOString(), pids: {}, ports: portOf, tigerbeetlePid: tb?.managed.pid }, null, 2));
   const persist = () =>
-    writeFileSync(STATE_FILE, JSON.stringify({ runId, runDir, pids: Object.fromEntries([...processes].map(([n, p]) => [n, p.pid])), ports: portOf, tigerbeetleStartedHere: tb.startedHere }, null, 2));
+    writeFileSync(STATE_FILE, JSON.stringify({ runId, runDir, pids: Object.fromEntries([...processes].map(([n, p]) => [n, p.pid])), ports: portOf, tigerbeetlePid: tb?.managed.pid }, null, 2));
 
   const ready = new Set<ServiceName>();
   const attempted = new Set<ServiceName>();
   const startOne = async (name: ServiceName): Promise<void> => {
     const status = services[name];
     const started = Date.now();
-    const managed = spawnNode(name, join(ROOT, 'services', name), 'dist/main.js', envFor(ctx, name), status.logFile);
+    const env: Record<string, string> = { ...envFor(ctx, name) };
+    for (const [key, value] of Object.entries(options.envOverrides?.[name] ?? {})) {
+      if (value === null) delete env[key];
+      else env[key] = value;
+    }
+    const managed = spawnNode(name, join(ROOT, 'services', name), 'dist/main.js', env, status.logFile);
     processes.set(name, managed);
     (status as { pid: number | undefined }).pid = managed.pid;
     persist();
@@ -228,11 +237,15 @@ export async function stopStack(stack: Stack, options: { keepLogs?: boolean } = 
   await Promise.all(names.map((n) => resetDatabase(stack.infra, n, false)));
   const streamsDeleted = await deleteServiceStreams(stack.infra);
   let tigerbeetleStopped = false;
-  if (stack.tigerbeetleStartedHere) {
-    stopTigerBeetle();
+  if (stack.tigerbeetle) {
+    await terminate(stack.tigerbeetle);
     tigerbeetleStopped = true;
+    // el archivo de datos de TigerBeetle preasigna ~1 GiB: nunca se conserva
+    rmSync(join(stack.runDir, '0_0.tigerbeetle'), { force: true });
+    rmSync(join(stack.runDir, 'tigerbeetle'), { force: true });
   }
   const leftoverPids = [...stack.processes.values()].filter((p) => isOurProcess(p.pid, `services/${p.name}`)).map((p) => p.pid);
+  if (stack.tigerbeetle && isOurProcess(stack.tigerbeetle.pid, 'pasarelapago')) leftoverPids.push(stack.tigerbeetle.pid);
   rmSync(STATE_FILE, { force: true });
   if (!options.keepLogs) {
     // los logs se conservan: son la evidencia; solo se borran el almacén de KYC y las claves temporales
@@ -245,7 +258,7 @@ export async function stopStack(stack: Stack, options: { keepLogs?: boolean } = 
 /** Limpia restos de un stack cuyo proceso de control murió: mata SOLO los PIDs registrados que sigan siendo servicios nuestros. */
 export async function cleanupLeftovers(infra: Infra = DEFAULT_INFRA): Promise<{ killed: number[]; state: boolean }> {
   if (!existsSync(STATE_FILE)) return { killed: [], state: false };
-  const state = JSON.parse(readFileSync(STATE_FILE, 'utf8')) as { pids: Record<string, number>; tigerbeetleStartedHere?: boolean };
+  const state = JSON.parse(readFileSync(STATE_FILE, 'utf8')) as { runDir: string; pids: Record<string, number>; tigerbeetlePid?: number };
   const killed: number[] = [];
   for (const [name, pid] of Object.entries(state.pids)) {
     if (isOurProcess(pid, `services/${name}`)) {
@@ -258,7 +271,14 @@ export async function cleanupLeftovers(infra: Infra = DEFAULT_INFRA): Promise<{ 
   for (const pid of killed) if (isOurProcess(pid, 'services/')) process.kill(pid, 'SIGKILL');
   await Promise.all(SERVICES.map((n) => resetDatabase(infra, n, false)));
   await deleteServiceStreams(infra);
-  if (state.tigerbeetleStartedHere) stopTigerBeetle();
+  if (state.tigerbeetlePid && isOurProcess(state.tigerbeetlePid, 'pasarelapago')) {
+    process.kill(state.tigerbeetlePid, 'SIGTERM');
+    const until = Date.now() + 10_000;
+    while (isOurProcess(state.tigerbeetlePid, 'pasarelapago') && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 100));
+    if (isOurProcess(state.tigerbeetlePid, 'pasarelapago')) process.kill(state.tigerbeetlePid, 'SIGKILL');
+  }
+  rmSync(join(state.runDir, '0_0.tigerbeetle'), { force: true });
+  rmSync(join(state.runDir, 'tigerbeetle'), { force: true });
   rmSync(STATE_FILE, { force: true });
   return { killed, state: true };
 }
