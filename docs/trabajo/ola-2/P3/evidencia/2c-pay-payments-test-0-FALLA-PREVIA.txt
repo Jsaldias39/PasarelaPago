@@ -1,3 +1,6 @@
+# CORRIDA PREVIA EN ROJO (conservada, no se maquilla). Clasificación (regla 80.4): TEST_BUG.
+# Causa: test/doubles/doubles.spec.ts llamaba al doble de riesgo SIN screening y con la misma Idempotency-Key; el doble ahora cribia como el contrato (sin screening ⇒ review/screening_not_provided) y es idempotente por clave.
+# Reproducida: 2 fallos idénticos en las dos corridas. Corrección: la prueba manda screening y usa un intento por evaluación, y se agregaron casos de cribado e idempotencia del doble (3 niveles). Sin debilitar aserciones.
 # services/pay-payments yarn test --maxWorkers=2 (corrida 1) · tanda 2c (2026-10-27T22:00:23Z)
 (node:3386) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)

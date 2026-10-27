@@ -27,25 +27,55 @@ afterEach(() => {
   // Un doble que recibe una petición fuera de contrato no prueba nada: toda prueba exige 0 violaciones.
   for (const d of [risk, connectors, ledger, vault]) expect(d.server.violations).toEqual([]);
   risk.mode = 'allow';
+  risk.requireScreening = true;
+  risk.sanctions.clear();
   connectors.scenario = 'ok';
   ledger.failNext = 0;
   ledger.latencyMs = 0;
 });
 
-const assessInput = { merchantId: MC, paymentIntentId: PI, amountMinor: 10000, currency: 'BOB', method: 'qr' as const };
+const assessInput = { merchantId: MC, paymentIntentId: PI, amountMinor: 10000, currency: 'BOB', method: 'qr' as const, screening: { name: 'Comercio de Prueba S.R.L.', entityType: 'business' as const } };
+// El doble es idempotente por clave como pay-risk: cada evaluación de estas pruebas usa su propio intento.
+let riskSeq = 0;
+const fresh = () => ({ ...assessInput, paymentIntentId: `pi_risk${String(riskSeq++).padStart(8, '0')}` });
 
 describe('[DOBLE] pay-risk (internal-risk-v1)', () => {
-  it('correcto: allow, deny y review llegan tal cual', async () => {
-    expect((await c.risk.assess(assessInput)).decision).toBe('allow');
+  it('correcto: allow, deny y review llegan tal cual; con screening y sin coincidencia el doble responde allow/ok y screened', async () => {
+    const allowed = await c.risk.assess(fresh());
+    expect(allowed).toMatchObject({ decision: 'allow', reason_code: 'ok', screened: true });
     risk.mode = 'deny';
-    expect((await c.risk.assess(assessInput)).decision).toBe('deny');
+    expect((await c.risk.assess(fresh())).decision).toBe('deny');
     risk.mode = 'review';
-    expect((await c.risk.assess(assessInput)).decision).toBe('review');
+    expect((await c.risk.assess(fresh())).decision).toBe('review');
   });
 
   it('límite: una respuesta lenta pero dentro del timeout (300 ms) todavía vale', async () => {
     risk.mode = { slowMs: 150 };
-    expect((await c.risk.assess(assessInput)).decision).toBe('allow');
+    expect((await c.risk.assess(fresh())).decision).toBe('allow');
+  });
+
+  it('límite: un nombre de la lista con otras mayúsculas, tildes y espacios ⇒ deny/sanctions_match; el mismo nombre en otra evaluación sin lista ⇒ allow', async () => {
+    risk.sanctions.add('entidad sancionada de prueba');
+    const hit = await c.risk.assess({ ...fresh(), screening: { name: '  ENTIDAD  Sancionáda   de Prueba ', entityType: 'person' } });
+    expect(hit).toMatchObject({ decision: 'deny', reason_code: 'sanctions_match', screened: true });
+    risk.sanctions.clear();
+    expect((await c.risk.assess({ ...fresh(), screening: { name: 'Entidad Sancionada de Prueba', entityType: 'person' } })).decision).toBe('allow');
+  });
+
+  it('inválido: SIN screening el doble responde review/screening_not_provided (nunca allow, como el contrato) y screened=false; con requireScreening=false, allow', async () => {
+    const base = fresh();
+    const withoutScreening = { merchantId: base.merchantId, paymentIntentId: base.paymentIntentId, amountMinor: base.amountMinor, currency: base.currency, method: base.method };
+    expect(await c.risk.assess(withoutScreening)).toMatchObject({ decision: 'review', reason_code: 'screening_not_provided', screened: false });
+    risk.requireScreening = false;
+    expect(await c.risk.assess({ ...withoutScreening, paymentIntentId: 'pi_risknoscr001' })).toMatchObject({ decision: 'allow', screened: false });
+    risk.requireScreening = true;
+  });
+
+  it('idempotencia: la misma Idempotency-Key devuelve la MISMA evaluación (200 en la repetición), aunque el modo del doble haya cambiado', async () => {
+    const input = fresh();
+    const first = await c.risk.assess(input);
+    risk.mode = 'deny';
+    expect(await c.risk.assess(input)).toEqual(first);
   });
 
   it('inválido: caído (503) y colgado (timeout) son UpstreamError, no un «deny»', async () => {
