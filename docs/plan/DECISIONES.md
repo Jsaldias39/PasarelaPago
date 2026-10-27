@@ -8,7 +8,7 @@
 
 | ID | Tema | Decisión | Consecuencia en el plan |
 |---|---|---|---|
-| D-01 | Repo | **Monorepo** `mantra-core-technologies/alovida-pay`, privado. Cada servicio se despliega por separado, con su base, su imagen y su CI. | Carpetas `services/*`, `contracts/`, `platform/`. La separación se exige en *runtime* y en CI, no por repo. |
+| D-01 | Repo | **Monorepo** `Jsaldias39/PasarelaPago` (creado por el dueño el 2026-10-27; se había propuesto `mantra-core-technologies/alovida-pay`, pero la integración no tenía permiso para crear repos en esa organización). Cada servicio se despliega por separado, con su base, su imagen y su CI. | Carpetas `services/*`, `contracts/`, `platform/`. La separación se exige en *runtime* y en CI, no por repo. |
 | D-02 | Rol de AloVida respecto del dinero (issue #122 de la bóveda) | **Modo A — orquestador.** Cobra con PSP y bancos con licencia y les paga a los comercios desde una cuenta recaudadora. No es adquirente. | El rail del modo B (`acquirer-settlement`) queda como doble declarado detrás de `settlement.mode` (P2.H2.M8). |
 | D-03 | Medios de pago v1 | **QR interoperable, tarjeta vía PSP, transferencia bancaria y saldo AloVida.** Los cuatro. | P3.H3 (medios y bóveda), P4.H2.M7 (transferencia), P2.H1.M8 (saldo). |
 | D-04 | Stack | **NestJS 11 + TypeScript**, MikroORM 7, PostgreSQL y Yarn 4: el stack de `mantra-core-health-api`. | Se recicla el código de pagos existente y las skills de la casa. |

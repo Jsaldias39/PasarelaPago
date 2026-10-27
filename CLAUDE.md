@@ -1,4 +1,4 @@
-# alovida-pay — pasarela de pagos ALOVIDA
+# PasarelaPago — pasarela de pagos ALOVIDA
 
 Monorepo de 11 microservicios backend (NestJS 11, MikroORM 7, PostgreSQL, Yarn 4). Panorama:
 `docs/plan/PLAN-MAESTRO.md`. Decisiones con ID estable: `docs/plan/DECISIONES.md`.

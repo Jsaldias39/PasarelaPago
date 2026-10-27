@@ -1,4 +1,4 @@
-# alovida-pay — Pasarela de pagos ALOVIDA
+# PasarelaPago — Pasarela de pagos ALOVIDA
 
 Plataforma de pagos de ALOVIDA en **microservicios backend**: 11 servicios NestJS, cada uno con su
 propia base de datos, imagen y despliegue, que solo se hablan por contratos (HTTP con OpenAPI o
