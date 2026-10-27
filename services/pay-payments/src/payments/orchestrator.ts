@@ -27,6 +27,12 @@ export class TemporalOrchestrator implements PaymentOrchestrator {
     return new TemporalOrchestrator(new Client({ connection, namespace: options.namespace }), options.taskQueue, connection);
   }
 
+  /** Sin conectar todavía: el servicio arranca aunque Temporal tarde; la primera llamada abre la conexión. */
+  static lazy(options: { address: string; namespace: string; taskQueue: string }): TemporalOrchestrator {
+    const connection = Connection.lazy({ address: options.address });
+    return new TemporalOrchestrator(new Client({ connection, namespace: options.namespace }), options.taskQueue, connection);
+  }
+
   async close(): Promise<void> {
     await this.connection.close();
   }

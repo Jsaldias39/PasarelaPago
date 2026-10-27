@@ -12,6 +12,13 @@ const ID_FOR: Record<string, string> = {
 };
 const concrete = (template: string): string => template.replace('{id}', ID_FOR[template.split('/')[1]]);
 const KEY = 'clave-de-idempotencia-0001';
+/**
+ * DEFECTO CONOCIDO DEL CONTRATO (docs/trabajo/ola-1/P1/PROPUESTAS.md, propuesta 3): `Mandate` se arma con `allOf` sobre
+ * `MandateCreate`, que lleva `additionalProperties: false`; por eso NINGUNA respuesta real de `Mandate` puede validar. Se
+ * declara acá, acotado a estas dos operaciones, y una prueba avisa cuando el contrato se corrija (hay que borrar este Set).
+ */
+const KNOWN_CONTRACT_DEFECT = new Set(['POST /mandates', 'GET /mandates']);
+const isKnownDefect = (violation: string) => [...KNOWN_CONTRACT_DEFECT].some((op) => violation.startsWith(`${op.split(' ')[0]} /mandates`));
 const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/;
 
 async function authed(h: EdgeHarness) {
@@ -40,7 +47,9 @@ describe('[DOBLE] reenvío a los servicios dueños — nivel CORRECTO', () => {
     const sample = SAMPLES[name];
     expect(res.status).toBe(sample.status);
     if (sample.body !== undefined) expect(res.body).toEqual(sample.body);
-    h.contract.assertResponse({ method: route.method, path, status: res.status, body: sample.body === undefined ? undefined : res.body });
+    const errors = h.contract.validateResponse({ method: route.method, path, status: res.status, body: sample.body === undefined ? undefined : res.body });
+    if (KNOWN_CONTRACT_DEFECT.has(name)) expect(errors.join()).toMatch(/additional properties/i);
+    else expect(errors).toEqual([]);
 
     const seen = h.doubles[route.upstream].requests;
     expect(seen).toHaveLength(1);
@@ -56,7 +65,13 @@ describe('[DOBLE] reenvío a los servicios dueños — nivel CORRECTO', () => {
   });
 
   it('ningún doble devolvió una respuesta fuera del contrato', () => {
-    for (const d of Object.values(h.doubles)) expect(d.violations).toEqual([]);
+    for (const d of Object.values(h.doubles)) expect(d.violations.filter((v) => !isKnownDefect(v))).toEqual([]);
+  });
+
+  it('DEFECTO CONOCIDO vigente: el contrato todavía rechaza una respuesta real de Mandate (si falla, se corrigió: borrá KNOWN_CONTRACT_DEFECT)', () => {
+    const violations = h.doubles['pay-schedules'].violations;
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations.every(isKnownDefect)).toBe(true);
   });
 
   it('reenvía los BYTES exactos del cuerpo (espacios, orden de claves, unicode, números grandes), sin reserializar', async () => {
@@ -201,7 +216,8 @@ describe('[DOBLE] reenvío — nivel INVÁLIDO (el servicio de destino se porta 
   let k: Awaited<ReturnType<typeof authed>>;
   const leak = 'Error: connection to postgres://pay_ledger:secreto@10.0.0.7:5432 refused\n    at Pool.connect (/app/node_modules/pg/lib/pool.js:12:3)';
   beforeAll(async () => {
-    h = await startEdge({ env: { UPSTREAM_TIMEOUT_MS: '400', BREAKER_FAILURE_THRESHOLD: '3', BREAKER_COOLDOWN_MS: '600' } });
+    // Umbral alto a propósito: acá se prueba cada mala respuesta POR SEPARADO; el cortacircuitos tiene su propio bloque.
+    h = await startEdge({ env: { UPSTREAM_TIMEOUT_MS: '400', BREAKER_FAILURE_THRESHOLD: '1000' } });
     k = await authed(h);
   });
   afterAll(async () => h.stop());
@@ -285,8 +301,74 @@ describe('[DOBLE] reenvío — nivel INVÁLIDO (el servicio de destino se porta 
     expect((await get()).status).toBe(502);
   });
 
+  it('un 5xx con un problema válido (p. ej. risk_unavailable) es una respuesta deliberada: pasa y NO abre el cortacircuitos', async () => {
+    h.doubles['pay-payments'].override = () => ({ status: 503, body: { type: 'urn:alovida:pay:problem:risk_unavailable', title: 'El control de riesgo no está disponible', status: 503, code: 'risk_unavailable' } });
+    for (let i = 0; i < 6; i += 1) {
+      const res = await h.http().post('/v1/payment_intents').set('Authorization', k.auth).set('Idempotency-Key', `clave-repetida-${i}-0001`).set('Content-Type', 'application/json').send('{}');
+      expect(res.status).toBe(503);
+      expect(res.body.code).toBe('risk_unavailable');
+    }
+    expect(h.doubles['pay-payments'].requests).toHaveLength(6); // las seis llegaron
+  });
+});
+
+describe('[DOBLE] cortacircuitos del borde', () => {
+  let h: EdgeHarness;
+  let k: Awaited<ReturnType<typeof authed>>;
+  beforeAll(async () => {
+    h = await startEdge({ env: { UPSTREAM_TIMEOUT_MS: '400', BREAKER_FAILURE_THRESHOLD: '3', BREAKER_COOLDOWN_MS: '600' } });
+    k = await authed(h);
+  });
+  afterAll(async () => h.stop());
+  const get = (path = '/v1/balance') => h.http().get(path).set('Authorization', k.auth);
+  const ledger = () => h.doubles['pay-ledger'];
+
   it('cortacircuitos: tras 3 fallos seguidos el 4.º no llega al servicio (503 + Retry-After), y se recupera con una prueba', async () => {
-    await new Promise((resolve) => setTimeout(resolve, 700)); // enfriar los fallos de los casos anteriores
+    ledger().requests.length = 0;
+    ledger().override = () => 'destroy';
+    for (let i = 0; i < 3; i += 1) expect((await get()).status).toBe(503);
+    expect(ledger().requests).toHaveLength(3);
+
+    const blocked = await get();
+    expect(blocked.status).toBe(503);
+    expect(blocked.headers['retry-after']).toBeDefined();
+    expect(Number(blocked.headers['retry-after'])).toBeGreaterThanOrEqual(1);
+    expect(ledger().requests).toHaveLength(3); // el cuarto NO salió
+
+    ledger().override = undefined; // el servicio se recupera
+    const deadline = Date.now() + 5_000;
+    let res = await get();
+    while (res.status !== 200 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      res = await get();
+    }
+    expect(res.status).toBe(200);
+    expect((await get()).status).toBe(200);
+  });
+
+  it('un 5xx con un problema válido (p. ej. risk_unavailable) es una respuesta deliberada: pasa y NO abre el cortacircuitos', async () => {
+    h.doubles['pay-payments'].override = () => ({ status: 503, body: { type: 'urn:alovida:pay:problem:risk_unavailable', title: 'El control de riesgo no está disponible', status: 503, code: 'risk_unavailable' } });
+    for (let i = 0; i < 6; i += 1) {
+      const res = await h.http().post('/v1/payment_intents').set('Authorization', k.auth).set('Idempotency-Key', `clave-repetida-${i}-0001`).set('Content-Type', 'application/json').send('{}');
+      expect(res.status).toBe(503);
+      expect(res.body.code).toBe('risk_unavailable');
+    }
+    expect(h.doubles['pay-payments'].requests).toHaveLength(6); // las seis llegaron
+  });
+});
+
+describe('[DOBLE] cortacircuitos del borde', () => {
+  let h: EdgeHarness;
+  let k: Awaited<ReturnType<typeof authed>>;
+  beforeAll(async () => {
+    h = await startEdge({ env: { UPSTREAM_TIMEOUT_MS: '400', BREAKER_FAILURE_THRESHOLD: '3', BREAKER_COOLDOWN_MS: '600' } });
+    k = await authed(h);
+  });
+  afterAll(async () => h.stop());
+  const get = (path = '/v1/balance') => h.http().get(path).set('Authorization', k.auth);
+  const ledger = () => h.doubles['pay-ledger'];
+
+  it('cortacircuitos: tras 3 fallos seguidos el 4.º no llega al servicio (503 + Retry-After), y se recupera con una prueba', async () => {
     ledger().requests.length = 0;
     ledger().override = () => 'destroy';
     for (let i = 0; i < 3; i += 1) expect((await get()).status).toBe(503);
@@ -317,15 +399,11 @@ describe('[DOBLE] reenvío — nivel INVÁLIDO (el servicio de destino se porta 
     expect(other.status).toBe(200);
   });
 
-  it('un 5xx con un problema válido (p. ej. risk_unavailable) es una respuesta deliberada: pasa y NO abre el cortacircuitos', async () => {
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    h.doubles['pay-payments'].override = () => ({ status: 503, body: { type: 'urn:alovida:pay:problem:risk_unavailable', title: 'El control de riesgo no está disponible', status: 503, code: 'risk_unavailable' } });
-    for (let i = 0; i < 6; i += 1) {
-      const res = await h.http().post('/v1/payment_intents').set('Authorization', k.auth).set('Idempotency-Key', `clave-repetida-${i}-0001`).set('Content-Type', 'application/json').send('{}');
-      expect(res.status).toBe(503);
-      expect(res.body.code).toBe('risk_unavailable');
-    }
-    expect(h.doubles['pay-payments'].requests).toHaveLength(6); // las seis llegaron
+  it('el cortacircuitos es POR servicio: con pay-ledger caído, pay-payments sigue sirviendo', async () => {
+    ledger().override = () => 'destroy';
+    for (let i = 0; i < 4; i += 1) await get();
+    const other = await h.http().get('/v1/payment_intents/pi_abcdefghij12').set('Authorization', k.auth);
+    expect(other.status).toBe(200);
   });
 });
 

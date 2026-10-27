@@ -1,5 +1,6 @@
 import type { Deps } from '../deps';
 import { emitIntentEvent, type IntentEventType } from '../events/emit';
+import type { IntentStatus } from '../domain/state';
 import { intentsRepo, type IntentRow } from '../persistence/intents.repo';
 
 const EVENT_FOR: Record<'succeeded' | 'failed' | 'canceled' | 'expired', IntentEventType> = {
@@ -19,9 +20,10 @@ export async function settleIntent(
   intentId: string,
   to: 'succeeded' | 'failed' | 'canceled' | 'expired',
   patch: { failureCode?: string; ledgerTransferId?: string } = {},
+  from: readonly IntentStatus[] = ['processing', 'requires_action'],
 ): Promise<{ intent: IntentRow; changed: boolean }> {
   return deps.tx(async (db) => {
-    const row = await intentsRepo.transition(db, intentId, ['processing', 'requires_action'], to, { ...patch, nextAction: null });
+    const row = await intentsRepo.transition(db, intentId, from, to, { ...patch, nextAction: null });
     if (!row) {
       const current = await intentsRepo.byId(db, intentId);
       if (!current) throw new Error(`El intento ${intentId} no existe`);

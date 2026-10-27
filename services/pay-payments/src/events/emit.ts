@@ -81,8 +81,8 @@ export interface DisputeEventInput {
   readonly merchantId: string;
   readonly amountMinor: number;
   readonly currency: string;
-  readonly openedAt?: Date;
-  readonly resolvedAt?: Date;
+  readonly openedAt?: Date | null;
+  readonly resolvedAt?: Date | null;
   readonly ledgerTransferId?: string | null;
 }
 

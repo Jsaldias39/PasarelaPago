@@ -10,6 +10,8 @@ export interface ServiceConfig {
   readonly db: { readonly host: string; readonly port: number; readonly name: string; readonly user: string; readonly password: string };
   /** Opcional: sin NATS el servicio arranca pero el relé del outbox no publica y `/health/ready` lo informa. */
   readonly natsUrl?: string;
+  /** Si es `false` no se crean los consumidores JetStream (pruebas que arrancan la app contra una base sin esquema). */
+  readonly consumeEvents: boolean;
   readonly temporal: {
     readonly address: string;
     readonly namespace: string;
@@ -96,6 +98,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
       password: required(env, 'DB_PASSWORD'),
     },
     ...(env.NATS_URL ? { natsUrl: env.NATS_URL } : {}),
+    consumeEvents: env.CONSUME_EVENTS !== 'false',
     temporal: {
       address: env.TEMPORAL_ADDRESS ?? '127.0.0.1:54233',
       namespace: env.TEMPORAL_NAMESPACE ?? 'default',

@@ -1,10 +1,11 @@
 import { Controller, Get, type INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { ProblemError } from '@pay/problem';
-import { AppModule } from '../src/app.module';
+import { PublicRoute } from '@pay/service-auth';
+import { createTestApp, type TestApp } from './support/app';
 
 @Controller('probe')
+@PublicRoute()
 class ProbeController {
   @Get('problem')
   problem(): never {
@@ -18,14 +19,14 @@ class ProbeController {
 }
 
 describe('pay-connectors (arranque real contra su base)', () => {
+  let harness: TestApp;
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule], controllers: [ProbeController] }).compile();
-    app = moduleRef.createNestApplication();
-    await app.init();
+    harness = await createTestApp({ controllers: [ProbeController] });
+    app = harness.app;
   });
-  afterAll(async () => app.close());
+  afterAll(async () => harness.close());
 
   it('GET /health/live responde ok', async () => {
     await request(app.getHttpServer()).get('/health/live').expect(200, { status: 'ok' });

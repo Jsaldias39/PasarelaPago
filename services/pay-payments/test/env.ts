@@ -13,3 +13,4 @@ process.env.CONNECTORS_URL ??= 'http://127.0.0.1:1';
 process.env.LEDGER_URL ??= 'http://127.0.0.1:1';
 // El arranque de salud no necesita Temporal; las pruebas de workflows levantan su propio worker.
 process.env.TEMPORAL_RUN_WORKER ??= 'false';
+process.env.CONSUME_EVENTS ??= 'false';

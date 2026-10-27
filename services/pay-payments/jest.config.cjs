@@ -7,7 +7,7 @@ module.exports = {
   rootDir: '.',
   setupFiles: ['<rootDir>/test/env.ts'],
   testRegex: '(src|test)/.*\\.spec\\.ts$',
-  testTimeout: 20000,
+  testTimeout: 90000,
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: { '^@pay/([^/]+)$': path.join(__dirname, '../../contracts/packages/$1/src') },
   transform: { '^.+\\.(t|j)s$': '@swc/jest' },

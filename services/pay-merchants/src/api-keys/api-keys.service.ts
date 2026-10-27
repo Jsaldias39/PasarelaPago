@@ -117,7 +117,7 @@ export class ApiKeysService {
   }
 
   /** Rota: crea la clave nueva y deja la anterior válida hasta que termine el periodo de gracia. */
-  async rotate(merchantId: string, keyId: string, idempotencyKey: string, requestHash: string): Promise<CreatedKey> {
+  async rotate(merchantId: string, keyId: string, idempotencyKey: string, requestHash: string, callerMode: ApiKeyMode): Promise<CreatedKey> {
     let token: string | undefined;
     const result = await this.idempotency.execute({ scope: merchantId, key: idempotencyKey, requestHash }, async (ctx) => {
       if (ctx.recoveryPoint !== 'started') {
@@ -125,7 +125,8 @@ export class ApiKeysService {
       }
       const view = await ctx.atomic('rotated', async (client) => {
         const merchant = await lockMerchant(client, merchantId);
-        const old = await client.query('SELECT mode, label, revoked_at, grace_ends_at FROM api_keys WHERE key_id = $1 AND merchant_id = $2 FOR UPDATE', [keyId, merchantId]);
+        const old = await client.query('SELECT mode, label, revoked_at, grace_ends_at FROM api_keys WHERE key_id = $1 AND merchant_id = $2 AND mode = $3 FOR UPDATE', [keyId, merchantId, callerMode]);
+        // Una clave de otro modo se trata como inexistente (404, D-28).
         if (old.rows.length === 0) throw new ProblemError('resource_not_found');
         const row = old.rows[0] as { mode: ApiKeyMode; label: string | null; revoked_at: Date | null; grace_ends_at: Date | null };
         if (row.revoked_at !== null || row.grace_ends_at !== null) {
@@ -149,19 +150,20 @@ export class ApiKeysService {
     return { status: 201, body: { ...result.body, ...(token !== undefined && { secret: token }) }, replayed: false };
   }
 
-  async list(merchantId: string): Promise<{ object: 'list'; has_more: boolean; next_cursor: null; data: ApiKeyView[] }> {
+  async list(merchantId: string, mode: ApiKeyMode): Promise<{ object: 'list'; has_more: boolean; next_cursor: null; data: ApiKeyView[] }> {
     const { rows } = await this.pool.query(
       `SELECT key_id, merchant_id, mode, label, last4, created_at, revoked_at, grace_ends_at FROM api_keys
-        WHERE merchant_id = $1 ORDER BY created_at DESC, key_id DESC LIMIT 101`,
-      [merchantId],
+        WHERE merchant_id = $1 AND mode = $2 ORDER BY created_at DESC, key_id DESC LIMIT 101`,
+      [merchantId, mode],
     );
     return { object: 'list', has_more: rows.length > 100, next_cursor: null, data: (rows.slice(0, 100) as unknown as KeyRow[]).map(toView) };
   }
 
-  /** Revoca una clave del comercio (404 si no es suya). Repetir la revocación no hace nada ni publica otro evento. */
-  async revoke(merchantId: string, keyId: string, reason: RevokeReason, now = new Date()): Promise<void> {
+  /** Revoca una clave del comercio (404 si no es suya o es de otro modo que el llamador). Repetir la revocación no hace nada ni publica otro evento. */
+  async revoke(merchantId: string, keyId: string, reason: RevokeReason, now = new Date(), onlyMode?: ApiKeyMode): Promise<void> {
     await withTx(this.pool, async (client) => {
-      const { rows } = await client.query('SELECT mode, revoked_at FROM api_keys WHERE key_id = $1 AND merchant_id = $2 FOR UPDATE', [keyId, merchantId]);
+      // `onlyMode` lo fija la API pública (D-28); el back-office de seguridad opera sobre cualquier modo.
+      const { rows } = await client.query('SELECT mode, revoked_at FROM api_keys WHERE key_id = $1 AND merchant_id = $2 AND ($3::text IS NULL OR mode = $3) FOR UPDATE', [keyId, merchantId, onlyMode ?? null]);
       if (rows.length === 0) throw new ProblemError('resource_not_found');
       if (rows[0].revoked_at !== null) return;
       await this.markRevoked(client, merchantId, keyId, rows[0].mode as ApiKeyMode, reason, now);

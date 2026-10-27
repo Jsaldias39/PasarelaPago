@@ -12,9 +12,9 @@ export const uniqueKey = (): string => `idem-${Date.now()}-${++sequence}-${Math.
 export const bo = (ctx: TestContext, method: Method, path: string, as = 'op-admin'): Test =>
   request(ctx.server)[method](path).set('x-service-id', 'pay-backoffice').set('authorization', bearer(as));
 
-/** Llamada pública como `pay-edge` en nombre de un comercio. */
-export const pub = (ctx: TestContext, method: Method, path: string, merchantId: string): Test =>
-  request(ctx.server)[method](path).set('x-service-id', 'pay-edge').set('x-merchant-id', merchantId);
+/** Llamada pública como `pay-edge` en nombre de un comercio; `mode` es el de la clave del llamador (D-28). */
+export const pub = (ctx: TestContext, method: Method, path: string, merchantId: string, mode: 'test' | 'live' = 'test'): Test =>
+  request(ctx.server)[method](path).set('x-service-id', 'pay-edge').set('x-merchant-id', merchantId).set('x-pay-mode', mode);
 
 /** Comprueba estado HTTP y que el cuerpo cumpla el contrato. Devuelve el cuerpo. */
 export function verified(contract: ContractValidator, method: Method, path: string, res: request.Response, status: number): any {

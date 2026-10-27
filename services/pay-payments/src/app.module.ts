@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { ServiceIdentityGuard } from '@pay/service-auth';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'nestjs-pino';
 import { loadConfig } from './config';
@@ -8,6 +9,7 @@ import { ServiceConfigModule } from './config.module';
 import { DatabaseModule } from './database.module';
 import { EventsModule } from './events.module';
 import { HealthController } from './health.controller';
+import { PaymentsModule } from './payments/payments.module';
 import { ProblemFilter } from './problem.filter';
 
 const config = loadConfig();
@@ -34,10 +36,13 @@ const config = loadConfig();
     TerminusModule,
     DatabaseModule,
     EventsModule,
+    PaymentsModule,
   ],
   controllers: [HealthController],
   providers: [
     { provide: APP_FILTER, useClass: ProblemFilter },
+    // Seguro por defecto: toda ruta exige un llamador permitido (@AllowedServices) o ser pública (@PublicRoute).
+    { provide: APP_GUARD, useClass: ServiceIdentityGuard },
   ],
 })
 export class AppModule {}

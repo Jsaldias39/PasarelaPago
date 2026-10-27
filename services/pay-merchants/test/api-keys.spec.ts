@@ -1,3 +1,4 @@
+import request from 'supertest';
 import { parseApiKey, verifyApiKey } from '@pay/api-key';
 import { ApiKeysService } from '../src/api-keys/api-keys.service';
 import { createTestContext, type TestContext } from './support/app';
@@ -9,10 +10,13 @@ beforeAll(async () => {
 });
 afterAll(async () => ctx.close());
 
-const create = (merchantId: string, body: object = { mode: 'test' }, key = uniqueKey()) => pub(ctx, 'post', '/api_keys', merchantId).set('idempotency-key', key).send(body);
-const rotate = (merchantId: string, keyId: string, key = uniqueKey()) => pub(ctx, 'post', `/api_keys/${keyId}/rotate`, merchantId).set('idempotency-key', key);
-const list = (merchantId: string) => pub(ctx, 'get', '/api_keys', merchantId);
-const revoke = (merchantId: string, keyId: string) => pub(ctx, 'delete', `/api_keys/${keyId}`, merchantId);
+type Mode = 'test' | 'live';
+// `as` es el modo de la clave con la que llama el cliente (lo fija pay-edge en X-Pay-Mode); por defecto, el de la clave que se crea.
+const create = (merchantId: string, body: Record<string, unknown> = { mode: 'test' }, key = uniqueKey(), as: Mode = (body.mode === 'live' ? 'live' : 'test')) =>
+  pub(ctx, 'post', '/api_keys', merchantId, as).set('idempotency-key', key).send(body);
+const rotate = (merchantId: string, keyId: string, key = uniqueKey(), as: Mode = 'test') => pub(ctx, 'post', `/api_keys/${keyId}/rotate`, merchantId, as).set('idempotency-key', key);
+const list = (merchantId: string, as: Mode = 'test') => pub(ctx, 'get', '/api_keys', merchantId, as);
+const revoke = (merchantId: string, keyId: string, as: Mode = 'test') => pub(ctx, 'delete', `/api_keys/${keyId}`, merchantId, as);
 const row = async (keyId: string) => (await ctx.db.pool.query('SELECT * FROM api_keys WHERE key_id = $1', [keyId])).rows[0];
 const keys = () => ctx.app.get(ApiKeysService);
 
@@ -120,6 +124,70 @@ describe('claves de API (REQ-P5-4, P5.H1.M6, D-27)', () => {
     expect(results.filter((r) => r.status === 201)).toHaveLength(5);
     expect(results.filter((r) => r.status === 422).every((r) => r.body.errors[0].code === 'too_many_active_keys')).toBe(true);
     expect((await ctx.db.pool.query('SELECT 1 FROM api_keys WHERE merchant_id = $1', [id])).rows).toHaveLength(5);
+  });
+
+  describe('separación test / live (D-28)', () => {
+    it('una clave test no crea claves live y una live no crea test: 403 forbidden y no se escribe nada', async () => {
+      const id = await activeMerchant(ctx, 430);
+      const before = async () => Number((await ctx.db.pool.query('SELECT count(*)::int AS n FROM api_keys WHERE merchant_id = $1', [id])).rows[0].n);
+      const testToLive = await create(id, { mode: 'live' }, uniqueKey(), 'test');
+      expect([testToLive.status, testToLive.body.code]).toEqual([403, 'forbidden']);
+      const liveToTest = await create(id, { mode: 'test' }, uniqueKey(), 'live');
+      expect([liveToTest.status, liveToTest.body.code]).toEqual([403, 'forbidden']);
+      expect(await before()).toBe(0);
+      expect(await eventsOf(ctx, 'api_key.created')).not.toContainEqual(expect.objectContaining({ subject: expect.stringContaining(id) }));
+      // Mismo modo sí.
+      expect((await create(id, { mode: 'live' }, uniqueKey(), 'live')).status).toBe(201);
+      expect((await create(id, { mode: 'test' }, uniqueKey(), 'test')).status).toBe(201);
+    });
+
+    it('una clave de un modo no lista, rota ni revoca claves del otro: 404 (no 403), y nada cambia', async () => {
+      const id = await activeMerchant(ctx, 431);
+      const live = (await create(id, { mode: 'live' })).body;
+      const testKey = (await create(id, { mode: 'test' })).body;
+      expect((await list(id, 'test')).body.data.map((k: { id: string }) => k.id)).toEqual([testKey.id]);
+      expect((await list(id, 'live')).body.data.map((k: { id: string }) => k.id)).toEqual([live.id]);
+      expect((await rotate(id, live.id, uniqueKey(), 'test')).status).toBe(404);
+      expect((await revoke(id, live.id, 'test')).status).toBe(404);
+      expect((await rotate(id, testKey.id, uniqueKey(), 'live')).status).toBe(404);
+      expect((await revoke(id, testKey.id, 'live')).status).toBe(404);
+      for (const k of [live, testKey]) {
+        const stored = await row(k.id);
+        expect({ id: k.id, revoked: stored.revoked_at, grace: stored.grace_ends_at }).toEqual({ id: k.id, revoked: null, grace: null });
+      }
+      expect(await eventsOf(ctx, 'api_key.revoked', live.id)).toHaveLength(0);
+      // El mismo modo sí opera.
+      expect((await revoke(id, live.id, 'live')).status).toBe(204);
+    });
+
+    it('sin X-Pay-Mode o con un valor inválido, TODAS las rutas públicas responden 403 (seguro por defecto)', async () => {
+      const id = await activeMerchant(ctx, 432);
+      const mine = (await create(id, { mode: 'test' })).body;
+      const calls: [string, string][] = [['get', '/merchants/me'], ['get', '/api_keys'], ['post', '/api_keys'], ['post', `/api_keys/${mine.id}/rotate`], ['delete', `/api_keys/${mine.id}`]];
+      for (const mode of [undefined, '', 'sandbox', 'LIVE', 'test,live', 'prod', ' x ']) {
+        for (const [method, path] of calls) {
+          const req = request(ctx.server)[method as 'get'](path).set('x-service-id', 'pay-edge').set('x-merchant-id', id).set('idempotency-key', uniqueKey());
+          if (mode !== undefined) req.set('x-pay-mode', mode);
+          const res = method === 'post' && path === '/api_keys' ? await req.send({ mode: 'test' }) : await req;
+          expect({ mode, path, method, status: res.status }).toEqual({ mode, path, method, status: 403 });
+        }
+      }
+      expect((await row(mine.id)).revoked_at).toBeNull();
+    });
+
+    it('el modo nunca sale del cuerpo: el cuerpo no puede traer otro campo de modo ni sobreescribir el de la cabecera', async () => {
+      const id = await activeMerchant(ctx, 433);
+      const res = await create(id, { mode: 'live', caller_mode: 'live' }, uniqueKey(), 'test');
+      expect(res.status).toBe(422);
+      expect((await create(id, { mode: 'live' }, uniqueKey(), 'test')).status).toBe(403);
+    });
+
+    it('el back-office de seguridad sí revoca una clave comprometida de cualquier modo', async () => {
+      const id = await activeMerchant(ctx, 434);
+      const live = (await create(id, { mode: 'live' })).body;
+      expect((await bo(ctx, 'post', `/merchants/${id}/api_keys/${live.id}/revoke`, 'op-security')).status).toBe(204);
+      expect((await row(live.id)).revoke_reason).toBe('compromised');
+    });
   });
 
   describe('multi-tenant (BOLA)', () => {

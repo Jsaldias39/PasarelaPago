@@ -65,11 +65,14 @@ export class EdgePipeline {
     if (!route) throw fail('resource_not_found');
 
     const query = this.filterQuery(req, route.rule.query);
-    const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     const idempotencyKey = this.idempotencyKey(req, route.rule.idempotencyKey);
-    if (body.length > 0 && !(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
+    const declared = Number(req.headers['content-length'] ?? 0);
+    if (declared > this.config.maxBodyBytes) throw this.tooLarge();
+    if (declared > 0 && !(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
       throw fail('validation_failed', { errors: [{ field: 'content-type', code: 'unsupported_media_type', message: 'El cuerpo debe ser application/json' }] });
     }
+    // El cuerpo se lee RECIÉN acá: después de autenticar, limitar y validar. Nada se bufferea de quien no se autenticó.
+    const body = await this.readBody(req);
 
     const result = await this.upstream.forward({
       upstream: route.rule.upstream,
@@ -92,6 +95,22 @@ export class EdgePipeline {
     if (this.config.payMode === 'sandbox') res.setHeader('X-Pay-Mode', 'sandbox');
     for (const [name, value] of Object.entries(result.headers)) res.setHeader(name, value);
     res.status(result.status).end(result.body);
+  }
+
+  private tooLarge(): EdgeProblemError {
+    return fail('validation_failed', { errors: [{ field: 'body', code: 'too_large', message: `El cuerpo no puede superar ${this.config.maxBodyBytes} bytes` }] });
+  }
+
+  /** Lee el cuerpo crudo con tope (también con transferencia en trozos, donde no hay Content-Length). */
+  private async readBody(req: Request): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += (chunk as Buffer).length;
+      if (size > this.config.maxBodyBytes) throw this.tooLarge();
+      chunks.push(chunk as Buffer);
+    }
+    return Buffer.concat(chunks);
   }
 
   private async enforce(decision: Awaited<ReturnType<RateLimiter['hit']>>): Promise<void> {

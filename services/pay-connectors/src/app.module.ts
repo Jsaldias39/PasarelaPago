@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'nestjs-pino';
 import { loadConfig } from './config';
@@ -9,6 +9,8 @@ import { DatabaseModule } from './database.module';
 import { EventsModule } from './events.module';
 import { HealthController } from './health.controller';
 import { ProblemFilter } from './problem.filter';
+import { ConnectorsModule } from './connectors.module';
+import { ServiceIdentityGuard } from '@pay/service-auth';
 
 const config = loadConfig();
 
@@ -34,10 +36,13 @@ const config = loadConfig();
     TerminusModule,
     DatabaseModule,
     EventsModule,
+    ConnectorsModule,
   ],
   controllers: [HealthController],
   providers: [
     { provide: APP_FILTER, useClass: ProblemFilter },
+    // Denegado por defecto: toda ruta sin @AllowedServices ni @PublicRoute responde 403.
+    { provide: APP_GUARD, useClass: ServiceIdentityGuard },
   ],
 })
 export class AppModule {}
