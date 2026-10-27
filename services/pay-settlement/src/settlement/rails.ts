@@ -1,4 +1,3 @@
-import { RailUnavailableError } from './errors';
 import type { ConnectorsPort, PayoutOrder, PayoutRail, RailOutcome } from './ports';
 
 /**
@@ -15,8 +14,8 @@ export class BankTransferRail implements PayoutRail {
     return this.connectors.createTransfer(order, `payout-${order.payoutId}`);
   }
 
-  query(order: PayoutOrder, reference: string): Promise<RailOutcome> {
-    return this.connectors.queryTransfer(reference, order);
+  query(order: PayoutOrder, reference: string | null): Promise<RailOutcome> {
+    return this.connectors.queryTransfer(order, reference);
   }
 }
 
@@ -35,8 +34,9 @@ export class AcquirerSettlementRail implements PayoutRail {
     return { state: 'paid', reference: `sim_${order.payoutId}` };
   }
 
-  async query(order: PayoutOrder, reference: string): Promise<RailOutcome> {
-    if (reference !== `sim_${order.payoutId}`) throw new RailUnavailableError('referencia desconocida para el doble del modo B');
+  async query(order: PayoutOrder, reference: string | null): Promise<RailOutcome> {
+    // El doble nunca deja una orden sin respuesta: si no tiene referencia, nunca la recibió.
+    if (reference !== `sim_${order.payoutId}`) return { state: 'not_found' };
     return { state: 'paid', reference };
   }
 }

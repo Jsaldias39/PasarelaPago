@@ -98,6 +98,8 @@ CREATE TABLE settlement_charges (
   merchant_id    text        NOT NULL,
   kind           text        NOT NULL CHECK (kind IN ('monthly_fee', 'provider_commission', 'chargeback_debt')),
   period_key     text        NOT NULL,                  -- 2026-11 para el abono; la referencia del llamador en los demás
+  credit_account text        NOT NULL,                  -- platform:fees (abono, comisión) o connector:<x>:clearing (contracargo)
+  ledger_code    text        NOT NULL CHECK (ledger_code IN ('fee', 'refund')),
   amount_minor   bigint      NOT NULL CHECK (amount_minor >= 1),
   collected_minor bigint     NOT NULL DEFAULT 0 CHECK (collected_minor >= 0 AND collected_minor <= amount_minor),
   status         text        NOT NULL CHECK (status IN ('open', 'collected')),

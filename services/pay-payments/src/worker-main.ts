@@ -10,7 +10,10 @@ import { startPaymentsWorker } from './temporal/worker';
  */
 async function main(): Promise<void> {
   const config = loadConfig();
-  const pool = new Pool({ host: config.db.host, port: config.db.port, user: config.db.user, password: config.db.password, database: config.db.name, max: 10, application_name: 'pay-payments-worker' });
+  // `DB_SCHEMA` aísla el esquema (pruebas con varios procesos sobre la misma base); sin él se usa el de la conexión.
+  const schema = process.env.DB_SCHEMA;
+  if (schema !== undefined && !/^[a-z][a-z0-9_]{0,62}$/.test(schema)) throw new Error('DB_SCHEMA inválido');
+  const pool = new Pool({ ...(schema ? { options: `-c search_path=${schema}` } : {}), host: config.db.host, port: config.db.port, user: config.db.user, password: config.db.password, database: config.db.name, max: 10, application_name: 'pay-payments-worker' });
   const worker = await startPaymentsWorker(createDeps(pool, config));
   const stop = () => void worker.shutdown().then(() => pool.end());
   process.once('SIGTERM', stop);

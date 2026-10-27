@@ -20,6 +20,8 @@ interface Reply {
   readonly status: number;
   readonly json: unknown;
   readonly text: string;
+  /** `true` solo si el cuerpo es `application/problem+json`: un 4xx/5xx de un proxy intermedio NO es una respuesta del servicio. */
+  readonly isProblem: boolean;
 }
 
 /** `fetch` con tiempo máximo. Un fallo de red o un tiempo agotado se informa como `null`: el resultado de la llamada es desconocido. */
@@ -33,7 +35,8 @@ async function send(url: string, init: RequestInit, timeoutMs: number): Promise<
     } catch {
       /* no era JSON (extracto CSV/XML, o un cuerpo de error ajeno) */
     }
-    return { status: response.status, json, text };
+    const isProblem = (response.headers.get('content-type') ?? '').toLowerCase().startsWith('application/problem+json');
+    return { status: response.status, json, text, isProblem };
   } catch {
     return null;
   }
@@ -70,6 +73,8 @@ export class HttpLedgerClient implements LedgerPort {
 
   /** Traduce un 4xx de negocio a `LedgerRejectedError`; cualquier otro 4xx inesperado es un fallo nuestro (se trata como no disponible). */
   private reject(reply: Reply): never {
+    // Un 409/422 sin cuerpo `application/problem+json` no vino del ledger (un proxy puede fabricarlo): no se decide nada con él.
+    if (!reply.isProblem) throw new LedgerUnavailableError(`respuesta ajena al ledger (${reply.status})`);
     const code = problemCode(reply);
     if (reply.status === 422 && code === 'insufficient_funds') throw new LedgerRejectedError('insufficient_funds');
     if (reply.status === 422) throw new LedgerRejectedError('validation_failed', problemDetail(reply));
@@ -212,26 +217,35 @@ export class HttpConnectorsClient implements ConnectorsPort {
     return transferOutcome(reply);
   }
 
-  async queryTransfer(reference: string): Promise<RailOutcome> {
-    const reply = await send(
-      `${this.baseUrl}/transfers/${encodeURIComponent(reference)}`,
-      { method: 'GET', headers: { ...serviceHeaders(SELF), accept: 'application/json' } },
-      this.timeoutMs,
-    );
-    return transferOutcome(reply);
+  /** Con `reference` consulta esa orden; sin ella (la orden se envió y nunca se supo la respuesta) la busca por `payout_id`. */
+  async queryTransfer(order: PayoutOrder, reference: string | null): Promise<RailOutcome> {
+    const path = reference ? `/transfers/${encodeURIComponent(reference)}` : `/transfers?payout_id=${encodeURIComponent(order.payoutId)}`;
+    const reply = await send(`${this.baseUrl}${path}`, { method: 'GET', headers: { ...serviceHeaders(SELF), accept: 'application/json' } }, this.timeoutMs);
+    return queryOutcome(reply);
   }
 }
 
+/**
+ * Traduce la respuesta del conector a un resultado del riel. Regla de dinero (doble pago): un rechazo es DEFINITIVO solo si el
+ * conector lo dice con `application/problem+json` y un `code` que el contrato garantiza «sin efecto» (`connector_unavailable`, o
+ * `validation_failed` en un 422). Cualquier otra cosa después de enviar la orden —502/503/504 de un proxy, cuerpo ilegible, corte de
+ * conexión, tiempo agotado— es AMBIGUA: puede que el banco ya haya pagado. Nunca se anula una retención por ambigüedad.
+ */
 function transferOutcome(reply: Reply | null): RailOutcome {
-  // Sin respuesta o 5xx distinto de 502: no sabemos si el banco ejecutó la orden.
-  if (!reply || (reply.status >= 500 && reply.status !== 502) || reply.status === 429) throw new RailAmbiguousError();
-  // 502 `connector_unavailable` es «sin efecto» por contrato: es seguro anular la retención.
-  if (reply.status === 502) throw new RailUnavailableError();
-  if (reply.status === 422) return { state: 'failed', code: 'rail_rejected' };
+  if (!reply) throw new RailAmbiguousError('sin respuesta del conector');
+  const code = problemCode(reply);
+  if (reply.isProblem && reply.status === 502 && code === 'connector_unavailable') throw new RailUnavailableError();
+  if (reply.isProblem && reply.status === 422 && code === 'validation_failed') return { state: 'failed', code: 'rail_rejected' };
+  if (reply.status !== 200 && reply.status !== 201) throw new RailAmbiguousError(`respuesta no concluyente del conector (${reply.status})`);
   const body = reply.json as { status?: string; reference?: string; failure_code?: string } | null;
-  if (reply.status !== 200 && reply.status !== 201) throw new RailAmbiguousError(`respuesta inesperada del conector (${reply.status})`);
   if (body?.status === 'paid' && body.reference) return { state: 'paid', reference: body.reference };
   if (body?.status === 'in_transit' && body.reference) return { state: 'in_transit', reference: body.reference };
   if (body?.status === 'failed') return { state: 'failed', code: body.failure_code ?? 'rail_rejected' };
   throw new RailAmbiguousError('respuesta ilegible del conector');
+}
+
+/** La consulta de una orden dice «no existe» solo con un 404 `application/problem+json` `resource_not_found`. */
+function queryOutcome(reply: Reply | null): RailOutcome {
+  if (reply && reply.status === 404 && reply.isProblem && problemCode(reply) === 'resource_not_found') return { state: 'not_found' };
+  return transferOutcome(reply);
 }

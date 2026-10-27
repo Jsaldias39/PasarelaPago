@@ -55,7 +55,9 @@ export const LEDGER_PORT = Symbol('LEDGER_PORT');
 export type RailOutcome =
   | { readonly state: 'paid'; readonly reference: string }
   | { readonly state: 'in_transit'; readonly reference: string }
-  | { readonly state: 'failed'; readonly code: string };
+  | { readonly state: 'failed'; readonly code: string }
+  /** El riel afirma que NO tiene esa orden (solo lo dice una consulta). */
+  | { readonly state: 'not_found' };
 
 export interface PayoutOrder {
   readonly payoutId: string;
@@ -74,8 +76,8 @@ export interface PayoutRail {
   /** `true` si el riel es un doble y no movió dinero real. */
   readonly simulated: boolean;
   send(order: PayoutOrder): Promise<RailOutcome>;
-  /** Estado actual de una orden ya enviada. */
-  query(order: PayoutOrder, reference: string): Promise<RailOutcome>;
+  /** Estado actual de una orden ya enviada. `reference` es `null` si la orden se envió y nunca se supo la respuesta. */
+  query(order: PayoutOrder, reference: string | null): Promise<RailOutcome>;
 }
 export const PAYOUT_RAILS = Symbol('PAYOUT_RAILS');
 
@@ -103,7 +105,7 @@ export interface ConnectorsPort {
   getStatement(input: { connector: string; from: string; to: string; format: StatementFormat }): Promise<StatementDocument>;
   /** Ordena una transferencia desde la cuenta recaudadora. PROPUESTA de contrato (`POST /transfers`): ver PROPUESTAS.md. */
   createTransfer(order: PayoutOrder, idempotencyKey: string): Promise<RailOutcome>;
-  queryTransfer(reference: string, order: PayoutOrder): Promise<RailOutcome>;
+  queryTransfer(order: PayoutOrder, reference: string | null): Promise<RailOutcome>;
 }
 export const CONNECTORS_PORT = Symbol('CONNECTORS_PORT');
 

@@ -43,6 +43,8 @@ export interface Stack {
   readonly ledger: LedgerDouble;
   readonly wallet: WalletAuthorizerDouble;
   readonly worker: PaymentsWorker | undefined;
+  /** Entorno con el que se armó la configuración: sirve para levantar workers como procesos aparte. */
+  readonly env: Record<string, string>;
   stop(): Promise<void>;
 }
 
@@ -59,8 +61,8 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
   const [riskUrl, connectorsUrl, ledgerUrl] = await Promise.all([risk.start(), connectors.start(), ledger.start()]);
   const wallet = new WalletAuthorizerDouble();
   const taskQueue = options.taskQueue ?? `p3-${randomBytes(4).toString('hex')}`;
-  const config = loadConfig({
-    ...process.env,
+  const env = {
+    ...(process.env as Record<string, string>),
     RISK_URL: riskUrl,
     CONNECTORS_URL: connectorsUrl,
     LEDGER_URL: ledgerUrl,
@@ -73,13 +75,14 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
     ACTIVITY_INITIAL_MS: '200',
     ACTIVITY_MAX_MS: '800',
     ...options.env,
-  });
+  };
+  const config = loadConfig(env);
   const deps = createDeps(db.pool as never, config, { wallet });
   const worker = options.inProcessWorker === false ? undefined : await startPaymentsWorker(deps, { workflowsPath: WORKFLOWS_PATH });
   const orchestrator = await TemporalOrchestrator.connect({ address: config.temporal.address, namespace: config.temporal.namespace, taskQueue });
   const service = new PaymentsService(deps, orchestrator);
   return {
-    db, config, deps, service, orchestrator, risk, connectors, ledger, wallet, worker,
+    db, config, deps, service, orchestrator, risk, connectors, ledger, wallet, worker, env,
     async stop() {
       await worker?.shutdown();
       await orchestrator.close();
@@ -105,3 +108,72 @@ export async function waitFor<T>(probe: () => Promise<T | undefined | false | nu
 }
 
 export const key = (): string => `k-${randomBytes(8).toString('hex')}`;
+
+import { emitIntentEvent } from '../../src/events/emit';
+import { intentsRepo } from '../../src/persistence/intents.repo';
+
+/** Eventos del outbox de un recurso, en orden de publicación. */
+export async function eventsOf(stack: Pick<Stack, 'db'>, subject: string): Promise<{ type: string; envelope: Record<string, unknown> }[]> {
+  const { rows } = await stack.db.pool.query('SELECT type, envelope FROM outbox_events WHERE aggregate_id = $1 ORDER BY seq', [subject]);
+  return rows as { type: string; envelope: Record<string, unknown> }[];
+}
+
+/** Crea un intento directo en la base (con vencimiento a medida) y arranca su workflow: para probar vencimientos sin esperar 60 s. */
+export async function startDirectIntent(stack: Stack, input: { id: string; merchantId?: string; amountMinor?: number; method?: 'qr' | 'card' | 'bank_transfer' | 'wallet'; expiresInMs: number; walletUserRef?: string }): Promise<string> {
+  const amount = input.amountMinor ?? 10000;
+  await stack.deps.tx(async (db) => {
+    const { inserted } = await intentsRepo.insert(db, {
+      id: input.id, merchantId: input.merchantId ?? MC, amountMinor: amount, method: input.method ?? 'qr', feeMinor: Math.round(amount * 0.03), netMinor: amount - Math.round(amount * 0.03),
+      metadata: {}, expiresAt: new Date(Date.now() + input.expiresInMs), ...(input.walletUserRef ? { walletUserRef: input.walletUserRef } : {}),
+    });
+    if (inserted) {
+      const row = await intentsRepo.byId(db, input.id);
+      if (row) await emitIntentEvent(db, 'payment_intent.created', row);
+    }
+  });
+  await stack.orchestrator.startPayment(input.id);
+  return input.id;
+}
+
+export async function statusOf(stack: Pick<Stack, 'deps'>, id: string): Promise<string | undefined> {
+  return (await intentsRepo.byId(stack.deps.pool, id))?.status;
+}
+
+
+import { spawn, type ChildProcess } from 'node:child_process';
+
+export interface ChildWorker {
+  readonly child: ChildProcess;
+  readonly ready: Promise<void>;
+  /** SIGKILL por PID (no se mata por nombre: puede haber workers de otros carriles). */
+  kill(): Promise<void>;
+}
+
+/** Levanta el worker de pay-payments COMO PROCESO APARTE (`dist/worker-main.js`) contra el esquema y los dobles de `stack`. */
+export function spawnWorker(stack: Pick<Stack, 'env' | 'db'>): ChildWorker {
+  const child = spawn(process.execPath, [path.join(root, 'dist/worker-main.js')], {
+    env: { ...stack.env, DB_SCHEMA: stack.db.schema, NODE_OPTIONS: '' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+  const ready = new Promise<void>((resolve, reject) => {
+    let output = '';
+    const onData = (chunk: Buffer) => {
+      output += chunk.toString();
+      if (output.includes('WORKER_READY')) resolve();
+      if (output.includes('WORKER_ERROR')) reject(new Error(output.slice(-400)));
+    };
+    child.stdout?.on('data', onData);
+    child.stderr?.on('data', onData);
+    child.once('exit', (code) => reject(new Error(`El worker salió con código ${code}: ${output.slice(-400)}`)));
+    setTimeout(() => reject(new Error(`El worker no arrancó a tiempo: ${output.slice(-400)}`)), 60_000).unref();
+  });
+  return {
+    child,
+    ready,
+    async kill() {
+      if (child.exitCode === null) child.kill('SIGKILL');
+      await exited;
+    },
+  };
+}

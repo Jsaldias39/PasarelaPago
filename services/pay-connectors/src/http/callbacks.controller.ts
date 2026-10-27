@@ -15,7 +15,6 @@ export class CallbacksController {
     const headers: Record<string, string | undefined> = {};
     for (const [name, value] of Object.entries(req.headers)) headers[name.toLowerCase()] = Array.isArray(value) ? value.join(',') : value;
     // La firma se calcula sobre los bytes EXACTOS: el cuerpo llega crudo (ver app.setup.ts).
-    console.log('DBG', typeof req.body, Buffer.isBuffer(req.body), req.headers['content-type']);
     const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     const outcome = await this.callbacks.receive({ connectorId, headers, rawBody, ...(req.socket.remoteAddress && { sourceIp: req.socket.remoteAddress }) });
     return { result: outcome.result, charge_id: outcome.chargeId };

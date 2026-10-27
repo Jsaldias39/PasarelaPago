@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { NativeConnection, Worker } from '@temporalio/worker';
 import type { Deps } from '../deps';
 import { createActivities } from './activities';
@@ -21,7 +20,7 @@ export async function startPaymentsWorker(deps: Deps, options: { workflowsPath?:
     connection,
     namespace: temporal.namespace,
     taskQueue: temporal.taskQueue,
-    workflowsPath: options.workflowsPath ?? temporal.workflowsPath ?? path.join(__dirname, 'workflows'),
+    workflowsPath: options.workflowsPath ?? temporal.workflowsPath ?? require.resolve('./workflows'),
     activities: { ...createActivities(deps), ...createRefundActivities(deps), ...createDisputeActivities(deps) },
   });
   const done = worker.run().finally(() => connection.close());

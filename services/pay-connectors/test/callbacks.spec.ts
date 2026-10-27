@@ -30,7 +30,7 @@ beforeEach(async () => {
 });
 
 type Signed = { headers: Record<string, string>; rawBody: Buffer };
-const deliver = (signed: Signed, path = '/callbacks/mock') => request(t.app.getHttpServer()).post(path).set(signed.headers).set('content-type', 'application/json').send(signed.rawBody);
+const deliver = (signed: Signed, path = '/callbacks/mock') => request(t.app.getHttpServer()).post(path).set(signed.headers).set('content-type', 'application/json').send(signed.rawBody.toString('utf8'));
 const sign = (callback: ScheduledCallback) => mock.signCallback(callback, t.clock.now());
 const dueFor = (chargeId: string) => bank.dueCallbacks(t.clock.now()).filter((c) => c.reference === chargeId);
 
@@ -310,6 +310,7 @@ describe('límite de velocidad', () => {
     const previous = config.callbackRatePerMinute;
     config.callbackRatePerMinute = 3;
     try {
+      t.clock.advance(61_000); // ventana nueva: el contador de las pruebas anteriores no cuenta
       const { due } = await charge();
       const signed = await sign(due[0] as ScheduledCallback);
       const statuses: number[] = [];

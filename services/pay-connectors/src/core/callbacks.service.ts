@@ -53,7 +53,6 @@ export class CallbacksService {
     );
     if (!decision.allowed) throw new ProblemError('unauthorized');
 
-    console.log('DBG2', request.rawBody.length, JSON.stringify(request.headers).slice(0,300), now.toISOString());
     const verified = await connector.verifyCallback({ headers: request.headers, rawBody: request.rawBody, now });
     if (!verified.ok) {
       if (verified.malformed) throw badRequest('El cuerpo del callback no se pudo interpretar');
@@ -74,7 +73,9 @@ export class CallbacksService {
   private limit(code: ConnectorCode, ip: string | undefined, now: Date): void {
     const key = `${code}|${ip ?? '-'}`;
     const window = this.windows.get(key);
-    if (!window || now.getTime() - window.startedAt >= 60_000) {
+    // Un reloj que retrocede (ajuste de NTP) también abre ventana nueva: no deja el contador congelado.
+    const elapsed = window ? now.getTime() - window.startedAt : 0;
+    if (!window || elapsed >= 60_000 || elapsed < 0) {
       this.windows.set(key, { startedAt: now.getTime(), count: 1 });
       if (this.windows.size > 10_000) this.windows.clear(); // tope de memoria ante un barrido de orígenes
       return;

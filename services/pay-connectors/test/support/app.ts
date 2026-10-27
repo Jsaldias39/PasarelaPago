@@ -8,6 +8,7 @@ import { AppModule } from '../../src/app.module';
 import { APP_OPTIONS, configureBodyParsers } from '../../src/app.setup';
 import type { QrPort } from '../../src/connectors/mock/mock.connector';
 import { PG_POOL } from '../../src/database.module';
+import { loadConfig, SERVICE_CONFIG, type ServiceConfig } from '../../src/config';
 import { SIMULATED_BANK } from '../../src/core/mock-pump.service';
 import { TRANSFER_BANK } from '../../src/connectors.module';
 import type { SimulatedBank } from '../../src/connectors/mock/simulated-bank';
@@ -66,7 +67,7 @@ export interface TestApp {
 }
 
 /** Levanta la app real sobre un esquema aislado de Postgres real (nada de ORM mockeado) con reloj y QR de prueba. */
-export async function createTestApp(options: { controllers?: Array<new (...args: never[]) => unknown> } = {}): Promise<TestApp> {
+export async function createTestApp(options: { controllers?: Array<new (...args: never[]) => unknown>; config?: Partial<ServiceConfig> } = {}): Promise<TestApp> {
   const db = await createIsolatedDatabase(SQL);
   const contract = await loadContract(SPEC);
   const appPool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${db.schema}`, max: 20 });
@@ -75,6 +76,8 @@ export async function createTestApp(options: { controllers?: Array<new (...args:
   const moduleRef = await Test.createTestingModule({ imports: [AppModule], ...(options.controllers && { controllers: options.controllers }) })
     .overrideProvider(PG_POOL)
     .useValue(appPool)
+    .overrideProvider(SERVICE_CONFIG)
+    .useValue({ ...loadConfig(), ...options.config })
     .overrideProvider(CLOCK)
     .useValue(clock)
     .overrideProvider(QR_PORT)
@@ -102,8 +105,7 @@ export async function createTestApp(options: { controllers?: Array<new (...args:
       // Callbacks que el simulador dejó programados por pruebas anteriores: sus cobros ya no existen.
       for (const token of [SIMULATED_BANK, TRANSFER_BANK]) {
         const bank = app.get<SimulatedBank>(token);
-        bank.setDown(false);
-        bank.dueCallbacks(new Date(8.64e15));
+        bank.reset();
       }
     },
   };

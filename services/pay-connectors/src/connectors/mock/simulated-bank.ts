@@ -48,6 +48,14 @@ export class SimulatedBank {
     this.down = value;
   }
 
+  /** Vuelve al estado inicial (sin cobros, callbacks ni líneas inyectadas, conectado). Lo usan las pruebas y el reinicio de la capa sandbox. */
+  reset(): void {
+    this.charges.clear();
+    this.callbacks = [];
+    this.extraLines.length = 0;
+    this.down = false;
+  }
+
   isDown(): boolean {
     return this.down;
   }
@@ -177,6 +185,7 @@ export class SimulatedBank {
   }
 
   statement(range: { from: Date; to: Date }): StatementLine[] {
+    if (this.down) throw new ConnectorUnavailableError('unreachable');
     const lines: StatementLine[] = [];
     for (const charge of this.charges.values()) {
       if (!charge.paidAt || charge.paidAt < range.from || charge.paidAt > range.to) continue;

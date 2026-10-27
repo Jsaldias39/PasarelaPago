@@ -72,6 +72,8 @@ export const SETTLEMENT_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<stri
     merchant_id: col('text'),
     kind: col('text'),
     period_key: col('text'),
+    credit_account: col('text'),
+    ledger_code: col('text'),
     amount_minor: col('bigint'),
     collected_minor: col('bigint'),
     status: col('text'),

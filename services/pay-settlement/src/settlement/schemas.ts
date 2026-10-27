@@ -36,13 +36,17 @@ export const exceptionResolve = z.strictObject({
 });
 
 /** PROPUESTA de contrato (no está en `internal-settlement-v1.yaml`): cobro a un comercio que se netea contra su saldo. */
-export const chargeCreate = z.strictObject({
-  merchant_id: merchantId,
-  kind: z.enum(['provider_commission', 'chargeback_debt']),
-  reference: z.string().regex(/^[A-Za-z0-9_.:-]{3,80}$/),
-  amount_minor: amount,
-  currency,
-});
+export const chargeCreate = z
+  .strictObject({
+    merchant_id: merchantId,
+    kind: z.enum(['provider_commission', 'chargeback_debt']),
+    reference: z.string().regex(/^[A-Za-z0-9_.:-]{3,80}$/),
+    amount_minor: amount,
+    currency,
+    /** Conector al que se le devuelve el contracargo: obligatorio solo para `chargeback_debt`. */
+    connector: z.string().regex(/^[a-z_]{3,30}$/).optional(),
+  })
+  .refine((c) => (c.kind === 'chargeback_debt') === (c.connector !== undefined), { path: ['connector'], message: 'connector_required_only_for_chargeback' });
 
 export const listQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(20),

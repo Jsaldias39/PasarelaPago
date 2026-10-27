@@ -9,6 +9,7 @@ import { DatabaseModule } from './database.module';
 import { EventsModule } from './events.module';
 import { HealthController } from './health.controller';
 import { ProblemFilter } from './problem.filter';
+import { SettlementModule } from './settlement/settlement.module';
 
 const config = loadConfig();
 
@@ -34,6 +35,7 @@ const config = loadConfig();
     TerminusModule,
     DatabaseModule,
     EventsModule,
+    SettlementModule,
   ],
   controllers: [HealthController],
   providers: [
