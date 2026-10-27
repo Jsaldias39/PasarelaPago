@@ -40,6 +40,7 @@
 | D-30 | Resultado `review` del riesgo | **Denegar y registrar.** Un `review` se trata como `deny` con razón registrada (`risk_denied`). Cierra por defecto y no depende de una consola de operadores. | Sin cambio de código en P3; se documenta. La revisión manual queda para cuando exista `pay-backoffice`. |
 | D-31 | Servicio de back-office | **`pay-backoffice`** (reemplaza el nombre provisorio `pay-console`). Aún no se construye: las acciones de operador siguen siendo una credencial con rol. | Renombrar `pay-console` en contratos, pruebas y docs. |
 | D-32 | Claves de API de un comercio cerrado | **Se revocan al cerrar.** Suspender solo las bloquea y se pueden reactivar. | P5 (`pay-merchants`) revoca por evento; P1 (`pay-edge`) la réplica de claves debe reflejarlo. |
+| D-33 | Fuente de la razón social y nombre del pagador para el cribado (decisión técnica del integrador, riesgo declarado; revisable por el dueño) | La razón social viaja en `merchant.created` y `merchant.activated` (campo opcional `legal_name`) y `pay-payments` la guarda en su réplica; el nombre del pagador es un campo opcional `payer_name` de `POST /v1/payment_intents`, no se devuelve nunca y se borra al estado terminal. | **Riesgo:** la razón social de una persona natural es dato personal en el bus; hasta tener credenciales NATS por servicio (propuesta P1-7) cualquier suscriptor interno podría leerla. Alternativa si el dueño o el QSA lo prefieren: lectura síncrona con identidad de servicio. |
 
 ## Hallazgos de la ola 0 que cambian el diseño (spikes ejecutados)
 

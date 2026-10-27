@@ -578,6 +578,14 @@ components:
                 definidos (Q-20). Alternativa equivalente: el intento queda `requires_action` hasta que el usuario confirma
                 dentro de su sesión.
         description: { type: string, maxLength: 200 }
+        payer_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: >-
+            Nombre del pagador, solo si el comercio lo conoce (D-29). Se criba contra listas de sanciones junto con el
+            comercio. Es dato personal: no se devuelve en ninguna respuesta ni evento, y se borra cuando el intento llega a
+            un estado terminal. Un pagador invitado sin nombre NO bloquea el cobro.
         expires_in_seconds: { type: integer, minimum: 60, maximum: 86400, default: 3600 }
         metadata: { $ref: 'common.yaml#/components/schemas/Metadata' }
     PaymentIntent:

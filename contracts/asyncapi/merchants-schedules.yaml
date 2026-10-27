@@ -1282,6 +1282,14 @@ components:
           const: pending
         created_at:
           $ref: '#/components/schemas/Timestamp'
+        legal_name:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: >-
+            Razón social del comercio, para cribarla contra listas de sanciones al cobrar (D-29). Dato personal si el comercio
+            es una persona natural: solo lo usan los consumidores que lo necesitan (`pay-payments`); el resto lo ignora y no
+            lo persiste ni lo registra. Opcional por compatibilidad: sin él, el riesgo responde `review` (D-30).
       description: Se registró un comercio
     MerchantActivatedData:
       type: object
@@ -1297,6 +1305,14 @@ components:
           const: active
         activated_at:
           $ref: '#/components/schemas/Timestamp'
+        legal_name:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: >-
+            Razón social del comercio, para cribarla contra listas de sanciones al cobrar (D-29). Dato personal si el comercio
+            es una persona natural: solo lo usan los consumidores que lo necesitan (`pay-payments`); el resto lo ignora y no
+            lo persiste ni lo registra. Opcional por compatibilidad: sin él, el riesgo responde `review` (D-30).
       description: 'El comercio quedó activo: KYC aprobado y contrato aceptado'
     MerchantSuspendedData:
       type: object
