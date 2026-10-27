@@ -5,6 +5,8 @@ const MERCHANT = /^mc_[a-z0-9]{10,40}$/;
 const INTENT = /^pi_[a-z0-9]{10,40}$/;
 const CARD_TOKEN = /^tok_[a-z0-9]{10,60}$/;
 const ALLOWED = new Set(['payment_intent_id', 'merchant_id', 'amount_minor', 'currency', 'method', 'preferred_connector', 'card_token', 'expires_at', 'description']);
+/** El nombre de un campo desconocido lo escribe el cliente: solo se repite si parece un nombre de campo (no un número ni un nombre propio). */
+const fieldName = (key: string): string => (/^[a-z][a-z0-9_]{0,39}$/.test(key) ? key : '?');
 const METHODS = new Set<string>(['qr', 'card', 'bank_transfer']);
 const CONNECTORS = new Set<string>(['mock', 'mercantil_qr', 'mercantil_card', 'bank_transfer']);
 
@@ -27,7 +29,7 @@ export function parseCreateCharge(body: unknown, now: Date): CreateCharge {
     throw new ProblemError('validation_failed', { errors: [{ field: '/', code: 'not_an_object' }] });
   }
   const b = body as Record<string, unknown>;
-  for (const key of Object.keys(b)) if (!ALLOWED.has(key)) bad(key, 'unknown_field');
+  for (const key of Object.keys(b)) if (!ALLOWED.has(key)) bad(fieldName(key), 'unknown_field');
 
   if (typeof b.payment_intent_id !== 'string' || !INTENT.test(b.payment_intent_id)) bad('payment_intent_id', 'invalid');
   if (typeof b.merchant_id !== 'string' || !MERCHANT.test(b.merchant_id)) bad('merchant_id', 'invalid');
@@ -66,7 +68,7 @@ export function parseCreateRefund(body: unknown): { amountMinor: bigint } {
     throw new ProblemError('validation_failed', { errors: [{ field: '/', code: 'not_an_object' }] });
   }
   const b = body as Record<string, unknown>;
-  for (const key of Object.keys(b)) if (key !== 'amount_minor' && key !== 'reason') errors.push({ field: key, code: 'unknown_field' });
+  for (const key of Object.keys(b)) if (key !== 'amount_minor' && key !== 'reason') errors.push({ field: fieldName(key), code: 'unknown_field' });
   if (typeof b.amount_minor !== 'number' || !Number.isSafeInteger(b.amount_minor) || b.amount_minor < 1) errors.push({ field: 'amount_minor', code: 'invalid' });
   if (b.reason !== undefined && (typeof b.reason !== 'string' || b.reason.length > 200)) errors.push({ field: 'reason', code: 'invalid' });
   if (errors.length > 0) throw new ProblemError('validation_failed', { errors });

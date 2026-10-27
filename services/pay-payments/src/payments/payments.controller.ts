@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { PROBLEM_CONTENT_TYPE, ProblemError } from '@pay/problem';
 import { AllowedServices } from '@pay/service-auth';
 import type { IdempotencyResult } from '@pay/idempotency';
+import { containsPan } from '../domain/pan';
 import { PaymentsService } from './payments.service';
 
 const MERCHANT_ID = /^mc_[a-z0-9]{10,40}$/;
@@ -17,6 +18,8 @@ function merchantOf(header: string | undefined): string {
 
 export function idempotencyKeyOf(header: string | undefined): string {
   if (!header || header.length < 8 || header.length > 255) throw new ProblemError('idempotency_key_required');
+  // La clave se guarda en la tabla de idempotencia: un número de tarjeta ahí sería un PAN en una base.
+  if (containsPan(header)) throw new ProblemError('validation_failed', { errors: [{ field: 'Idempotency-Key', code: 'contains_card_number' }] });
   return header;
 }
 

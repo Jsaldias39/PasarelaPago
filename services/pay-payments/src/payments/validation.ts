@@ -83,7 +83,10 @@ export function parseCreateIntent(body: unknown): CreateIntentInput {
     if (pm.wallet_authorization !== undefined) {
       if (method !== 'wallet') c.add('payment_method.wallet_authorization', 'not_allowed_for_method');
       else if (typeof pm.wallet_authorization !== 'string' || pm.wallet_authorization.length < 1 || pm.wallet_authorization.length > 500) c.add('payment_method.wallet_authorization', 'invalid_token');
-      else walletAuthorization = pm.wallet_authorization;
+      else {
+        walletAuthorization = pm.wallet_authorization;
+        noPan(c, 'payment_method.wallet_authorization', walletAuthorization);
+      }
     } else if (method === 'wallet') c.add('payment_method.wallet_authorization', 'required');
   }
 

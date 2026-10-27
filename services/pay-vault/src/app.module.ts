@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { ServiceIdentityGuard } from '@pay/service-auth';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'nestjs-pino';
 import { loadConfig } from './config';
@@ -9,6 +10,8 @@ import { DatabaseModule } from './database.module';
 import { EventsModule } from './events.module';
 import { HealthController } from './health.controller';
 import { ProblemFilter } from './problem.filter';
+import { containsPan, redactPan } from './redact';
+import { VaultModule } from './vault/vault.module';
 
 const config = loadConfig();
 
@@ -20,13 +23,13 @@ const config = loadConfig();
         // Id de correlación: el del cliente si viene bien formado; si no, uno nuevo. Se devuelve en la respuesta.
         genReqId: (req, res) => {
           const incoming = req.headers['x-request-id'];
-          const id = typeof incoming === 'string' && /^[A-Za-z0-9._-]{8,64}$/.test(incoming) ? incoming : randomUUID();
+          const id = typeof incoming === 'string' && /^[A-Za-z0-9._-]{8,64}$/.test(incoming) && !containsPan(incoming) ? incoming : randomUUID();
           res.setHeader('x-request-id', id);
           return id;
         },
         // Nunca credenciales ni cuerpos en los logs (regla 90.2.1).
         redact: { paths: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-api-key"]'], remove: true },
-        serializers: { req: (req) => ({ id: req.id, method: req.method, url: String(req.url).split('?')[0] }), res: (res) => ({ statusCode: res.statusCode }) },
+        serializers: { req: (req) => ({ id: req.id, method: req.method, url: redactPan(String(req.url).split('?')[0]) }), res: (res) => ({ statusCode: res.statusCode }) },
         autoLogging: { ignore: (req) => String(req.url).startsWith('/health') },
       },
     }),
@@ -34,10 +37,13 @@ const config = loadConfig();
     TerminusModule,
     DatabaseModule,
     EventsModule,
+    VaultModule,
   ],
   controllers: [HealthController],
   providers: [
     { provide: APP_FILTER, useClass: ProblemFilter },
+    // Seguro por defecto: toda ruta exige un llamador permitido o ser pública. La bóveda solo atiende a pay-payments y pay-connectors.
+    { provide: APP_GUARD, useClass: ServiceIdentityGuard },
   ],
 })
 export class AppModule {}

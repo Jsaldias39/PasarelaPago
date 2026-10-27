@@ -82,7 +82,8 @@ export class EdgePipeline {
       body,
       headers: serviceHeaders('pay-edge', {
         'x-merchant-id': principal.merchantId,
-        'x-pay-mode': principal.mode === 'test' ? 'sandbox' : 'live',
+        // D-28: el modo sale del REGISTRO (test|live), nunca del token ni de una cabecera del cliente.
+        'x-pay-mode': principal.mode,
         'x-request-id': req.id !== undefined ? String(req.id) : undefined,
         traceparent: this.traceparent(req),
         'idempotency-key': idempotencyKey,

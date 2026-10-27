@@ -56,11 +56,11 @@ export class EventsModule implements OnModuleInit, OnApplicationShutdown {
     for (const sub of SUBSCRIPTIONS) {
       await ensureStream(manager, sub.stream, [...sub.subjects]);
       try {
-        await manager.consumers.info(sub.stream, sub.durable);
+        await manager.consumers.info(sub.stream, sub.durable.replace(/\./g, '_'));
       } catch {
-        await manager.consumers.add(sub.stream, { durable_name: sub.durable, ack_policy: AckPolicy.Explicit, deliver_policy: DeliverPolicy.All, filter_subject: sub.subject, max_deliver: 20 });
+        await manager.consumers.add(sub.stream, { durable_name: sub.durable.replace(/\./g, '_'), ack_policy: AckPolicy.Explicit, deliver_policy: DeliverPolicy.All, filter_subject: sub.subject, max_deliver: 20 });
       }
-      const consumer = await connection.jetstream().consumers.get(sub.stream, sub.durable);
+      const consumer = await connection.jetstream().consumers.get(sub.stream, sub.durable.replace(/\./g, '_'));
       const messages = await consumer.consume({ max_messages: 50 });
       this.streams.push(messages);
       void (async () => {

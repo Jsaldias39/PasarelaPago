@@ -18,6 +18,13 @@ export const SQL = [join(REPO, 'contracts/packages/idempotency/sql/001_idempoten
 export const CONTRACT_RISK = join(REPO, 'contracts/openapi/internal-risk-v1.yaml');
 export const CONTRACT_RULE_SETS = join(REPO, 'docs/trabajo/ola-1/P5/propuestas/internal-risk-rule-sets-v1.yaml');
 
+/**
+ * Las pruebas FUNCIONALES contra el Watchman real usan un tiempo máximo holgado: el Watchman de la máquina de desarrollo se
+ * comparte con otros carriles y se satura (ver evidencia), y un cribado agotado cambiaría la decisión por una razón ajena a lo que se
+ * prueba. La latencia se mide aparte (latency.spec.ts) con el valor de producción (200 ms).
+ */
+export const FUNCTIONAL_TIMEOUT_MS = 5000;
+
 export interface TestContext {
   app: INestApplication;
   db: IsolatedDatabase;
@@ -49,7 +56,7 @@ export async function createTestContext(options: TestOptions = {}): Promise<Test
     .overrideProvider(PG_POOL)
     .useValue(new Proxy(db.pool, { get: (target, prop) => (prop === 'end' ? async () => undefined : (typeof target[prop as keyof typeof target] === 'function' ? (target[prop as keyof typeof target] as (...a: unknown[]) => unknown).bind(target) : target[prop as keyof typeof target])) }))
     .overrideProvider(RISK_SETTINGS)
-    .useValue({ ...loadRiskSettings(), ...options.settings })
+    .useValue({ ...loadRiskSettings(), screeningTimeoutMs: FUNCTIONAL_TIMEOUT_MS, ...options.settings })
     .overrideProvider(CLOCK)
     .useValue(() => new Date(clock.now));
   if (!options.realOperatorAuthenticator) builder.overrideProvider(OPERATOR_AUTHENTICATOR).useValue(new OperatorAuthenticatorDouble());

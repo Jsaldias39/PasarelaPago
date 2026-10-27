@@ -97,10 +97,11 @@ describe('P3.H2.M5 · RefundWorkflow con retención en dos fases (REQ-P3-6)', ()
   it('el conector responde `pending`: espera el evento y, al llegar, confirma', async () => {
     const id = await succeededIntent();
     stack.connectors.scenario = 'refund_pending';
-    const result = await refund(id, 1000);
-    expect(result.body.status).toBe('pending');
-    await stack.orchestrator.signalRefund(result.body.id as string, { status: 'succeeded' });
-    await waitFor(async () => ((await refundsRepo.byId(stack.deps.pool, result.body.id as string))?.status === 'succeeded' ? true : undefined), 15_000, 'reembolso confirmado');
+    const call = refund(id, 1000); // la petición espera el resultado: el aviso del banco llega mientras tanto
+    const refundId = await waitFor(async () => (await stack.db.pool.query('SELECT id FROM refunds WHERE payment_intent_id = $1', [id])).rows[0]?.id as string | undefined, 10_000, 'reembolso creado');
+    await waitFor(async () => ((await stack.orchestrator.signalRefund(refundId, { status: 'succeeded' })) === 'delivered' ? true : undefined), 10_000, 'workflow del reembolso en marcha');
+    const result = await call;
+    expect(result.body).toMatchObject({ status: 'succeeded' });
     expect(available()).toBe(19000);
   });
 

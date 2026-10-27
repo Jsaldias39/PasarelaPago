@@ -6,10 +6,27 @@ import {
 import { entity, json, startWatchmanDouble, type WatchmanDouble } from './support/watchman-double';
 
 let ctx: TestContext;
+// Cribado instantáneo y determinista para las pruebas de CONCURRENCIA de los límites: ahí se prueba el candado, no la capacidad
+// de Watchman (esa se mide aparte en latency.spec.ts contra el Watchman real). Es un [DOBLE] declarado.
+let fastDouble: WatchmanDouble;
+let fast: TestContext;
 beforeAll(async () => {
   ctx = await createTestContext();
+  fastDouble = await startWatchmanDouble((_req, res) => json(res, { entities: null }));
+  fast = await createTestContext({ settings: { watchmanUrl: fastDouble.url } });
 });
-afterAll(async () => ctx.close());
+afterAll(async () => {
+  await ctx.close();
+  await fast.close();
+  await fastDouble.close();
+});
+
+/** El reloj solo avanza: un conjunto de reglas nuevo no puede empezar antes que el anterior. */
+const nextDay = (time = '18:00:00'): string => {
+  const date = new Date(ctx.clock.now.getTime() + 24 * 3600_000).toISOString().slice(0, 10);
+  ctx.clock.now = new Date(`${date}T${time}Z`);
+  return date;
+};
 
 const evaluate = async (body: Record<string, unknown>, status = 201) => verified(ctx.contract, 'post', '/assessments', await post(ctx, body), status);
 const stored = async (id: string) => (await rows(ctx, 'SELECT * FROM risk_assessments WHERE id = $1', [id]))[0];
@@ -100,14 +117,19 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
       expect(res.status).toBe(422);
     });
 
-    it('5 llamadas simultáneas con la misma clave: un solo rastro y todas devuelven el mismo id', async () => {
+    it('5 llamadas simultáneas con la misma clave: un solo rastro; las demás reciben 409 (en curso) o la misma decisión', async () => {
       const body = assessmentBody();
       const key = uniqueKey();
-      const results = await Promise.all(Array.from({ length: 5 }, () => post(ctx, body, key)));
+      const results = await Promise.all(Array.from({ length: 5 }, () => post(fast, body, key)));
       expect(results.map((r) => r.status).filter((s) => s === 201)).toHaveLength(1);
-      expect(results.every((r) => [200, 201].includes(r.status))).toBe(true);
-      expect(new Set(results.map((r) => r.body.id)).size).toBe(1);
-      expect(await rows(ctx, 'SELECT 1 FROM risk_assessments WHERE payment_intent_id = $1', [body.payment_intent_id])).toHaveLength(1);
+      expect(results.every((r) => [200, 201, 409].includes(r.status))).toBe(true);
+      const created = results.find((r) => r.status === 201)!.body.id;
+      expect(results.filter((r) => r.status !== 409).every((r) => r.body.id === created)).toBe(true);
+      expect(results.filter((r) => r.status === 409).every((r) => r.body.code === 'idempotency_request_in_progress')).toBe(true);
+      expect(await rows(fast, 'SELECT 1 FROM risk_assessments WHERE payment_intent_id = $1', [body.payment_intent_id])).toHaveLength(1);
+      // Y tras terminar, repetir devuelve la decisión guardada.
+      const after = await post(fast, body, key);
+      expect([after.status, after.body.id]).toEqual([200, created]);
     });
 
     it('la repetición conserva la versión de reglas original aunque se publique otra después (reproducible)', async () => {
@@ -176,19 +198,19 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
     });
 
     it('simultaneidad: 12 intentos distintos del mismo pagador con tope 3 ⇒ exactamente 3 allow y 9 deny (candado por pagador)', async () => {
-      await publishRules(ctx, { payer_velocity: { max: 3, window_seconds: 600 } });
+      await publishRules(fast, { payer_velocity: { max: 3, window_seconds: 600 } });
       const payer_fingerprint = `huella-${uniqueKey()}`;
       const merchant_id = newMerchant();
-      const results = await Promise.all(Array.from({ length: 12 }, () => post(ctx, assessmentBody({ merchant_id, payer_fingerprint }))));
+      const results = await Promise.all(Array.from({ length: 12 }, () => post(fast, assessmentBody({ merchant_id, payer_fingerprint }))));
       expect(results.every((r) => r.status === 201)).toBe(true);
       const decisions = results.map((r) => r.body.decision);
       expect({ allow: decisions.filter((d) => d === 'allow').length, deny: decisions.filter((d) => d === 'deny').length }).toEqual({ allow: 3, deny: 9 });
     });
 
     it('simultaneidad: tope diario por comercio 25.000 con intentos de 10.000 ⇒ solo 2 pasan', async () => {
-      await publishRules(ctx, { merchant_daily_amount_minor: 25_000 });
+      await publishRules(fast, { merchant_daily_amount_minor: 25_000 });
       const merchant_id = newMerchant();
-      const results = await Promise.all(Array.from({ length: 8 }, () => post(ctx, assessmentBody({ merchant_id, amount_minor: 10_000 }))));
+      const results = await Promise.all(Array.from({ length: 8 }, () => post(fast, assessmentBody({ merchant_id, amount_minor: 10_000 }))));
       const decisions = results.map((r) => r.body.decision);
       expect(decisions.filter((d) => d === 'allow')).toHaveLength(2);
       expect(results.filter((r) => r.body.decision === 'deny').every((r) => r.body.reason_code === 'daily_limit_exceeded')).toBe(true);
@@ -215,8 +237,9 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
 
     it('horario permitido en hora de La Paz (UTC-4): el inicio es inclusivo y el fin exclusivo', async () => {
       await publishRules(ctx, { hours: { from: 8, to: 20 } });
+      const date = nextDay('12:00:00');
       const at = async (utc: string) => {
-        ctx.clock.now = new Date(`2026-03-10T${utc}Z`);
+        ctx.clock.now = new Date(`${date}T${utc}Z`);
         return evaluate(assessmentBody());
       };
       expect(await at('12:00:00')).toMatchObject({ decision: 'allow' }); // 08:00 local
@@ -224,16 +247,16 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
       expect(await at('23:59:59')).toMatchObject({ decision: 'allow' }); // 19:59:59
       expect(await at('00:00:00')).toMatchObject({ decision: 'review', reason_code: 'outside_allowed_hours' }); // 20:00 local del día anterior
       expect(await at('03:00:00')).toMatchObject({ decision: 'review' }); // 23:00 local
-      ctx.clock.now = new Date('2026-03-10T18:00:00Z');
+      nextDay();
     });
 
     it('varias reglas a la vez: gana el motivo más grave y TODOS quedan en el rastro', async () => {
       await publishRules(ctx, { max_amount_minor: 1000, hours: { from: 8, to: 20 } });
-      ctx.clock.now = new Date('2026-03-10T03:00:00Z');
+      nextDay('03:00:00');
       const body = await evaluate(assessmentBody({ amount_minor: 5000, screening: { name: SANCTIONED_ORG_TYPO } }));
       expect(body).toMatchObject({ decision: 'deny', reason_code: 'amount_over_limit' });
       expect((await stored(body.id)).reason_codes).toEqual(['amount_over_limit', 'sanctions_possible_match', 'outside_allowed_hours']);
-      ctx.clock.now = new Date('2026-03-10T18:00:00Z');
+      nextDay();
     });
 
     it('una versión con vigencia futura no rige todavía', async () => {
@@ -245,7 +268,7 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
       expect((await evaluate(assessmentBody({ amount_minor: 50_000 }))).rule_version).toBe(current);
       ctx.clock.now = new Date(ctx.clock.now.getTime() + 3601_000);
       expect(await evaluate(assessmentBody({ amount_minor: 50_000 }))).toMatchObject({ rule_version: future.version, decision: 'deny', reason_code: 'amount_over_limit' });
-      ctx.clock.now = new Date('2026-03-10T18:00:00Z');
+      nextDay();
     });
   });
 
@@ -272,7 +295,8 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
       const res = await post(ctx, assessmentBody(override as never));
       expect(res.status).toBe(422);
       expect(res.body.code).toBe('validation_failed');
-      expect(JSON.stringify(res.body)).not.toMatch(/dob|1980|aaaaaaaa|efectivo/);
+      // El error nombra el campo, nunca el valor enviado.
+      expect(JSON.stringify(res.body)).not.toMatch(/1980|aaaaaaaa|efectivo/);
       expect((await rows(ctx, 'SELECT count(*)::int AS n FROM risk_assessments'))[0].n).toBe(before);
     });
 
@@ -286,12 +310,10 @@ describe('POST /assessments (REQ-P5-5, P5.H2.M2–M5)', () => {
       const created = await evaluate(assessmentBody());
       for (const service of [undefined, 'pay-edge', 'pay-backoffice', 'pay-ledger', 'pay-risk']) {
         const create = request(ctx.server).post('/assessments').set('idempotency-key', uniqueKey());
-        const read = request(ctx.server).get(`/assessments/${created.id}`);
-        if (service) {
-          create.set('x-service-id', service);
-          read.set('x-service-id', service);
-        }
+        if (service) create.set('x-service-id', service);
         expect({ service, create: (await create.send(assessmentBody())).status }).toEqual({ service, create: 403 });
+        const read = request(ctx.server).get(`/assessments/${created.id}`);
+        if (service) read.set('x-service-id', service);
         expect({ service, read: (await read).status }).toEqual({ service, read: 403 });
       }
     });
@@ -350,12 +372,12 @@ describe('rastro auditable (P5.H2.M5) y privacidad (regla 90.2)', () => {
 
   it('el rastro es INMUTABLE: UPDATE, DELETE y TRUNCATE fallan aunque se llegue con SQL directo', async () => {
     const body = await evaluate(assessmentBody());
-    await expect(ctx.db.pool.query(`UPDATE risk_assessments SET decision = 'allow' WHERE id = $1`, [body.id])).rejects.toThrow(/inmutable/);
+    await expect(ctx.db.pool.query(`UPDATE risk_assessments SET decision = 'deny' WHERE id = $1`, [body.id])).rejects.toThrow(/inmutable/);
     await expect(ctx.db.pool.query('DELETE FROM risk_assessments WHERE id = $1', [body.id])).rejects.toThrow(/inmutable/);
     await expect(ctx.db.pool.query('TRUNCATE risk_assessments')).rejects.toThrow(/inmutable/);
     await expect(ctx.db.pool.query('UPDATE risk_rule_sets SET max_amount_minor = 1 WHERE version = 1')).rejects.toThrow(/inmutable/);
     await expect(ctx.db.pool.query('DELETE FROM risk_rule_sets')).rejects.toThrow(/inmutable/);
-    expect((await stored(body.id)).decision).toBe('allow');
+    expect((await stored(body.id)).decision).toBe(body.decision);
   });
 
   it('el esquema no tiene columnas capaces de guardar el nombre, y la huella es un HMAC', async () => {

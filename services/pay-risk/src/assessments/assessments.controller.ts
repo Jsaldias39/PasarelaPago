@@ -21,7 +21,10 @@ const parseAssessment = compile<AssessmentInput>({
       type: 'object',
       required: ['name'],
       additionalProperties: false,
-      properties: { name: { type: 'string', minLength: 1, maxLength: 200, pattern: '\\S' } },
+      properties: {
+        name: { type: 'string', minLength: 1, maxLength: 200, pattern: '\\S' },
+        entity_type: { type: 'string', enum: ['person', 'business'] },
+      },
     },
   },
 });
@@ -44,7 +47,7 @@ export class AssessmentsController {
     const key = requireIdempotencyKey(idem);
     const input = parseAssessment(body);
     // El nombre no entra en el hash de la petición: se sustituye por su huella para que el almacén de idempotencia no lo conserve.
-    const hashable = { ...input, ...(input.screening && { screening: { name_digest: this.assessments.digest('screening', input.screening.name.trim()) } }) };
+    const hashable = { ...input, ...(input.screening && { screening: { name_digest: this.assessments.digest('screening', input.screening.name.trim()), ...(input.screening.entity_type && { entity_type: input.screening.entity_type }) } }) };
     const result = await this.assessments.create(service, key, hashRequest({ method: 'POST', path: '/assessments', body: hashable }), input);
     res.status(result.status);
     if (result.status === 200) res.setHeader('Idempotency-Replayed', 'true');

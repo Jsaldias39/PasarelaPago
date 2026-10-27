@@ -5,12 +5,25 @@ export interface ServiceConfig {
   readonly db: { readonly host: string; readonly port: number; readonly name: string; readonly user: string; readonly password: string };
   /** Opcional: sin NATS el servicio arranca pero el relé del outbox no publica y `/health/ready` lo informa. */
   readonly natsUrl?: string;
+  /**
+   * Quién custodia la tarjeta. Hoy solo existe `fake` (un DOBLE en memoria, P3.H3.M2); `hyperswitch-card-vault` o los campos
+   * alojados del banco llegan cuando se resuelvan P3.H3.M1 y D-17. Sin valor, el servicio NO arranca: no hay bóveda por defecto.
+   */
+  readonly backend: 'fake';
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name];
   if (value === undefined || value === '') throw new Error(`Falta la variable de entorno ${name}`);
   return value;
+}
+
+function backendOf(env: NodeJS.ProcessEnv): 'fake' {
+  const backend = required(env, 'VAULT_BACKEND');
+  if (backend !== 'fake') throw new Error(`VAULT_BACKEND inválido: ${backend} (hoy solo existe «fake»)`);
+  // El doble guarda tarjetas en memoria y las entrega tal cual: jamás con dinero real.
+  if ((env.PAY_MODE ?? 'sandbox') === 'live') throw new Error('VAULT_BACKEND=fake no se permite con PAY_MODE=live');
+  return 'fake';
 }
 
 /** Lee y valida el entorno. */
@@ -30,6 +43,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
       password: required(env, 'DB_PASSWORD'),
     },
     ...(env.NATS_URL ? { natsUrl: env.NATS_URL } : {}),
+    backend: backendOf(env),
   };
 }
 

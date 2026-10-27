@@ -1,6 +1,6 @@
-import { ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError } from '../../domain/connector';
-import type { Method, ProviderRefundResult, ProviderStatus, StatementLine } from '../../domain/connector';
-import { scenarioFor, seededRandom, type Scenario } from './scenarios';
+import { ConnectorAmbiguousError, ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError } from '../../domain/connector';
+import type { Method, ProviderRefundResult, ProviderStatus, ProviderTransferResult, StatementLine, TransferStatus } from '../../domain/connector';
+import { scenarioFor, seededRandom, transferAmbiguity, type Scenario } from './scenarios';
 
 /**
  * [DOBLE] Banco simulado en memoria. NO es el Banco Mercantil ni se parece a su API (que no conocemos): solo ejercita los caminos
@@ -31,7 +31,16 @@ export interface ScheduledCallback {
   readonly failureCode?: string;
 }
 
+interface SimTransfer {
+  readonly reference: string;
+  readonly providerReference: string;
+  readonly scenario: Scenario;
+  readonly createdAt: Date;
+  readonly delayMs: number;
+}
+
 export class SimulatedBank {
+  private readonly transfers = new Map<string, SimTransfer>();
   private readonly charges = new Map<string, SimCharge>();
   private callbacks: ScheduledCallback[] = [];
   private readonly extraLines: StatementLine[] = [];
@@ -51,6 +60,7 @@ export class SimulatedBank {
   /** Vuelve al estado inicial (sin cobros, callbacks ni líneas inyectadas, conectado). Lo usan las pruebas y el reinicio de la capa sandbox. */
   reset(): void {
     this.charges.clear();
+    this.transfers.clear();
     this.callbacks = [];
     this.extraLines.length = 0;
     this.down = false;
@@ -170,6 +180,52 @@ export class SimulatedBank {
     const providerReference = `SIM-R-${String(++this.seq).padStart(6, '0')}`;
     charge.refunds.set(input.reference, { providerReference, amountMinor: input.amountMinor });
     return { providerReference, status: 'captured' };
+  }
+
+  /**
+   * Transferencia saliente. Escenarios por centavos (los mismos que los cobros, solo los que tienen sentido al pagar):
+   * 00/09/otros ⇒ pagada; 01 ⇒ rechazada por el banco; 02 ⇒ en tránsito hasta `delayMs`; 06 ⇒ banco caído (no se envía nada);
+   * 07/17/27 ⇒ se ejecuta pero la respuesta se pierde (timeout / proxy 502 HTML / socket cortado: ver `transferAmbiguity`); 08 ⇒ se queda en tránsito para siempre.
+   * Idempotente por `reference`.
+   */
+  transfer(input: { reference: string; amountMinor: bigint }, now: Date): ProviderTransferResult {
+    if (this.down) throw new ConnectorUnavailableError('unreachable');
+    const existing = this.transfers.get(input.reference);
+    if (existing) return this.transferResult(existing, now);
+    const scenario = scenarioFor(input.amountMinor);
+    if (scenario === 'down') throw new ConnectorUnavailableError('unreachable');
+    this.seq += 1;
+    const created: SimTransfer = { reference: input.reference, providerReference: `SIM-T-${String(this.seq).padStart(6, '0')}`, scenario, createdAt: now, delayMs: this.options.delayMs ?? 5000 };
+    this.transfers.set(input.reference, created);
+    // La orden quedó EJECUTADA; lo que se pierde es la respuesta.
+    const ambiguity = transferAmbiguity(input.amountMinor);
+    if (ambiguity === 'timeout') throw new ConnectorTimeoutError();
+    if (ambiguity) throw new ConnectorAmbiguousError(ambiguity);
+    return this.transferResult(created, now);
+  }
+
+  transferStatus(reference: string, now: Date): ProviderTransferResult {
+    if (this.down) throw new ConnectorUnavailableError('unreachable');
+    const found = this.transfers.get(reference);
+    if (!found) throw new ConnectorRejectedError('validation_failed', 'referencia desconocida');
+    return this.transferResult(found, now);
+  }
+
+  private transferResult(transfer: SimTransfer, now: Date): ProviderTransferResult {
+    const base = { providerReference: transfer.providerReference };
+    const status = ((): TransferStatus => {
+      switch (transfer.scenario) {
+        case 'declined':
+          return 'failed';
+        case 'delayed':
+          return now.getTime() - transfer.createdAt.getTime() >= transfer.delayMs ? 'paid' : 'in_transit';
+        case 'never_paid':
+          return 'in_transit';
+        default:
+          return 'paid';
+      }
+    })();
+    return status === 'failed' ? { ...base, status, failureCode: 'rejected_by_bank' } : { ...base, status };
   }
 
   /** Entrega pendiente cuyo momento ya llegó, en el orden en que se programó. Las saca de la cola. */

@@ -1,5 +1,6 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { safeUrl } from './log-safe';
 import { PROBLEM_CONTENT_TYPE, ProblemError, problem, type ProblemCode } from '@pay/problem';
 
 /**
@@ -15,7 +16,7 @@ export class ProblemFilter implements ExceptionFilter {
     const response = http.getResponse<Response>();
     const request = http.getRequest<Request & { id?: string }>();
     const requestId = request.id !== undefined ? String(request.id) : undefined;
-    const instance = request.originalUrl?.split('?')[0];
+    const instance = request.originalUrl === undefined ? undefined : safeUrl(request.originalUrl);
     const common = { ...(requestId !== undefined && { requestId }), ...(instance !== undefined && { instance }) };
 
     let body;

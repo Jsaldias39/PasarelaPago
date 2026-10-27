@@ -12,6 +12,8 @@ export type ScreeningOutcome =
   /** No se pudo cribar (Watchman caído, lento o con respuesta inválida). Nunca equivale a `clear`. */
   | 'unavailable';
 
+export type ScreeningEntityType = 'person' | 'business';
+
 export interface ScreeningResult {
   readonly outcome: ScreeningOutcome;
   /** Mayor puntaje devuelto por Watchman (0–1), si hubo respuesta. */
@@ -23,7 +25,8 @@ export interface ScreeningResult {
 
 export interface SanctionsScreener {
   /** Nunca lanza: ante cualquier fallo devuelve `{ outcome: 'unavailable' }`. */
-  screen(name: string): Promise<ScreeningResult>;
+  /** `entityType` opcional: si se conoce, se hace UNA búsqueda en vez de dos (Watchman es el cuello de botella). */
+  screen(name: string, entityType?: ScreeningEntityType): Promise<ScreeningResult>;
 }
 
 export const SANCTIONS_SCREENER = Symbol('SANCTIONS_SCREENER');

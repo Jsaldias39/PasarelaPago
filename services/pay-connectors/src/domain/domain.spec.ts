@@ -253,3 +253,23 @@ describe('ids', () => {
     expect(connectorTransactionId('cr_abcdefghijklmnop')).toBe('ct_abcdefghijklmnop');
   });
 });
+
+describe('safeUrl (logs sin datos del cliente en la ruta)', () => {
+  const load = async () => (await import('../log-safe')).safeUrl;
+
+  it.each([
+    ['/charges', '/charges'],
+    ['/charges/ch_abcdefghijklmnop/status?refresh=true', '/charges/ch_abcdefghijklmnop/status'],
+    ['/callbacks/mock', '/callbacks/mock'],
+    ['/health/live', '/health/live'],
+    ['/callbacks/4111111111111111', '/callbacks/:x'],
+    ['/callbacks/Juan%20Perez', '/callbacks/:x'],
+    ['/callbacks/x4111111111111111', '/callbacks/:x'],
+    ['/charges/TRABCDEFGHIJ', '/charges/:x'],
+    ['/a/b?card=4111111111111111', '/a/b'],
+    ['/', '/'],
+    ['', ''],
+  ])('%s ⇒ %s', async (input, expected) => {
+    expect((await load())(input)).toBe(expected);
+  });
+});

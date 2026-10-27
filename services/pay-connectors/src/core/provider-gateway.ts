@@ -7,7 +7,7 @@ import type { ConnectorRegistry } from '../domain/registry';
 import { CLOCK, REGISTRY, type Clock } from './tokens';
 import { HealthService } from './health.service';
 
-type Operation = 'create_charge' | 'get_status' | 'cancel' | 'refund';
+type Operation = 'create_charge' | 'get_status' | 'cancel' | 'refund' | 'create_transfer' | 'get_transfer';
 
 /**
  * Única puerta hacia los adaptadores: registra cada intento (sin cuerpos) y alimenta la salud del conector.
@@ -31,7 +31,7 @@ export class ProviderGateway {
     return connector;
   }
 
-  async call<T>(code: ConnectorCode, chargeId: string, operation: Operation, work: (connector: Connector) => Promise<T>): Promise<T> {
+  async call<T>(code: ConnectorCode, subjectId: string, operation: Operation, work: (connector: Connector) => Promise<T>): Promise<T> {
     const started = Date.now();
     let outcome: 'ok' | 'unavailable' | 'timeout' | 'rejected' = 'ok';
     try {
@@ -51,24 +51,24 @@ export class ProviderGateway {
       }
       throw error;
     } finally {
-      await this.log(chargeId, code, operation, outcome, Date.now() - started);
+      await this.log(subjectId, code, operation, outcome, Date.now() - started);
     }
   }
 
   /** Para operaciones idempotentes por referencia (cobro, reembolso): un timeout ambiguo se reintenta con la MISMA referencia. */
-  async callIdempotent<T>(code: ConnectorCode, chargeId: string, operation: Operation, work: (connector: Connector) => Promise<T>): Promise<T> {
+  async callIdempotent<T>(code: ConnectorCode, subjectId: string, operation: Operation, work: (connector: Connector) => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt += 1) {
       try {
-        return await this.call(code, chargeId, operation, work);
+        return await this.call(code, subjectId, operation, work);
       } catch (error) {
         if (!(error instanceof ConnectorTimeoutError) || attempt >= this.config.timeoutRetries) throw error;
       }
     }
   }
 
-  private async log(chargeId: string, code: ConnectorCode, operation: Operation, outcome: string, latencyMs: number): Promise<void> {
+  private async log(subjectId: string, code: ConnectorCode, operation: Operation, outcome: string, latencyMs: number): Promise<void> {
     try {
-      await this.pool.query('INSERT INTO connector_api_attempts (charge_id, connector, operation, outcome, latency_ms, created_at) VALUES ($1, $2, $3, $4, $5, $6)', [chargeId, code, operation, outcome, latencyMs, this.clock.now()]);
+      await this.pool.query('INSERT INTO connector_api_attempts (subject_id, connector, operation, outcome, latency_ms, created_at) VALUES ($1, $2, $3, $4, $5, $6)', [subjectId, code, operation, outcome, latencyMs, this.clock.now()]);
     } catch (error) {
       // El registro de intentos es secundario: no tumba el cobro. Solo nombre y SQLSTATE (regla 90.2.1).
       this.logger.warn({ err: (error as Error).name, code: (error as { code?: string }).code }, 'No se pudo registrar el intento');

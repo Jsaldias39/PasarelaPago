@@ -3,6 +3,8 @@ import type { CreateQr } from './qr.service';
 
 const MERCHANT = /^mc_[a-z0-9]{10,40}$/;
 const INTENT = /^pi_[a-z0-9]{10,40}$/;
+/** El nombre de un campo desconocido lo escribe el cliente: solo se repite si parece un nombre de campo (no un número ni un nombre propio). */
+const fieldName = (key: string): string => (/^[a-z][a-z0-9_]{0,39}$/.test(key) ? key : '?');
 const ALLOWED = new Set(['kind', 'merchant_id', 'merchant_name', 'merchant_city', 'mcc', 'currency', 'amount_minor', 'payment_intent_id', 'expires_at']);
 
 /** Valida el cuerpo de `POST /qr`. Acumula todos los errores por campo y rechaza campos no declarados. */
@@ -13,7 +15,7 @@ export function parseCreateQr(body: unknown): CreateQr {
     throw new ProblemError('validation_failed', { errors: [{ field: '/', code: 'not_an_object' }] });
   }
   const b = body as Record<string, unknown>;
-  for (const key of Object.keys(b)) if (!ALLOWED.has(key)) bad(key, 'unknown_field');
+  for (const key of Object.keys(b)) if (!ALLOWED.has(key)) bad(fieldName(key), 'unknown_field');
 
   const kind = b.kind;
   if (kind !== 'static' && kind !== 'dynamic') bad('kind', 'invalid');

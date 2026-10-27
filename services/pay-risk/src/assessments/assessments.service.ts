@@ -20,7 +20,7 @@ export interface AssessmentInput {
   currency: 'BOB';
   method: 'qr' | 'card' | 'bank_transfer' | 'wallet';
   payer_fingerprint?: string;
-  screening?: { name: string };
+  screening?: { name: string; entity_type?: 'person' | 'business' };
 }
 
 export interface AssessmentView {
@@ -85,7 +85,7 @@ export class AssessmentsService {
       }
       const started = performance.now();
       // El cribado va FUERA de la transacción y de los candados: es una llamada de red.
-      const screening: ScreeningResult | 'not_provided' = input.screening ? await this.screener.screen(input.screening.name.trim()) : 'not_provided';
+      const screening: ScreeningResult | 'not_provided' = input.screening ? await this.screener.screen(input.screening.name.trim(), input.screening.entity_type) : 'not_provided';
       const view = await ctx.atomic('evaluated', (client) => this.decideAndRecord(client, callerService, idempotencyKey, input, screening, started));
       return { status: 201, body: view };
     });

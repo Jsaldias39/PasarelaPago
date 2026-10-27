@@ -72,7 +72,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
     redisUrl: required(env, 'REDIS_URL'),
     upstreams,
     upstreamTimeoutMs: integer(env, 'UPSTREAM_TIMEOUT_MS', 15_000, 100, 120_000),
-    breaker: { failureThreshold: integer(env, 'BREAKER_FAILURE_THRESHOLD', 5, 1, 100), cooldownMs: integer(env, 'BREAKER_COOLDOWN_MS', 10_000, 100, 600_000) },
+    breaker: { failureThreshold: integer(env, 'BREAKER_FAILURE_THRESHOLD', 5, 1, 100_000), cooldownMs: integer(env, 'BREAKER_COOLDOWN_MS', 10_000, 100, 600_000) },
     rateLimit: {
       prefix: env.RATE_LIMIT_PREFIX ?? 'pay-edge:rl',
       windowSeconds: integer(env, 'RATE_LIMIT_WINDOW_SECONDS', 60, 1, 3600),

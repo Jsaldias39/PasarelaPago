@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { RISK_SETTINGS, type RiskSettings } from '../settings';
-import type { SanctionsScreener, ScreeningResult } from './screener';
+import type { SanctionsScreener, ScreeningEntityType, ScreeningResult } from './screener';
 
 interface Hit {
   readonly match: number;
@@ -9,7 +9,7 @@ interface Hit {
 }
 
 /** Tipos de entidad que se prueban: el pagador puede ser una persona o una empresa y el contrato no lo distingue. */
-const ENTITY_TYPES = ['person', 'business'] as const;
+const ENTITY_TYPES: readonly ScreeningEntityType[] = ['person', 'business'];
 
 /**
  * Cliente de moov Watchman v2 (`GET /v2/search`). Decide por UMBRAL, nunca por «hubo resultados»: con `minMatch` bajo
@@ -21,8 +21,9 @@ export class WatchmanScreener implements SanctionsScreener {
 
   constructor(@Inject(RISK_SETTINGS) private readonly settings: RiskSettings) {}
 
-  async screen(name: string): Promise<ScreeningResult> {
-    const settled = await Promise.allSettled(ENTITY_TYPES.map((type) => this.search(name, type)));
+  async screen(name: string, entityType?: ScreeningEntityType): Promise<ScreeningResult> {
+    const types = entityType ? [entityType] : ENTITY_TYPES;
+    const settled = await Promise.allSettled(types.map((type) => this.search(name, type)));
     const hits: Hit[] = [];
     let failed = false;
     for (const result of settled) {

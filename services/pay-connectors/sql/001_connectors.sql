@@ -71,14 +71,14 @@ CREATE INDEX IF NOT EXISTS connector_callback_events_charge_idx ON connector_cal
 -- Cada llamada al proveedor, para saber qué pasó con un cobro y alimentar la salud. Sin cuerpos.
 CREATE TABLE IF NOT EXISTS connector_api_attempts (
   id         bigserial   PRIMARY KEY,
-  charge_id  text        NOT NULL,
+  subject_id text        NOT NULL,                                    -- id del cobro (`ch_…`) o de la transferencia (`tr_…`)
   connector  text        NOT NULL,
-  operation  text        NOT NULL CHECK (operation IN ('create_charge', 'get_status', 'cancel', 'refund')),
+  operation  text        NOT NULL CHECK (operation IN ('create_charge', 'get_status', 'cancel', 'refund', 'create_transfer', 'get_transfer')),
   outcome    text        NOT NULL CHECK (outcome IN ('ok', 'unavailable', 'timeout', 'rejected')),
   latency_ms integer     NOT NULL CHECK (latency_ms >= 0),
   created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS connector_api_attempts_charge_idx ON connector_api_attempts (charge_id, id);
+CREATE INDEX IF NOT EXISTS connector_api_attempts_subject_idx ON connector_api_attempts (subject_id, id);
 
 CREATE TABLE IF NOT EXISTS connector_health (
   connector            text        PRIMARY KEY,
@@ -132,3 +132,26 @@ CREATE TABLE IF NOT EXISTS statement_exceptions (
   detected_at        timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS statement_exceptions_line_uidx ON statement_exceptions (connector, provider_reference, kind);
+
+-- Transferencias SALIENTES (pagos a comercios). Idempotentes por (business_ref, attempt). El registro se escribe ANTES de llamar al
+-- proveedor: si el proceso muere o hay un timeout, la fila existe y `GET /transfers/{reference}` puede preguntar al proveedor.
+-- `destination_ref` es una referencia opaca (Q-22): la pasarela no guarda números de cuenta.
+CREATE TABLE IF NOT EXISTS connector_transfers (
+  id                 text        PRIMARY KEY CHECK (id ~ '^tr_[a-z0-9]{10,40}$'),
+  business_ref       text        NOT NULL CHECK (business_ref ~ '^[A-Za-z0-9:._-]{3,150}$'),
+  attempt            integer     NOT NULL CHECK (attempt >= 1),
+  caller             text        NOT NULL,
+  connector          text        NOT NULL CHECK (connector IN ('mock', 'mercantil_qr', 'mercantil_card', 'bank_transfer')),
+  mode               text        NOT NULL CHECK (mode IN ('sandbox', 'live')),
+  amount_minor       bigint      NOT NULL CHECK (amount_minor > 0),
+  currency           text        NOT NULL CHECK (currency = 'BOB'),
+  destination_ref    text        NOT NULL CHECK (length(destination_ref) BETWEEN 1 AND 100),
+  status             text        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_transit', 'paid', 'failed')),
+  provider_reference text,
+  failure_code       text,
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS connector_transfers_ref_attempt_uidx ON connector_transfers (business_ref, attempt);
+-- Una operación de negocio se paga una sola vez, aunque se ordenen intentos distintos.
+CREATE UNIQUE INDEX IF NOT EXISTS connector_transfers_one_paid_uidx ON connector_transfers (business_ref) WHERE status = 'paid';

@@ -112,12 +112,40 @@ export class ConnectorTimeoutError extends Error {
   }
 }
 
+/**
+ * El pedido pudo haberse ejecutado y la respuesta no sirve: proxy intermedio que contesta 502 con HTML, socket cortado, cuerpo
+ * ilegible. Es un timeout para todo efecto (mismo tratamiento: ambiguo, nunca «no se envió»); `kind` solo describe cómo se perdió.
+ */
+export class ConnectorAmbiguousError extends ConnectorTimeoutError {
+  constructor(readonly kind: 'proxy_bad_gateway_html' | 'socket_reset') {
+    super();
+    this.name = 'ConnectorAmbiguousError';
+  }
+}
+
 /** El proveedor rechazó el pedido de forma definitiva. `code` ya está mapeado a un código estable; nunca es el mensaje crudo del proveedor. */
 export class ConnectorRejectedError extends Error {
   constructor(readonly code: 'validation_failed' | 'invalid_state_transition' | 'internal_error', readonly detail?: string) {
     super(`Rechazado por el conector: ${code}`);
     this.name = 'ConnectorRejectedError';
   }
+}
+
+export type TransferStatus = 'pending' | 'in_transit' | 'paid' | 'failed';
+
+export interface ProviderTransferRequest {
+  /** Id de la transferencia (`tr_…`): clave de idempotencia del lado del proveedor. Repetirla NO paga dos veces. */
+  readonly reference: string;
+  readonly amountMinor: bigint;
+  /** Referencia opaca de la cuenta de liquidación (Q-22); el adaptador sabe resolverla. Nunca un número de cuenta. */
+  readonly destinationRef: string;
+}
+
+export interface ProviderTransferResult {
+  readonly providerReference: string;
+  readonly status: TransferStatus;
+  /** Con `failed`: prueba de que NO se pagó. */
+  readonly failureCode?: string;
 }
 
 export interface Connector {
@@ -133,4 +161,8 @@ export interface Connector {
   verifyCallback(input: VerifyCallbackInput): Promise<VerifyCallbackResult>;
   fetchStatement(range: { from: Date; to: Date }): Promise<readonly StatementLine[]>;
   probe(now: Date): Promise<ProbeResult>;
+  /** Transferencia SALIENTE (pago a un comercio). Opcional: un conector sin esta capacidad la rechaza con 422. Idempotente por `request.reference`. */
+  createTransfer?(request: ProviderTransferRequest, now: Date): Promise<ProviderTransferResult>;
+  /** Consulta autoritativa al proveedor por la referencia con la que se ordenó. */
+  getTransfer?(reference: string, now: Date): Promise<ProviderTransferResult>;
 }

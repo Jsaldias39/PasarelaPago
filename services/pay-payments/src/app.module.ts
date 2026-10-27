@@ -11,6 +11,8 @@ import { EventsModule } from './events.module';
 import { HealthController } from './health.controller';
 import { PaymentsModule } from './payments/payments.module';
 import { ProblemFilter } from './problem.filter';
+import { redactPan } from './redact';
+import { containsPan } from './domain/pan';
 
 const config = loadConfig();
 
@@ -22,13 +24,13 @@ const config = loadConfig();
         // Id de correlación: el del cliente si viene bien formado; si no, uno nuevo. Se devuelve en la respuesta.
         genReqId: (req, res) => {
           const incoming = req.headers['x-request-id'];
-          const id = typeof incoming === 'string' && /^[A-Za-z0-9._-]{8,64}$/.test(incoming) ? incoming : randomUUID();
+          const id = typeof incoming === 'string' && /^[A-Za-z0-9._-]{8,64}$/.test(incoming) && !containsPan(incoming) ? incoming : randomUUID();
           res.setHeader('x-request-id', id);
           return id;
         },
         // Nunca credenciales ni cuerpos en los logs (regla 90.2.1).
         redact: { paths: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-api-key"]'], remove: true },
-        serializers: { req: (req) => ({ id: req.id, method: req.method, url: String(req.url).split('?')[0] }), res: (res) => ({ statusCode: res.statusCode }) },
+        serializers: { req: (req) => ({ id: req.id, method: req.method, url: redactPan(String(req.url).split('?')[0]) }), res: (res) => ({ statusCode: res.statusCode }) },
         autoLogging: { ignore: (req) => String(req.url).startsWith('/health') },
       },
     }),

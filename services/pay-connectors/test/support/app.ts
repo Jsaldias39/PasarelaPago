@@ -98,7 +98,7 @@ export async function createTestApp(options: { controllers?: Array<new (...args:
     },
     async reset() {
       await db.pool.query(
-        'TRUNCATE connector_charges, connector_refunds, connector_callback_events, connector_api_attempts, connector_health, connector_callback_endpoints, bank_transfer_references, statement_exceptions, idempotency_keys, outbox_events, inbox_events CASCADE',
+        'TRUNCATE connector_charges, connector_transfers, connector_refunds, connector_callback_events, connector_api_attempts, connector_health, connector_callback_endpoints, bank_transfer_references, statement_exceptions, idempotency_keys, outbox_events, inbox_events CASCADE',
       );
       clock.set(new Date());
       qr.issued.length = 0;

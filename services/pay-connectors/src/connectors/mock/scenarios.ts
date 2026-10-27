@@ -51,3 +51,20 @@ export function seededRandom(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/**
+ * Variantes AMBIGUAS de una transferencia saliente (el simulador la EJECUTA pero la respuesta no sirve), por los dos últimos dígitos:
+ * 07 ⇒ timeout, 17 ⇒ un proxy contesta 502 con HTML, 27 ⇒ el socket se corta. Para pay-settlement: su política ante lo ambiguo.
+ */
+export function transferAmbiguity(amountMinor: bigint): 'timeout' | 'proxy_bad_gateway_html' | 'socket_reset' | null {
+  switch (Number(amountMinor % 100n)) {
+    case 7:
+      return 'timeout';
+    case 17:
+      return 'proxy_bad_gateway_html';
+    case 27:
+      return 'socket_reset';
+    default:
+      return null;
+  }
+}

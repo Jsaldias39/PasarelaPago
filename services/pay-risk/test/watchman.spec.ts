@@ -1,9 +1,11 @@
 import { WatchmanScreener } from '../src/screening/watchman.screener';
 import { loadRiskSettings, type RiskSettings } from '../src/settings';
+import { FUNCTIONAL_TIMEOUT_MS } from './support/app';
 import { CLEAN_NAME, SANCTIONED_ORG, SANCTIONED_ORG_TYPO } from './support/http';
 import { entity, json, startWatchmanDouble, type WatchmanDouble } from './support/watchman-double';
 
-const real = (over: Partial<RiskSettings> = {}) => new WatchmanScreener({ ...loadRiskSettings(), ...over });
+// Tiempo máximo holgado: el Watchman local se comparte con otros carriles (ver FUNCTIONAL_TIMEOUT_MS en support/app.ts).
+const real = (over: Partial<RiskSettings> = {}) => new WatchmanScreener({ ...loadRiskSettings(), screeningTimeoutMs: FUNCTIONAL_TIMEOUT_MS, ...over });
 
 describe('cribado de sanciones contra moov Watchman REAL (v2-static, listas de 2019 SOLO sandbox) — P5.H2.M3', () => {
   it('correcto: una entrada pública de la lista (Hizballah) es `match` con su lista y su id; no se inventa ningún dato', async () => {

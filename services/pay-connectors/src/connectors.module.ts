@@ -23,6 +23,8 @@ import { ChargesController } from './http/charges.controller';
 import { CallbacksController } from './http/callbacks.controller';
 import { ConnectorHealthController } from './http/connector-health.controller';
 import { StatementsController } from './http/statements.controller';
+import { TransfersController } from './http/transfers.controller';
+import { TransfersService } from './core/transfers.service';
 
 export const TRANSFER_BANK = Symbol('TRANSFER_BANK');
 
@@ -34,7 +36,7 @@ const unconfiguredQr: QrPort = {
 };
 
 @Module({
-  controllers: [ChargesController, StatementsController, CallbacksController, ConnectorHealthController],
+  controllers: [ChargesController, TransfersController, StatementsController, CallbacksController, ConnectorHealthController],
   providers: [
     { provide: CLOCK, useValue: systemClock },
     { provide: SECRETS, useFactory: (): SecretProvider => new EnvSecretProvider() },
@@ -67,6 +69,7 @@ const unconfiguredQr: QrPort = {
     ProviderGateway,
     ChargesService,
     RefundsService,
+    TransfersService,
     CallbacksService,
     PollerService,
     StatementsService,

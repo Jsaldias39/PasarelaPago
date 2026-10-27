@@ -33,7 +33,7 @@ beforeEach(async () => {
 
 const create = (over: Record<string, unknown> = {}, key: string | null = uniqueKey()) => post(t.app, '/charges', chargeBody(over, t.clock), asPayments, key);
 const connectorOf = async (id: string) => (await t.db.pool.query('SELECT connector, ambiguous, provider_reference FROM connector_charges WHERE id = $1', [id])).rows[0];
-const attemptsOf = async (id: string) => (await t.db.pool.query('SELECT connector, outcome FROM connector_api_attempts WHERE charge_id = $1 ORDER BY id', [id])).rows;
+const attemptsOf = async (id: string) => (await t.db.pool.query('SELECT connector, outcome FROM connector_api_attempts WHERE subject_id = $1 ORDER BY id', [id])).rows;
 
 describe('ruteo por reglas (P4.H2.M1)', () => {
   it('la regla `qr` prefiere `mercantil_qr` cuando está sano; se registra la versión y la regla aplicadas', async () => {

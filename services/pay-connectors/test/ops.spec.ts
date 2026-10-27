@@ -105,7 +105,7 @@ describe('poller de estado (REQ-P4-5)', () => {
     const summaries = await Promise.all([poller.tick(), poller.tick(), poller.tick()]);
     expect(summaries.reduce((n, s) => n + s.examined, 0)).toBe(6);
     expect(summaries.reduce((n, s) => n + s.changed, 0)).toBe(6);
-    const polls = await t.db.pool.query("SELECT charge_id, count(*)::int AS n FROM connector_api_attempts WHERE operation = 'get_status' GROUP BY charge_id");
+    const polls = await t.db.pool.query("SELECT subject_id AS charge_id, count(*)::int AS n FROM connector_api_attempts WHERE operation = 'get_status' GROUP BY subject_id");
     expect(polls.rows).toHaveLength(6);
     expect(polls.rows.every((r) => r.n === 1)).toBe(true);
     expect(await statusEvents()).toHaveLength(6);

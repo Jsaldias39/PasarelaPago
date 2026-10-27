@@ -119,7 +119,9 @@ export class UpstreamClient {
       if (body.length > MAX_RESPONSE_BYTES) throw new RangeError('respuesta demasiado grande');
     } catch (error) {
       breaker.onFailure();
-      if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) throw fail('upstream_timeout');
+      // Por nombre y no por `instanceof`: el DOMException de fetch puede venir de otro realm (jest, vm).
+      const name = (error as { name?: unknown } | null)?.name;
+      if (name === 'TimeoutError' || name === 'AbortError') throw fail('upstream_timeout');
       if (error instanceof RangeError) throw fail('upstream_error');
       throw fail('upstream_unavailable');
     }

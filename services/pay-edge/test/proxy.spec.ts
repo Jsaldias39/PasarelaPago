@@ -55,7 +55,7 @@ describe('[DOBLE] reenvío a los servicios dueños — nivel CORRECTO', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0].method).toBe(route.method);
     expect(seen[0].url).toBe(path);
-    expect(seen[0].headers).toMatchObject({ 'x-service-id': 'pay-edge', 'x-merchant-id': k.merchantId, 'x-pay-mode': 'sandbox', accept: 'application/json' });
+    expect(seen[0].headers).toMatchObject({ 'x-service-id': 'pay-edge', 'x-merchant-id': k.merchantId, 'x-pay-mode': 'test', accept: 'application/json' });
     expect(seen[0].headers.authorization).toBeUndefined();
     expect(seen[0].headers['x-request-id']).toBe(res.headers['x-request-id']);
     expect(seen[0].headers.traceparent).toMatch(TRACEPARENT);
@@ -115,6 +115,12 @@ describe('[DOBLE] reenvío a los servicios dueños — nivel CORRECTO', () => {
     const res = await h.http().get('/v1/balance').set('Authorization', k.auth);
     expect(res.headers['x-pay-mode']).toBe('sandbox');
     expect(res.headers['cache-control']).toBe('no-store');
+  });
+
+  it.each(['live', 'test', 'sandbox', 'basura'])('D-28: un X-Pay-Mode: %s del cliente se descarta; el modo reenviado es el del registro (test)', async (claimed) => {
+    await h.http().get('/v1/balance').set('Authorization', k.auth).set('X-Pay-Mode', claimed).set('x-PAY-mode', claimed);
+    const forwarded = h.doubles['pay-ledger'].requests[0].headers['x-pay-mode'];
+    expect(forwarded).toBe('test');
   });
 
   it('deja pasar Idempotency-Replayed del servicio dueño', async () => {

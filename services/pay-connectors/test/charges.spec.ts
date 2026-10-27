@@ -161,7 +161,7 @@ describe('timeout ambiguo (centavos 07) y caída (centavos 06)', () => {
     expect(response.body.status).toBe('succeeded'); // el proveedor ya lo había cobrado cuando se perdió la primera respuesta
     const lines = bank.statement({ from: new Date(0), to: new Date(Date.now() + 86_400_000) }).filter((l) => l.ourReference === response.body.id);
     expect(lines).toHaveLength(1);
-    const attempts = await t.db.pool.query("SELECT outcome FROM connector_api_attempts WHERE charge_id = $1 AND operation = 'create_charge' ORDER BY id", [response.body.id]);
+    const attempts = await t.db.pool.query("SELECT outcome FROM connector_api_attempts WHERE subject_id = $1 AND operation = 'create_charge' ORDER BY id", [response.body.id]);
     expect(attempts.rows.map((r) => r.outcome)).toEqual(['timeout', 'ok']);
   });
 

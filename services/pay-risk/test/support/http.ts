@@ -28,7 +28,7 @@ export interface AssessmentBody {
   currency?: string;
   method?: string;
   payer_fingerprint?: string;
-  screening?: { name: string } | null;
+  screening?: { name: string; entity_type?: string } | null;
   [key: string]: unknown;
 }
 

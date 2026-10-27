@@ -10,6 +10,8 @@ import type {
   ProviderRefundResult,
   ProviderStatus,
   ProviderStatusResult,
+  ProviderTransferRequest,
+  ProviderTransferResult,
   StatementLine,
   VerifyCallbackInput,
   VerifyCallbackResult,
@@ -72,6 +74,14 @@ export class MockConnector implements Connector {
 
   async refund(request: ProviderRefundRequest, now: Date): Promise<ProviderRefundResult> {
     return this.options.bank.refund(request, now);
+  }
+
+  async createTransfer(request: ProviderTransferRequest, now: Date): Promise<ProviderTransferResult> {
+    return this.options.bank.transfer(request, now);
+  }
+
+  async getTransfer(reference: string, now: Date): Promise<ProviderTransferResult> {
+    return this.options.bank.transferStatus(reference, now);
   }
 
   async verifyCallback(input: VerifyCallbackInput): Promise<VerifyCallbackResult> {

@@ -2,9 +2,12 @@ import { Controller, Get, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { ProblemError } from '@pay/problem';
+import { PublicRoute } from '@pay/service-auth';
 import { AppModule } from '../src/app.module';
 
+// Público a propósito: el APP_GUARD global niega por defecto toda ruta sin @AllowedServices ni @PublicRoute.
 @Controller('probe')
+@PublicRoute()
 class ProbeController {
   @Get('problem')
   problem(): never {
