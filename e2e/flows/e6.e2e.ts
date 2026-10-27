@@ -67,8 +67,8 @@ describe('E6 — entrega de webhooks contra el stack real', () => {
     const metadata = await stack.call('pay-edge', 'POST', '/v1/webhook_endpoints', { headers: { ...authorization(), 'idempotency-key': 'e6-ssrf-key-0002' }, json: { url: 'https://169.254.169.254/latest/meta-data/', enabled_events: ['payment_intent.created'] } });
     expect(metadata.status).toBe(422);
 
-    const a = await createEndpoint('/hook-healthy', ['payment_intent.created', 'payment_intent.failed']);
-    const b = await createEndpoint('/hook-gone', ['payment_intent.created', 'payment_intent.failed']);
+    const a = await createEndpoint('/hook-healthy', ['payment_intent.created', 'payment_intent.succeeded']);
+    const b = await createEndpoint('/hook-gone', ['payment_intent.created', 'payment_intent.succeeded']);
     healthy = { ...a, route: receiver.route('/hook-healthy', { secret: a.secret, mode: 'down' }) };
     gone = { ...b, route: receiver.route('/hook-gone', { secret: b.secret, mode: 'gone' }) };
   });
@@ -81,7 +81,7 @@ describe('E6 — entrega de webhooks contra el stack real', () => {
     expect(sawFailures).toEqual({ ok: true });
     healthy.route.mode = 'up';
 
-    const expectedPerIntent = ['payment_intent.created', 'payment_intent.failed'];
+    const expectedPerIntent = ['payment_intent.created', 'payment_intent.succeeded'];
     const delivered = await waitFor(async () => [...receiver.accepted.values()].filter((a) => a.path === '/hook-healthy').length >= intents.length * expectedPerIntent.length, 60_000);
     expect(delivered).toEqual({ ok: true });
 

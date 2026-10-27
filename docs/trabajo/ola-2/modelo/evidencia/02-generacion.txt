@@ -1,0 +1,29 @@
+$ python3 salud-db/gen_ddl_pay.py
+[70/pay_connectors] 13 tablas · 2 FK intra · 0 FK diferidas · 0 inferidas · 18 índices · 1 saltadas
+[71/pay_edge] 3 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 1 índices · 1 saltadas
+[72/pay_ledger] 9 tablas · 1 FK intra · 0 FK diferidas · 0 inferidas · 11 índices · 1 saltadas
+[73/pay_merchants] 11 tablas · 6 FK intra · 0 FK diferidas · 0 inferidas · 8 índices · 1 saltadas
+[74/pay_payments] 11 tablas · 3 FK intra · 0 FK diferidas · 0 inferidas · 12 índices · 1 saltadas
+[75/pay_qr] 2 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 4 índices · 1 saltadas
+[76/pay_risk] 3 tablas · 1 FK intra · 0 FK diferidas · 0 inferidas · 5 índices · 1 saltadas
+[77/pay_schedules] 6 tablas · 1 FK intra · 0 FK diferidas · 0 inferidas · 7 índices · 1 saltadas
+[78/pay_settlement] 16 tablas · 7 FK intra · 0 FK diferidas · 0 inferidas · 13 índices · 1 saltadas
+[79/pay_vault] 4 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 4 índices · 1 saltadas
+[80/pay_webhooks] 6 tablas · 3 FK intra · 0 FK diferidas · 0 inferidas · 4 índices · 1 saltadas
+→ 11 bases en SQL/pay
+exit=0
+
+$ python3 salud-db/gen_ddl_pay.py --check
+[70/pay_connectors] 13 tablas · 2 FK intra · 0 FK diferidas · 0 inferidas · 18 índices · 1 saltadas
+[71/pay_edge] 3 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 1 índices · 1 saltadas
+[72/pay_ledger] 9 tablas · 1 FK intra · 0 FK diferidas · 0 inferidas · 11 índices · 1 saltadas
+[73/pay_merchants] 11 tablas · 6 FK intra · 0 FK diferidas · 0 inferidas · 8 índices · 1 saltadas
+[74/pay_payments] 11 tablas · 3 FK intra · 0 FK diferidas · 0 inferidas · 12 índices · 1 saltadas
+[75/pay_qr] 2 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 4 índices · 1 saltadas
+[76/pay_risk] 3 tablas · 1 FK intra · 0 FK diferidas · 0 inferidas · 5 índices · 1 saltadas
+[77/pay_schedules] 6 tablas · 1 FK intra · 0 FK diferidas · 0 inferidas · 7 índices · 1 saltadas
+[78/pay_settlement] 16 tablas · 7 FK intra · 0 FK diferidas · 0 inferidas · 13 índices · 1 saltadas
+[79/pay_vault] 4 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 4 índices · 1 saltadas
+[80/pay_webhooks] 6 tablas · 3 FK intra · 0 FK diferidas · 0 inferidas · 4 índices · 1 saltadas
+SQL/pay/ coincide con los .puml
+exit=0

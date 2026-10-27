@@ -17,6 +17,9 @@ ln -s "$ROOT/node_modules" "$SCRATCH/node_modules"
 cp "$ROOT/package.json" "$ROOT/jest.base.cjs" "$ROOT/tsconfig.base.json" "$SCRATCH/"
 copy() { mkdir -p "$2"; tar -C "$1" --exclude=node_modules --exclude=dist -cf - . | tar -C "$2" -xf -; }
 copy "$ROOT/contracts" "$SCRATCH/contracts"
+# EXTRA="mockbank ..." copia además esos servicios (las specs de punta a punta de pay-connectors levantan pay-mockbank real).
+# (con su dist/, que es lo que esas specs arrancan con `node dist/main.js`)
+for x in ${EXTRA:-}; do mkdir -p "$SCRATCH/services/pay-$x"; tar -C "$ROOT/services/pay-$x" --exclude=node_modules -cf - . | tar -C "$SCRATCH/services/pay-$x" -xf -; done
 rc=0
 for s in "${SVCS[@]}"; do
   copy "$ROOT/services/pay-$s" "$SCRATCH/services/pay-$s"
@@ -25,6 +28,7 @@ for s in "${SVCS[@]}"; do
   else echo "== $s: drift.spec contra SQL de REFERENCIA (control)"; fi
   args=(); [ -z "${FULL:-}" ] && args=("${SPEC[$s]}")
   # FULL=1: las specs que compilan y arrancan el servicio (`yarn build` + `node dist/main.js`) no corren en la copia mínima (sin la cadena de build): IGNORE las excluye.
+  [ -n "${FULL:-}" ] && [ -n "${ONLY:-}" ] && args+=("$ONLY")
   [ -n "${FULL:-}" ] && [ -n "${IGNORE:-}" ] && args+=(--testPathIgnorePatterns "$IGNORE")
   (cd "$SCRATCH/services/pay-$s" && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs "${args[@]}" --maxWorkers=1 --colors=false 2>&1 | grep -v "ExperimentalWarning\|--trace-warnings") || rc=1
 done

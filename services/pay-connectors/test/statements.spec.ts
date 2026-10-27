@@ -59,7 +59,7 @@ describe('GET /statements (P4.H2.M5)', () => {
     expect(response.body).toMatchObject({ object: 'list', has_more: false, next_cursor: null });
   });
 
-  it('payment_intent_id (tanda 4b): cada línea emparejada con un cobro trae el `pi_…` de ESE cobro (la clave con la que pay-settlement cruza con el ledger)', async () => {
+  it('payment_intent_id y merchant_id (tanda 4b): cada línea emparejada con un cobro trae el `pi_…` y el `mc_…` de ESE cobro (la clave con la que pay-settlement cruza con el ledger)', async () => {
     const a = await create();
     const b = await create({ amount_minor: 25050 });
     const response = await get(t.app, query('mock'), asSettlement);
@@ -68,20 +68,28 @@ describe('GET /statements (P4.H2.M5)', () => {
     expect(row(a.id).payment_intent_id).toBe((await t.db.pool.query('SELECT payment_intent_id FROM connector_charges WHERE id = $1', [a.id])).rows[0].payment_intent_id);
     expect(row(a.id).payment_intent_id).toMatch(/^pi_[a-z0-9]{10,40}$/);
     expect(row(b.id).payment_intent_id).not.toBe(row(a.id).payment_intent_id);
+    expect(row(a.id).merchant_id).toMatch(/^mc_[a-z0-9]+$/);
+    expect(row(a.id).merchant_id).toBe((await t.db.pool.query('SELECT merchant_id FROM connector_charges WHERE id = $1', [a.id])).rows[0].merchant_id);
+    // Con otro comercio, cada línea trae el SUYO (no se mezcla).
+    const other = await create({ merchant_id: 'mc_otrocomercio0001', amount_minor: 30050 });
+    const again = await get(t.app, query('mock'), asSettlement);
+    expect(again.body.data.find((l: { charge_id: string }) => l.charge_id === other.id).merchant_id).toBe('mc_otrocomercio0001');
+    expect(again.body.data.find((l: { charge_id: string }) => l.charge_id === a.id).merchant_id).not.toBe('mc_otrocomercio0001');
   });
 
-  it('payment_intent_id: una línea SIN cobro (referencia ajena o sin referencia) trae `null`, nunca uno inventado; la línea de una transferencia bancaria trae el del cobro que paga', async () => {
+  it('payment_intent_id y merchant_id: una línea SIN cobro (referencia ajena o sin referencia) trae `null` en ambos, nunca uno inventado; la línea de una transferencia bancaria trae el del cobro que paga', async () => {
     const charge = await create({ method: 'bank_transfer', amount_minor: 25000 });
     const reference = charge.next_action.reference as string;
     transferBank.injectStatementLine(credit({ providerReference: 'BNK-PI-1', ourReference: reference, amountMinor: 25000n }));
     transferBank.injectStatementLine(credit({ providerReference: 'BNK-PI-2', ourReference: 'TRZZZZZZZZZZ', amountMinor: 1000n }));
     transferBank.injectStatementLine(credit({ providerReference: 'BNK-PI-3', ourReference: null, amountMinor: 1000n }));
     const response = await get(t.app, query('bank_transfer'), asSettlement);
-    const byRef = new Map<string, { charge_id: string | null; payment_intent_id: string | null }>(response.body.data.map((l: { provider_reference: string }) => [l.provider_reference, l]));
+    const byRef = new Map<string, { charge_id: string | null; payment_intent_id: string | null; merchant_id: string | null }>(response.body.data.map((l: { provider_reference: string }) => [l.provider_reference, l]));
     expect(byRef.get('BNK-PI-1')?.charge_id).toBe(charge.id);
     expect(byRef.get('BNK-PI-1')?.payment_intent_id).toBe((await t.db.pool.query('SELECT payment_intent_id FROM connector_charges WHERE id = $1', [charge.id])).rows[0].payment_intent_id);
-    expect(byRef.get('BNK-PI-2')).toMatchObject({ charge_id: null, payment_intent_id: null });
-    expect(byRef.get('BNK-PI-3')).toMatchObject({ charge_id: null, payment_intent_id: null });
+    expect(byRef.get('BNK-PI-1')?.merchant_id).toBe((await t.db.pool.query('SELECT merchant_id FROM connector_charges WHERE id = $1', [charge.id])).rows[0].merchant_id);
+    expect(byRef.get('BNK-PI-2')).toMatchObject({ charge_id: null, payment_intent_id: null, merchant_id: null });
+    expect(byRef.get('BNK-PI-3')).toMatchObject({ charge_id: null, payment_intent_id: null, merchant_id: null });
     t.contract.assertResponse({ method: 'GET', path: '/statements', status: 200, body: response.body });
   });
 

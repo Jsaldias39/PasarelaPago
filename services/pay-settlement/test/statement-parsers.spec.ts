@@ -230,3 +230,35 @@ describe('payment_intent_id (clave de cruce, ola 2): opcional en JSON y CSV; ine
     expect(line.our_reference).toBe('pi_abcdefghijkl:capture');
   });
 });
+
+describe('merchant_id (verificación del comercio, ola 2, 4c): opcional en JSON y CSV; inexistente en camt.053', () => {
+  const MC = 'mc_abcdefghijk';
+  const HEADER = 'provider_reference,our_reference,payment_intent_id,merchant_id,direction,amount_minor,currency,value_date,booked_at,description';
+
+  it('JSON: lo conserva cuando viene, y ausente o null no cambian nada', () => {
+    expect(parseJsonStatement([{ ...LINE, merchant_id: MC }])[0].merchant_id).toBe(MC);
+    expect(parseJsonStatement([{ ...LINE, merchant_id: null }])[0].merchant_id).toBeNull();
+    expect(parseJsonStatement([LINE])[0].merchant_id).toBeUndefined();
+  });
+
+  it.each([
+    ['un id de otro tipo', 'pi_abcdefghijkl'],
+    ['mayúsculas', 'MC_ABCDEFGHIJK'],
+    ['demasiado corto', 'mc_abc'],
+    ['vacío', ''],
+    ['un número', 7],
+  ])('JSON con merchant_id inválido (%s) ⇒ extracto ilegible; no se corrige ni se ignora', (_n, value) => {
+    malformed(() => parseJsonStatement([{ ...LINE, merchant_id: value }]), /merchant_id/);
+  });
+
+  it('CSV: la columna es OPCIONAL; con ella se conserva (vacío ⇒ null) y mal escrita ⇒ extracto ilegible', () => {
+    const lines = parseCsvStatement(csv([`BNK001,ch_abcdefghijkl,pi_abcdefghijkl,${MC},credit,10000,BOB,2026-10-20,2026-10-20T14:30:00.000Z,`, 'BNK002,ch_zyxwvutsrqpo,,,credit,500,BOB,2026-10-20,2026-10-20T14:30:00.000Z,'], HEADER));
+    expect(lines.map((l) => l.merchant_id)).toEqual([MC, null]);
+    expect(parseCsvStatement(csv([CSV_ROW]))[0].merchant_id).toBeUndefined();
+    malformed(() => parseCsvStatement(csv(['BNK001,ch_abcdefghijkl,pi_abcdefghijkl,mc_x,credit,10000,BOB,2026-10-20,2026-10-20T14:30:00.000Z,'], HEADER)), /merchant_id/);
+  });
+
+  it('camt.053 no tiene dónde llevarlo: la línea sale sin merchant_id', () => {
+    expect(parseCamt053(camt([entry()]))[0].merchant_id).toBeUndefined();
+  });
+});

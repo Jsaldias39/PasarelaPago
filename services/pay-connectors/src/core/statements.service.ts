@@ -23,7 +23,7 @@ export function negotiate(accept: string | undefined): StatementFormat {
   return 'json';
 }
 
-type MatchedLine = StatementLine & { chargeId: string | null; paymentIntentId: string | null };
+type MatchedLine = StatementLine & { chargeId: string | null; paymentIntentId: string | null; merchantId: string | null };
 
 export interface ReconcileSummary {
   readonly lines: number;
@@ -55,15 +55,17 @@ export class StatementsService {
       );
       for (const r of transfers.rows) byRef.set(r.reference as string, r.charge_id as string);
     }
-    // El intento de pago sale de NUESTRO registro de cobros (un banco no conoce nuestros `pi_…`): es la clave con la que pay-settlement cruza con el ledger.
-    const intents = new Map<string, string>();
+    // El intento de pago y el comercio salen de NUESTRO registro de cobros (un banco no conoce nuestros `pi_…` ni `mc_…`): `payment_intent_id` es la clave con la
+    // que pay-settlement cruza con el ledger. Sin cobro emparejado ambos son nulos: nunca se infieren.
+    const known = new Map<string, { paymentIntentId: string; merchantId: string }>();
     const chargeIds = [...new Set(byRef.values())];
     if (chargeIds.length > 0) {
-      for (const r of (await this.pool.query('SELECT id, payment_intent_id FROM connector_charges WHERE id = ANY($1)', [chargeIds])).rows) intents.set(r.id as string, r.payment_intent_id as string);
+      for (const r of (await this.pool.query('SELECT id, payment_intent_id, merchant_id FROM connector_charges WHERE id = ANY($1)', [chargeIds])).rows) known.set(r.id as string, { paymentIntentId: r.payment_intent_id as string, merchantId: r.merchant_id as string });
     }
     return lines.map((l) => {
       const chargeId = l.ourReference ? (byRef.get(l.ourReference) ?? null) : null;
-      return { ...l, chargeId, paymentIntentId: chargeId ? (intents.get(chargeId) ?? null) : null };
+      const charge = chargeId ? known.get(chargeId) : undefined;
+      return { ...l, chargeId, paymentIntentId: charge?.paymentIntentId ?? null, merchantId: charge?.merchantId ?? null };
     });
   }
 
@@ -126,6 +128,7 @@ export class StatementsService {
           our_reference: l.ourReference,
           charge_id: l.chargeId,
           payment_intent_id: l.paymentIntentId,
+          merchant_id: l.merchantId,
           direction: l.direction,
           amount_minor: Number(l.amountMinor),
           currency: l.currency,

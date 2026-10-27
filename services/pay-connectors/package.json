@@ -9,7 +9,8 @@
     "build": "yarn run -T tsc -p tsconfig.build.json",
     "typecheck": "yarn run -T tsc -p tsconfig.json --noEmit",
     "test": "node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "test:contract": "node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/contract/"
   },
   "dependencies": {
     "@mikro-orm/core": "^7.1.7",

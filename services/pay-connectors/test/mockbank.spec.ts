@@ -1,59 +1,22 @@
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import request from 'supertest';
-import { createIsolatedDatabase, TEST_DATABASE_URL, type IsolatedDatabase } from '@pay/testing';
+import { createIsolatedDatabase } from '@pay/testing';
 import { HttpQrClient } from '../src/connectors/qr-http.client';
 import { HealthService } from '../src/core/health.service';
 import { PollerService } from '../src/core/poller.service';
 import { StatementsService } from '../src/core/statements.service';
 import { asPayments, asSettlement, chargeBody, createTestApp, get, post, REPO, uniqueKey, type TestApp } from './support/app';
 import { loadEventValidator, MESSAGES, outboxEvents } from './support/events';
-import { buildService, freePort, startService, stop, until, type Started } from './support/process';
+import { Launcher, dbEnv, type Bank, type BankOptions } from './support/mockbank';
+import { buildService, freePort, startService, until } from './support/process';
 
 // Capa sandbox (D-26, P4.H4): el conector `mock` y la fuente de transferencias hablan por HTTP con el servicio REAL `pay-mockbank` (proceso
 // `dist/main.js`, esquema propio aislado) y este servicio recibe sus callbacks firmados de verdad. Nada de dobles en el cable.
-const url = new URL(TEST_DATABASE_URL);
-const SECRET = process.env.PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET as string;
-const dbEnv = { DB_HOST: url.hostname, DB_PORT: url.port || '5432', DB_NAME: url.pathname.slice(1), DB_USER: decodeURIComponent(url.username), DB_PASSWORD: decodeURIComponent(url.password) };
+const launcher = new Launcher();
+const startBank = (port: number, options: BankOptions = {}): Promise<Bank> => launcher.startBank(port, options);
 const asAdmin = { 'x-service-id': 'pay-mockbank' };
-
-const databases: IsolatedDatabase[] = [];
-const processes: Started[] = [];
 const apps: TestApp[] = [];
 let validateEvent: Awaited<ReturnType<typeof loadEventValidator>>;
-
-interface Bank {
-  readonly started: Started;
-  readonly base: string;
-  readonly db: IsolatedDatabase;
-}
-
-/** Levanta el pay-mockbank real. `callbackPort` es el del servicio que recibe los callbacks. */
-async function startBank(port: number, options: { callbackPort?: number; secret?: string; payerMode?: 'auto' | 'manual'; deliveryMs?: number; hangMs?: number; delayMs?: number; qrUrl?: string } = {}): Promise<Bank> {
-  const db = await createIsolatedDatabase([join(REPO, 'services/pay-mockbank/sql/001_mockbank.sql')]);
-  databases.push(db);
-  const started = startService(
-    {
-      ...dbEnv,
-      PGOPTIONS: `-c search_path=${db.schema}`,
-      PORT: String(port),
-      PAY_MODE: 'sandbox',
-      MOCKBANK_WEBHOOK_SECRET: options.secret ?? SECRET,
-      ...(options.callbackPort !== undefined && { MOCKBANK_CALLBACK_URL: `http://127.0.0.1:${options.callbackPort}/callbacks/mock` }),
-      MOCKBANK_DELIVERY_INTERVAL_MS: String(options.deliveryMs ?? 50),
-      MOCKBANK_PAYER_MODE: options.payerMode ?? 'auto',
-      MOCKBANK_HANG_MS: String(options.hangMs ?? 1500),
-      MOCKBANK_DELAY_MS: String(options.delayMs ?? 400),
-      ...(options.qrUrl && { PAY_QR_URL: options.qrUrl }),
-    },
-    'pay-mockbank',
-  );
-  processes.push(started);
-  const base = `http://127.0.0.1:${port}`;
-  const ready = await until(async () => ((await fetch(`${base}/health/ready`, { headers: { connection: 'close' } })).status === 200 ? true : undefined), 60_000, started.exited);
-  if (!ready) throw new Error(`pay-mockbank no llegó a estar listo:\n${started.output()}`);
-  return { started, base, db };
-}
 
 const portOf = (t: TestApp): number => (t.app.getHttpServer().address() as { port: number }).port;
 
@@ -74,9 +37,8 @@ beforeAll(async () => {
   validateEvent = await loadEventValidator();
 }, 240_000);
 afterAll(async () => {
-  await Promise.all(processes.map(stop));
+  await launcher.cleanup();
   for (const t of apps) await t.close();
-  for (const db of databases) await db.drop();
 });
 
 const charge = (t: TestApp, over: Record<string, unknown> = {}, key = uniqueKey()) => post(t.app, '/charges', chargeBody(over, t.clock), asPayments, key);
@@ -245,7 +207,7 @@ describe('reembolso, transferencia saliente y extracto contra el banco real', ()
     expect(found.body.status).toBe('paid');
   });
 
-  it('extracto del banco real: el cobro aparece con su `payment_intent_id`; el escenario 09 deja UNA excepción amount_mismatch', async () => {
+  it('extracto del banco real: el cobro aparece con su `payment_intent_id` y su `merchant_id`; el escenario 09 deja UNA excepción amount_mismatch', async () => {
     const ok = await charge(t, { amount_minor: 10000 });
     const mismatch = await charge(t, { amount_minor: 10009 });
     expect(await waitStatus(t, ok.body.id, 'succeeded')).toBe(true);
@@ -257,8 +219,8 @@ describe('reembolso, transferencia saliente y extracto contra el banco real', ()
     t.contract.assertResponse({ method: 'GET', path: '/statements', status: 200, body: statement.body });
     const pi = async (id: string) => (await t.db.pool.query('SELECT payment_intent_id FROM connector_charges WHERE id = $1', [id])).rows[0].payment_intent_id as string;
     const line = (id: string) => statement.body.data.find((l: { charge_id: string }) => l.charge_id === id);
-    expect(line(ok.body.id)).toMatchObject({ amount_minor: 10000, payment_intent_id: await pi(ok.body.id) });
-    expect(line(mismatch.body.id)).toMatchObject({ amount_minor: 10009 - 100, payment_intent_id: await pi(mismatch.body.id) });
+    expect(line(ok.body.id)).toMatchObject({ amount_minor: 10000, payment_intent_id: await pi(ok.body.id), merchant_id: 'mc_clinicasantacruz1' });
+    expect(line(mismatch.body.id)).toMatchObject({ amount_minor: 10009 - 100, payment_intent_id: await pi(mismatch.body.id), merchant_id: 'mc_clinicasantacruz1' });
     const summary = await t.app.get(StatementsService).reconcile('mock', { from: new Date(from), to: new Date(to) });
     expect(summary).toMatchObject({ lines: 2, matched: 2, exceptions: 1 });
     expect((await t.db.pool.query('SELECT kind, charge_id FROM statement_exceptions')).rows).toEqual([{ kind: 'amount_mismatch', charge_id: mismatch.body.id }]);
@@ -293,7 +255,7 @@ describe('transferencia bancaria del pagador (E8) contra el banco real', () => {
     const evs = (await events(t)).filter((e) => (e.envelope.data as { connector_transaction_id?: string }).connector_transaction_id === created.body.id);
     expect(evs).toHaveLength(1);
     const statement = await get(t.app, `/statements?connector=bank_transfer&from=${new Date(Date.now() - 3_600_000).toISOString()}&to=${new Date(Date.now() + 3_600_000).toISOString()}`, asSettlement);
-    expect(statement.body.data).toEqual([expect.objectContaining({ our_reference: reference, charge_id: created.body.id, amount_minor: 20000, payment_intent_id: expect.stringMatching(/^pi_/) })]);
+    expect(statement.body.data).toEqual([expect.objectContaining({ our_reference: reference, charge_id: created.body.id, amount_minor: 20000, payment_intent_id: expect.stringMatching(/^pi_/), merchant_id: 'mc_clinicasantacruz1' })]);
   });
 
   it('límite/inválido: referencia correcta con OTRO importe (Bs 190,00) NO captura (amount_mismatch); un depósito sin referencia o con una ajena queda como excepción', async () => {
@@ -319,11 +281,11 @@ describe('E1 completo SIN intervención manual: pay-qr real → pay-mockbank rea
   beforeAll(async () => {
     buildService('pay-qr');
     const qrDb = await createIsolatedDatabase([join(REPO, 'services/pay-qr/sql/001_qr_codes.sql'), join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql')]);
-    databases.push(qrDb);
+    launcher.track(qrDb);
     const qrPort = await freePort();
     qrBase = `http://127.0.0.1:${qrPort}`;
     const qr = startService({ ...dbEnv, PGOPTIONS: `-c search_path=${qrDb.schema}`, PORT: String(qrPort), PAY_MODE: 'sandbox', QR_ACCOUNT_GUID: 'e2e.sandbox.guid' }, 'pay-qr');
-    processes.push(qr);
+    launcher.track(qr);
     const ready = await until(async () => ((await fetch(`${qrBase}/health/ready`, { headers: { connection: 'close' } })).status === 200 ? true : undefined), 60_000, qr.exited);
     if (!ready) throw new Error(`pay-qr no llegó a estar listo:\n${qr.output()}`);
     ({ t, bank } = await pair({ payerMode: 'manual', qrUrl: qrBase }));
@@ -336,7 +298,8 @@ describe('E1 completo SIN intervención manual: pay-qr real → pay-mockbank rea
     expect(created.status).toBe(201);
     const payload = created.body.next_action.payload as string;
     expect(payload).toMatch(/^000201.*6304[0-9A-F]{4}$/);
-    expect((await fetch(`${qrBase}/qr/decode`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-id': 'pay-connectors', 'x-pay-mode': 'test', connection: 'close' }, body: JSON.stringify({ payload }) }).then((r) => r.json())).crc_valid).toBe(true);
+    const decoded = (await fetch(`${qrBase}/qr/decode`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-id': 'pay-connectors', 'x-pay-mode': 'test', connection: 'close' }, body: JSON.stringify({ payload }) }).then((r) => r.json())) as { crc_valid: boolean };
+    expect(decoded.crc_valid).toBe(true);
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(await statusOf(t, created.body.id)).toBe('requires_action'); // modo manual: el banco no paga solo
     expect((await bank.db.pool.query('SELECT count(*)::int AS n FROM mb_callbacks')).rows[0].n).toBe(0);

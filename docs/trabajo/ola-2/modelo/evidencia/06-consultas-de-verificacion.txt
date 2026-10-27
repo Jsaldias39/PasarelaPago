@@ -1,0 +1,27 @@
+connectors  tablas=13  fk=2  check=45  índices(no PK)=18  triggers=2  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)=- | coincide con el .puml: SÍ
+    sonda [OK ] trigger de monotonía: may_have_reached_provider no vuelve a false -> ERROR:  23514: may_have_reached_provider es monotono: no puede volver a false
+    sonda [OK ] CHECK de coherencia de modo: clave test con conector live -> ERROR:  23514: new row for relation "connector_transfers" violates check constraint "connector_transfers_mode_match_ck"
+edge        tablas=3   fk=0  check=3   índices(no PK)=1   triggers=0  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)=- | coincide con el .puml: SÍ
+ledger      tablas=9   fk=4  check=24  índices(no PK)=11  triggers=0  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)=- | coincide con el .puml: SÍ
+    sonda [OK ] FK compuesta: una pata con una cuenta que no existe en ese modo -> ERROR:  23503: insert or update on table "ledger_legs" violates foreign key constraint "ledger_legs_debit_account_fkey"
+    sonda [OK ] CHECK compuesto: rechazado sin reject_code -> ERROR:  23514: new row for relation "ledger_transactions" violates check constraint "ledger_transactions_reject_consistency"
+    sonda [OK ] CHECK de lista: modo inválido -> ERROR:  23514: new row for relation "ledger_accounts" violates check constraint "ledger_accounts_mode_check"
+merchants   tablas=11  fk=7  check=25  índices(no PK)=8   triggers=6  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)=- | coincide con el .puml: SÍ
+    sonda [OK ] trigger de inmutabilidad: UPDATE de una versión de contrato -> ERROR:  23000: la tabla contract_versions es inmutable (UPDATE)
+    sonda [OK ] trigger de inmutabilidad: TRUNCATE de aceptaciones -> ERROR:  23000: la tabla contract_acceptances es inmutable (TRUNCATE)
+    sonda [OK ] FK compuesta: canal de un tarifario inexistente -> ERROR:  23503: insert or update on table "fee_schedule_channels" violates foreign key constraint "fee_schedule_channels_version_fk"
+payments    tablas=11  fk=3  check=16  índices(no PK)=12  triggers=0  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)=- | coincide con el .puml: SÍ
+qr          tablas=2   fk=0  check=10  índices(no PK)=4   triggers=0  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)=- | coincide con el .puml: SÍ
+    sonda [OK ] índice único parcial: un solo QR estático vigente por comercio -> ERROR:  23505: duplicate key value violates unique constraint "qr_codes_static_per_merchant_uidx"
+risk        tablas=3   fk=1  check=17  índices(no PK)=5   triggers=4  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)={'risk_rule_sets': 1} | coincide con el .puml: SÍ
+    sonda [OK ] trigger de inmutabilidad: UPDATE de la versión 1 de reglas -> ERROR:  23000: la tabla risk_rule_sets es inmutable (UPDATE)
+    sonda [OK ] CHECK: nunca allow si no se cribó -> ERROR:  23514: new row for relation "risk_assessments" violates check constraint "risk_assessments_allow_requires_screening"
+schedules   tablas=6   fk=1  check=19  índices(no PK)=7   triggers=0  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)=- | coincide con el .puml: SÍ
+settlement  tablas=16  fk=7  check=48  índices(no PK)=13  triggers=0  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)=- | coincide con el .puml: SÍ
+    sonda [OK ] identidad GENERATED ALWAYS: no se puede fijar el id a mano -> ERROR:  428C9: cannot insert a non-DEFAULT value into column "id"
+    sonda [OK ] CHECK compuesto: cobrado mayor que el importe -> ERROR:  23514: new row for relation "settlement_charges" violates check constraint "settlement_charges_check"
+vault       tablas=4   fk=0  check=7   índices(no PK)=4   triggers=0  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)=- | coincide con el .puml: SÍ
+    sonda [OK ] CHECK: last4 con letras -> ERROR:  23514: new row for relation "card_tokens" violates check constraint "card_tokens_last4_chk"
+webhooks    tablas=6   fk=3  check=8   índices(no PK)=4   triggers=0  | huérfanos=0 nulos_indebidos=0 semillas(2 aplicaciones)=- | coincide con el .puml: SÍ
+
+RESUMEN: PASS

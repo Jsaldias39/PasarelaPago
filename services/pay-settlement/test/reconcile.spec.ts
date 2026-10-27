@@ -275,3 +275,77 @@ describe('clave de cruce por payment_intent_id (ola 2, 4b): la preferida; la ref
     });
   });
 });
+
+describe('merchant_id de la línea (ola 2, 4c): verifica el comercio del cobro al que apunta el payment_intent_id', () => {
+  const PIID = (n: number) => `pi_abcdefghij${n.toString().padStart(2, '0')}`;
+  const OWNER = 'mc_abcdefghijk'; // el comercio por defecto de `led`
+  const OTHER = 'mc_zyxwvutsrqp';
+
+  describe('correcto', () => {
+    it('merchant_id igual al comercio del asiento ⇒ cruza sin excepción', () => {
+      const result = run({ statement: [stmt({ provider_reference: 'B1', payment_intent_id: PIID(1), merchant_id: OWNER })], ledger: [led({ business_ref: PI(1) })] });
+      expect(result.exceptions).toEqual([]);
+      expect(result.matched).toBe(1);
+    });
+
+    it('con merchant_id igual y un importe distinto sigue siendo UNA sola amount_mismatch', () => {
+      const result = run({ statement: [stmt({ provider_reference: 'B1', payment_intent_id: PIID(1), merchant_id: OWNER, amount_minor: 900 })], ledger: [led({ business_ref: PI(1) })] });
+      expect(result.exceptions.map((e) => e.kind)).toEqual(['amount_mismatch']);
+    });
+  });
+
+  describe('límite', () => {
+    it('sin merchant_id (ausente o null) el comportamiento es el de antes: cruza', () => {
+      const result = run({
+        statement: [stmt({ provider_reference: 'B1', payment_intent_id: PIID(1) }), stmt({ provider_reference: 'B2', payment_intent_id: PIID(2), merchant_id: null })],
+        ledger: [led({ business_ref: PI(1) }), led({ business_ref: PI(2) })],
+      });
+      expect(result.exceptions).toEqual([]);
+      expect(result.matched).toBe(2);
+    });
+
+    it('el merchant_id sin payment_intent_id también se verifica contra el asiento del respaldo (`our_reference`)', () => {
+      const result = run({ statement: [stmt({ provider_reference: 'B1', our_reference: PI(1), merchant_id: OTHER })], ledger: [led({ business_ref: PI(1) })] });
+      expect(result.exceptions.map((e) => e.kind)).toEqual(['unknown_reference']);
+    });
+
+    it('dos líneas de la misma clave: una sin merchant_id y otra con el correcto cruzan; si una nombra a otro comercio, la clave entera es excepción', () => {
+      const ok = run({
+        statement: [stmt({ provider_reference: 'B1', payment_intent_id: PIID(1), amount_minor: 600 }), stmt({ provider_reference: 'B2', payment_intent_id: PIID(1), merchant_id: OWNER, amount_minor: 400 })],
+        ledger: [led({ business_ref: PI(1) })],
+      });
+      expect(ok.exceptions).toEqual([]);
+      const bad = run({
+        statement: [stmt({ provider_reference: 'B1', payment_intent_id: PIID(1), amount_minor: 600 }), stmt({ provider_reference: 'B2', payment_intent_id: PIID(1), merchant_id: OTHER, amount_minor: 400 })],
+        ledger: [led({ business_ref: PI(1) })],
+      });
+      expect(bad.exceptions.map((e) => e.kind)).toEqual(['unknown_reference']);
+      expect(bad.lines.map((l) => l.outcome)).toEqual(['exception', 'exception']);
+    });
+  });
+
+  describe('inválido: nunca asume', () => {
+    it('merchant_id de OTRO comercio ⇒ `unknown_reference` (no amount_mismatch) aunque el importe coincida; nombra al comercio del asiento y al payment intent; no cuenta como cruzada', () => {
+      const result = run({ statement: [stmt({ provider_reference: 'B1', payment_intent_id: PIID(1), merchant_id: OTHER })], ledger: [led({ business_ref: PI(1) })] });
+      expect(result.exceptions).toHaveLength(1);
+      expect(result.exceptions[0]).toMatchObject({ kind: 'unknown_reference', businessRef: PI(1), providerReference: 'B1', statementAmountMinor: 1000, ledgerAmountMinor: 1000, differenceMinor: 0, merchantId: OWNER, paymentIntentId: PIID(1) });
+      expect(result.matched).toBe(0);
+      expect(result.lines[0].outcome).toBe('exception');
+    });
+
+    it('con otro comercio Y otro importe sigue siendo UNA sola excepción, `unknown_reference` (el dueño se decide antes que el importe)', () => {
+      const result = run({ statement: [stmt({ provider_reference: 'B1', payment_intent_id: PIID(1), merchant_id: OTHER, amount_minor: 900 })], ledger: [led({ business_ref: PI(1) })] });
+      expect(result.exceptions.map((e) => e.kind)).toEqual(['unknown_reference']);
+    });
+
+    it('un payment_intent_id que el ledger no tiene sigue siendo `missing_in_ledger` aunque la línea traiga merchant_id (no hay asiento con quien comparar)', () => {
+      const result = run({ statement: [stmt({ provider_reference: 'B1', payment_intent_id: PIID(9), merchant_id: OTHER })], ledger: [] });
+      expect(result.exceptions.map((e) => e.kind)).toEqual(['missing_in_ledger']);
+    });
+
+    it('la misma diferencia es la misma excepción en otra corrida (dedupe_key estable)', () => {
+      const input = { statement: [stmt({ provider_reference: 'B1', payment_intent_id: PIID(1), merchant_id: OTHER })], ledger: [led({ business_ref: PI(1) })] };
+      expect(run(input).exceptions[0].dedupeKey).toBe(run(input).exceptions[0].dedupeKey);
+    });
+  });
+});

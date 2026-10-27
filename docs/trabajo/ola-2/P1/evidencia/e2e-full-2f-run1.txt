@@ -1,0 +1,53 @@
+FAIL e2e/flows/e6.e2e.ts (151.416 s)
+  ● E6 — entrega de webhooks contra el stack real › endpoint caído: los eventos de cuatro cobros reales se reintentan con el MISMO webhook-id y, al volver, llegan UNA vez cada uno
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 2
+
+      Object {
+    -   "ok": true,
+    +   "ok": false,
+    +   "reason": "no estuvo listo en 60000 ms",
+      }
+
+      84 |     const expectedPerIntent = ['payment_intent.created', 'payment_intent.failed'];
+      85 |     const delivered = await waitFor(async () => [...receiver.accepted.values()].filter((a) => a.path === '/hook-healthy').length >= intents.length * expectedPerIntent.length, 60_000);
+    > 86 |     expect(delivered).toEqual({ ok: true });
+         |                       ^
+      87 |
+      88 |     const accepted = [...receiver.accepted.entries()].filter(([, a]) => a.path === '/hook-healthy');
+      89 |     const events = accepted.map(([, a]) => JSON.parse(a.body) as { id: string; object: string; type: string; mode: string; data: { object: Record<string, unknown> } });
+
+      at Object.toEqual (e2e/flows/e6.e2e.ts:86:23)
+
+  ● E6 — entrega de webhooks contra el stack real › endpoint que responde 410: queda deshabilitado (gone_410) y no recibe nada más
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 2
+
+      Object {
+    -   "ok": true,
+    +   "ok": false,
+    +   "reason": "no estuvo listo en 60000 ms",
+      }
+
+      129 |     await createIntent('e6-intent-5-key-0001');
+      130 |     const next = await waitFor(async () => [...receiver.accepted.values()].filter((a) => a.path === '/hook-healthy').length >= before + 2, 60_000);
+    > 131 |     expect(next).toEqual({ ok: true });
+          |                  ^
+      132 |     expect(receiver.arrivals('/hook-gone')).toHaveLength(arrivalsAfterDisable);
+      133 |   });
+      134 |
+
+      at Object.toEqual (e2e/flows/e6.e2e.ts:131:18)
+
+Test Suites: 1 failed, 12 passed, 13 total
+Tests:       2 failed, 74 passed, 76 total
+Snapshots:   0 total
+Time:        380.867 s
+Ran all test suites.
+exit=1

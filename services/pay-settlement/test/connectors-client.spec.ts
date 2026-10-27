@@ -222,4 +222,11 @@ describe('extracto del conector con payment_intent_id (contrato de la ola 2)', (
     expect(lines.map((l) => [l.provider_reference, l.payment_intent_id ?? null])).toEqual([['BNK-1', 'pi_abcdefghijkl'], ['BNK-2', null]]);
     expect(lines[0].our_reference).toBe('ch_abcdefghijkl');
   });
+
+  it('el cliente HTTP real entrega también `merchant_id` (la respuesta cumple el contrato) y la normalización lo conserva', async () => {
+    server.on('GET /statements', { kind: 'contract', status: 200, body: { object: 'list', has_more: false, next_cursor: null, data: [line({ payment_intent_id: 'pi_abcdefghijkl', merchant_id: 'mc_abcdefghijk' }), line({ provider_reference: 'BNK-2', merchant_id: null })] } });
+    const { parseStatement } = await import('../src/settlement/statement-parsers');
+    const query = { connector: 'mock', from: '2026-10-19T00:00:00.000Z', to: '2026-10-27T00:00:00.000Z', format: 'json' } as const;
+    expect((parseStatement(await client.getStatement(query))).map((l) => l.merchant_id ?? null)).toEqual(['mc_abcdefghijk', null]);
+  });
 });

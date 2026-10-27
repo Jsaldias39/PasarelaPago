@@ -339,6 +339,31 @@ describe('transferencia bancaria: datos de la cuenta en las instrucciones', () =
   });
 });
 
+describe('configuración de pay-mockbank (MOCKBANK_URL, capa sandbox)', () => {
+  const base = { DB_HOST: 'h', DB_NAME: 'n', DB_USER: 'u', DB_PASSWORD: 'p' };
+
+  it('correcto: sin la variable el banco es el de proceso; con una URL http(s) válida se usa pay-mockbank y el timeout tiene su valor por defecto', () => {
+    expect(loadConfig({ ...base, PAY_MODE: 'sandbox' })).toMatchObject({ mockbankTimeoutMs: 5000 });
+    expect(loadConfig({ ...base, PAY_MODE: 'sandbox' }).mockbankUrl).toBeUndefined();
+    expect(loadConfig({ ...base, PAY_MODE: 'sandbox', MOCKBANK_URL: 'http://127.0.0.1:3112' }).mockbankUrl).toBe('http://127.0.0.1:3112');
+    expect(loadConfig({ ...base, PAY_MODE: 'sandbox', MOCKBANK_URL: 'https://mockbank.sandbox.invalid', MOCKBANK_TIMEOUT_MS: '1500' })).toMatchObject({ mockbankUrl: 'https://mockbank.sandbox.invalid', mockbankTimeoutMs: 1500 });
+  });
+
+  it('límite: timeout mínimo 1 ms; vacío = sin banco externo', () => {
+    expect(loadConfig({ ...base, PAY_MODE: 'sandbox', MOCKBANK_TIMEOUT_MS: '1' }).mockbankTimeoutMs).toBe(1);
+    expect(loadConfig({ ...base, PAY_MODE: 'sandbox', MOCKBANK_URL: '' }).mockbankUrl).toBeUndefined();
+  });
+
+  it('inválido: URL mal formada o de otro esquema, timeout 0/negativo/decimal ⇒ no arranca; bajo live NINGUNA de las dos variables puede estar definida', () => {
+    for (const url of ['no es una url', 'ftp://127.0.0.1/x', 'file:///etc/passwd', 'javascript:alert(1)']) {
+      expect(() => loadConfig({ ...base, PAY_MODE: 'sandbox', MOCKBANK_URL: url })).toThrow(/MOCKBANK_URL inválida/);
+    }
+    for (const ms of ['0', '-5', '1.5', 'abc']) expect(() => loadConfig({ ...base, PAY_MODE: 'sandbox', MOCKBANK_TIMEOUT_MS: ms })).toThrow(/MOCKBANK_TIMEOUT_MS inválido/);
+    expect(() => loadConfig({ ...base, PAY_MODE: 'live', MOCKBANK_URL: 'http://127.0.0.1:3112' })).toThrow(/PAY_MODE=live no admite.*MOCKBANK_URL/);
+    expect(() => loadConfig({ ...base, PAY_MODE: 'live', MOCKBANK_TIMEOUT_MS: '500' })).toThrow(/PAY_MODE=live no admite.*MOCKBANK_TIMEOUT_MS/);
+  });
+});
+
 describe('connector.transfer.status_changed', () => {
   const order = (over: Record<string, unknown> = {}, key: string | null = uniqueKey()) =>
     post(t.app, '/transfers', { business_ref: `po_ev${process.pid}${String((seq += 1)).padStart(5, '0')}:payout`, attempt: 1, connector: 'mock', amount_minor: 250000, currency: 'BOB', destination_ref: 'dest_comercio_0001', ...over }, asSettlement, key);

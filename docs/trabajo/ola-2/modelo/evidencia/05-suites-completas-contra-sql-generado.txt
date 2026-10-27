@@ -1,1 +1,48 @@
 # IGNORE='startup|env-example' salvo indicación: startup.* compila y arranca el servicio (sin cadena de build en la copia mínima); env-example.* lee los .env.example de OTROS servicios (no copiados). Ambas son ENVIRONMENT de la copia, no del SQL.
+== merchants: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/73_pay_merchants/ddl.sql, sha256 46b8911fae4a3cd4)
+Test Suites: 11 passed, 11 total
+Tests:       145 passed, 145 total
+== schedules: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/77_pay_schedules/ddl.sql, sha256 1d8683c9f9d98cf2)
+Test Suites: 9 passed, 9 total
+Tests:       158 passed, 158 total
+== connectors: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/70_pay_connectors/ddl.sql, sha256 5ae10ca7d863beab)
+FAIL test/mockbank.spec.ts
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 00 aprobado: el banco real entrega el callback FIRMADO, este servicio lo verifica y el cobro queda cobrado (un solo evento válido)
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 00 aprobado: el banco real entrega el callback FIRMADO, este servicio lo verifica y el cobro queda cobrado (un solo evento válido)
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 03 duplicado ×3 y 04 fuera de orden: los callbacks reales se absorben sin duplicar el evento ni retroceder el estado
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 03 duplicado ×3 y 04 fuera de orden: los callbacks reales se absorben sin duplicar el evento ni retroceder el estado
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 05 callback perdido: el banco real no avisa nunca y el poller (consulta de estado por HTTP) lo cobra
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 05 callback perdido: el banco real no avisa nunca y el poller (consulta de estado por HTTP) lo cobra
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 01 rechazado: failed con card_declined sin callbacks; 08 nunca pagado: el poller lo da por vencido cuando el BANCO ve vencido el cobro
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 01 rechazado: failed con card_declined sin callbacks; 08 nunca pagado: el poller lo da por vencido cuando el BANCO ve vencido el cobro
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 07 timeout ambiguo: el cobro SE CREÓ en el banco; el reintento con la MISMA referencia no crea otro y el cobro termina cobrado
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 07 timeout ambiguo: el cobro SE CREÓ en el banco; el reintento con la MISMA referencia no crea otro y el cobro termina cobrado
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 06 banco caído: 502 connector_unavailable, no se marca ambiguo (seguro reintentar) y el banco no recibió nada
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › 06 banco caído: 502 connector_unavailable, no se marca ambiguo (seguro reintentar) y el banco no recibió nada
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › banco apagado del todo (conexión rechazada): 502 y NO ambiguo (nada se envió), así que es seguro reintentar
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › banco apagado del todo (conexión rechazada): 502 y NO ambiguo (nada se envió), así que es seguro reintentar
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › salud: la sonda por HTTP ve al banco arriba y, con el interruptor de «caído», lo marca degradado (y vuelve a arriba al levantarlo)
+  ● cobro QR de punta a punta contra el pay-mockbank real (E1) › salud: la sonda por HTTP ve al banco arriba y, con el interruptor de «caído», lo marca degradado (y vuelve a arriba al levantarlo)
+  ● autenticidad del callback entre los dos servicios REALES › un banco con OTRO secreto: este servicio rechaza todos sus callbacks (401, nada se aplica) y el cobro solo se resuelve por consulta de estado
+  ● reembolso, transferencia saliente y extracto contra el banco real › reembolso parcial por el banco real, idempotente por referencia, consultable con GET /refunds
+  ● reembolso, transferencia saliente y extracto contra el banco real › reembolso parcial por el banco real, idempotente por referencia, consultable con GET /refunds
+  ● reembolso, transferencia saliente y extracto contra el banco real › transferencia saliente: pagada, idempotente (el banco paga UNA vez); 01 fallida rejected_by_bank; consulta GET /transfers/{reference}
+  ● reembolso, transferencia saliente y extracto contra el banco real › transferencia saliente: pagada, idempotente (el banco paga UNA vez); 01 fallida rejected_by_bank; consulta GET /transfers/{reference}
+  ● reembolso, transferencia saliente y extracto contra el banco real › extracto del banco real: el cobro aparece con su `payment_intent_id` y su `merchant_id`; el escenario 09 deja UNA excepción amount_mismatch
+  ● reembolso, transferencia saliente y extracto contra el banco real › extracto del banco real: el cobro aparece con su `payment_intent_id` y su `merchant_id`; el escenario 09 deja UNA excepción amount_mismatch
+  ● transferencia bancaria del pagador (E8) contra el banco real › el pagador deposita con la referencia de las instrucciones y el IMPORTE exacto: el banco no avisa, y al conciliar el extracto el cobro queda cobrado
+  ● transferencia bancaria del pagador (E8) contra el banco real › el pagador deposita con la referencia de las instrucciones y el IMPORTE exacto: el banco no avisa, y al conciliar el extracto el cobro queda cobrado
+  ● transferencia bancaria del pagador (E8) contra el banco real › límite/inválido: referencia correcta con OTRO importe (Bs 190,00) NO captura (amount_mismatch); un depósito sin referencia o con una ajena queda como excepción
+  ● transferencia bancaria del pagador (E8) contra el banco real › límite/inválido: referencia correcta con OTRO importe (Bs 190,00) NO captura (amount_mismatch); un depósito sin referencia o con una ajena queda como excepción
+  ● E1 completo SIN intervención manual: pay-qr real → pay-mockbank real (pagador simulado) → callback firmado › correcto: el cobro nace con un QR REAL de pay-qr; mientras nadie paga sigue abierto; el pagador simulado lo decodifica con pay-qr y lo paga; el callback firmado lo cobra
+  ● E1 completo SIN intervención manual: pay-qr real → pay-mockbank real (pagador simulado) → callback firmado › correcto: el cobro nace con un QR REAL de pay-qr; mientras nadie paga sigue abierto; el pagador simulado lo decodifica con pay-qr y lo paga; el callback firmado lo cobra
+  ● E1 completo SIN intervención manual: pay-qr real → pay-mockbank real (pagador simulado) → callback firmado › inválido: un QR con el CRC alterado, o uno que este banco nunca vio, no se paga y el cobro sigue abierto
+  ● E1 completo SIN intervención manual: pay-qr real → pay-mockbank real (pagador simulado) → callback firmado › inválido: un QR con el CRC alterado, o uno que este banco nunca vio, no se paga y el cobro sigue abierto
+Test Suites: 1 failed, 18 passed, 19 total
+Tests:       16 failed, 669 passed, 685 total
+== webhooks: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/80_pay_webhooks/ddl.sql, sha256 a71edfc615f4d81b)
+Test Suites: 10 passed, 10 total
+Tests:       388 passed, 388 total
+== edge: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/71_pay_edge/ddl.sql, sha256 94e38d7560710bfb)
+Test Suites: 12 passed, 12 total
+Tests:       381 passed, 381 total

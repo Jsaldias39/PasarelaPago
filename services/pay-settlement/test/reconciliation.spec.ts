@@ -88,11 +88,11 @@ describe('conciliación (P2.H2.M6, REQ-P2-6)', () => {
     const kinds = (await exceptions()).map((e: { kind: string }) => e.kind).sort();
     expect(kinds).toEqual(['amount_mismatch', 'duplicate_in_statement', 'missing_in_ledger', 'missing_in_statement', 'unknown_reference'].sort());
     expect(lonely).toBeDefined();
-    // `unknown_reference` no existe en el evento del contrato: sale como `missing_in_ledger` (PROPUESTAS.md) y el evento valida
+    // El contrato del evento (`ledger-settlement.yaml`) admite `unknown_reference` (propuesta 4): sale tal cual y el evento valida
     const events = await ctx.events('reconciliation.exception.opened');
     expect(events).toHaveLength(5);
     for (const e of events) expect(validators.get('reconciliation.exception.opened')?.(e)).toEqual([]);
-    expect(events.map((e) => (e.data as { kind: string }).kind).sort()).toEqual(['amount_mismatch', 'duplicate_in_statement', 'missing_in_ledger', 'missing_in_ledger', 'missing_in_statement']);
+    expect(events.map((e) => (e.data as { kind: string }).kind).sort()).toEqual(['amount_mismatch', 'duplicate_in_statement', 'missing_in_ledger', 'missing_in_statement', 'unknown_reference']);
   });
 
   it('repetir la corrida sobre el mismo periodo NO reabre ni vuelve a notificar lo ya conocido', async () => {
@@ -369,5 +369,44 @@ describe('conciliación por payment_intent_id (ola 2, 4b): extracto del conector
     const run = await reconcileNow();
     expect(run).toMatchObject({ status: 'failed', failure_code: 'statement_malformed' });
     expect(await exceptions()).toEqual([]);
+  });
+
+  describe('merchant_id de la línea (ola 2, 4c)', () => {
+    it('merchant_id correcto cruza; sin merchant_id (líneas de antes) también', async () => {
+      await setup();
+      const m = merchantId();
+      const [a, b] = [charge(m, 9700, 300), charge(m, 4850, 150)];
+      statement(line({ provider_reference: 'B1', our_reference: ch(1), payment_intent_id: intentOf(a), merchant_id: m }), line({ provider_reference: 'B2', our_reference: ch(2), payment_intent_id: intentOf(b), amount_minor: 5000 }));
+      expect(await reconcileNow()).toMatchObject({ status: 'completed', matched_count: 2, exception_count: 0 });
+    });
+
+    it('un `pi_` que pertenece a OTRO comercio ⇒ UNA excepción `unknown_reference` (el importe coincide, no importa); el evento nombra al dueño del asiento; el ledger no se mueve; repetir no la reabre', async () => {
+      await setup();
+      const [owner, other] = [merchantId(), merchantId()];
+      const mine = charge(owner, 9700, 300);
+      statement(line({ provider_reference: 'B1', our_reference: ch(1), payment_intent_id: intentOf(mine), merchant_id: other }));
+      const before = JSON.stringify(ctx.ledger.entries);
+      const run = await reconcileNow();
+      expect(run).toMatchObject({ status: 'completed', matched_count: 0, exception_count: 1 });
+      const open = await exceptions('open');
+      expect(open).toHaveLength(1);
+      expect(open[0]).toMatchObject({ kind: 'unknown_reference', business_ref: mine, statement_amount_minor: 10000, ledger_amount_minor: 10000 });
+      expect(writes()).toBe(0);
+      expect(JSON.stringify(ctx.ledger.entries)).toBe(before);
+      const events = await ctx.events('reconciliation.exception.opened');
+      expect(events).toHaveLength(1);
+      expect(validators.get('reconciliation.exception.opened')?.(events[0])).toEqual([]);
+      expect(events[0]).toMatchObject({ merchantid: owner, data: { kind: 'unknown_reference', payment_intent_id: intentOf(mine) } });
+      await reconcileNow();
+      expect((await exceptions('open')).map((e: { id: string }) => e.id)).toEqual([open[0].id]);
+      expect(await ctx.events('reconciliation.exception.opened')).toHaveLength(1);
+    });
+
+    it('un merchant_id mal formado falla la corrida entera (`statement_malformed`) y no deja excepciones', async () => {
+      await setup();
+      statement(line({ provider_reference: 'B1', merchant_id: 'pi_abcdefghijkl' }));
+      expect(await reconcileNow()).toMatchObject({ status: 'failed', failure_code: 'statement_malformed' });
+      expect(await exceptions()).toEqual([]);
+    });
   });
 });

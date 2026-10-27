@@ -69,6 +69,8 @@ function dedupe(connector: string, kind: ExceptionKind, businessRef: string | nu
  *    `payment_intent_id` contradice a una `our_reference` con forma de `business_ref` es `unknown_reference`; un `payment_intent_id` que el ledger de ESTE
  *    modo no conoce (inexistente, de otro modo) es `missing_in_ledger`; un cobro del ledger repartido entre varios comercios es `unknown_reference`.
  *    Por cada clave se compara el neto del extracto (créditos − débitos del banco) con el neto del ledger en la cuenta de compensación (débitos − créditos): lo que entró al banco.
+ *  - Si la línea trae `merchant_id` y no coincide con el comercio del asiento al que apunta (o las líneas de una misma clave nombran a comercios distintos), la
+ *    excepción es `unknown_reference` (el contrato no tiene un tipo más específico), y se decide antes que el importe. Sin `merchant_id` no se compara.
  *  - Una línea sin nuestra referencia no se puede cruzar: `unknown_reference`. Una referencia que el ledger no tiene: `missing_in_ledger`.
  *  - Un cobro del ledger que el extracto no trae: `missing_in_statement`. Montos distintos: `amount_minor` con la diferencia con signo.
  *  - La misma `provider_reference` dos veces: la segunda es `duplicate_in_statement` y NO suma al cruce.
@@ -83,7 +85,7 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
   const confirmedPayouts: string[] = [];
   const seen = new Set<string>();
 
-  const byRef = new Map<string, { net: number; refs: string[]; first: string }>();
+  const byRef = new Map<string, { net: number; refs: string[]; first: string; merchants: Set<string> }>();
   /** Clave con la que cada línea entró al cruce (la de `payment_intent_id` o la de `our_reference`). */
   const keyOf = new Map<StatementLine, string>();
   input.statement.forEach((line, index) => {
@@ -174,7 +176,8 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
       outcomes.push({ line, lineRef, outcome: 'exception' });
       return;
     }
-    const slot = byRef.get(key) ?? { net: 0, refs: [], first: lineRef };
+    const slot = byRef.get(key) ?? { net: 0, refs: [], first: lineRef, merchants: new Set<string>() };
+    if (line.merchant_id) slot.merchants.add(line.merchant_id);
     slot.net += signed(line);
     slot.refs.push(lineRef);
     byRef.set(key, slot);
@@ -220,6 +223,11 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
       failedRefs.add(ref);
     } else if (led.merchants.size > 1) {
       // Un mismo cobro repartido entre varios comercios: no hay a quién atribuir la línea. No se adivina.
+      draft('unknown_reference', ref, stmt.net, led.net, stmt.first, providerOf.get(ref) ?? null);
+      failedRefs.add(ref);
+    } else if (stmt.merchants.size > 1 || (led.merchantId !== null && stmt.merchants.size === 1 && !stmt.merchants.has(led.merchantId))) {
+      // El extracto atribuye el cobro a un comercio distinto del asiento (o a varios): `unknown_reference` del contrato de excepciones. Se cruza el comercio ANTES
+      // que el importe: con otro dueño, que el importe coincida no prueba nada. Sin `merchant_id` en la línea no se compara.
       draft('unknown_reference', ref, stmt.net, led.net, stmt.first, providerOf.get(ref) ?? null);
       failedRefs.add(ref);
     } else if (led.net !== stmt.net) {

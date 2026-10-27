@@ -102,6 +102,11 @@ export interface StatementLine {
    * preferida: el `business_ref` del ledger es `pi_…:operación`, nunca un `ch_…`. Opcional por compatibilidad; ausente o `null` ⇒ se cruza por `our_reference`.
    */
   readonly payment_intent_id?: string | null;
+  /**
+   * Comercio dueño del cobro emparejado (`StatementLine.merchant_id`, `^mc_…`). Opcional; ausente o `null` ⇒ no se compara. Si viene y no coincide con el
+   * comercio del asiento del ledger al que apunta la línea, la conciliación abre `unknown_reference`: nunca asume a cuál de los dos creerle.
+   */
+  readonly merchant_id?: string | null;
   readonly direction: 'credit' | 'debit';
   readonly amount_minor: number;
   readonly value_date: string;

@@ -1,0 +1,39 @@
+# Gates P2 ola 2 tanda 4c — salidas literales (2026-10-27T23:39Z)
+
+## $ (cd services/pay-ledger && yarn build)
+exit=0
+
+## $ (cd services/pay-settlement && yarn typecheck)
+exit=0
+
+## $ (cd services/pay-settlement && yarn build)
+exit=0
+
+## $ (cd . && yarn eslint services/pay-ledger/**/*.ts services/pay-settlement/**/*.ts e2e/pending/e4.e2e.ts e2e/pending/e8.e2e.ts e2e/lib/p2-*.ts)
+exit=0
+
+## $ (cd . && yarn lint)
+
+/home/user/pasarelapago/services/pay-connectors/test/mockbank.spec.ts
+  1:10  error  'readFileSync' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (1 error, 0 warnings)
+
+exit=1
+
+## $ (cd . && yarn contracts:lint)
+OK    contracts/openapi/internal-vault-v1.yaml
+OK    contracts/openapi/public-v1.yaml
+OK    contracts/asyncapi/connectors.yaml
+OK    contracts/asyncapi/ledger-settlement.yaml
+OK    contracts/asyncapi/merchants-schedules.yaml
+OK    contracts/asyncapi/payments.yaml
+
+13 contrato(s) válido(s)
+exit=0
+
+## $ (cd . && yarn e2e:typecheck)
+exit=0
+
+
+NOTA: `yarn lint` (raíz) falla por UN error que NO es de P2: `services/pay-connectors/test/mockbank.spec.ts` (carril P4, trabajo en curso), `'readFileSync' is defined but never used`. En 4b ese mismo comando dio exit=0 (el archivo es posterior). El eslint de la raíz sobre los archivos de P2 (línea de arriba) da exit=0. No se tocó ese archivo.

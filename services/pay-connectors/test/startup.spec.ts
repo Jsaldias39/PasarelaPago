@@ -72,6 +72,9 @@ describe('PAY_MODE=live se niega a arrancar con conector mock o doble configurad
   it('inválido: el secreto del simulador, su bomba de callbacks o una cuenta con rótulo SANDBOX', async () => {
     await refuses({ PAY_MODE: 'live', ...MOCK_SECRET }, /PAY_MODE=live no admite.*PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET/);
     await refuses({ PAY_MODE: 'live', MOCK_PUMP_INTERVAL_MS: '1000' }, /PAY_MODE=live no admite.*MOCK_PUMP_INTERVAL_MS/);
+    // El banco simulado de la capa sandbox (pay-mockbank) tampoco entra en live: ni su URL ni su timeout.
+    await refuses({ PAY_MODE: 'live', MOCKBANK_URL: 'http://127.0.0.1:3112' }, /PAY_MODE=live no admite.*MOCKBANK_URL/);
+    await refuses({ PAY_MODE: 'live', MOCKBANK_TIMEOUT_MS: '500' }, /PAY_MODE=live no admite.*MOCKBANK_TIMEOUT_MS/);
     await refuses({ PAY_MODE: 'live', MOCK_PUMP_INTERVAL_MS: '0' }, /MOCK_PUMP_INTERVAL_MS/);
     await refuses({ PAY_MODE: 'live', BANK_TRANSFER_BANK_NAME: 'BANCO SIMULADO (SANDBOX)', BANK_TRANSFER_ACCOUNT_HOLDER: 'ALOVIDA PAY (SANDBOX)', BANK_TRANSFER_ACCOUNT_NUMBER: 'SANDBOX-0000-0001' }, /PAY_MODE=live no admite.*BANK_TRANSFER_BANK_NAME/);
   });

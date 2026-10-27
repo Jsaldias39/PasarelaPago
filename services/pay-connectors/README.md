@@ -98,6 +98,16 @@ Con `MOCK_PUMP_INTERVAL_MS=0` y `POLLER_INTERVAL_MS=0` nada corre solo (las prue
 **se niega a arrancar** si el entorno trae algún doble de sandbox: `PAY_SECRET_CONNECTOR_MOCK_*`, `MOCK_PUMP_INTERVAL_MS` (aunque sea `0`) o una cuenta con el
 rótulo SANDBOX/simulado. Además el registro de conectores no deja cargar `mock` bajo `live` (`domain.spec.ts`). Probado con el binario real (`test/startup.spec.ts`).
 
+## Capa sandbox: el «banco» detrás de `mock` es `pay-mockbank` (D-26, P4.H4)
+
+- **Sin `MOCKBANK_URL`** (por defecto): el conector `mock` usa el banco en memoria (`SimulatedBank`), igual que siempre; las pruebas unitarias y los entornos mínimos no necesitan otro servicio.
+- **Con `MOCKBANK_URL=http://127.0.0.1:3112`** (solo sandbox): el MISMO conector `mock` habla por HTTP con **`pay-mockbank`** (`HttpMockBankClient`, detrás de la interfaz `MockBankPort`); el conector `bank_transfer` lee su extracto de la cuenta `transfers` de ese banco;
+  los callbacks los entrega `pay-mockbank` firmados a `POST /callbacks/mock` (la bomba en proceso no corre). El código `mock` y los contratos no cambian: `contracts/` no se tocó.
+- **Regla 11 en el cliente:** solo son «no se ejecutó» los cuerpos exactos del contrato — `503 bank_unavailable` y la conexión que ni se estableció (`ECONNREFUSED`…) — ⇒ `ConnectorUnavailableError`. Un timeout, una conexión cortada, un 502 con HTML o cualquier 5xx ⇒ `ConnectorTimeoutError`/`ConnectorAmbiguousError` (pudo ejecutarse): se reintenta con la MISMA referencia.
+- **Extracto:** `GET /statements` devuelve, en cada línea emparejada con un cobro conocido, `charge_id`, **`payment_intent_id`** y **`merchant_id`** (salen de NUESTRO registro de cobros: un banco no conoce nuestros `pi_…`/`mc_…`); sin cobro conocido los tres son `null`, nunca se infieren. Es la clave con la que `pay-settlement` cruza extracto y ledger.
+- **Suite de contrato por conector (P4.H4.M1):** `CONNECTOR=mock yarn test:contract` (también `bank_transfer`, `mercantil_qr`, `mercantil_card`; sin variable, todos). `test/contract/connector-contract.ts` es UNA sola suite que corre idéntica contra el banco en proceso y contra el `pay-mockbank` real por HTTP; lo que un conector no puede aparece como `todo` con su motivo.
+  `mercantil_qr` y `mercantil_card` están **BLOQUEADOS** (sin documentación ni ambiente de pruebas del banco: `docs/spikes/banco-mercantil.md`); su prueba de guardia falla cuando exista el adaptador para obligar a correr la suite contra él.
+
 ## Contratos de la ola 2
 
 - **`GET /refunds/{id}`** (`cr_…`, solo `pay-payments`): con `refresh=true` y el reembolso `pending`, pregunta al proveedor (`Connector.getRefund`); `captured` ⇒ `succeeded`, `failed` ⇒ `failed`. Sin respuesta, con rechazo, sin `getRefund` o con `not_found` explícito ⇒ lo último que se sabe (`stale: true` salvo `not_found`); **nunca** se toca la fila ni la reserva por un silencio. `404` solo si este servicio no tiene la fila.
@@ -118,7 +128,7 @@ rótulo SANDBOX/simulado. Además el registro de conectores no deja cargar `mock
 
 ## Variables de entorno
 
-Ver `.env.example` (coherente con lo que levanta el arnés e2e: `PAY_QR_URL`, el secreto del mock y la cuenta sintética). Obligatorias: `DB_*`, `PAY_MODE`. Secretos [DEV]: `PAY_SECRET_CONNECTOR_<CODIGO>_<NOMBRE>` (lista separada por comas
+Ver `.env.example` (`MOCKBANK_URL` y `MOCKBANK_TIMEOUT_MS` activan la capa sandbox; coherente con lo que levanta el arnés e2e: `PAY_QR_URL`, el secreto del mock y la cuenta sintética). Obligatorias: `DB_*`, `PAY_MODE`. Secretos [DEV]: `PAY_SECRET_CONNECTOR_<CODIGO>_<NOMBRE>` (lista separada por comas
 para rotar sin corte); en producción los entrega OpenBao a través de `SecretProvider` (no corre en el entorno de trabajo).
 
 ## Comandos

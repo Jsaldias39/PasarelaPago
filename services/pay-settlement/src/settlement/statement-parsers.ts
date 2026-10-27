@@ -14,6 +14,8 @@ const lineSchema = z.strictObject({
   our_reference: z.string().min(1).max(200).nullable(),
   // Opcional: el conector lo manda solo si emparejó la línea con un cobro. Un valor mal formado NO se corrige ni se ignora: el extracto es ilegible.
   payment_intent_id: z.string().regex(/^pi_[a-z0-9]{10,40}$/).nullable().optional(),
+  // Igual: opcional; mal formado ⇒ extracto ilegible (`statement_malformed`).
+  merchant_id: z.string().regex(/^mc_[a-z0-9]{10,40}$/).nullable().optional(),
   direction: z.enum(['credit', 'debit']),
   amount_minor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   value_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -50,7 +52,7 @@ export function parseJsonStatement(lines: readonly unknown[]): StatementLine[] {
     const candidate = raw as Record<string, unknown>;
     if (candidate === null || typeof candidate !== 'object') throw new StatementMalformedError('línea inválida', i + 1);
     if (candidate.currency !== undefined && candidate.currency !== 'BOB') throw new StatementMalformedError('moneda distinta de BOB', i + 1);
-    // `charge_id` y `description` son del contrato pero no entran a la conciliación (`payment_intent_id` sí: es la clave de cruce); la glosa puede traer datos personales y se descarta.
+    // `charge_id` y `description` son del contrato pero no entran a la conciliación (`payment_intent_id` sí: es la clave de cruce; `merchant_id` también: la verifica); la glosa puede traer datos personales y se descarta.
     const rest = { ...candidate };
     delete rest.currency;
     delete rest.charge_id;
@@ -84,6 +86,7 @@ export function parseCsvStatement(text: string): StatementLine[] {
         provider_reference: r.provider_reference,
         our_reference: r.our_reference === '' ? null : r.our_reference,
         ...('payment_intent_id' in r && { payment_intent_id: r.payment_intent_id === '' ? null : r.payment_intent_id }),
+        ...('merchant_id' in r && { merchant_id: r.merchant_id === '' ? null : r.merchant_id }),
         direction: r.direction,
         amount_minor: Number(r.amount_minor),
         value_date: r.value_date,

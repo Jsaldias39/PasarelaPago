@@ -1,12 +1,36 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 
 export const SERVICES_DIR = join(process.cwd(), '..');
 
-/** Compila un servicio: las pruebas de arranque ejecutan `dist/main.js`, el mismo binario que se despliega. */
+/** Compila un servicio (si hace falta): las pruebas de arranque ejecutan `dist/main.js`, el mismo binario que se despliega. */
+
+/** Fecha de modificación más reciente de los `.ts` bajo `src/` (sin entrar a node_modules). */
+function newestSource(dir: string): number {
+  let newest = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) newest = Math.max(newest, newestSource(path));
+    else if (entry.name.endsWith('.ts')) newest = Math.max(newest, statSync(path).mtimeMs);
+  }
+  return newest;
+}
+
+/**
+ * Compila solo si hace falta (`dist/main.js` más viejo que algún `src/**\/*.ts`) y bajo un candado de archivo: dos suites que corren en paralelo
+ * no reescriben el mismo `dist/` ni lanzan un proceso mientras otro lo está escribiendo.
+ */
+function buildIfStale(dir: string): void {
+  const fresh = (): boolean => existsSync(join(dir, 'dist/main.js')) && statSync(join(dir, 'dist/main.js')).mtimeMs >= newestSource(join(dir, 'src'));
+  if (fresh()) return;
+  const lock = `/tmp/pay-build-${dir.split('/').pop() ?? 'svc'}.lock`;
+  execFileSync('flock', [lock, 'sh', '-c', `cd "${dir}" && yarn build`], { stdio: 'pipe' });
+}
+
 export function buildService(name: string): void {
-  execFileSync('yarn', ['build'], { cwd: join(SERVICES_DIR, name), stdio: 'pipe' });
+  buildIfStale(join(SERVICES_DIR, name));
 }
 
 /** Un puerto libre del sistema operativo (se cierra antes de devolverlo). */

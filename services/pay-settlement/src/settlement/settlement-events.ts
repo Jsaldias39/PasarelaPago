@@ -115,9 +115,6 @@ export async function emitBatchClosed(
   );
 }
 
-/** El contrato del evento no admite `unknown_reference`: se informa como `missing_in_ledger` (PROPUESTAS.md). */
-const EVENT_EXCEPTION_KIND: Record<string, string> = { unknown_reference: 'missing_in_ledger' };
-
 export async function emitExceptionOpened(
   client: Queryable,
   e: {
@@ -144,7 +141,7 @@ export async function emitExceptionOpened(
         ...eventModeField(e.mode),
         exception_id: e.exceptionId,
         connector: e.connector,
-        kind: EVENT_EXCEPTION_KIND[e.kind] ?? e.kind,
+        kind: e.kind,
         difference_minor: e.differenceMinor,
         currency: 'BOB',
         ...(e.paymentIntentId && { payment_intent_id: e.paymentIntentId }),
