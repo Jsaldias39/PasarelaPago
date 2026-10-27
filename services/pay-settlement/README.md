@@ -50,6 +50,17 @@ cobros, corridas de conciliación y excepciones **guardan** su modo (columna `mo
 - `payout.created|paid|failed` llevan `mode`. Los demás eventos no lo llevan (el AsyncAPI no lo declara).
 - `resolve`: `401` si la credencial del operador falta, venció o no verifica; `403` si es válida pero sin el rol (CONTRATOS.md §3, fila 17).
 
+## Eventos que consume (con inbox) y que emite con modo
+
+Todo consumidor usa inbox (`processOnce`: efecto único por `(consumidor, evento)`) y tolera entrega repetida, concurrente y sin orden (`test/consumers.spec.ts`, `test/nats.spec.ts`):
+
+- `ledger.transfer.posted` → directorio de comercios (`first_seen_at` es el MÍNIMO y `last_activity_at` el MÁXIMO que llegaron, en cualquier orden).
+- `fee_schedule.published` → tarifario; una versión vieja que llega tarde nunca pisa a la nueva.
+- `payment_intent.contradiction_detected` (pay-payments, interno) → abre una excepción de conciliación `payment_contradiction` (sin corrida ni conector). **No mueve dinero**: no toca el
+  ledger, los conectores ni los pagos. Un mismo hecho (aunque llegue con otro id de evento) abre una sola excepción; sin `mode` en el evento queda con modo desconocido y se ve desde los dos
+  modos. Hoy el contrato no admite `kind: payment_contradiction` ni `run_id: null` en `ReconciliationException` (propuesta 8).
+- `mode` en `settlement.batch.closed` y `reconciliation.exception.opened`: apagado (el AsyncAPI no lo declara); `EVENTS_CARRY_MODE=true` lo enciende cuando el contrato lo admita. `payout.*` ya lo llevan siempre.
+
 ## Probar
 
 ```bash

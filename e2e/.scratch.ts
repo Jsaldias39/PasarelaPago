@@ -13,6 +13,11 @@ try {
     const got = await stack.call('pay-edge', 'GET', `/v1/payment_intents/${id}`, { headers: auth });
     console.log('get', got.status, got.text.slice(0, 500));
   }
+  const { Client } = await import('pg');
+  const c = new Client({ host: '127.0.0.1', port: 54321, database: 'pay_risk', user: 'pay_risk', password: 'dev_only_risk' });
+  await c.connect();
+  console.log('assessments', JSON.stringify((await c.query('SELECT decision, reason_code, screened FROM risk_assessments')).rows));
+  await c.end();
   const bal = await stack.call('pay-edge', 'GET', '/v1/balance', { headers: auth });
   console.log('balance', bal.status, bal.text.slice(0, 300));
 } finally {

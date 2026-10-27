@@ -34,3 +34,8 @@ SQL de referencia, a mover a `mantra-core-health-model` (D-18): [`sql/001_qr_cod
 `yarn test` corre contra Postgres real (esquema aislado por archivo). `src/emv/emv.spec.ts` verifica el CRC con el vector estándar y 12 payloads
 publicados por terceros, y que **cambiar un carácter cualquiera de cualquier payload lo invalida** (más de 1.000 mutaciones). `test/qr.spec.ts`
 valida cada respuesta contra el contrato propuesto, lee el PNG con un decodificador independiente (`jsQR`) y cubre la matriz negativa de identidad.
+
+## Modo de la clave (`X-Pay-Mode`, D-28)
+
+Toda ruta interna lo exige (`test` o `live`; ausente o inválido ⇒ `403 forbidden` sin efecto) y tiene que coincidir con `PAY_MODE` (`sandbox` ↔ `test`, `live` ↔ `live`; obligatorio, sin valor por defecto). El QR guarda su `pay_mode`; leer, anular o buscar por referencia un QR del otro modo da `404`. La `Idempotency-Key` se guarda por `llamador|modo`, y el QR estático (uno por comercio) y el dinámico (uno por intento) son únicos **por modo**. La referencia del QR es única entre modos porque viaja dentro del código que se escanea.
+

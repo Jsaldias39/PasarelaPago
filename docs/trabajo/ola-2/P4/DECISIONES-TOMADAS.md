@@ -9,3 +9,15 @@
 | D-P4-26 | Cuenta de la transferencia en sandbox | `BANK_TRANSFER_BANK_NAME/ACCOUNT_HOLDER/ACCOUNT_NUMBER`: los tres o ninguno (configuración a medias falla al arrancar). Los valores de `.env.example` y de las pruebas son SINTÉTICOS y llevan «SANDBOX». Sin variables, nada se inventa. | Dueño / T-03 |
 | D-P4-27 | `GET /refunds/{id}` con id mal formado | `404 resource_not_found` (coherente con los cobros), no `400`: «mal formado» y «no existe» no se distinguen. | P3 |
 | D-P4-28 | `ct_…` | No se emite. El aceptarlo como alias es del lado de los consumidores; el productor ya cita `ch_`/`cr_`. | P2/P3 |
+
+## Tanda 2b — D-28 (`X-Pay-Mode`)
+
+| ID | Ambigüedad | Supuesto tomado | Confirma |
+|---|---|---|---|
+| D-P4-29 | Nombre de las columnas de modo | `pay_mode` (`test\|live`, el de la CLAVE del pedido) y `connector_mode` (`sandbox\|live`, el del conector; antes `mode`). La API sigue mostrando el modo del conector como `mode`. | P3/P2 |
+| D-P4-30 | Extractos (`GET /statements`) y salud (`GET /connectors/health`) | El contrato declara el modo **opcional** y `pay-settlement` no lo manda al pedir extractos: si viene se valida igual (inválido o de otro despliegue ⇒ `403`), si no viene no hay modo. El extracto del banco no es por modo; con modo, filtra solo el emparejamiento con cobros. Se exige en las 8 operaciones que mueven o consultan cobros, reembolsos y transferencias. | P2 |
+| D-P4-31 | `403` vs `404` ante un id del otro modo | `404` (no revela que existe), como el ledger. La discordancia de modo contra el DESPLIEGUE es `403`. | — |
+| D-P4-32 | Orden de las comprobaciones | Identidad de servicio (403) → modo (403) → `Idempotency-Key` (400) → cuerpo (422). Sin modo válido no hay ningún efecto. | — |
+| D-P4-33 | `mode` en los eventos | **No se agregó**: `connectors.yaml` no lo admite (`additionalProperties: false` en `data` y en el sobre; solo los eventos públicos de `payments.yaml` lo admiten). Propuesta en `PROPUESTAS.md`. Los consumidores obtienen el modo del registro (`GET` por id, con su propia cabecera). | Coordinador |
+| D-P4-34 | `pay-qr` | Exige `PAY_MODE` (sandbox\|live) al arrancar, igual que `pay-connectors`: es un cambio de configuración obligatoria. `POST /qr/decode` (sin estado) también exige el modo, por uniformidad. | P1 |
+| D-P4-35 | Callbacks | El modo sale del **registro del cobro**; un `X-Pay-Mode` en el callback se ignora. Un callback de una referencia ajena queda con `pay_mode` nulo. Los barridos internos (poller, conciliación) usan el modo del registro, nunca una cabecera. | — |

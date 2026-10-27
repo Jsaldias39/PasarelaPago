@@ -36,7 +36,7 @@ Cómo se separa, sin reglas de negocio nuevas:
 - Pedir por un id, un `business_ref`, una cuenta o una retención del OTRO modo da `404 resource_not_found`: no se revela que existe.
 - La `Idempotency-Key` de `post`/`void` se guarda por `(llamador, modo)`.
 - El invariante global verifica cada `(modo, cuenta)` por separado.
-- Los eventos `ledger.*` NO llevan `mode`: el AsyncAPI es `additionalProperties: false` y no lo declara (propuesta en `docs/trabajo/ola-2/P2/PROPUESTAS.md`).
+- Los eventos `ledger.*` NO llevan `mode` todavía: el AsyncAPI es `additionalProperties: false` y no lo declara (propuesta 1 en `docs/trabajo/ola-2/P2/PROPUESTAS.md`). El código ya lo conoce: con `EVENTS_CARRY_MODE=true` cada evento lo lleva, sin tocar código.
 
 ## Cambiar la derivación de ids (migración obligatoria)
 

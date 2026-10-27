@@ -75,6 +75,16 @@ a los de un proveedor real (cada `MOCK_PUMP_INTERVAL_MS`).
 - **`bank_transfer_instructions`** lleva `bank_name`, `account_holder` y `account_number` desde `BANK_TRANSFER_*` (los tres o ninguno). Sin cuenta (T-03) NO se inventa: salen solo `type` y `reference` y `pay-payments` responde `422 payment_method_unavailable`.
 - Pendiente: `X-Pay-Mode` (D-28) y el adaptador del Mercantil.
 
+## Modo de la clave (`X-Pay-Mode`, D-28)
+
+- **Exigido** (`test` o `live`) en las 8 operaciones que mueven o consultan dinero: `POST /charges`, `GET /charges/{id}`, `GET /charges/{id}/status`, `POST /charges/{id}/cancel`, `POST /charges/{id}/refunds`, `GET /refunds/{id}`, `POST /transfers`, `GET /transfers/{reference}`. Ausente, repetido o inválido ⇒ `403 forbidden` **antes de cualquier efecto** (ni fila, ni clave de idempotencia, ni evento, ni llamada al proveedor). Nunca se cae en `live`.
+- **Coincide con el despliegue:** `PAY_MODE=sandbox` ↔ `test`, `live` ↔ `live`. Una clave `live` contra un sandbox (o `test` contra un live) ⇒ `403`. El ruteo solo ofrece conectores del modo de la clave y la base lo impide (`connector_*_mode_match_ck`): `mock` jamás opera con una clave `live`.
+- **Se guarda** en `pay_mode` (cobros, reembolsos, transferencias); la columna que describe el conector se llama `connector_mode` (es el `mode` que muestra la API). Toda lectura filtra por `(id, pay_mode)`: un id del otro modo da `404`.
+- **La misma `Idempotency-Key` en `test` y en `live` son dos operaciones** (la clave se guarda por `llamador|modo`; los índices únicos incluyen `pay_mode`).
+- **Callbacks:** no traen `X-Pay-Mode` (se ignora si viniera); el modo sale del registro del cobro y queda en `connector_callback_events.pay_mode` (nulo si la referencia no es nuestra).
+- **Extractos y salud:** el contrato lo declara opcional; si viene se valida igual (inválido o de otro despliegue ⇒ `403`) y en extractos filtra el emparejamiento.
+- **Llamadas salientes** (auditoría): la única es `HttpQrClient` → `pay-qr`, que propaga `X-Pay-Mode` con el modo del cobro. El resto de la salida es NATS (eventos) y el banco simulado (en proceso).
+
 ## Variables de entorno
 
 Ver `.env.example`. Obligatorias: `DB_*`, `PAY_MODE`. Secretos [DEV]: `PAY_SECRET_CONNECTOR_<CODIGO>_<NOMBRE>` (lista separada por comas
