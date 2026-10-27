@@ -111,6 +111,7 @@ export class HoldService {
         ),
       ]);
       const verdict = interpretTransfers(statuses);
+      if (verdict.kind === 'conflict') return { kind: 'problem', error: new ProblemError('idempotency_key_reused', { detail: 'El (business_ref, attempt) ya se aplicó con otro contenido' }) };
       const hdId = publicId('hd', input.business_ref, input.attempt);
       const now = new Date();
       const expiresAt = new Date(now.getTime() + input.expires_in_seconds * 1000);

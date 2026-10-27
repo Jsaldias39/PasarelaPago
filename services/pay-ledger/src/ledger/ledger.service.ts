@@ -14,7 +14,7 @@ import { type BalanceDto, type LegDto, type TransactionDto, balanceOf } from './
 import { type PostedLeg, emitTransferPosted } from './ledger-events';
 import { accountTbId, publicId } from './ids';
 import { parseOrThrow, accountQuery, statementQuery, transactionCreate, merchantId } from './schemas';
-import { CreateTransferStatus, TB_ENGINE, TigerBeetleEngine, plainTransfer, transferStatusName } from './tb-engine';
+import { CreateTransferStatus, TB_ENGINE, TigerBeetleEngine, isConflictStatus, plainTransfer, sameTransfer, transferStatusName } from './tb-engine';
 import { inTransaction } from './unit-of-work';
 
 interface TransactionRow {
@@ -33,10 +33,13 @@ type Outcome =
   | { kind: 'problem'; error: ProblemError };
 
 /** Resultado de interpretar el lote que devolvió TigerBeetle. */
-type Verdict = { kind: 'posted'; replay: boolean } | { kind: 'rejected'; code: 'insufficient_funds'; tbStatus: string };
+type Verdict = { kind: 'posted'; replay: boolean } | { kind: 'rejected'; code: 'insufficient_funds'; tbStatus: string } | { kind: 'conflict'; tbStatus: string };
 
 /** Traduce los estados de TigerBeetle. Cualquier otro es un fallo inesperado, nunca se disfraza de rechazo de negocio. */
 export function interpretTransfers(statuses: readonly number[]): Verdict {
+  // El id ya existe con OTRO contenido: la misma clave (business_ref, attempt) se reutilizó con otro cuerpo. Nunca es un éxito.
+  const conflict = statuses.find(isConflictStatus);
+  if (conflict !== undefined) return { kind: 'conflict', tbStatus: transferStatusName(conflict) };
   if (statuses.every((s) => s === CreateTransferStatus.created)) return { kind: 'posted', replay: false };
   if (statuses.every((s) => s === CreateTransferStatus.exists)) return { kind: 'posted', replay: true };
   const culprit = statuses.find(
@@ -47,6 +50,9 @@ export function interpretTransfers(statuses: readonly number[]): Verdict {
   if (culprit !== undefined) return { kind: 'rejected', code: 'insufficient_funds', tbStatus: transferStatusName(culprit) };
   throw new Error(`TigerBeetle devolvió estados inesperados: ${statuses.map(transferStatusName).join(',')}`);
 }
+
+/** `422 idempotency_key_reused` (el código que el contrato declara para esta ruta): el mismo `(business_ref, attempt)` con otro cuerpo. */
+const reusedKey = () => new ProblemError('idempotency_key_reused', { detail: 'El (business_ref, attempt) ya se aplicó con otro contenido' });
 
 const sha256 = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 
@@ -111,12 +117,20 @@ export class LedgerService {
         ),
       );
       let statuses = await this.tb.createTransfers(batch);
-      // En un lote enlazado, un `exists` hace fallar a toda la cadena (`linked_event_failed` en las demás). Si TigerBeetle ya había aplicado
-      // este asiento (caída antes de registrarlo en Postgres), se verifica por id que están TODAS las patas y se lo trata como repetición.
+      // En un lote enlazado, un `exists` hace fallar a toda la cadena (`linked_event_failed` en las demás, SIN mirar su contenido). Para tratarlo
+      // como «ya aplicado» (caída antes de registrarlo en Postgres) hace falta que TODAS las patas guardadas en TigerBeetle sean EXACTAMENTE las que se
+      // piden ahora; si alguna falta o difiere, la clave se reutilizó con otro cuerpo y no se devuelve éxito.
       if (batch.length > 1 && statuses.some((st) => st === CreateTransferStatus.exists) && statuses.every((st) => st === CreateTransferStatus.exists || st === CreateTransferStatus.linked_event_failed)) {
-        if ((await this.tb.lookupTransfers(plan.tbIds)).length === plan.tbIds.length) statuses = statuses.map(() => CreateTransferStatus.exists);
+        const stored = new Map((await this.tb.lookupTransfers(plan.tbIds)).map((t) => [t.id, t]));
+        const identical = batch.every((expected) => {
+          const found = stored.get(expected.id);
+          return found !== undefined && sameTransfer(found, expected);
+        });
+        if (!identical) return { kind: 'problem', error: reusedKey() };
+        statuses = statuses.map(() => CreateTransferStatus.exists);
       }
       const verdict = interpretTransfers(statuses);
+      if (verdict.kind === 'conflict') return { kind: 'problem', error: reusedKey() };
       const txId = publicId('tx', input.business_ref, input.attempt);
       const now = new Date();
 

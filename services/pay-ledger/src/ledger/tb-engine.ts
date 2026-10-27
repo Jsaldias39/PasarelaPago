@@ -78,6 +78,28 @@ export function voidPendingTransfer(id: bigint, pendingId: bigint, t: PlainTrans
   return { ...base(id, t.debit, t.credit, 0n, TRANSFER_CODE[t.code]), pending_id: pendingId, flags: TransferFlags.void_pending_transfer };
 }
 
+/** Código numérico de TigerBeetle de un movimiento del contrato. */
+export const transferCode = (code: LegCode): number => TRANSFER_CODE[code];
+
+/** `exists_with_different_*`: el id ya existe pero con OTRO contenido. Reutilizar `(business_ref, attempt)` con otro cuerpo termina acá. */
+export const isConflictStatus = (status: number): boolean => (CreateTransferStatus[status] ?? '').startsWith('exists_with_different');
+
+/**
+ * ¿Es `found` (lo que TigerBeetle tiene guardado) exactamente `expected` (lo que se pide ahora)? Compara id, cuentas, importe, ledger, código y
+ * banderas. Lo usa quien quiere adoptar como «ya aplicado» un lote enlazado: un `exists` de TigerBeetle en una cadena no dice nada del resto.
+ */
+export function sameTransfer(found: Transfer, expected: Transfer): boolean {
+  return (
+    found.id === expected.id &&
+    found.debit_account_id === expected.debit_account_id &&
+    found.credit_account_id === expected.credit_account_id &&
+    found.amount === expected.amount &&
+    found.ledger === expected.ledger &&
+    found.code === expected.code &&
+    found.flags === expected.flags
+  );
+}
+
 /** Nombre legible de un estado de TigerBeetle (para el rastro de rechazos; no lleva datos personales). */
 export function transferStatusName(status: number): string {
   return CreateTransferStatus[status] ?? `desconocido_${status}`;

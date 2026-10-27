@@ -479,6 +479,129 @@ describe('recuperación ante una caída entre TigerBeetle y Postgres (ids determ
   });
 });
 
+describe('reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused)', () => {
+  const reused = (res: { status: number; body: { code?: string } }) => {
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('idempotency_key_reused');
+  };
+  const rows = async (ref: string) => [
+    await count('SELECT count(*)::int AS n FROM ledger_transactions WHERE business_ref = $1', [ref]),
+    await count('SELECT count(*)::int AS n FROM ledger_legs WHERE business_ref = $1', [ref]),
+  ];
+
+  /** TigerBeetle aplicó [970 → pending, 30 → fees] como lote enlazado y el servicio murió antes de registrarlo. */
+  async function applied() {
+    const m = merchantId();
+    const ref = businessRef();
+    await createTx(body(businessRef('seed'), 1, [leg(CLEARING, `merchant:${m}:pending`, 1)]));
+    await createTx(body(businessRef('seed'), 1, [leg(CLEARING, 'platform:fees', 1, 'fee')]));
+    await ctx.engine.createTransfers([
+      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 970n, code: 'charge' }, true),
+      plainTransfer({ id: legTbId(ref, 1, 1), debit: accountTbId(CLEARING), credit: accountTbId('platform:fees'), amount: 30n, code: 'fee' }, false),
+    ]);
+    return { m, ref, before: (await balance(`merchant:${m}:pending`)).balance_minor };
+  }
+
+  it('correcto: el reintento IDÉNTICO tras la caída adopta lo aplicado (201) y no duplica', async () => {
+    const { m, ref, before } = await applied();
+    const res = await createTx(body(ref, 1, [leg(CLEARING, `merchant:${m}:pending`, 970), leg(CLEARING, 'platform:fees', 30, 'fee')]));
+    expect(res.status).toBe(201);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(before);
+  });
+
+  it.each([
+    ['la primera pata con +1 centavo (TigerBeetle responde exists_with_different_amount)', (m: string) => [leg(CLEARING, `merchant:${m}:pending`, 971), leg(CLEARING, 'platform:fees', 30, 'fee')]],
+    ['la SEGUNDA pata con +1 centavo (estados mezclados exists / linked_event_failed: TigerBeetle ni mira la segunda)', (m: string) => [leg(CLEARING, `merchant:${m}:pending`, 970), leg(CLEARING, 'platform:fees', 31, 'fee')]],
+    ['la segunda pata con otra cuenta de destino (estados mezclados)', (m: string) => [leg(CLEARING, `merchant:${m}:pending`, 970), leg(CLEARING, `merchant:${m}:available`, 30, 'fee')]],
+    ['la segunda pata con otro código (estados mezclados)', (m: string) => [leg(CLEARING, `merchant:${m}:pending`, 970), leg(CLEARING, 'platform:fees', 30, 'adjustment')]],
+    ['la primera pata con otro código', (m: string) => [leg(CLEARING, `merchant:${m}:pending`, 970, 'adjustment'), leg(CLEARING, 'platform:fees', 30, 'fee')]],
+    ['la primera pata con otra cuenta de origen', (m: string) => [leg('connector:otro_banco:clearing', `merchant:${m}:pending`, 970), leg(CLEARING, 'platform:fees', 30, 'fee')]],
+    ['una pata de MENOS (el pedido ya no es el mismo lote)', (m: string) => [leg(CLEARING, `merchant:${m}:pending`, 970)]],
+    ['una pata de MÁS', (m: string) => [leg(CLEARING, `merchant:${m}:pending`, 970), leg(CLEARING, 'platform:fees', 30, 'fee'), leg(CLEARING, 'platform:fees', 1, 'fee')]],
+  ])('límite: %s ⇒ 422, sin éxito, sin registro y sin mover dinero; y el reintento correcto sigue funcionando', async (_name, make) => {
+    const { m, ref, before } = await applied();
+    const refused = await createTx(body(ref, 1, make(m)));
+    reused(refused);
+    expect(await rows(ref)).toEqual([0, 0]);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(before);
+    // no quedó envenenado: el pedido verdadero se adopta
+    expect((await createTx(body(ref, 1, [leg(CLEARING, `merchant:${m}:pending`, 970), leg(CLEARING, 'platform:fees', 30, 'fee')]))).status).toBe(201);
+  });
+
+  it('límite: SOLO una de las dos patas está aplicada (anomalía: un lote enlazado es atómico) ⇒ se rechaza, no se completa a ciegas', async () => {
+    const m = merchantId();
+    const ref = businessRef();
+    await createTx(body(businessRef('seed'), 1, [leg(CLEARING, `merchant:${m}:pending`, 1)]));
+    await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 970n, code: 'charge' }, false)]);
+    const before = (await balance(`merchant:${m}:pending`)).balance_minor;
+    reused(await createTx(body(ref, 1, [leg(CLEARING, `merchant:${m}:pending`, 970), leg(CLEARING, 'platform:fees', 30, 'fee')])));
+    expect(await rows(ref)).toEqual([0, 0]);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(before);
+  });
+
+  it('una sola pata ya aplicada con otro monto también es 422 (antes: 500)', async () => {
+    const m = merchantId();
+    const ref = businessRef();
+    await createTx(body(businessRef('seed'), 1, [leg(CLEARING, `merchant:${m}:pending`, 1)]));
+    await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 900n, code: 'charge' }, false)]);
+    reused(await createTx(body(ref, 1, [leg(CLEARING, `merchant:${m}:pending`, 901)])));
+    expect(await rows(ref)).toEqual([0, 0]);
+  });
+
+  describe('contracargo partido ya aplicado (100 desde `pending` + 50 de deuda) y reintento con otro contenido', () => {
+    async function splitApplied() {
+      const m = merchantId();
+      const ref = businessRef('dispute');
+      await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:pending`, 100)]));
+      await ctx.engine.ensureAccounts([parseAccount(`merchant:${m}:debt`) as AccountInfo]);
+      await ctx.engine.createTransfers([
+        plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment' }, true),
+        plainTransfer({ id: legTbId(ref, 1, 0, 'debt'), debit: accountTbId(`merchant:${m}:debt`), credit: accountTbId(CLEARING), amount: 50n, code: 'adjustment' }, false),
+      ]);
+      return { m, ref };
+    }
+    const dispute = (m: string, ref: string, gross: number, clearing = CLEARING) => createTx(body(ref, 1, [leg(`merchant:${m}:pending`, clearing, gross, 'adjustment')]));
+
+    it.each([
+      ['bruto +1 centavo (las mitades aplicadas suman 150, no 151)', 151, CLEARING],
+      ['bruto −1 centavo', 149, CLEARING],
+      ['otra compensación de conector', 150, 'connector:otro_banco:clearing'],
+    ])('%s ⇒ 422 y no se mueve nada', async (_name, gross, clearing) => {
+      const { m, ref } = await splitApplied();
+      reused(await dispute(m, ref, gross, clearing));
+      expect(await rows(ref)).toEqual([0, 0]);
+    });
+
+    it('el reintento idéntico (150) adopta lo aplicado', async () => {
+      const { m, ref } = await splitApplied();
+      const res = await dispute(m, ref, 150);
+      expect(res.status).toBe(201);
+      expect(res.body.legs.map((l: { amount_minor: number }) => l.amount_minor)).toEqual([100, 50]);
+    });
+
+    it('solo está aplicada una mitad y no suma el bruto ⇒ 422 (la otra mitad no se inventa)', async () => {
+      const m = merchantId();
+      const ref = businessRef('dispute');
+      await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:pending`, 100)]));
+      await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 60n, code: 'adjustment' }, false)]);
+      reused(await dispute(m, ref, 100));
+      expect(await rows(ref)).toEqual([0, 0]);
+      expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(40);
+    });
+
+    it('lo aplicado debita OTRA cuenta (de otro comercio) ⇒ 422', async () => {
+      const m = merchantId();
+      const other = merchantId();
+      const ref = businessRef('dispute');
+      await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${other}:pending`, 100)]));
+      await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${other}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment' }, false)]);
+      reused(await dispute(m, ref, 100));
+      expect((await balance(`merchant:${other}:pending`)).balance_minor).toBe(0); // lo suyo ya estaba aplicado y nadie lo tocó de nuevo
+      expect(await rows(ref)).toEqual([0, 0]);
+    });
+  });
+});
+
 describe('cliente de TigerBeetle (H-4 y H-5)', () => {
   it('un cluster_id equivocado no da error en TigerBeetle: el servicio responde 503 ledger_unavailable dentro de su propio timeout', async () => {
     const config = loadLedgerConfig();

@@ -1,4 +1,6 @@
 import { type LedgerTestContext, businessRef, checked, createLedgerContext, merchantId } from './helpers/app';
+import { accountTbId, holdTbId } from '../src/ledger/ids';
+import { pendingTransfer } from '../src/ledger/tb-engine';
 import { waitFor } from './helpers/wait';
 
 let ctx: LedgerTestContext;
@@ -213,5 +215,21 @@ describe('vencimiento de una retención (REQ-P2-3)', () => {
     expect(await ctx.holds.sweepExpired(0, new Date(Date.now() + 5000))).toBe(0); // idempotente
     expect((await rows("SELECT count(*)::int AS n FROM outbox_events WHERE type = 'ledger.hold.expired' AND aggregate_id = $1", [hold.body.id]))[0].n).toBe(1);
     expect((await balance(`merchant:${m}:available`)).balance_minor).toBe(2500);
+  });
+});
+
+describe('POST /holds — reutilizar (business_ref, attempt) con otro contenido tras una caída', () => {
+  it('TigerBeetle ya tiene esa retención con OTRO monto: 422 idempotency_key_reused, nada se registra ni se mueve (antes: 500)', async () => {
+    const m = merchantId();
+    await fund(m, 1_000);
+    const payload = holdBody(m, 100);
+    // el servicio murió después de aplicar una retención de 700 con el mismo (business_ref, attempt)
+    await ctx.engine.createTransfers([
+      pendingTransfer({ id: holdTbId(payload.business_ref, 1), debit: accountTbId(`merchant:${m}:available`), credit: accountTbId('payout:clearing'), amount: 700n, code: 'payout' }, 60),
+    ]);
+    const res = await createHold(payload);
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('idempotency_key_reused');
+    expect(Number((await ctx.db.pool.query('SELECT count(*)::int AS n FROM ledger_holds WHERE business_ref = $1', [payload.business_ref])).rows[0].n)).toBe(0);
   });
 });
