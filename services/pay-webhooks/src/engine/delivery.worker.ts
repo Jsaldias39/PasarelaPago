@@ -54,26 +54,41 @@ export class DeliveryWorker {
     const now = this.clock.now();
     const claimed = await this.claim(now);
     const summary = { claimed: claimed.length, succeeded: 0, retrying: 0, dead: 0 };
-    for (const delivery of claimed) {
-      const outcome = await this.deliver(delivery);
-      summary[outcome] += 1;
-    }
+    // Endpoints en paralelo entre sí; dentro de un endpoint, hasta `perEndpointConcurrency` a la vez. Así uno lento no frena al resto.
+    const byEndpoint = new Map<string, Claimed[]>();
+    for (const delivery of claimed) byEndpoint.set(delivery.endpoint_id, [...(byEndpoint.get(delivery.endpoint_id) ?? []), delivery]);
+    await Promise.all(
+      [...byEndpoint.values()].map(async (queue) => {
+        const lanes = Array.from({ length: queue.length }, async () => {
+          for (let next = queue.shift(); next; next = queue.shift()) summary[await this.deliver(next)] += 1;
+        });
+        await Promise.all(lanes);
+      }),
+    );
     return summary;
   }
 
   private async claim(now: Date): Promise<Claimed[]> {
-    const { batchSize, leaseMs } = this.config.delivery;
+    const { batchSize, leaseMs, perEndpointBatch } = this.config.delivery;
+    // `due` numera las vencidas de cada endpoint para que ninguno monopolice el lote; el candado (SKIP LOCKED) va en la consulta
+    // que además repite `status` y `next_attempt_at`, así un reclamo concurrente que ya cambió la fila no se vuelve a tomar.
     const result = await this.pool.query(
-      `UPDATE webhook_deliveries d
+      `WITH due AS (
+         SELECT id, row_number() OVER (PARTITION BY endpoint_id ORDER BY next_attempt_at, id) AS rn
+           FROM webhook_deliveries
+          WHERE status = 'pending' AND next_attempt_at <= $1::timestamptz),
+       picked AS (
+         SELECT d.id FROM webhook_deliveries d JOIN due ON due.id = d.id
+          WHERE d.status = 'pending' AND d.next_attempt_at <= $1::timestamptz AND due.rn <= $4
+          ORDER BY d.next_attempt_at, d.id
+          LIMIT $2
+          FOR UPDATE OF d SKIP LOCKED)
+       UPDATE webhook_deliveries d
           SET attempts = d.attempts + 1, next_attempt_at = $1::timestamptz + ($3 || ' milliseconds')::interval
-        WHERE d.id IN (
-          SELECT id FROM webhook_deliveries
-           WHERE status = 'pending' AND next_attempt_at <= $1::timestamptz
-           ORDER BY next_attempt_at, id
-           LIMIT $2
-           FOR UPDATE SKIP LOCKED)
-        RETURNING d.id, d.endpoint_id, d.event_id, d.event_type, d.payload, d.attempts`,
-      [now.toISOString(), batchSize, String(leaseMs)],
+         FROM picked
+        WHERE d.id = picked.id
+       RETURNING d.id, d.endpoint_id, d.event_id, d.event_type, d.payload, d.attempts`,
+      [now.toISOString(), batchSize, String(leaseMs), perEndpointBatch],
     );
     return result.rows as unknown as Claimed[];
   }
@@ -91,7 +106,7 @@ export class DeliveryWorker {
     try {
       const target = await this.guard.check(endpoint.url);
       const headers = await this.signedRequestHeaders(endpoint, delivery, started);
-      const response = await this.transport.send({ target, headers, body: delivery.payload, timeoutMs: this.config.delivery.timeoutMs });
+      const response = await this.transport.send({ target, headers, body: delivery.payload, timeoutMs: this.config.delivery.timeoutMs, idleTimeoutMs: Math.min(this.config.delivery.timeoutMs, 10_000) });
       statusCode = response.status;
     } catch (error) {
       errorCode = error instanceof TargetRejectedError ? `ssrf_${error.reason}` : error instanceof TransportError ? error.reason : 'internal_error';

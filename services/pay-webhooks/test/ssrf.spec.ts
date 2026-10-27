@@ -1,5 +1,6 @@
+import { createServer as createNetServer, type AddressInfo, type Socket } from 'node:net';
 import { createServer, type Server } from 'node:https';
-import type { AddressInfo } from 'node:net';
+import { createServer as createTlsServer, type TLSSocket } from 'node:tls';
 import { isPublicIp } from '../src/ssrf/ip-policy';
 import { HttpsTransport, TransportError } from '../src/ssrf/https-transport';
 import { TargetGuard, TargetRejectedError, type Resolver } from '../src/ssrf/target-guard';
@@ -167,6 +168,7 @@ describe('HttpsTransport — conexión real fijada a la IP validada', () => {
   let port: number;
   const seen: { host: string | undefined; body: string; sni: string | false | undefined }[] = [];
   let mode: 'ok' | 'redirect' | 'hang' | 'big' = 'ok';
+  let bigFlushed = 0;
   const transport = () => new HttpsTransport({ ca: cert.cert });
   const target = (overrides: Partial<{ hostname: string; port: number; ip: string }> = {}) => ({ hostname: 'receiver.test', port, path: '/hook?x=1', ip: '127.0.0.1', family: 4 as const, ...overrides });
 
@@ -183,8 +185,18 @@ describe('HttpsTransport — conexión real fijada a la IP validada', () => {
           return void res.end();
         }
         if (mode === 'big') {
+          // 10 MB en trozos de 64 KB, contando lo que realmente se vació hacia el cliente antes de que cierre
           res.writeHead(200, { 'content-type': 'text/plain' });
-          return void res.end(Buffer.alloc(1024 * 1024, 97));
+          const chunk = Buffer.alloc(64 * 1024, 97);
+          let remaining = 160;
+          const pump = () => {
+            while (remaining > 0 && !res.destroyed) {
+              remaining -= 1;
+              if (!res.write(chunk, () => (bigFlushed += chunk.length))) return void res.once('drain', pump);
+            }
+            res.end();
+          };
+          return pump();
         }
         res.writeHead(200).end('ok');
       });
@@ -236,9 +248,83 @@ describe('HttpsTransport — conexión real fijada a la IP validada', () => {
     expect(Date.now() - started).toBeLessThan(2000);
   });
 
-  it('nivel LÍMITE: una respuesta enorme se corta (response_too_large)', async () => {
+  it('NO lee la respuesta: un cuerpo de 10 MB no se descarga (resuelve con el estado y destruye el socket)', async () => {
     mode = 'big';
-    await expect(transport().send({ target: target(), headers: {}, body: '{}', timeoutMs: 3000 })).rejects.toMatchObject({ reason: 'response_too_large' });
+    bigFlushed = 0;
+    const res = await transport().send({ target: target(), headers: {}, body: '{}', timeoutMs: 3000 });
+    expect(res.status).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(bigFlushed).toBeLessThan(10 * 1024 * 1024);
+  });
+
+  describe('DoS por goteo: plazo DURO de pared', () => {
+    let tls: ReturnType<typeof createTlsServer>;
+    let tlsPort: number;
+    const sockets: Socket[] = [];
+    let dripped = 0;
+    let closedAt: number | undefined;
+    let acceptedAt = 0;
+
+    beforeAll(async () => {
+      tls = createTlsServer({ cert: cert.cert, key: cert.key }, (socket: TLSSocket) => {
+        sockets.push(socket);
+        acceptedAt = Date.now();
+        socket.on('close', () => (closedAt = Date.now()));
+        socket.on('error', () => undefined);
+        socket.once('data', () => {
+          // responde la cabecera de a UN byte cada 200 ms y nunca la termina: el timeout de inactividad se renueva con cada byte
+          const head = Buffer.from(`HTTP/1.1 200 OK\r\nX-Lento: ${'a'.repeat(10_000)}`);
+          let i = 0;
+          const timer = setInterval(() => {
+            if (socket.destroyed || i >= head.length) return void clearInterval(timer);
+            socket.write(head.subarray(i, (i += 1)));
+            dripped += 1;
+          }, 200);
+          socket.on('close', () => clearInterval(timer));
+        });
+      });
+      await new Promise<void>((resolve) => tls.listen(0, '127.0.0.1', resolve));
+      tlsPort = (tls.address() as AddressInfo).port;
+    });
+    afterAll(async () => {
+      sockets.forEach((s) => s.destroy());
+      await new Promise<void>((resolve) => tls.close(() => resolve()));
+    });
+    beforeEach(() => {
+      dripped = 0;
+      closedAt = undefined;
+    });
+
+    it('un receptor que gotea 1 byte cada 200 ms no mantiene viva la entrega: termina por timeout cerca de 1 s y el socket queda destruido', async () => {
+      const started = Date.now();
+      await expect(transport().send({ target: target({ port: tlsPort }), headers: {}, body: '{}', timeoutMs: 1000, idleTimeoutMs: 5000 })).rejects.toMatchObject({ name: 'TransportError', reason: 'timeout' });
+      const elapsed = Date.now() - started;
+      expect(elapsed).toBeGreaterThanOrEqual(900);
+      expect(elapsed).toBeLessThan(1800);
+      expect(dripped).toBeGreaterThan(0); // el goteo estaba ocurriendo: sin el plazo duro habría seguido
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(closedAt).toBeDefined(); // el servidor vio cerrarse el socket
+      const dripAtClose = dripped;
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      expect(dripped).toBe(dripAtClose);
+    });
+
+    it('un servidor que acepta la conexión y jamás completa el TLS también cae por el plazo duro', async () => {
+      const held: Socket[] = [];
+      const silent = createNetServer((socket) => {
+        held.push(socket);
+        socket.on('error', () => undefined);
+      });
+      await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
+      try {
+        const started = Date.now();
+        await expect(transport().send({ target: target({ port: (silent.address() as AddressInfo).port }), headers: {}, body: '{}', timeoutMs: 700, idleTimeoutMs: 60_000 })).rejects.toMatchObject({ reason: 'timeout' });
+        expect(Date.now() - started).toBeLessThan(1500);
+      } finally {
+        held.forEach((socket) => socket.destroy());
+        await new Promise<void>((resolve) => silent.close(() => resolve()));
+      }
+    });
   });
 
   it('nivel INVÁLIDO: un puerto cerrado da connection_error sin filtrar la dirección', async () => {

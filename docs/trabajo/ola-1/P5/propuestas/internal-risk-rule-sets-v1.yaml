@@ -13,6 +13,9 @@ info:
     (propuesta, Q-21/Q-23); quién publicó sale de la credencial, nunca del cuerpo.
 servers:
   - url: http://pay-risk:3000
+security:
+  - mTLS: []
+    OperatorToken: []
 paths:
   /rule_sets:
     post:
@@ -43,6 +46,9 @@ paths:
         '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
         '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
 components:
+  securitySchemes:
+    mTLS: { type: mutualTLS, description: Certificado de servicio; la identidad se confirma además con `X-Service-Id`. }
+    OperatorToken: { type: http, scheme: bearer, bearerFormat: JWT, description: 'Credencial de la persona operadora: de ahí salen su identidad (`sub`) y sus roles.' }
   parameters:
     ServiceId:
       name: X-Service-Id

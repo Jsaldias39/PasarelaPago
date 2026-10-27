@@ -1,26 +1,26 @@
 # Evidencia P3.H1.M3
-fecha: 2026-10-27T17:02:56Z
+fecha: 2026-10-27T17:05:53Z
 directorio: services/pay-payments
-comando: yarn test src/domain/state.spec.ts test/events.consumers.spec.ts --verbose
+comando: yarn test src/domain/state.spec.ts test/events.consumers.spec.ts --verbose --runInBand
 ---- salida ----
-[33m[Nest] 11423  - [39m10/27/2026, 5:03:06 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39mObject(2) {
-  event_id: [32m'4f7656e4-c0ba-4859-84e9-c1534b6177c9'[39m,
+[33m[Nest] 20298  - [39m10/27/2026, 5:06:02 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39mObject(2) {
+  event_id: [32m'109e4f5e-3864-4717-81df-a44080ee7496'[39m,
   reason: [32m'version inválida'[39m
 }
-[33m[Nest] 11423  - [39m10/27/2026, 5:03:06 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39m[33mEvento descartado[39m
-[33m[Nest] 11423  - [39m10/27/2026, 5:03:10 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39mObject(2) {
-  event_id: [32m'5cf1223f-86a6-4cfe-a590-a8ee3c3e7aa0'[39m,
+[33m[Nest] 20298  - [39m10/27/2026, 5:06:02 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39m[33mEvento descartado[39m
+[33m[Nest] 20298  - [39m10/27/2026, 5:06:06 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39mObject(2) {
+  event_id: [32m'73fa60a7-65fd-4851-81ce-201fd2338227'[39m,
   err: [32m'Error'[39m
 }
-[33m[Nest] 11423  - [39m10/27/2026, 5:03:10 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39m[33mEl consumidor falló; se reentrega[39m
-[33m[Nest] 11423  - [39m10/27/2026, 5:03:15 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39mObject(2) {
-  event_id: [32m'7d569fd6-993e-4f6f-a6da-d4fb8e4b450d'[39m,
+[33m[Nest] 20298  - [39m10/27/2026, 5:06:06 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39m[33mEl consumidor falló; se reentrega[39m
+[33m[Nest] 20298  - [39m10/27/2026, 5:06:11 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39mObject(2) {
+  event_id: [32m'3d64b0fb-416c-4612-9f27-149d76397d90'[39m,
   err: [32m'Error'[39m
 }
-[33m[Nest] 11423  - [39m10/27/2026, 5:03:15 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39m[33mEl consumidor falló; se reentrega[39m
+[33m[Nest] 20298  - [39m10/27/2026, 5:06:11 PM [33m   WARN[39m [38;5;3m[NatsConsumers] [39m[33mEl consumidor falló; se reentrega[39m
 Test Suites: 2 passed, 2 total
 Tests:       28 passed, 28 total
 Snapshots:   0 total
-Time:        19.89 s
+Time:        18.357 s, estimated 20 s
 Ran all test suites matching src/domain/state.spec.ts|test/events.consumers.spec.ts.
 ---- código de salida: 0 ----

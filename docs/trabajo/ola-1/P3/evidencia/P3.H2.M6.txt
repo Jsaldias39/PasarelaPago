@@ -1,0 +1,51 @@
+# Evidencia P3.H2.M6
+fecha: 2026-10-27T17:08:31Z
+directorio: services/pay-payments
+comando: yarn test test/refunds.disputes.spec.ts -t P3.H2.M6 --verbose --runInBand
+---- salida ----
+2026-10-27T17:08:38.825Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'settleDispute',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:08:39.823Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'settleDispute',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:08:40.520Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'settleDispute',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:08:41.531Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'settleDispute',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+Test Suites: 1 passed, 1 total
+Tests:       13 skipped, 5 passed, 18 total
+Snapshots:   0 total
+Time:        11.95 s, estimated 35 s
+Ran all test suites matching test/refunds.disputes.spec.ts with tests matching "P3.H2.M6".
+---- código de salida: 0 ----

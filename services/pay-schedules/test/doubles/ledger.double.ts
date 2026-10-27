@@ -148,12 +148,20 @@ export async function startLedgerDouble(contractPath: string): Promise<LedgerDou
       return send(req, res, 201, holdView(hold, 'created'));
     }
 
-    const holdMatch = /^\/holds\/(hd_[a-z0-9]+)(\/post)?$/.exec(req.path);
+    const holdMatch = /^\/holds\/(hd_[a-z0-9]+)(\/post|\/void)?$/.exec(req.path);
     if (holdMatch) {
       const hold = holds.get(holdMatch[1]);
       if (!hold || hold.mode !== mode) return problem(res, 404, 'resource_not_found');
       if (req.method === 'GET' && !holdMatch[2]) return send(req, res, 200, holdView(hold, 'exists'));
-      if (req.method === 'POST' && holdMatch[2]) {
+      if (req.method === 'POST' && holdMatch[2] === '/void') {
+        if (hold.status === 'voided' && hold.postKey === req.headers['idempotency-key']) return send(req, res, 200, holdView(hold, 'exists'));
+        if (hold.status !== 'pending') return problem(res, 409, 'invalid_state_transition');
+        hold.status = 'voided';
+        hold.postKey = req.headers['idempotency-key'];
+        pending.set(`${mode}|${hold.debit_account}`, (pending.get(`${mode}|${hold.debit_account}`) ?? 0) - hold.amount_minor);
+        return send(req, res, 200, holdView(hold, 'exists'));
+      }
+      if (req.method === 'POST' && holdMatch[2] === '/post') {
         if (hold.status === 'posted' && hold.postKey === req.headers['idempotency-key']) return send(req, res, 200, holdView(hold, 'exists'));
         if (hold.status !== 'pending') return problem(res, 409, 'invalid_state_transition');
         hold.status = 'posted';

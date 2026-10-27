@@ -34,6 +34,7 @@ Contrato: `contracts/openapi/internal-connectors-v1.yaml`; eventos: `contracts/a
    la fila y la marca; un `Unavailable` o rechazo **posterior a un intento ambiguo** se eleva a ambiguo (`ProviderGateway.callIdempotent`).
    Solo la **primera** llamada que falla con `Unavailable` prueba «no se envió» (`502 connector_unavailable`). No hay conmutación a otro
    conector después de un intento ambiguo. Los registros de dinero no se borran.
+1b. **Un envío a la vez por transacción de dinero.** `withSendLock` (candado de sesión de Postgres con sondeo) serializa los envíos de un mismo cobro, reembolso o transferencia; el que espera vuelve a leer el estado y no llama de nuevo si ya quedó resuelto. El flag «pudo llegar» se lee y marca en una sola sentencia, es monótono (trigger `connector_money_flags_monotone`) y el «no se envió» exige ser el único reclamo (`send_claims`).
 2. **Referencia determinista y estable hacia el proveedor:** el id del cobro (`ch_…`), del reembolso (`cr_…`) y `business_ref:attempt`
    de la transferencia. Reintentar presenta siempre la misma.
 3. **Un callback sin autenticar no tiene efecto:** firma, red de origen, ventana o secreto ausente ⇒ `401`, nada se guarda ni se publica.

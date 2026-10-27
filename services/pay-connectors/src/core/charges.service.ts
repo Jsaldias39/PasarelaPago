@@ -10,6 +10,7 @@ import { lockCharge, recordAndApply } from './apply';
 import { parseCreateCharge, type CreateCharge } from './charge.dto';
 import { inTransaction, uniqueViolation } from './db';
 import { ProviderGateway } from './provider-gateway';
+import { withSendLock } from './send-lock';
 import { chargeView, publicStatus, TERMINAL, toChargeRow, type ChargeRow } from './rows';
 import { RoutingService } from './routing.service';
 import { CLOCK, type Clock } from './tokens';
@@ -87,7 +88,19 @@ export class ChargesService {
     return new Date(from.getTime() + (attempts === 0 ? minAgeMs : Math.min(baseBackoffMs * 2 ** attempts, maxBackoffMs)));
   }
 
-  private async send(ctx: IdempotencyContext, row: ChargeRow, input: CreateCharge): Promise<ChargeRow> {
+  /**
+   * Envío al proveedor SERIALIZADO por cobro: un segundo envío concurrente espera, vuelve a leer lo que dejó el primero y, si el cobro
+   * ya llegó al proveedor o terminó, lo devuelve sin llamar de nuevo.
+   */
+  private async send(ctx: IdempotencyContext, initial: ChargeRow, input: CreateCharge): Promise<ChargeRow> {
+    return withSendLock(this.pool, initial.id, async () => {
+      const row = await this.byId(initial.id);
+      if (row.provider_reference !== null || row.provider_status !== 'pending') return row;
+      return this.sendLocked(ctx, row, input);
+    });
+  }
+
+  private async sendLocked(ctx: IdempotencyContext, row: ChargeRow, input: CreateCharge): Promise<ChargeRow> {
     // Un intento anterior pudo haber llegado al proveedor sin que supiéramos el resultado: solo se reintenta ese conector.
     const candidates: ConnectorCode[] = row.ambiguous
       ? [row.connector]
@@ -98,7 +111,8 @@ export class ChargesService {
 
     for (const code of candidates) {
       // Marca «llamada en vuelo» ANTES de llamar: si el proceso muere ahora, el reintento no cambia de conector.
-      await this.pool.query('UPDATE connector_charges SET connector = $2, mode = $3, ambiguous = true, updated_at = $4 WHERE id = $1', [row.id, code, this.gateway.connector(code).mode, this.clock.now()]);
+      const claimed = await this.pool.query('UPDATE connector_charges SET connector = $2, mode = $3, ambiguous = true, send_claims = send_claims + 1, updated_at = $4 WHERE id = $1 RETURNING send_claims AS mine', [row.id, code, this.gateway.connector(code).mode, this.clock.now()]);
+      const mine = (claimed.rows[0] as { mine: number }).mine;
       try {
         const result = await this.gateway.callIdempotent(code, row.id, 'create_charge', (connector) =>
           connector.createCharge(
@@ -131,8 +145,10 @@ export class ChargesService {
           throw new ProblemError('connector_unavailable', { detail: 'El proveedor no respondió; reintentá con la misma Idempotency-Key' });
         }
         if (error instanceof ConnectorUnavailableError) {
-          // Seguro: el proveedor no recibió nada. Se baja la marca y se prueba con el siguiente conector.
-          await this.pool.query('UPDATE connector_charges SET ambiguous = false, updated_at = $2 WHERE id = $1', [row.id, this.clock.now()]);
+          // Seguro: el proveedor no recibió nada. Se baja la marca SOLO si nadie reclamó el cobro después de este envío
+          // (`send_claims = mine`, en la misma sentencia) y se prueba con el siguiente conector.
+          const cleared = await this.pool.query('UPDATE connector_charges SET ambiguous = false, updated_at = $3 WHERE id = $1 AND send_claims = $2', [row.id, mine, this.clock.now()]);
+          if (cleared.rowCount !== 1) throw new ProblemError('connector_unavailable', { detail: 'El proveedor no respondió; reintentá con la misma Idempotency-Key' });
           continue;
         }
         if (error instanceof ConnectorTimeoutError) {

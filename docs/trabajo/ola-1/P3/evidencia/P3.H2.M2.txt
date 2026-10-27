@@ -1,0 +1,183 @@
+# Evidencia P3.H2.M2
+fecha: 2026-10-27T17:07:15Z
+directorio: services/pay-payments
+comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBand
+---- salida ----
+2026-10-27T17:07:23.906Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'createCharge',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+}
+2026-10-27T17:07:24.878Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'createCharge',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+}
+2026-10-27T17:07:25.393Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'createCharge',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+}
+2026-10-27T17:07:26.389Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'createCharge',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+}
+2026-10-27T17:07:26.880Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'recordLedger',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:07:28.293Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'recordLedger',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:07:29.294Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'recordLedger',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:07:30.217Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'recordLedger',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:07:31.220Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'recordLedger',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:07:33.092Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:07:34.097Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:07:34.680Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:07:35.695Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:07:36.897Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:07:37.929Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:07:38.907Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+Test Suites: 1 passed, 1 total
+Tests:       18 skipped, 7 passed, 25 total
+Snapshots:   0 total
+Time:        23.571 s
+Ran all test suites matching test/payment.workflow.spec.ts with tests matching "P3.H2.M2".
+---- código de salida: 0 ----

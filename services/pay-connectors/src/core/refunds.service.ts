@@ -10,6 +10,7 @@ import { parseCreateRefund } from './charge.dto';
 import { statusChangedEvent } from './events';
 import { ChargesService } from './charges.service';
 import { ProviderGateway } from './provider-gateway';
+import { withSendLock } from './send-lock';
 import { refundView, toChargeRow, toRefundRow, type RefundRow } from './rows';
 import { CLOCK, type Clock } from './tokens';
 
@@ -59,47 +60,65 @@ export class RefundsService {
     });
   }
 
-  private async send(ctx: IdempotencyContext, refund: RefundRow): Promise<RefundRow> {
-    const charge = await this.charges.byId(refund.charge_id);
-    if (!charge.provider_reference) throw new ProblemError('invalid_state_transition');
-    if (refund.status === 'failed' && refund.failure_code === 'connector_unavailable') {
-      // Reintento de un reembolso que quedó sin efecto por un proveedor caído: se vuelve a reservar el importe, revalidando.
-      refund = await ctx.atomic('refund_recorded', async (client) => {
-        await client.query('SELECT 1 FROM connector_charges WHERE id = $1 FOR UPDATE', [charge.id]);
-        const others = await client.query(`SELECT COALESCE(SUM(amount_minor), 0)::text AS total FROM connector_refunds WHERE charge_id = $1 AND status <> 'failed' AND id <> $2`, [charge.id, refund.id]);
-        if (BigInt(others.rows[0].total as string) + refund.amount_minor > charge.amount_minor) {
-          throw new ProblemError('validation_failed', { errors: [{ field: 'amount_minor', code: 'exceeds_refundable' }] });
-        }
-        const reopened = await client.query(`UPDATE connector_refunds SET status = 'pending', failure_code = NULL, may_have_reached_provider = false, updated_at = $2 WHERE id = $1 RETURNING *`, [refund.id, this.clock.now()]);
-        return toRefundRow(reopened.rows[0]);
-      });
-    }
-    // Marca «pudo haber llegado» ANTES de llamar; `prior` dice si un intento anterior ya pudo llegar.
-    const prior = refund.may_have_reached_provider;
-    if (!prior) await this.pool.query('UPDATE connector_refunds SET may_have_reached_provider = true, updated_at = $2 WHERE id = $1', [refund.id, this.clock.now()]);
-    try {
-      const result = await this.gateway.callIdempotent(charge.connector, refund.id, 'refund', (c) =>
-        c.refund({ reference: refund.id, chargeReference: charge.id, amountMinor: refund.amount_minor }, this.clock.now()),
+  /** Envío al proveedor SERIALIZADO por reembolso: un segundo envío concurrente espera y reutiliza lo que dejó el primero. */
+  private async send(ctx: IdempotencyContext, initial: RefundRow): Promise<RefundRow> {
+    return withSendLock(this.pool, initial.id, async () => {
+      let refund = toRefundRow((await this.pool.query('SELECT * FROM connector_refunds WHERE id = $1', [initial.id])).rows[0]);
+      if (refund.status === 'succeeded' || (refund.status === 'failed' && refund.failure_code !== 'connector_unavailable')) return refund; // ya lo resolvió otro envío
+      const charge = await this.charges.byId(refund.charge_id);
+      if (!charge.provider_reference) throw new ProblemError('invalid_state_transition');
+      if (refund.status === 'failed') {
+        // Reintento de un reembolso que quedó sin efecto por un proveedor caído: se vuelve a reservar el importe, revalidando.
+        // El flag `may_have_reached_provider` NO se baja (es monótono): el próximo fallo de disponibilidad se tratará como ambiguo.
+        const failed = refund;
+        refund = await ctx.atomic('refund_recorded', async (client) => {
+          await client.query('SELECT 1 FROM connector_charges WHERE id = $1 FOR UPDATE', [charge.id]);
+          const others = await client.query(`SELECT COALESCE(SUM(amount_minor), 0)::text AS total FROM connector_refunds WHERE charge_id = $1 AND status <> 'failed' AND id <> $2`, [charge.id, failed.id]);
+          if (BigInt(others.rows[0].total as string) + failed.amount_minor > charge.amount_minor) {
+            throw new ProblemError('validation_failed', { errors: [{ field: 'amount_minor', code: 'exceeds_refundable' }] });
+          }
+          const reopened = await client.query(`UPDATE connector_refunds SET status = 'pending', failure_code = NULL, updated_at = $2 WHERE id = $1 RETURNING *`, [failed.id, this.clock.now()]);
+          return toRefundRow(reopened.rows[0]);
+        });
+      }
+      // Leer el flag y marcarlo en UN solo paso atómico (ver transfers.service).
+      const claim = await this.pool.query(
+        `WITH old AS (SELECT may_have_reached_provider AS prior FROM connector_refunds WHERE id = $1 FOR UPDATE)
+         UPDATE connector_refunds r SET may_have_reached_provider = true, send_claims = r.send_claims + 1, updated_at = $2
+           FROM old WHERE r.id = $1 RETURNING old.prior AS prior, r.send_claims AS mine`,
+        [refund.id, this.clock.now()],
       );
-      const status = result.status === 'captured' ? 'succeeded' : result.status;
-      return await ctx.atomic('refund_sent', (client) => this.settle(client, refund, charge, status, result.providerReference, result.failureCode ?? null));
-    } catch (error) {
-      if (error instanceof ConnectorUnavailableError && !prior) {
-        // Primera llamada que pudo llegar y el conector garantiza que no envió nada: se libera la reserva (sin evento) y el llamador anula
-        // su retención del ledger. El reintento con la misma clave retoma acá y vuelve a reservar.
-        await this.pool.query(`UPDATE connector_refunds SET status = 'failed', failure_code = 'connector_unavailable', may_have_reached_provider = false, updated_at = $2 WHERE id = $1`, [refund.id, this.clock.now()]);
-        throw new ProblemError('connector_unavailable', { detail: 'El proveedor no está disponible para reembolsar' });
+      const { prior, mine } = claim.rows[0] as { prior: boolean; mine: number };
+      const current = refund;
+      try {
+        const result = await this.gateway.callIdempotent(charge.connector, current.id, 'refund', (c) =>
+          c.refund({ reference: current.id, chargeReference: charge.id, amountMinor: current.amount_minor }, this.clock.now()),
+        );
+        const status = result.status === 'captured' ? 'succeeded' : result.status;
+        return await ctx.atomic('refund_sent', (client) => this.settle(client, current, charge, status, result.providerReference, result.failureCode ?? null));
+      } catch (error) {
+        if (error instanceof ConnectorUnavailableError && !prior) {
+          // «Sin efecto» solo si este envío fue el único que reclamó (send_claims = mine) y ningún intento previo pudo llegar, en la misma
+          // sentencia que el cambio de estado. Se libera la reserva (sin evento); el flag no se toca.
+          const released = await this.pool.query(
+            `UPDATE connector_refunds SET status = 'failed', failure_code = 'connector_unavailable', updated_at = $3
+              WHERE id = $1 AND status = 'pending' AND provider_reference IS NULL AND send_claims = $2`,
+            [current.id, mine, this.clock.now()],
+          );
+          if (released.rowCount === 1) throw new ProblemError('connector_unavailable', { detail: 'El proveedor no está disponible para reembolsar' });
+          throw new ProblemError('internal_error', { detail: 'Resultado ambiguo; reintentá con la misma Idempotency-Key o consultá el cobro' });
+        }
+        if (error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError || (error instanceof ConnectorRejectedError && prior)) {
+          // AMBIGUO (regla 11): el reembolso pudo ejecutarse. La reserva se mantiene, NO se dice «sin efecto» y el reintento usa `cr_…`.
+          throw new ProblemError('internal_error', { detail: 'Resultado ambiguo; reintentá con la misma Idempotency-Key o consultá el cobro' });
+        }
+        if (error instanceof ConnectorRejectedError) {
+          await ctx.atomic('refund_sent', (client) => this.settle(client, current, charge, 'failed', null, error.code));
+          throw new ProblemError(error.code === 'invalid_state_transition' ? 'invalid_state_transition' : 'validation_failed', { detail: 'El proveedor rechazó el reembolso' });
+        }
+        throw error;
       }
-      if (error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError || (error instanceof ConnectorRejectedError && prior)) {
-        // AMBIGUO (regla 11): el reembolso pudo ejecutarse. La reserva se mantiene, NO se dice «sin efecto» y el reintento usa `cr_…`.
-        throw new ProblemError('internal_error', { detail: 'Resultado ambiguo; reintentá con la misma Idempotency-Key o consultá el cobro' });
-      }
-      if (error instanceof ConnectorRejectedError) {
-        await ctx.atomic('refund_sent', (client) => this.settle(client, refund, charge, 'failed', null, error.code));
-        throw new ProblemError(error.code === 'invalid_state_transition' ? 'invalid_state_transition' : 'validation_failed', { detail: 'El proveedor rechazó el reembolso' });
-      }
-      throw error;
-    }
+    });
   }
 
   private async settle(
@@ -112,9 +131,11 @@ export class RefundsService {
   ): Promise<RefundRow> {
     const now = this.clock.now();
     const updated = await client.query(
-      `UPDATE connector_refunds SET status = $2, provider_reference = $3, failure_code = $4, updated_at = $5 WHERE id = $1 RETURNING *`,
+      `UPDATE connector_refunds SET status = $2, provider_reference = $3, failure_code = $4, updated_at = $5 WHERE id = $1 AND status = 'pending' RETURNING *`,
       [refund.id, status, providerReference, failureCode, now],
     );
+    // Ya resuelto por otro camino: no se vuelve a escribir ni a publicar.
+    if (!updated.rows[0]) return toRefundRow((await client.query('SELECT * FROM connector_refunds WHERE id = $1', [refund.id])).rows[0]);
     const row = toRefundRow(updated.rows[0]);
     // El reembolso es síncrono en el contrato (201 con el estado): el evento lo informa a pay-payments/pay-settlement con `status_inquiry`.
     if (status !== 'pending') {

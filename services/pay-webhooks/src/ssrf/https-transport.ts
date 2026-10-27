@@ -6,10 +6,13 @@ export interface TransportRequest {
   readonly target: ResolvedTarget;
   readonly headers: Readonly<Record<string, string>>;
   readonly body: string;
+  /** Plazo DURO de pared de toda la entrega (conexión + TLS + respuesta): no se renueva con los bytes que llegan. */
   readonly timeoutMs: number;
+  /** Tope de inactividad del socket; por defecto, el mismo plazo. */
+  readonly idleTimeoutMs?: number;
 }
 
-export type TransportFailure = 'timeout' | 'connection_error' | 'tls_error' | 'response_too_large';
+export type TransportFailure = 'timeout' | 'connection_error' | 'tls_error';
 
 /** Falla de red: `reason` es un código estable; el mensaje del sistema (que puede traer IPs internas) no se conserva. */
 export class TransportError extends Error {
@@ -36,28 +39,31 @@ function pinnedLookup(target: ResolvedTarget): LookupFunction {
   };
 }
 
-const MAX_RESPONSE_BYTES = 16 * 1024;
 const TLS_CODES = /^(ERR_TLS_|CERT_|DEPTH_ZERO|SELF_SIGNED|UNABLE_TO_|ERR_SSL_|HOSTNAME_MISMATCH)/;
 
 /**
  * Entrega real por HTTPS a la IP que `TargetGuard` ya validó y fijó:
  * - conecta a `target.ip` (el nombre NO se vuelve a resolver) pero valida el certificado y envía SNI/Host con el nombre;
  * - NO sigue redirecciones: un 3xx se devuelve tal cual y la entrega lo cuenta como fallo;
- * - tiempo máximo total y tope de la respuesta (el cuerpo de la respuesta no se guarda ni se registra);
+ * - plazo DURO de pared (`timeoutMs`) desde que empieza, más un tope de inactividad: un receptor que gotea un byte cada tanto
+ *   no puede mantener viva la entrega (el timeout de inactividad de Node se renueva con cada byte);
+ * - NO lee la respuesta: en cuanto llegan el estado y las cabeceras se resuelve y se destruye el socket (el cuerpo del
+ *   receptor no se usa; un cuerpo de 10 MB no se descarga);
  * - sin agente compartido ni reutilización de conexiones: cada entrega valida su propia IP.
  */
 export class HttpsTransport implements DeliveryTransport {
   /** `ca` solo existe para que las pruebas confíen en un certificado propio; en producción va vacío (almacén del sistema). */
   constructor(private readonly options: { readonly ca?: string } = {}) {}
 
-  send({ target, headers, body, timeoutMs }: TransportRequest): Promise<TransportResponse> {
+  send({ target, headers, body, timeoutMs, idleTimeoutMs }: TransportRequest): Promise<TransportResponse> {
     return new Promise((resolve, reject) => {
       let settled = false;
+      let deadline: NodeJS.Timeout | undefined;
       const done = (fn: () => void) => {
-        if (!settled) {
-          settled = true;
-          fn();
-        }
+        if (settled) return;
+        settled = true;
+        if (deadline) clearTimeout(deadline);
+        fn();
       };
       const req = request(
         {
@@ -67,25 +73,24 @@ export class HttpsTransport implements DeliveryTransport {
           method: 'POST',
           path: target.path,
           agent: false,
-          timeout: timeoutMs,
+          timeout: idleTimeoutMs ?? timeoutMs,
           ...(this.options.ca ? { ca: this.options.ca } : {}),
           // Fija la IP validada: la conexión va a `target.ip` aunque el DNS ahora diga otra cosa.
           lookup: pinnedLookup(target),
           headers: { ...headers, host: target.port === 443 ? target.hostname : `${target.hostname}:${target.port}`, 'content-length': String(Buffer.byteLength(body)) },
         },
         (res) => {
-          let received = 0;
-          res.on('data', (chunk: Buffer) => {
-            received += chunk.length;
-            if (received > MAX_RESPONSE_BYTES) {
-              res.destroy();
-              done(() => reject(new TransportError('response_too_large')));
-            }
-          });
-          res.on('end', () => done(() => resolve({ status: res.statusCode ?? 0 })));
-          res.on('error', () => done(() => reject(new TransportError('connection_error'))));
+          // Solo importa el estado: se cierra la conexión sin leer el cuerpo.
+          const status = res.statusCode ?? 0;
+          done(() => resolve({ status }));
+          res.destroy();
+          req.destroy();
         },
       );
+      deadline = setTimeout(() => {
+        req.destroy();
+        done(() => reject(new TransportError('timeout')));
+      }, timeoutMs);
       req.on('timeout', () => {
         req.destroy();
         done(() => reject(new TransportError('timeout')));

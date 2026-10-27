@@ -16,6 +16,12 @@ export interface TransportCall {
  */
 export class LoopbackTransport implements DeliveryTransport {
   readonly calls: TransportCall[] = [];
+  /** Demora artificial por nombre de destino (simula un receptor lento). */
+  readonly delays = new Map<string, number>();
+  /** Instante (ms) en que terminó cada llamada, por `webhook-id` y destino. */
+  readonly finished: { hostname: string; webhookId: string; at: number }[] = [];
+  inFlight = new Map<string, number>();
+  maxInFlight = new Map<string, number>();
   constructor(private readonly routes: Map<string, string> = new Map()) {}
 
   route(hostname: string, baseUrl: string): void {
@@ -27,13 +33,21 @@ export class LoopbackTransport implements DeliveryTransport {
     this.calls.push({ hostname: target.hostname, ip: target.ip, path: target.path, headers, body });
     const base = this.routes.get(target.hostname);
     if (!base) throw new TransportError('connection_error');
+    const current = (this.inFlight.get(target.hostname) ?? 0) + 1;
+    this.inFlight.set(target.hostname, current);
+    this.maxInFlight.set(target.hostname, Math.max(this.maxInFlight.get(target.hostname) ?? 0, current));
     try {
+      const delay = this.delays.get(target.hostname);
+      if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
       const response = await fetch(`${base}${target.path}`, { method: 'POST', headers, body, redirect: 'manual', signal: AbortSignal.timeout(request.timeoutMs) });
       await response.arrayBuffer();
       return { status: response.status };
     } catch (error) {
       const name = (error as { name?: unknown } | null)?.name;
       throw new TransportError(name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'connection_error');
+    } finally {
+      this.inFlight.set(target.hostname, (this.inFlight.get(target.hostname) ?? 1) - 1);
+      this.finished.push({ hostname: target.hostname, webhookId: headers['webhook-id'], at: Date.now() });
     }
   }
 }

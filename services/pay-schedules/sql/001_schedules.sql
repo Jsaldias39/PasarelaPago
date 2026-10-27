@@ -73,7 +73,7 @@ CREATE TABLE scheduled_payments (
   CONSTRAINT scheduled_payments_period_uq UNIQUE (mandate_id, period),
   CONSTRAINT scheduled_payments_period_format CHECK (period ~ '^\d{4}-(0[1-9]|1[0-2])$'),
   CONSTRAINT scheduled_payments_status_valid CHECK (status IN ('due', 'waiting_funds', 'executed', 'failed', 'canceled')),
-  CONSTRAINT scheduled_payments_phase_valid CHECK (phase IN ('hold', 'post', 'release', 'done')),
+  CONSTRAINT scheduled_payments_phase_valid CHECK (phase IN ('hold', 'post', 'release', 'void', 'reverse', 'done')),
   -- El dinero se movió: un `executed` siempre tiene su asiento. El id `tf_` del evento puede faltar (needs_review) si el libro mayor no lo devuelve.
   CONSTRAINT scheduled_payments_executed_has_transaction CHECK (status <> 'executed' OR (ledger_transaction_id IS NOT NULL AND executed_at IS NOT NULL))
 );

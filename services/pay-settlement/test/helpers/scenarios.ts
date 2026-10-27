@@ -34,3 +34,22 @@ let counter = 0;
 export const ref = (prefix = 'pi') => `${prefix}_${(counter += 1).toString().padStart(4, '0')}${randomUUID().replace(/-/g, '').slice(0, 10)}:capture`;
 
 export const BATCH_BODY = (cutoff: string, extra: object = {}) => ({ cutoff_date: cutoff, ...extra });
+
+/** `fee_schedule.published` de pay-merchants (contrato `merchants-schedules.yaml`). */
+export function feeSchedule(merchant: string, version: number, monthlyFeeMinor: number | undefined, over: { effectiveFrom?: string; effectiveTo?: string | null } = {}) {
+  return newCloudEvent({
+    source: '/pay-merchants',
+    type: 'fee_schedule.published',
+    subject: merchant,
+    merchantId: merchant,
+    data: {
+      merchant_id: merchant,
+      version,
+      currency: 'BOB',
+      effective_from: over.effectiveFrom ?? '2026-01-01T00:00:00.000Z',
+      effective_to: over.effectiveTo === undefined ? null : over.effectiveTo,
+      channels: [{ channel: 'qr', percent: '2.5', fixed_minor: 50 }],
+      ...(monthlyFeeMinor !== undefined && { monthly_fee_minor: monthlyFeeMinor }),
+    },
+  });
+}

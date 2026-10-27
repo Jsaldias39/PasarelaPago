@@ -1,0 +1,11 @@
+# P4.CARRERA-ENVIOS
+$ yarn test test/send-lock.spec.ts test/transfers.spec.ts test/charges.spec.ts test/routing.spec.ts -t carrera|corrida|withSendLock|MONÓTONO|DESPUÉS
+(cwd: services/pay-connectors; PAY_TEST_DATABASE_URL=postgres://pay_connectors:***@127.0.0.1:54321/pay_connectors)
+
+
+Test Suites: 4 passed, 4 total
+Tests:       88 skipped, 58 passed, 146 total
+Snapshots:   0 total
+Time:        12.006 s
+Ran all test suites matching test/send-lock.spec.ts|test/transfers.spec.ts|test/charges.spec.ts|test/routing.spec.ts with tests matching "carrera|corrida|withSendLock|MONÓTONO|DESPUÉS".
+exit=0

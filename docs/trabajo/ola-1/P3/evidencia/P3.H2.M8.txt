@@ -1,0 +1,333 @@
+# Evidencia P3.H2.M8
+fecha: 2026-10-27T17:08:52Z
+directorio: services/pay-payments
+comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
+---- salida ----
+2026-10-27T17:08:59.875Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'createCharge',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+}
+2026-10-27T17:09:00.955Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'createCharge',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+}
+2026-10-27T17:09:01.950Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'createCharge',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+}
+2026-10-27T17:09:02.966Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'createCharge',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+}
+2026-10-27T17:09:03.333Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:04.341Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:05.331Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:06.358Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:07.579Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:08.589Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'createCharge',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:10.519Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'recordLedger',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:11.977Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'recordLedger',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:12.981Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'recordLedger',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:13.902Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'recordLedger',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:14.900Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'recordLedger',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:19.373Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:20.374Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:21.389Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:22.388Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:23.594Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:24.598Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:09:26.219Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:27.232Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:27.913Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:28.987Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:30.188Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:31.189Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:39.512Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'settleDispute',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:40.517Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'settleDispute',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:41.163Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'settleDispute',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:09:42.243Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'settleDispute',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+Test Suites: 1 passed, 1 total
+Tests:       15 passed, 15 total
+Snapshots:   0 total
+Time:        50.143 s, estimated 51 s
+Ran all test suites matching test/failures.matrix.spec.ts.
+---- código de salida: 0 ----

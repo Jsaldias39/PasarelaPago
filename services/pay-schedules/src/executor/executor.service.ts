@@ -14,7 +14,7 @@ interface Claimed {
   id: string;
   mandate_id: string;
   period: string;
-  phase: 'hold' | 'post' | 'release' | 'done';
+  phase: 'hold' | 'post' | 'release' | 'void' | 'reverse' | 'done';
   attempts: number;
   ledger_attempt: number;
   hold_id: string | null;
@@ -134,6 +134,11 @@ export class ExecutorService {
       return this.fail(payment, mandate, 'merchant_suspended', payment.phase !== 'hold');
     }
 
+    // El beneficiario de una obligación tiene que ser un comercio ACTIVO: si no existe en la réplica, está suspendido o cerrado, no se le
+    // acredita nada. (En una comisión el beneficiario es la plataforma —`platform:fees`—: no hay estado de comercio que consultar.)
+    const beneficiaryBlocked = async (): Promise<boolean> => mandate.kind === 'pay_obligation' && (await merchantStatus(this.pool, mandate.beneficiary_merchant_id)) !== 'active';
+    if (payment.phase === 'hold' && (await beneficiaryBlocked())) return this.fail(payment, mandate, 'merchant_suspended', false); // nada retenido: sin revisión
+
     const payerAccount = `merchant:${mandate.merchant_id}:available`;
     const reserve = `schedule:${mandate.id}:reserve`;
     let holdId = payment.hold_id;
@@ -159,6 +164,41 @@ export class ExecutorService {
         }
         if (result.kind === 'rejected' && result.code === 'insufficient_funds') return this.insufficientFunds(payment, mandate, payerAccount);
         return this.unresolved(payment, mandate, result, phase);
+      }
+
+      // El estado del beneficiario puede cambiar entre fases. Con fondos YA retenidos: si la retención sigue pendiente se anula (void);
+      // si ya se confirmó hacia la reserva se devuelve al pagador con un asiento inverso. Nunca se acredita al beneficiario bloqueado.
+      if ((phase === 'post' || phase === 'release') && (await beneficiaryBlocked())) {
+        phase = phase === 'post' ? 'void' : 'reverse';
+        await this.savePhase(payment.id, phase, holdId);
+      }
+
+      if (phase === 'void') {
+        const voided = await this.ledger.voidHold(mandate.mode, `${payment.id}:void`, holdId as string);
+        if (voided.kind === 'ok') return this.fail(payment, mandate, 'merchant_suspended', true);
+        if (voided.kind === 'conflict') {
+          // 409: ya estaba resuelta (por ejemplo, la confirmación anterior sí se aplicó). Se decide con la consulta autoritativa.
+          const current = await this.ledger.getHold(mandate.mode, holdId as string);
+          if (current.kind === 'ok' && current.value.status === 'posted') {
+            phase = 'reverse';
+            await this.savePhase(payment.id, phase, holdId);
+            continue;
+          }
+          if (current.kind === 'ok') return this.fail(payment, mandate, current.value.status === 'voided' ? 'merchant_suspended' : 'invalid_state_transition', true);
+          return this.unresolved(payment, mandate, current, phase);
+        }
+        return this.unresolved(payment, mandate, voided, phase);
+      }
+
+      if (phase === 'reverse') {
+        const reversal = await this.ledger.createTransaction(mandate.mode, `${payment.id}:reverse`, {
+          businessRef: `${payment.id}:reverse`,
+          attempt: 1,
+          legs: [{ debit_account: reserve, credit_account: payerAccount, amount_minor: mandate.amount_minor, code: 'release' }],
+        });
+        if (reversal.kind === 'ok' && reversal.value.status === 'posted') return this.fail(payment, mandate, 'merchant_suspended', true);
+        if (reversal.kind === 'ok' || reversal.kind === 'rejected' || reversal.kind === 'conflict') return this.fail(payment, mandate, 'invalid_state_transition', true);
+        return this.unresolved(payment, mandate, reversal, phase);
       }
 
       if (phase === 'post') {

@@ -47,6 +47,7 @@ export interface TransactionRequest {
 export interface LedgerClient {
   createHold(mode: string, key: string, request: HoldRequest): Promise<LedgerResult<LedgerHold>>;
   postHold(mode: string, key: string, holdId: string): Promise<LedgerResult<LedgerHold>>;
+  voidHold(mode: string, key: string, holdId: string): Promise<LedgerResult<LedgerHold>>;
   getHold(mode: string, holdId: string): Promise<LedgerResult<LedgerHold>>;
   createTransaction(mode: string, key: string, request: TransactionRequest): Promise<LedgerResult<LedgerTransaction>>;
   balance(mode: string, account: string): Promise<LedgerResult<{ balanceMinor: number }>>;
@@ -122,6 +123,10 @@ export class HttpLedgerClient implements LedgerClient {
 
   async postHold(mode: string, key: string, holdId: string): Promise<LedgerResult<LedgerHold>> {
     return this.classify(await this.call('POST', `/holds/${holdId}/post`, mode, key), this.parseHold, [200]);
+  }
+
+  async voidHold(mode: string, key: string, holdId: string): Promise<LedgerResult<LedgerHold>> {
+    return this.classify(await this.call('POST', `/holds/${holdId}/void`, mode, key), this.parseHold, [200]);
   }
 
   async getHold(mode: string, holdId: string): Promise<LedgerResult<LedgerHold>> {

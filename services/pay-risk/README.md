@@ -1,13 +1,32 @@
 # pay-risk
 
-Servicio de la pasarela de pagos ALOVIDA, generado con `platform/scripts/new-service.sh`. Ver `docs/plan/PLAN-MAESTRO.md` y tu carril.
+Evaluación de riesgo de un cobro antes de mandarlo al proveedor (carril P5, `P5.H2`): motor de reglas versionado, cribado de sanciones con moov Watchman y rastro auditable de cada decisión.
 
 - **Base propia:** `pay_risk`. No leas la base de ningún otro servicio.
-- **Salud:** `GET /health/live` (el proceso) y `GET /health/ready` (la base propia).
-- **Errores:** RFC 9457 (`application/problem+json`) con `code` estable y `request_id`.
-- **Eventos:** outbox + relé hacia NATS JetStream (stream `PAY_<NOMBRE>`). Los consumidores usan `processOnce` (inbox).
-- **Entorno:** ver `.env.example`. Sin variable obligatoria, el servicio no arranca.
-- **Imagen:** `docker build -f services/pay-risk/Dockerfile -t pay-risk .` desde la raíz del repo.
+- **Esquema:** `sql/001_risk.sql` es **SQL de referencia, a mover a `mantra-core-health-model`** (D-18).
+- **API:** `POST /assessments` (idempotente por `Idempotency-Key`: 201 la primera vez, 200 con la misma decisión al repetir) y `GET /assessments/{id}`; solo las llama `pay-payments`. Contrato: `contracts/openapi/internal-risk-v1.yaml`. Carga de límites (`POST /rule_sets`, `GET /rule_sets/current`, solo `pay-backoffice` con rol `risk_admin`): PROPUESTA en `docs/trabajo/ola-1/P5/propuestas/internal-risk-rule-sets-v1.yaml`.
+- **Sin eventos:** no hay eventos de riesgo en el AsyncAPI.
 
-Pendiente en la plantilla: un adaptador que exponga la transacción de MikroORM como `Queryable`, para escribir una
-entidad y encolar su evento en **la misma** transacción. Se resuelve con el primer servicio que lo necesite (P2/P3).
+## Decisión
+
+| `decision` | cuándo | `reason_code` (en orden de prioridad) |
+|---|---|---|
+| `deny` | sanciones fuertes, o un límite superado | `sanctions_match`, `amount_over_limit`, `daily_limit_exceeded`, `payer_daily_limit_exceeded`, `velocity_exceeded`, `merchant_velocity_exceeded` |
+| `review` | coincidencia aproximada, cribado caído o ausente, pagador sin huella con límites por pagador, fuera de horario | `sanctions_possible_match`, `screening_unavailable`, `screening_not_provided`, `payer_unidentified`, `outside_allowed_hours` |
+| `allow` | cribado limpio y nada superado | `ok`, o `no_limits_configured` si no hay ningún límite cargado (para que se vea que la regla no está activa) |
+
+- **Nunca `allow` sin cribar** (`screened: false` ⇒ como mucho `review`); la tabla lo impide con una restricción.
+- **Sin límites por defecto (D-23):** la versión 1 del conjunto de reglas es «sin límites» (todo `NULL`). Los límites los carga el negocio o el banco.
+- **Los umbrales de sanciones no tienen valor por defecto** (`SANCTIONS_DENY_SCORE`, `SANCTIONS_REVIEW_SCORE`): los fija cumplimiento; sin ellos el servicio no arranca. Se decide por umbral, nunca por «hubo resultados».
+- **Datos personales:** el nombre se manda a Watchman (solo nombre y tipo) y **no se guarda ni se registra**; el pagador se guarda como HMAC (`PAYER_HASH_KEY`). El rastro es inmutable (triggers).
+- **Watchman en el entorno local es `v2-static` con listas de 2019, SOLO sandbox.** Nunca se presenta como el cribado real.
+
+## Entorno
+
+Ver `.env.example`. Obligatorias y sin valor por defecto: `WATCHMAN_URL`, `SANCTIONS_DENY_SCORE`, `SANCTIONS_REVIEW_SCORE`, `PAYER_HASH_KEY`.
+
+## Comandos
+
+```bash
+yarn typecheck && yarn test        # Postgres y Watchman REALES; los fallos de Watchman se prueban con un [DOBLE] declarado
+```

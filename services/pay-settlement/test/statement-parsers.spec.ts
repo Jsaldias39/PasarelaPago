@@ -53,6 +53,10 @@ describe('los tres formatos dan la misma línea normalizada', () => {
     expect(parseCamt053(camt([]))).toEqual([]);
   });
 
+  it('camt.053: sin AcctSvcrRef cae a NtryRef', () => {
+    expect(parseCamt053(camt([entry({ ref: null })]))[0].provider_reference).toBe('N1');
+  });
+
   it('un BOM al inicio del CSV no rompe la cabecera', () => {
     expect(parseCsvStatement(`﻿${csv([CSV_ROW])}`)).toEqual([LINE]);
   });
@@ -154,9 +158,9 @@ describe('formas inválidas', () => {
     ['importe con letras', camt([entry({ amt: 'abc' })])],
     ['importe con coma decimal', camt([entry({ amt: '100,00' })])],
     ['sentido inválido', camt([entry({ sign: 'XXXX' })])],
-    ['sin AcctSvcrRef', camt([entry({ ref: null })]), /AcctSvcrRef/],
+    ['sin AcctSvcrRef ni NtryRef', camt([entry({ ref: null })]).replace('<NtryRef>N1</NtryRef>', ''), /AcctSvcrRef/],
     ['entrada agrupada', camt([entry({ details: '<TxDtls><Refs><EndToEndId>a</EndToEndId></Refs></TxDtls><TxDtls><Refs><EndToEndId>b</EndToEndId></Refs></TxDtls>' })]), /agrupada/],
-  ])('camt.053 %s', (_n, text, reason) => malformed(() => parseCamt053(text), reason instanceof RegExp ? reason : undefined));
+  ])('camt.053 %s', (_n, text, ...rest) => malformed(() => parseCamt053(text), rest[0]));
 
   it('un XML que parsea pero con otra forma jamás deja pasar un error del runtime: todo es StatementMalformedError', () => {
     for (const text of ['<Document><BkToCstmrStmt><Stmt><Ntry>texto</Ntry></Stmt></BkToCstmrStmt></Document>', '<Document><BkToCstmrStmt><Stmt><Ntry><Amt/></Ntry></Stmt></BkToCstmrStmt></Document>', '<Document><BkToCstmrStmt/></Document>']) {

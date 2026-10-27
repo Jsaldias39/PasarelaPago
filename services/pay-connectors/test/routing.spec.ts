@@ -191,4 +191,42 @@ describe('conmutación por error (REQ-P4-3)', () => {
     expect(resumed.body.connector).toBe('mercantil_qr');
     expect((await t.db.pool.query('SELECT count(*)::int AS n FROM connector_charges')).rows[0].n).toBe(1);
   });
+
+  it.each([1, 2, 3, 4, 5])('corrida %i: dos envíos del MISMO cobro a la vez (el bloqueo de la clave venció) con el primero ambiguo y el segundo Unavailable ⇒ no se conmuta a `mock` y la marca sigue en true', async () => {
+    await t.reset();
+    const preferred = t.app.get<ConnectorRegistry>(REGISTRY).get('mercantil_qr') as MockConnector;
+    const original = preferred.createCharge.bind(preferred);
+    let calls = 0;
+    preferred.createCharge = async (request: ProviderChargeRequest, now: Date) => {
+      calls += 1;
+      if (calls === 1) {
+        await original(request, now); // el proveedor cobra…
+        await new Promise((resolve) => setTimeout(resolve, 250)); // …mientras otro proceso retoma la clave…
+        throw new ConnectorTimeoutError(); // …y la respuesta se pierde
+      }
+      throw new ConnectorUnavailableError('unreachable');
+    };
+    config.timeoutRetries = 0;
+    const key = uniqueKey();
+    const body = chargeBody({}, t.clock);
+    try {
+      const first = post(t.app, '/charges', body, asPayments, key).then((r) => r); // `.then` dispara el pedido (supertest es perezoso)
+      // Espera por CONDICIÓN (no por tiempo fijo) a que el primer envío esté en vuelo, y recién entonces vence el bloqueo de la clave.
+      for (let i = 0; i < 200 && calls === 0; i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(calls).toBe(1);
+      await t.db.pool.query("UPDATE idempotency_keys SET locked_at = now() - interval '1 hour' WHERE key = $1", [key]);
+      const second = post(t.app, '/charges', body, asPayments, key).then((r) => r);
+      const [a, b] = await Promise.all([first, second]);
+      expect([a.status, b.status]).toEqual([502, 502]);
+      const rows = (await t.db.pool.query('SELECT id, connector, ambiguous, send_claims AS claims FROM connector_charges')).rows;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ connector: 'mercantil_qr', ambiguous: true, claims: 2 });
+      expect((await attemptsOf(rows[0].id)).every((x: { connector: string }) => x.connector === 'mercantil_qr')).toBe(true); // jamás se probó con `mock`
+      expect(primaryBank.statement({ from: new Date(0), to: new Date(8.64e15) }).filter((l) => l.ourReference === rows[0].id)).toHaveLength(1); // UN cobro
+    } finally {
+      preferred.createCharge = original;
+      config.timeoutRetries = 2;
+    }
+  });
 });
+

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { loadContract, type ContractValidator } from '@pay/testing';
@@ -8,9 +9,12 @@ import { eventsOf, key, MC, MC2, seedMerchant, startStack, statusOf, waitFor, ty
 let stack: Stack;
 let app: INestApplication;
 let contract: ContractValidator;
+// Temporal conserva los workflows entre corridas y el id del intento sale de (comercio, mandato, periodo): sin un mandato nuevo por corrida
+// el `start` chocaría con el workflow ya completado de una corrida anterior.
+const RUN = randomBytes(5).toString('hex');
 const SCHEDULES = { 'x-service-id': 'pay-schedules' } as const;
 const body = (over: Record<string, unknown> = {}) => ({
-  source: { kind: 'mandate', id: 'md_mandate000001', period: '2026-10' },
+  source: { kind: 'mandate', id: `md_${RUN}000001`, period: '2026-10' },
   kind: 'obligation',
   payer_merchant_id: MC,
   beneficiary_merchant_id: MC2,
@@ -51,7 +55,7 @@ describe('internal-payments-v1 · cobro por mandato (pay-schedules)', () => {
 
   it('el mismo mandato y periodo, aunque sea con otra Idempotency-Key, devuelve el MISMO intento (200) y no cobra dos veces', async () => {
     stack.ledger.setBalance(`merchant:${MC}:available`, 100000);
-    const mandate = { source: { kind: 'mandate', id: 'md_mandate000002', period: '2026-11' } };
+    const mandate = { source: { kind: 'mandate', id: `md_${RUN}000002`, period: '2026-11' } };
     const first = await post(body(mandate));
     const second = await post(body(mandate), key());
     expect(first.status).toBe(201);
@@ -61,34 +65,34 @@ describe('internal-payments-v1 · cobro por mandato (pay-schedules)', () => {
     expect(stack.ledger.balance(`merchant:${MC}:available`)).toBe(70000);
     expect(stack.ledger.postedCount(`${first.body.id}:capture`)).toBe(1);
     // 10 peticiones concurrentes para otro periodo: un solo intento.
-    const period = { source: { kind: 'mandate', id: 'md_mandate000002', period: '2026-12' } };
+    const period = { source: { kind: 'mandate', id: `md_${RUN}000002`, period: '2026-12' } };
     const many = await Promise.all(Array.from({ length: 10 }, () => post(body(period), key())));
     expect(new Set(many.map((r) => r.body.id)).size).toBe(1);
-    const rows = await stack.db.pool.query("SELECT count(*)::int AS n FROM payment_intents WHERE source ->> 'id' = 'md_mandate000002' AND source ->> 'period' = '2026-12'");
+    const rows = await stack.db.pool.query(`SELECT count(*)::int AS n FROM payment_intents WHERE source ->> 'id' = 'md_${RUN}000002' AND source ->> 'period' = '2026-12'`);
     expect(rows.rows[0].n).toBe(1);
   });
 
   it('sin saldo: 422 insufficient_funds y el intento queda failed con su evento; el saldo no cambia', async () => {
     stack.ledger.setBalance(`merchant:${MC}:available`, 100);
-    const response = await post(body({ source: { kind: 'mandate', id: 'md_mandate000003', period: '2026-10' } }));
+    const response = await post(body({ source: { kind: 'mandate', id: `md_${RUN}000003`, period: '2026-10' } }));
     expect(response.status).toBe(422);
     expect(response.body.code).toBe('insufficient_funds');
     expect(contract.validateResponse({ method: 'POST', path: '/intents', status: 422, body: response.body })).toEqual([]);
     expect(stack.ledger.balance(`merchant:${MC}:available`)).toBe(100);
-    const row = await stack.db.pool.query("SELECT id, status, failure_code FROM payment_intents WHERE source ->> 'id' = 'md_mandate000003'");
+    const row = await stack.db.pool.query(`SELECT id, status, failure_code FROM payment_intents WHERE source ->> 'id' = 'md_${RUN}000003'`);
     expect(row.rows[0]).toMatchObject({ status: 'failed', failure_code: 'insufficient_funds' });
     expect((await eventsOf(stack, row.rows[0].id)).map((e) => e.type)).toContain('payment_intent.failed');
   });
 
   it('comercio pagador suspendido: 403 merchant_suspended', async () => {
     await seedMerchant(stack, 'mc_merchant00009', 'suspended');
-    const response = await post(body({ payer_merchant_id: 'mc_merchant00009', source: { kind: 'mandate', id: 'md_mandate000004', period: '2026-10' } }));
+    const response = await post(body({ payer_merchant_id: 'mc_merchant00009', source: { kind: 'mandate', id: `md_${RUN}000004`, period: '2026-10' } }));
     expect(response.status).toBe(403);
     expect(response.body.code).toBe('merchant_suspended');
   });
 
   it('cuerpo inválido: medio que no es saldo, campo no declarado, periodo mal formado → 422', async () => {
-    for (const bad of [body({ payment_method: { type: 'qr' } }), body({ extra: 1 }), body({ source: { kind: 'mandate', id: 'md_mandate000005', period: '2026-13' } }), body({ amount_minor: 0 }), body({ kind: 'otro' })]) {
+    for (const bad of [body({ payment_method: { type: 'qr' } }), body({ extra: 1 }), body({ source: { kind: 'mandate', id: `md_${RUN}000005`, period: '2026-13' } }), body({ amount_minor: 0 }), body({ kind: 'otro' })]) {
       expect((await post(bad)).status).toBe(422);
     }
   });

@@ -364,6 +364,97 @@ describe('POST /transfers', () => {
   });
 });
 
+describe('POST /transfers — carrera entre envíos concurrentes (HIGH: doble pago)', () => {
+  const mock = () => t.app.get<ConnectorRegistry>(REGISTRY).get('mock') as MockConnector;
+  const config = () => t.app.get<ServiceConfig>(SERVICE_CONFIG) as { timeoutRetries: number };
+  const flags = async () => (await t.db.pool.query('SELECT status, may_have_reached_provider AS flag, send_claims AS claims, failure_code FROM connector_transfers')).rows;
+
+  it.each([1, 2, 3, 4, 5])('corrida %i: el primer envío es AMBIGUO (timeout, la orden se ejecuta) y el segundo concurrente recibe Unavailable ⇒ UNA orden, la fila queda ambigua (no `failed`) y el flag sigue en true', async () => {
+    await t.reset();
+    const connector = mock();
+    const original = connector.createTransfer.bind(connector);
+    let calls = 0;
+    connector.createTransfer = async (request: ProviderTransferRequest, now: Date) => {
+      calls += 1;
+      if (calls === 1) {
+        await original(request, now); // el banco ejecuta la orden…
+        await new Promise((resolve) => setTimeout(resolve, 150)); // …el otro envío ya está esperando…
+        throw new ConnectorTimeoutError(); // …y la respuesta se pierde
+      }
+      throw new ConnectorUnavailableError('unreachable'); // el segundo no encuentra al banco
+    };
+    config().timeoutRetries = 0;
+    try {
+      const b = body({ amount_minor: 250000 });
+      const [one, two] = await Promise.all([order(b), order(b)]);
+      expect([one.status, two.status]).toEqual([500, 500]);
+      for (const r of [one, two]) expect(r.body.code).not.toBe('connector_unavailable');
+      expect(await flags()).toEqual([{ status: 'pending', flag: true, claims: 2, failure_code: null }]);
+      expect(bank.transferCount()).toBe(1); // el banco ejecutó UNA orden
+    } finally {
+      connector.createTransfer = original;
+      config().timeoutRetries = 2;
+    }
+  });
+
+  it.each([1, 2, 3, 4, 5])('corrida %i: 10 envíos simultáneos sanos del mismo par ⇒ UNA sola llamada al proveedor', async () => {
+    await t.reset();
+    const connector = mock();
+    const original = connector.createTransfer.bind(connector);
+    let calls = 0;
+    connector.createTransfer = async (request: ProviderTransferRequest, now: Date) => {
+      calls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      return original(request, now);
+    };
+    try {
+      const b = body();
+      const responses = await Promise.all(Array.from({ length: 10 }, () => order(b)));
+      expect(responses.every((r) => r.status === 200 || r.status === 201)).toBe(true);
+      expect(new Set(responses.map((r) => r.body.id)).size).toBe(1);
+      expect(responses.every((r) => r.body.status === 'paid')).toBe(true);
+      expect(calls).toBe(1);
+      expect(bank.transferCount()).toBe(1);
+      expect(await flags()).toEqual([{ status: 'paid', flag: true, claims: 1, failure_code: null }]);
+    } finally {
+      connector.createTransfer = original;
+    }
+  });
+
+  it.each([1, 2, 3, 4, 5])('corrida %i: banco caído y dos envíos simultáneos ⇒ el primero prueba «no se envió» (502) y el segundo ve ese estado ya resuelto SIN llamar otra vez', async () => {
+    await t.reset();
+    const connector = mock();
+    const original = connector.createTransfer.bind(connector);
+    let calls = 0;
+    connector.createTransfer = async () => {
+      calls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      throw new ConnectorUnavailableError('unreachable');
+    };
+    try {
+      const b = body();
+      const responses = await Promise.all([order(b), order(b)]);
+      expect(responses.map((r) => r.status).sort()).toEqual([200, 502]);
+      expect(calls).toBe(1);
+      expect(await flags()).toEqual([{ status: 'failed', flag: true, claims: 1, failure_code: 'connector_unavailable' }]);
+      expect(bank.transferCount()).toBe(0);
+    } finally {
+      connector.createTransfer = original;
+    }
+  });
+
+  it('el flag es MONÓTONO en la base: ningún UPDATE puede bajarlo ni hacer retroceder `send_claims`', async () => {
+    const b = body({ amount_minor: 250008 }); // en tránsito: la fila sigue viva
+    await order(b);
+    const row = (await flags())[0];
+    expect(row).toMatchObject({ flag: true, claims: 1 });
+    await expect(t.db.pool.query('UPDATE connector_transfers SET may_have_reached_provider = false')).rejects.toMatchObject({ code: '23514' });
+    await expect(t.db.pool.query('UPDATE connector_transfers SET send_claims = 0')).rejects.toMatchObject({ code: '23514' });
+    await expect(t.db.pool.query('UPDATE connector_refunds SET may_have_reached_provider = false')).resolves.toBeDefined(); // sin filas: no hay nada que bajar
+    expect((await flags())[0]).toMatchObject({ flag: true, claims: 1 });
+  });
+});
+
 describe('GET /transfers/{reference}', () => {
   it('sin registro ⇒ 404 problem+json con code `transfer_not_found` (y solo así)', async () => {
     const response = await getTransfer('po_inexistente:payout:1');

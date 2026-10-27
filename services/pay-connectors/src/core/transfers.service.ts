@@ -8,6 +8,7 @@ import { ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableErro
 import type { ConnectorRegistry } from '../domain/registry';
 import { newId } from '../ids';
 import { badRequest } from '../raw-problem';
+import { withSendLock } from './send-lock';
 import { inTransaction } from './db';
 import { ProviderGateway } from './provider-gateway';
 import { CLOCK, REGISTRY, type Clock } from './tokens';
@@ -33,6 +34,7 @@ interface TransferRow {
   provider_reference: string | null;
   failure_code: string | null;
   may_have_reached_provider: boolean;
+  send_claims: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -167,36 +169,61 @@ export class TransfersService {
     });
   }
 
+  private async findById(id: string): Promise<TransferRow> {
+    return toRow((await this.pool.query('SELECT * FROM connector_transfers WHERE id = $1', [id])).rows[0]);
+  }
+
+  /**
+   * Envío al proveedor, SERIALIZADO por transferencia (`withSendLock`): un segundo envío concurrente espera, vuelve a leer lo que dejó
+   * el primero y, si ya quedó resuelto, lo devuelve sin llamar de nuevo al proveedor.
+   */
   private async send(ctx: Parameters<Parameters<IdempotencyStore['execute']>[1]>[0], row: TransferRow): Promise<TransferRow> {
-    // Marca «pudo haber llegado» ANTES de llamar. `prior` dice si ya la había (un intento anterior pudo llegar).
-    const prior = row.may_have_reached_provider;
-    if (!prior) await this.pool.query('UPDATE connector_transfers SET may_have_reached_provider = true, updated_at = $2 WHERE id = $1', [row.id, this.clock.now()]);
-    const reference = providerReferenceOf(row);
-    try {
-      const result = await this.gateway.callIdempotent(row.connector, row.id, 'create_transfer', (c) =>
-        (c.createTransfer as NonNullable<typeof c.createTransfer>).call(c, { reference, amountMinor: row.amount_minor, destinationRef: row.destination_ref }, this.clock.now()),
+    return withSendLock(this.pool, row.id, async () => {
+      const fresh = await this.findById(row.id);
+      if (TERMINAL.has(fresh.status) || fresh.provider_reference !== null) return fresh;
+
+      // Leer el flag y marcarlo en UN solo paso atómico. `prior` = una orden anterior ya pudo haber llegado. `mine` = mi número de
+      // reclamo: el «no se envió» solo vale si nadie reclamó después de mí. El flag es monótono (también lo exige un trigger).
+      const claim = await this.pool.query(
+        `WITH old AS (SELECT may_have_reached_provider AS prior FROM connector_transfers WHERE id = $1 FOR UPDATE)
+         UPDATE connector_transfers t SET may_have_reached_provider = true, send_claims = t.send_claims + 1, updated_at = $2
+           FROM old WHERE t.id = $1 RETURNING old.prior AS prior, t.send_claims AS mine`,
+        [row.id, this.clock.now()],
       );
-      return await ctx.atomic('transfer_sent', (client) => this.settle(client, row.id, result.status, result.providerReference, result.failureCode ?? null));
-    } catch (error) {
-      if (error instanceof ConnectorUnavailableError && !prior) {
-        // Primera llamada que pudo llegar y el conector garantiza que NO envió nada: es lo único definitivo. Se cambia de estado (no se
-        // borra): `failed` con motivo; el llamador ordena el siguiente attempt.
-        await this.pool.query("UPDATE connector_transfers SET status = 'failed', failure_code = 'connector_unavailable', may_have_reached_provider = false, updated_at = $2 WHERE id = $1 AND status = 'pending' AND provider_reference IS NULL", [row.id, this.clock.now()]);
-        throw new ProblemError('connector_unavailable', { detail: 'El proveedor no está disponible; no se envió ninguna orden' });
+      const { prior, mine } = claim.rows[0] as { prior: boolean; mine: number };
+      const reference = providerReferenceOf(fresh);
+      try {
+        const result = await this.gateway.callIdempotent(fresh.connector, fresh.id, 'create_transfer', (c) =>
+          (c.createTransfer as NonNullable<typeof c.createTransfer>).call(c, { reference, amountMinor: fresh.amount_minor, destinationRef: fresh.destination_ref }, this.clock.now()),
+        );
+        return await ctx.atomic('transfer_sent', (client) => this.settle(client, fresh.id, result.status, result.providerReference, result.failureCode ?? null));
+      } catch (error) {
+        if (error instanceof ConnectorUnavailableError && !prior) {
+          // «No se envió nada» solo si ESTE envío fue el único que reclamó la fila (send_claims = mine) y ningún intento previo pudo llegar,
+          // evaluado en la misma sentencia que el cambio de estado. El flag NO se toca (es monótono): `failed` + `connector_unavailable`
+          // es la prueba de que nada salió.
+          const failed = await this.pool.query(
+            `UPDATE connector_transfers SET status = 'failed', failure_code = 'connector_unavailable', updated_at = $3
+              WHERE id = $1 AND status = 'pending' AND provider_reference IS NULL AND send_claims = $2`,
+            [fresh.id, mine, this.clock.now()],
+          );
+          if (failed.rowCount === 1) throw new ProblemError('connector_unavailable', { detail: 'El proveedor no está disponible; no se envió ninguna orden' });
+          throw new ProblemError('internal_error', { detail: 'Resultado ambiguo: consultá GET /transfers/{reference} antes de decidir' });
+        }
+        if (error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError) {
+          // AMBIGUO: la orden pudo ejecutarse. Nada de `connector_unavailable`; la fila queda y se resuelve con GET /transfers/{reference}.
+          throw new ProblemError('internal_error', { detail: 'Resultado ambiguo: consultá GET /transfers/{reference} antes de decidir' });
+        }
+        if (error instanceof ConnectorRejectedError && !prior) {
+          // Rechazo explícito del proveedor en la primera llamada: confirma que no se pagó.
+          return await ctx.atomic('transfer_sent', (client) => this.settle(client, fresh.id, 'failed', null, error.code));
+        }
+        if (error instanceof ConnectorRejectedError) {
+          throw new ProblemError('internal_error', { detail: 'Resultado ambiguo: consultá GET /transfers/{reference} antes de decidir' });
+        }
+        throw error;
       }
-      if (error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError) {
-        // AMBIGUO: la orden pudo ejecutarse. Nada de `connector_unavailable`; la fila queda y se resuelve con GET /transfers/{reference}.
-        throw new ProblemError('internal_error', { detail: 'Resultado ambiguo: consultá GET /transfers/{reference} antes de decidir' });
-      }
-      if (error instanceof ConnectorRejectedError && !prior) {
-        // Rechazo explícito del proveedor en la primera llamada: confirma que no se pagó.
-        return await ctx.atomic('transfer_sent', (client) => this.settle(client, row.id, 'failed', null, error.code));
-      }
-      if (error instanceof ConnectorRejectedError) {
-        throw new ProblemError('internal_error', { detail: 'Resultado ambiguo: consultá GET /transfers/{reference} antes de decidir' });
-      }
-      throw error;
-    }
+    });
   }
 
   private async settle(client: Queryable, id: string, status: TransferStatus, providerReference: string | null, failureCode: string | null): Promise<TransferRow> {

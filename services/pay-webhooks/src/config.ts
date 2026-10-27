@@ -28,6 +28,10 @@ export interface ServiceConfig {
     readonly pollIntervalMs: number;
     /** Cuánto tiempo «posee» un trabajador una entrega antes de que otro pueda retomarla. */
     readonly leaseMs: number;
+    /** Entregas en vuelo a la vez hacia un mismo endpoint: uno lento no puede ahogar a los demás. */
+    readonly perEndpointConcurrency: number;
+    /** Tope de entregas de un mismo endpoint que un lote puede reclamar. */
+    readonly perEndpointBatch: number;
   };
   /** Cuánto siguen firmándose las entregas con el secreto viejo después de rotarlo. */
   readonly rotationGraceMs: number;
@@ -105,6 +109,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
       batchSize: integer(env, 'WEBHOOKS_BATCH_SIZE', 20, 1, 500),
       pollIntervalMs: integer(env, 'WEBHOOKS_POLL_INTERVAL_MS', 1_000, 10, 60_000),
       leaseMs: integer(env, 'WEBHOOKS_LEASE_MS', 60_000, 1_000, 600_000),
+      perEndpointConcurrency: integer(env, 'WEBHOOKS_PER_ENDPOINT_CONCURRENCY', 2, 1, 50),
+      perEndpointBatch: integer(env, 'WEBHOOKS_PER_ENDPOINT_BATCH', 10, 1, 500),
     },
     rotationGraceMs: integer(env, 'WEBHOOKS_ROTATION_GRACE_HOURS', 24, 0, 24 * 30) * HOUR,
     maxEndpointsPerMerchant: integer(env, 'WEBHOOKS_MAX_ENDPOINTS', 20, 1, 1000),

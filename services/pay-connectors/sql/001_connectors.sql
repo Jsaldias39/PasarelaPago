@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS connector_charges (
   failure_code           text,
   -- true si el proveedor pudo haber creado el cobro y no se supo (timeout): no se prueba con otro conector, se reintenta con la misma referencia.
   ambiguous              boolean     NOT NULL DEFAULT false,
+  -- Cuántos envíos al proveedor se reclamaron (solo crece). Un `Unavailable` solo baja `ambiguous` si NADIE reclamó después del que falló.
+  send_claims            integer     NOT NULL DEFAULT 0,
   routing_version        integer     NOT NULL,
   routing_rule           text,
   expires_at             timestamptz NOT NULL,
@@ -47,6 +49,7 @@ CREATE TABLE IF NOT EXISTS connector_refunds (
   provider_reference text,
   failure_code       text,
   may_have_reached_provider boolean NOT NULL DEFAULT false,   -- ver connector_transfers
+  send_claims        integer     NOT NULL DEFAULT 0,
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now()
 );
@@ -154,6 +157,8 @@ CREATE TABLE IF NOT EXISTS connector_transfers (
   -- true desde ANTES de la primera llamada al proveedor: a partir de ahí una orden pudo haber llegado y la fila NO se descarta jamás.
   -- Solo mientras sea false un `connector_unavailable` prueba que no se envió nada.
   may_have_reached_provider boolean NOT NULL DEFAULT false,
+  -- Cuántos envíos se reclamaron (solo crece). El `failed` por «no se envió» exige que el envío que falló sea el ÚNICO reclamo.
+  send_claims        integer     NOT NULL DEFAULT 0,
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now(),
   -- Registro de dinero de solo-agregar: `failed` solo con explicación (la confirmó el proveedor o el conector garantiza que no envió).
@@ -162,3 +167,21 @@ CREATE TABLE IF NOT EXISTS connector_transfers (
 CREATE UNIQUE INDEX IF NOT EXISTS connector_transfers_ref_attempt_uidx ON connector_transfers (business_ref, attempt);
 -- Una operación de negocio se paga una sola vez, aunque se ordenen intentos distintos.
 CREATE UNIQUE INDEX IF NOT EXISTS connector_transfers_one_paid_uidx ON connector_transfers (business_ref) WHERE status = 'paid';
+
+-- `may_have_reached_provider` y `send_claims` son MONÓTONOS: una vez que una orden pudo haber llegado, ningún camino (ni una
+-- corrección a mano) puede volver a decir que no. Se hace cumplir en la base, no solo en el código.
+CREATE OR REPLACE FUNCTION connector_money_flags_monotone() RETURNS trigger AS $$
+BEGIN
+  IF OLD.may_have_reached_provider AND NOT NEW.may_have_reached_provider THEN
+    RAISE EXCEPTION 'may_have_reached_provider es monotono: no puede volver a false' USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.send_claims < OLD.send_claims THEN
+    RAISE EXCEPTION 'send_claims es monotono: no puede disminuir' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS connector_transfers_monotone_trg ON connector_transfers;
+CREATE TRIGGER connector_transfers_monotone_trg BEFORE UPDATE ON connector_transfers FOR EACH ROW EXECUTE FUNCTION connector_money_flags_monotone();
+DROP TRIGGER IF EXISTS connector_refunds_monotone_trg ON connector_refunds;
+CREATE TRIGGER connector_refunds_monotone_trg BEFORE UPDATE ON connector_refunds FOR EACH ROW EXECUTE FUNCTION connector_money_flags_monotone();

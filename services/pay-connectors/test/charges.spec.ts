@@ -409,4 +409,45 @@ describe('POST /charges/{id}/refunds', () => {
     expect(resumed.body.status).toBe('succeeded');
     expect((await t.db.pool.query('SELECT count(*)::int AS n FROM connector_refunds')).rows[0].n).toBe(1);
   });
+
+  it.each([1, 2, 3, 4, 5])('corrida %i: dos envíos del MISMO reembolso a la vez (el bloqueo de la clave venció y otro proceso lo retomó) ⇒ un solo reembolso en el proveedor y la fila queda ambigua, no `failed`', async () => {
+    await t.reset();
+    const id = await paid();
+    const connector = t.app.get<ConnectorRegistry>(REGISTRY).get('mock') as MockConnector;
+    const original = connector.refund.bind(connector);
+    let calls = 0;
+    let executed = 0;
+    connector.refund = async (request: ProviderRefundRequest, now: Date) => {
+      calls += 1;
+      if (calls === 1) {
+        const result = await original(request, now); // el proveedor reembolsa…
+        executed += 1;
+        void result;
+        await new Promise((resolve) => setTimeout(resolve, 250)); // …mientras el segundo proceso retoma la clave…
+        throw new ConnectorTimeoutError(); // …y la respuesta se pierde
+      }
+      throw new ConnectorUnavailableError('unreachable');
+    };
+    const config = t.app.get<ServiceConfig>(SERVICE_CONFIG) as { timeoutRetries: number };
+    config.timeoutRetries = 0;
+    const key = uniqueKey();
+    try {
+      const first = post(t.app, `/charges/${id}/refunds`, { amount_minor: 10000 }, asPayments, key).then((r) => r); // `.then` dispara el pedido (supertest es perezoso)
+      for (let i = 0; i < 200 && calls === 0; i += 1) await new Promise((resolve) => setTimeout(resolve, 10)); // espera por condición: el primer envío está en vuelo
+      expect(calls).toBe(1);
+      await t.db.pool.query("UPDATE idempotency_keys SET locked_at = now() - interval '1 hour' WHERE key = $1", [key]); // venció el bloqueo: otro proceso puede retomar
+      const second = post(t.app, `/charges/${id}/refunds`, { amount_minor: 10000 }, asPayments, key).then((r) => r);
+      const [a, b] = await Promise.all([first, second]);
+      expect(a.status).toBe(500);
+      expect(b.status).toBe(500);
+      expect(b.body.code).toBe('internal_error'); // NO `connector_unavailable`: el reembolso del primero pudo haberse ejecutado
+      const stored = (await t.db.pool.query('SELECT status, may_have_reached_provider AS flag, send_claims AS claims FROM connector_refunds')).rows;
+      expect(stored).toEqual([{ status: 'pending', flag: true, claims: 2 }]);
+      expect(executed).toBe(1);
+    } finally {
+      connector.refund = original;
+      config.timeoutRetries = 2;
+    }
+  });
 });
+

@@ -354,6 +354,123 @@ describe('comercio suspendido o cerrado', () => {
   });
 });
 
+describe('beneficiario suspendido, cerrado o inexistente: no se le acredita nada', () => {
+  const credits = (beneficiary: string) =>
+    ctx.ledger.calls.filter((c) => c.method === 'POST' && c.path === '/transactions' && c.body.legs.some((l: { credit_account: string }) => l.credit_account === `merchant:${beneficiary}:available`));
+
+  it.each([
+    ['suspendido', 'suspended'],
+    ['cerrado', 'closed'],
+    ['inexistente en la réplica', null],
+  ] as const)('beneficiario %s ANTES de reservar ⇒ `failed` `merchant_suspended`, sin tocar el libro mayor y sin revisión (no hay dinero en vuelo)', async (_name, status) => {
+    const m = await dueMandate(ctx, { funds: 100_000 });
+    if (status) await setMerchantStatus(ctx, m.beneficiary, status, new Date('2026-03-09T00:00:00Z'));
+    else await ctx.db.pool.query('DELETE FROM merchant_replica WHERE merchant_id = $1', [m.beneficiary]);
+    expect(await ctx.executor.runOnce()).toMatchObject({ failed: 1, executed: 0 });
+    expect((await payments(m.mandateId))[0]).toMatchObject({ status: 'failed', last_failure_code: 'merchant_suspended', needs_review: false, hold_id: null });
+    expect(ctx.ledger.calls).toEqual([]);
+    expect(payerBalance(m.payer)).toBe(100_000);
+    const [notice] = await eventsOf(ctx, 'scheduled_payment.failed');
+    expect(notice.data).toMatchObject({ failure_code: 'merchant_suspended', merchant_id: m.payer, amount_minor: 100_000 });
+    expect(JSON.stringify(notice)).not.toContain(m.beneficiary); // el aviso al pagador no nombra al beneficiario
+  });
+
+  it('beneficiario activo ⇒ se paga (control)', async () => {
+    const m = await dueMandate(ctx, { funds: 100_000 });
+    expect(await ctx.executor.runOnce()).toMatchObject({ executed: 1 });
+    expect(credits(m.beneficiary)).toHaveLength(1);
+  });
+
+  it('se suspende ENTRE la retención y la confirmación: se anula la retención (void), queda a revisión y no se acredita', async () => {
+    const m = await dueMandate(ctx, { funds: 100_000 });
+    ctx.ledger.faults.push({ kind: 'drop-before', when: (r) => r.path.endsWith('/post') });
+    await ctx.executor.runOnce();
+    expect((await payments(m.mandateId))[0]).toMatchObject({ phase: 'post', status: 'due' });
+    expect(payerBalance(m.payer)).toBe(100_000);
+    expect(ctx.ledger.holds()[0].status).toBe('pending');
+
+    await setMerchantStatus(ctx, m.beneficiary, 'suspended', new Date('2026-03-11T00:00:00Z'));
+    advance(HOUR);
+    expect(await ctx.executor.runOnce()).toMatchObject({ failed: 1 });
+    expect((await payments(m.mandateId))[0]).toMatchObject({ status: 'failed', last_failure_code: 'merchant_suspended', needs_review: true });
+    expect(ctx.ledger.holds()[0].status).toBe('voided');
+    expect(ctx.ledger.calls.filter((c) => c.path.endsWith('/void'))).toHaveLength(1);
+    expect(ctx.ledger.calls.filter((c) => c.path === '/transactions')).toHaveLength(0);
+    expect(credits(m.beneficiary)).toHaveLength(0);
+    expect(payerBalance(m.payer)).toBe(100_000);
+    expect(ctx.ledger.balanceOf('test', `merchant:${m.beneficiary}:available`)).toBe(0);
+    expect((await eventsOf(ctx, 'scheduled_payment.failed'))[0].data.failure_code).toBe('merchant_suspended');
+  });
+
+  it('se suspende DESPUÉS de confirmar hacia la reserva: asiento inverso al pagador (el void ya no existe), a revisión, sin acreditar', async () => {
+    const m = await dueMandate(ctx, { funds: 100_000 });
+    ctx.ledger.faults.push({ kind: 'drop-before', when: (r) => r.path === '/transactions' });
+    await ctx.executor.runOnce();
+    expect((await payments(m.mandateId))[0]).toMatchObject({ phase: 'release' });
+    expect(ctx.ledger.balanceOf('test', `schedule:${m.mandateId}:reserve`)).toBe(100_000);
+
+    await setMerchantStatus(ctx, m.beneficiary, 'closed', new Date('2026-03-11T00:00:00Z'));
+    advance(HOUR);
+    expect(await ctx.executor.runOnce()).toMatchObject({ failed: 1 });
+    expect((await payments(m.mandateId))[0]).toMatchObject({ status: 'failed', last_failure_code: 'merchant_suspended', needs_review: true });
+    // La única orden de liberación al beneficiario fue la que se cortó ANTES de aplicarse; tras la suspensión no se emitió otra.
+    expect(credits(m.beneficiary)).toHaveLength(1);
+    expect(ctx.ledger.balanceOf('test', `merchant:${m.beneficiary}:available`)).toBe(0);
+    expect(ctx.ledger.balanceOf('test', `schedule:${m.mandateId}:reserve`)).toBe(0);
+    expect(payerBalance(m.payer)).toBe(100_000);
+    const reversal = ctx.ledger.calls.find((c) => c.path === '/transactions' && c.body.business_ref.endsWith(':reverse'));
+    expect(reversal?.body.legs).toEqual([{ debit_account: `schedule:${m.mandateId}:reserve`, credit_account: `merchant:${m.payer}:available`, amount_minor: 100_000, code: 'release' }]);
+  });
+
+  it('resultado AMBIGUO del void ⇒ no se asume nada: se reintenta con la MISMA clave y termina anulada una sola vez', async () => {
+    const m = await dueMandate(ctx, { funds: 100_000 });
+    ctx.ledger.faults.push({ kind: 'drop-before', when: (r) => r.path.endsWith('/post') });
+    await ctx.executor.runOnce();
+    await setMerchantStatus(ctx, m.beneficiary, 'suspended', new Date('2026-03-11T00:00:00Z'));
+    ctx.ledger.faults.push({ kind: 'drop-after', when: (r) => r.path.endsWith('/void') }); // se anula pero la respuesta se pierde
+    advance(HOUR);
+    expect(await ctx.executor.runOnce()).toMatchObject({ retryLater: 1 });
+    expect((await payments(m.mandateId))[0]).toMatchObject({ status: 'due', phase: 'void', needs_review: false });
+    advance(2 * HOUR); // ya van dos intentos: la política espera 2 h
+    expect(await ctx.executor.runOnce()).toMatchObject({ failed: 1 });
+    expect((await payments(m.mandateId))[0]).toMatchObject({ status: 'failed', last_failure_code: 'merchant_suspended', needs_review: true });
+    const voids = ctx.ledger.calls.filter((c) => c.path.endsWith('/void'));
+    expect(voids).toHaveLength(2);
+    expect(new Set(voids.map((c) => c.headers['idempotency-key'])).size).toBe(1);
+    expect(ctx.ledger.holds()).toHaveLength(1);
+    expect(credits(m.beneficiary)).toHaveLength(0);
+  });
+
+  it('void ⇒ 409 porque la confirmación SÍ se había aplicado (respuesta perdida): consulta autoritativa y asiento inverso', async () => {
+    const m = await dueMandate(ctx, { funds: 100_000 });
+    ctx.ledger.faults.push({ kind: 'drop-after', when: (r) => r.path.endsWith('/post') });
+    await ctx.executor.runOnce();
+    expect(ctx.ledger.holds()[0].status).toBe('posted');
+    expect((await payments(m.mandateId))[0]).toMatchObject({ phase: 'post' });
+    await setMerchantStatus(ctx, m.beneficiary, 'suspended', new Date('2026-03-11T00:00:00Z'));
+    advance(HOUR);
+    expect(await ctx.executor.runOnce()).toMatchObject({ failed: 1 });
+    expect((await payments(m.mandateId))[0]).toMatchObject({ status: 'failed', last_failure_code: 'merchant_suspended', needs_review: true });
+    expect(payerBalance(m.payer)).toBe(100_000);
+    expect(ctx.ledger.balanceOf('test', `schedule:${m.mandateId}:reserve`)).toBe(0);
+    expect(credits(m.beneficiary)).toHaveLength(0);
+  });
+
+  it('comisión hacia la plataforma: NO se consulta el estado de comercio del beneficiario (aunque no esté en la réplica); sí el del pagador', async () => {
+    await ctx.db.pool.query('DELETE FROM merchant_replica WHERE merchant_id = $1', [PLATFORM_MERCHANT]);
+    const ok = await dueMandate(ctx, { funds: 100_000, amount: 25_000, kind: 'pay_commission', beneficiary: PLATFORM_MERCHANT });
+    await ctx.db.pool.query('DELETE FROM merchant_replica WHERE merchant_id = $1', [PLATFORM_MERCHANT]);
+    expect(await ctx.executor.runOnce()).toMatchObject({ executed: 1 });
+    expect(ctx.ledger.balanceOf('test', 'platform:fees')).toBe(25_000);
+    void ok;
+    const blocked = await dueMandate(ctx, { funds: 100_000, amount: 25_000, kind: 'pay_commission', beneficiary: PLATFORM_MERCHANT });
+    await setMerchantStatus(ctx, blocked.payer, 'suspended', new Date('2026-03-10T00:00:00Z'));
+    await ctx.db.pool.query('DELETE FROM merchant_replica WHERE merchant_id = $1', [PLATFORM_MERCHANT]);
+    expect(await ctx.executor.runOnce()).toMatchObject({ failed: 1 });
+    expect((await payments(blocked.mandateId))[0]).toMatchObject({ status: 'failed', last_failure_code: 'merchant_suspended' });
+  });
+});
+
 describe('cancelación', () => {
   it('cancelar antes de ejecutar: el pago pendiente se cancela sin tocar el libro mayor y no se materializa nada más', async () => {
     const m = await dueMandate(ctx, { funds: 10_000, amount: 100_000 });

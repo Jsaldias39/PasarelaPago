@@ -188,7 +188,7 @@ describe('[DOBLE de Svix] entrega firmada con reintentos', () => {
 
   describe('agotamiento y salud del endpoint', () => {
     it('agotados todos los intentos la entrega queda dead; al llegar al tope el endpoint se deshabilita (too_many_failures)', async () => {
-      const strict = await startWebhooks({ env: { WEBHOOKS_DISABLE_AFTER_DEAD: '2', WEBHOOKS_RETRY_SCHEDULE_MS: '0,10' } });
+      const strict = await startWebhooks({ env: { WEBHOOKS_DISABLE_AFTER_DEAD: '2', WEBHOOKS_RETRY_SCHEDULE_MS: '0,10', WEBHOOKS_PER_ENDPOINT_CONCURRENCY: '1' } });
       try {
         const merchant = newMerchantId();
         const { secret } = await endpointFor(strict, merchant);
@@ -322,6 +322,39 @@ describe('[DOBLE de Svix] entrega firmada con reintentos', () => {
   });
 
   describe('concurrencia', () => {
+    it('un endpoint LENTO no ahoga a los demás: tope de entregas en vuelo por endpoint y tope de lote por endpoint', async () => {
+      const slowHost = 'lento.comercio.example';
+      h.resolver.table[slowHost] = ['93.184.216.50'];
+      const merchant = newMerchantId();
+      const slow = await endpointFor(h, merchant, { url: `https://${slowHost}/pay`, enabled_events: ['payout.paid'] });
+      const fast = await endpointFor(h, merchant, { url: `https://${HOST}/pay`, enabled_events: ['payment_intent.succeeded'] });
+      const slowReceiver = new WebhookReceiver({ secrets: [slow.secret], now: () => Math.floor(h.clock.now().getTime() / 1000) });
+      const fastReceiver = new WebhookReceiver({ secrets: [fast.secret], now: () => Math.floor(h.clock.now().getTime() / 1000) });
+      h.transport.route(slowHost, await slowReceiver.listen());
+      h.transport.route(HOST, await fastReceiver.listen());
+      h.transport.calls.length = 0;
+      h.transport.finished.length = 0;
+      h.transport.maxInFlight.clear();
+      h.transport.delays.set(slowHost, 300);
+
+      for (let i = 0; i < 25; i += 1) await h.ingest.ingest(cloudEvent('payout.paid', merchant)); // 25 para el lento
+      const fastEvent = cloudEvent('payment_intent.succeeded', merchant);
+      await h.ingest.ingest(fastEvent); // 1 para el rápido
+
+      const started = Date.now();
+      const summary = await h.worker.runOnce();
+      const fastDone = h.transport.finished.find((f) => f.webhookId === fastEvent.id)!.at - started;
+
+      expect(summary.claimed).toBe(h.config.delivery.perEndpointBatch + 1); // el lento no se lleva todo el lote
+      expect(h.transport.maxInFlight.get(slowHost)).toBeLessThanOrEqual(h.config.delivery.perEndpointConcurrency);
+      expect(fastDone).toBeLessThan(200); // no esperó a las entregas lentas
+      const pendingSlow = await h.db.pool.query("SELECT count(*)::int AS n FROM webhook_deliveries WHERE endpoint_id = $1 AND attempts = 0", [slow.id]);
+      expect(pendingSlow.rows[0].n).toBe(15);
+      h.transport.delays.clear();
+      await slowReceiver.close();
+      await fastReceiver.close();
+    });
+
     it('3 trabajadores a la vez sobre 40 entregas: cada una se intenta UNA vez (SKIP LOCKED + arriendo)', async () => {
       const merchant = newMerchantId();
       const { secret } = await endpointFor(h, merchant);

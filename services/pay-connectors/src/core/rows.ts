@@ -17,6 +17,7 @@ export interface ChargeRow {
   provider_reference: string | null;
   failure_code: string | null;
   ambiguous: boolean;
+  send_claims: number;
   routing_version: number;
   routing_rule: string | null;
   expires_at: Date;
@@ -70,6 +71,7 @@ export interface RefundRow {
   provider_reference: string | null;
   failure_code: string | null;
   may_have_reached_provider: boolean;
+  send_claims: number;
   created_at: Date;
   updated_at: Date;
 }
