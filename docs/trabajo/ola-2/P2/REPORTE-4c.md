@@ -15,8 +15,11 @@ Sin commit. Evidencia con prefijo `4c-` en [`evidencia/`](./evidencia/).
 
 **Tres niveles:** correcto (mismo comercio cruza; igual comercio y otro importe ⇒ una `amount_mismatch`), límite (ausente/`null`; solo con `our_reference`; dos líneas de una clave, una sin campo y otra correcta cruzan), inválido (otro comercio con el importe igual ⇒ `unknown_reference`, con otro importe también una sola; `pi_` inexistente ⇒ `missing_in_ledger` aunque traiga merchant; `merchant_id` mal formado ⇒ corrida `failed`/`statement_malformed`; el ledger no se mueve; repetir la corrida no reabre ni re-notifica).
 
-## Gates (`4c-gates.txt`, `4c-test-settlement-run1/2.txt`)
-typecheck, build (ledger y settlement), eslint de raíz sobre los archivos de P2, `contracts:lint`, `e2e:typecheck`: `exit=0`. `yarn test` pay-settlement ×2 con TigerBeetle real, `--maxWorkers=2`: ver las dos salidas literales. TigerBeetle detenido.
+## Gates (`4c-gates.txt`, `4c-test-settlement-run1..4.txt`, `4c-test-ledger.txt`)
+typecheck, build (ledger y settlement), eslint de raíz sobre los archivos de P2, `contracts:lint`, `e2e:typecheck`: `exit=0`. `yarn test` pay-settlement con TigerBeetle real, `--maxWorkers=2`, una suite a la vez:
+- **run3 y run4: 26 suites, 547/547 en verde, las dos.**
+- run1 y run2 (las primeras dos, conservadas): 546/547, falló `nats.spec.ts › ledger.transfer.posted … guarda el abono` por `Exceeded timeout of 20000 ms`. Clasificación: **ENVIRONMENT (carga de la máquina)**, no producto: la máquina iba con carga 6–10 y 6 procesos jest de otros carriles; `nats.spec` solo da 5/5 y las dos corridas completas siguientes dan 547/547 sin cambiar código. No se subió ningún timeout ni se reintentó dentro de la suite.
+- TigerBeetle detenido al final.
 
 ## A medias / Pendiente
 - P2.H2.M6a: sin cambio (falta que P4 emita `payment_intent_id` y `merchant_id` en `fetchStatement` y correr E4). P2.H2.M6b: BLOQUEADO (Q-11, T-03).

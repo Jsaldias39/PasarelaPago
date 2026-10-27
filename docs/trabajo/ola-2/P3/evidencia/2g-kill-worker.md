@@ -14,5 +14,4 @@ Generado por `services/pay-payments/test/ola2.tanda2g.kill.spec.ts` contra Postg
 | 8 | señales | captured ×4 y authorized atrasado, todos juntos | succeeded; asientos: 1; eventos terminales: 1; contradicciones: 0 |
 | 9 | señales | captured y luego failed en la misma ráfaga | succeeded; asientos: 1; eventos terminales: 1; contradicción registrada y publicada: 1 |
 | 10 | señales | failed y luego captured en la misma ráfaga | failed; asientos: 0; eventos terminales: 1; contradicción registrada y publicada: 1 |
-| 11 | señales (reembolso) | succeeded, succeeded y failed contradictorio en la misma ráfaga | succeeded; retención confirmada 1 vez; saldo 20000 → 18800; eventos terminales: refund.succeeded; conflicto escalado (refund_status_conflict) |
-| 12 | señales (disputa) | resolve lost y resolve won en la misma ráfaga | lost (la primera); débitos del contracargo: 1; eventos: dispute.opened, dispute.lost |
+| 11 | señales (disputa) | resolve lost y resolve won en la misma ráfaga | lost (la primera); débitos del contracargo: 1; eventos: dispute.opened, dispute.lost |

@@ -1,0 +1,25 @@
+# Control negativo: el comparador DETECTA deriva. Se muta una copia del ddl.sql generado de pay-ledger (leg_index integer->bigint, CHECK attempt >= 1 -> >= 2, se quita un índice, tb_id pierde NOT NULL) y se compara contra la referencia.
+$ pay_catalog_diff.py --a <referencia> --b ledger_mutado.sql
+[B] ledger-MUTADO: 89 columnas, 9 tablas, 19 índices, 24 CHECK, 4 FK, 0 triggers
+[A] ledger-MUTADO: 89 columnas, 9 tablas, 20 índices, 24 CHECK, 4 FK, 0 triggers
+[=] tables: 9 elementos idénticos
+[DIFF] columns:
+   solo en referencia: [('ledger_accounts', 4, 'tb_id', 'character(32)', True, '', '', ''), ('ledger_legs', 7, 'leg_index', 'integer', True, '', '', '')]
+   solo en modelo:     [('ledger_accounts', 4, 'tb_id', 'character(32)', False, '', '', ''), ('ledger_legs', 7, 'leg_index', 'bigint', True, '', '', '')]
+[=] pk: 9 elementos idénticos
+[=] fk: 4 elementos idénticos
+[DIFF] check:
+   solo en referencia: [('ledger_transactions', 'CHECK ((attempt >= 1))')]
+   solo en modelo:     [('ledger_transactions', 'CHECK ((attempt >= 2))')]
+[=] other_constraints: 0 elementos idénticos
+[DIFF] indexes:
+   solo en referencia: [('ledger_legs', 'CREATE INDEX ON ledger_legs USING btree (mode, business_ref, attempt)')]
+   solo en modelo:     []
+[=] triggers: 0 elementos idénticos
+[=] functions: 0 elementos idénticos
+[=] sequences: 2 elementos idénticos
+[=] rows: 9 elementos idénticos
+[nombres] restricciones con nombre distinto: 16 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 1
+[nombres] índices: referencia [('ledger_legs', 'ledger_legs_business_ref_idx')] / modelo []
+VEREDICTO ledger-MUTADO: FAIL
+exit=1
