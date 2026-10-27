@@ -1,0 +1,6 @@
+# Gates P3 (2026-10-27T18:06:28Z)
+services/pay-payments yarn typecheck -> exit 0
+services/pay-payments yarn build -> exit 0
+services/pay-vault yarn typecheck -> exit 0
+services/pay-vault yarn build -> exit 0
+yarn eslint services/pay-payments services/pay-vault -> exit 0 (solo jest.config.cjs, falso positivo de la config raíz común a todos los servicios, PROP-13: 0 líneas de error, todas en jest.config.cjs: 0)
