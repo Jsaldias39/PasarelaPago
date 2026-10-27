@@ -53,6 +53,7 @@ export class CallbacksService {
     );
     if (!decision.allowed) throw new ProblemError('unauthorized');
 
+    console.log('DBG2', request.rawBody.length, JSON.stringify(request.headers).slice(0,300), now.toISOString());
     const verified = await connector.verifyCallback({ headers: request.headers, rawBody: request.rawBody, now });
     if (!verified.ok) {
       if (verified.malformed) throw badRequest('El cuerpo del callback no se pudo interpretar');
