@@ -30,6 +30,7 @@
     "@pay/money": "workspace:*",
     "@pay/outbox": "workspace:*",
     "@pay/problem": "workspace:*",
+    "fast-xml-parser": "^5.11.2",
     "nats": "^2.29.3",
     "nestjs-pino": "^4.6.1",
     "pg": "^8.22.0",
@@ -39,11 +40,15 @@
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
+    "@apidevtools/json-schema-ref-parser": "^16.0.5",
     "@nestjs/testing": "^11.0.1",
     "@pay/testing": "workspace:*",
     "@types/express": "^5.0.0",
     "@types/pg": "^8",
     "@types/supertest": "^6.0.2",
-    "supertest": "^7.0.0"
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "supertest": "^7.0.0",
+    "yaml": "^2.9.1"
   }
 }
