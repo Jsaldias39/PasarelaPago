@@ -55,7 +55,7 @@ export async function applyReplicaEvent(client: Queryable, event: ReplicaEvent):
        ON CONFLICT (key_id) DO UPDATE
           SET merchant_id = EXCLUDED.merchant_id, mode = EXCLUDED.mode, key_hash = EXCLUDED.key_hash,
               last_event_id = EXCLUDED.last_event_id, updated_at = now()
-        `,
+        WHERE api_key_replica.key_hash IS NULL`,
       [event.keyId, event.merchantId, event.mode, event.keyHash, event.eventId],
     );
     return;
@@ -65,7 +65,7 @@ export async function applyReplicaEvent(client: Queryable, event: ReplicaEvent):
       `INSERT INTO api_key_replica (key_id, merchant_id, mode, key_hash, revoked_at, last_event_id)
        VALUES ($1, $2, $3, NULL, $4::timestamptz, $5)
        ON CONFLICT (key_id) DO UPDATE
-          SET revoked_at = EXCLUDED.revoked_at,
+          SET revoked_at = LEAST(api_key_replica.revoked_at, EXCLUDED.revoked_at),
               last_event_id = EXCLUDED.last_event_id, updated_at = now()`,
       [event.keyId, event.merchantId, event.mode, event.revokedAt, event.eventId],
     );
@@ -76,7 +76,7 @@ export async function applyReplicaEvent(client: Queryable, event: ReplicaEvent):
      VALUES ($1, $2, $3::timestamptz, $4)
      ON CONFLICT (merchant_id) DO UPDATE
         SET status = EXCLUDED.status, status_at = EXCLUDED.status_at, last_event_id = EXCLUDED.last_event_id, updated_at = now()
-     `,
+      WHERE merchant_replica.status <> 'closed' AND merchant_replica.status_at <= EXCLUDED.status_at`,
     [event.merchantId, event.status, event.at, event.eventId],
   );
 }
