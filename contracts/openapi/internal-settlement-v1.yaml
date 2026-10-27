@@ -19,7 +19,7 @@ info:
     | `pay-schedules` | `POST /payouts`, `GET /payouts`, `GET /payouts/{id}`, `POST /charges` |
     | `pay-payments` | `POST /charges` (deuda por contracargo, D-22) |
     | `pay-edge` | `GET /payouts` (la forma pública, ver abajo) |
-    | `pay-console` (nombre PROVISORIO de la consola interna de operación, fuera de este plan) | todas, y es la única que corre cortes (`/batches`), concilia (`/reconciliation_*`) y exporta (`/exports/accounting`) |
+    | `pay-backoffice` (consola interna de operación, fuera de este plan; nombre fijado por D-31, antes provisorio `pay-console`) | todas, y es la única que corre cortes (`/batches`), concilia (`/reconciliation_*`) y exporta (`/exports/accounting`) |
 
     Todo otro servicio recibe `403 forbidden`. (`pay-merchants` llama `pay-backoffice` a su equivalente: el nombre definitivo del
     back-office es una decisión pendiente del dueño.)
