@@ -1,0 +1,390 @@
+# Contrato INTERNO de pay-ledger. BORRADOR de la ola 0 (`v1-draft`): no está congelado.
+openapi: 3.1.0
+info:
+  title: pay-ledger — API interna v1
+  version: 1.0.0-draft
+  description: |
+    Libro mayor de partida doble sobre TigerBeetle. **Único servicio que conoce saldos** (regla de separación 7).
+
+    - **Expone:** P2 (`pay-ledger`).
+    - **Consume:** `pay-payments` (P3) para cobros, reembolsos y el medio «saldo AloVida»; `pay-settlement` (P2)
+      para liberar saldo y pagar; `pay-schedules` (P5) para la reserva de pagos programados.
+    - **Seguridad:** mTLS entre servicios; `X-Service-Id` identifica al llamador. El ledger valida que el llamador
+      esté autorizado para las cuentas que toca. No hay acceso desde afuera de la red interna.
+
+    ## Regla de ids (hallazgo del spike de TigerBeetle, `docs/spikes/tigerbeetle.md`, H-1)
+
+    Una transferencia **rechazada** no se puede reintentar con el mismo id: TigerBeetle responde `id_already_failed`,
+    incluso si el monto ahora sí alcanzaría. Por eso este contrato **no recibe un id de 128 bits**:
+
+    - El llamador manda `business_ref` (estable por operación de negocio, por ejemplo `pi_x:capture`) y `attempt`
+      (entero ≥ 1).
+    - El servidor deriva de ahí el id de cada pata (`business_ref` + `attempt` + índice de la pata) de forma
+      determinista y guarda el mapeo en su Postgres.
+    - Repetir el mismo `business_ref` + `attempt` devuelve **el mismo resultado** (`result: exists`), sea éxito o
+      rechazo. Es la idempotencia: no vuelve a mover dinero.
+    - El llamador sube `attempt` **solo** si el intento anterior fue **rechazado** y quiere probar de nuevo
+      (por ejemplo, después de que entró saldo). Subirlo tras un éxito es un error de quien llama: movería el dinero dos veces.
+
+    ## Plan de cuentas (PLAN-MAESTRO §3.3)
+
+    Las cuentas son lógicas y las crea el ledger la primera vez que se las nombra en una operación permitida.
+    Invariantes: `merchant:{id}:available` y `user:{id}:wallet` no pueden quedar en negativo
+    (`debits_must_not_exceed_credits`).
+servers:
+  - url: http://pay-ledger:3000
+    description: Marcador de la red interna. El puerto real lo fija el despliegue.
+security:
+  - mTLS: []
+tags:
+  - { name: Transactions, description: Asientos de partida doble }
+  - { name: Holds, description: Retenciones en dos fases }
+  - { name: Balances, description: Saldos y extractos }
+paths:
+  /transactions:
+    post:
+      operationId: ledgerCreateTransaction
+      tags: [Transactions]
+      x-owner: P2
+      summary: Registra un asiento (todas las patas o ninguna)
+      description: |
+        Las patas se aplican como un lote enlazado: si una falla, no se aplica ninguna. Los débitos y créditos del
+        asiento tienen que sumar lo mismo (`422 validation_failed` si no). Máximo 100 patas por asiento
+        (el lote máximo observado de TigerBeetle es 8189 transferencias; se deja margen).
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TransactionCreate' } } }
+      responses:
+        '201':
+          description: 'Asiento aplicado por primera vez (`result: created`).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } }
+        '200':
+          description: 'Ya existía este `business_ref` + `attempt` (`result: exists`). Mismo contenido que la primera respuesta.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422':
+          description: |
+            Rechazo de negocio, definitivo para este `attempt`: `insufficient_funds` (la cuenta no puede quedar en
+            negativo) o `validation_failed`. Reintentar exige `attempt + 1`.
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /transactions/{business_ref}:
+    get:
+      operationId: ledgerGetTransaction
+      tags: [Transactions]
+      x-owner: P2
+      summary: Intentos registrados de una operación de negocio
+      description: Devuelve todos los `attempt` del `business_ref`, incluidos los rechazados (TigerBeetle no guarda los rechazos; este rastro vive en `pay_ledger`).
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: '#/components/parameters/BusinessRefPath'
+      responses:
+        '200':
+          description: Los intentos, del más nuevo al más viejo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [business_ref, attempts]
+                properties:
+                  business_ref: { $ref: '#/components/schemas/BusinessRef' }
+                  attempts: { type: array, items: { $ref: '#/components/schemas/Transaction' } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /holds:
+    post:
+      operationId: ledgerCreateHold
+      tags: [Holds]
+      x-owner: P2
+      summary: Retiene un monto (primera fase)
+      description: |
+        Reserva `amount_minor` de la cuenta de origen sin moverlo todavía: queda como débito pendiente y el saldo
+        disponible baja. Se resuelve con `post` o `void`; si pasa `expires_in_seconds` sin resolverse, el monto vuelve
+        solo a la cuenta de origen (estado `expired`). Usa `business_ref` + `attempt` como las transacciones.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/HoldCreate' } } }
+      responses:
+        '201':
+          description: 'Retención creada (`result: created`).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Hold' } } }
+        '200':
+          description: 'Ya existía (`result: exists`).'
+          content: { application/json: { schema: { $ref: '#/components/schemas/Hold' } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422':
+          description: '`insufficient_funds` o `validation_failed`. Definitivo para este `attempt`.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /holds/{id}:
+    get:
+      operationId: ledgerGetHold
+      tags: [Holds]
+      x-owner: P2
+      summary: Estado de una retención
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: '#/components/parameters/HoldId'
+      responses:
+        '200': { description: La retención., content: { application/json: { schema: { $ref: '#/components/schemas/Hold' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /holds/{id}/post:
+    post:
+      operationId: ledgerPostHold
+      tags: [Holds]
+      x-owner: P2
+      summary: Confirma la retención (segunda fase)
+      description: Mueve el monto retenido, o una parte (`amount_minor` ≤ retenido; el resto vuelve a la cuenta de origen). Una retención se resuelve una sola vez.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: '#/components/parameters/HoldId'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }], description: 'Si falta, se confirma el monto completo.' }
+      responses:
+        '200': { description: Retención confirmada., content: { application/json: { schema: { $ref: '#/components/schemas/Hold' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '409':
+          description: '`invalid_state_transition`: la retención ya se resolvió (`posted`, `voided` o `expired`).'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /holds/{id}/void:
+    post:
+      operationId: ledgerVoidHold
+      tags: [Holds]
+      x-owner: P2
+      summary: Anula la retención (segunda fase)
+      description: Libera el monto retenido a la cuenta de origen. Una retención se resuelve una sola vez.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: '#/components/parameters/HoldId'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Retención anulada., content: { application/json: { schema: { $ref: '#/components/schemas/Hold' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '409':
+          description: '`invalid_state_transition`: la retención ya se resolvió.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /balances:
+    get:
+      operationId: ledgerGetBalance
+      tags: [Balances]
+      x-owner: P2
+      summary: Saldo de una cuenta lógica
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: '#/components/parameters/AccountQuery'
+      responses:
+        '200': { description: Saldo., content: { application/json: { schema: { $ref: '#/components/schemas/Balance' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /statements:
+    get:
+      operationId: ledgerListStatement
+      tags: [Balances]
+      x-owner: P2
+      summary: Extracto de una cuenta
+      description: Movimientos confirmados de la cuenta, del más nuevo al más viejo, con desempate estable por id, para que la paginación no cambie entre páginas.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: '#/components/parameters/AccountQuery'
+        - $ref: 'common.yaml#/components/parameters/Limit'
+        - $ref: 'common.yaml#/components/parameters/StartingAfter'
+        - { name: from, in: query, schema: { $ref: 'common.yaml#/components/schemas/Timestamp' } }
+        - { name: to, in: query, schema: { $ref: 'common.yaml#/components/schemas/Timestamp' } }
+      responses:
+        '200':
+          description: Página del extracto.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: 'common.yaml#/components/schemas/ListMeta'
+                  - type: object
+                    required: [data]
+                    properties: { data: { type: array, items: { $ref: '#/components/schemas/StatementLine' } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+components:
+  securitySchemes:
+    mTLS:
+      type: mutualTLS
+      description: Certificado de servicio. La identidad del llamador se confirma además con `X-Service-Id`.
+  parameters:
+    ServiceId:
+      name: X-Service-Id
+      in: header
+      required: true
+      description: Servicio llamador. Tiene que coincidir con la identidad del certificado mTLS.
+      schema: { type: string, pattern: '^pay-[a-z]+$', examples: [pay-payments] }
+    Traceparent:
+      name: traceparent
+      in: header
+      required: false
+      description: W3C Trace Context, para unir la traza con la del llamador.
+      schema: { type: string, pattern: '^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$' }
+    HoldId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, pattern: '^hd_[a-z0-9]{10,40}$' }
+    BusinessRefPath:
+      name: business_ref
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/BusinessRef' }
+    AccountQuery:
+      name: account
+      in: query
+      required: true
+      description: Cuenta lógica (ver el plan de cuentas en la descripción del contrato).
+      schema: { $ref: '#/components/schemas/Account' }
+  schemas:
+    BusinessRef:
+      type: string
+      pattern: '^[a-z0-9_]{2,10}_[a-z0-9]{10,40}:[a-z_]{3,30}$'
+      maxLength: 100
+      description: 'Referencia estable de la operación de negocio: `<id del recurso>:<operación>`, por ejemplo `pi_x1y2z3abcd:capture`.'
+      examples: ['pi_k3m9x2q7ab:capture']
+    Attempt:
+      type: integer
+      minimum: 1
+      maximum: 1000
+      description: Número de intento del ledger para este `business_ref`. Empieza en 1 y sube solo tras un rechazo.
+    Account:
+      type: string
+      description: Cuenta lógica del plan de cuentas (PLAN-MAESTRO §3.3).
+      pattern: '^(merchant:mc_[a-z0-9]{10,40}:(pending|available)|user:[A-Za-z0-9_-]{3,60}:wallet|platform:fees|connector:[a-z_]{3,30}:clearing|payout:clearing|schedule:md_[a-z0-9]{10,40}:reserve)$'
+      examples: ['merchant:mc_k3m9x2q7ab:pending', 'platform:fees']
+    Leg:
+      type: object
+      required: [debit_account, credit_account, amount_minor]
+      additionalProperties: false
+      properties:
+        debit_account: { $ref: '#/components/schemas/Account' }
+        credit_account: { $ref: '#/components/schemas/Account' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+        code:
+          type: string
+          enum: [charge, fee, refund, payout, release, wallet_transfer, mandate, adjustment]
+          description: Tipo de movimiento, para el extracto y la contabilidad.
+    TransactionCreate:
+      type: object
+      required: [business_ref, attempt, currency, legs]
+      additionalProperties: false
+      properties:
+        business_ref: { $ref: '#/components/schemas/BusinessRef' }
+        attempt: { $ref: '#/components/schemas/Attempt' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        legs: { type: array, minItems: 1, maxItems: 100, items: { $ref: '#/components/schemas/Leg' } }
+    Transaction:
+      type: object
+      required: [id, object, result, business_ref, attempt, status, currency, legs, created_at]
+      properties:
+        id: { type: string, pattern: '^tx_[a-z0-9]{10,40}$' }
+        object: { const: transaction }
+        result: { type: string, enum: [created, exists], description: '`exists` = respuesta repetida de una operación ya registrada.' }
+        business_ref: { $ref: '#/components/schemas/BusinessRef' }
+        attempt: { $ref: '#/components/schemas/Attempt' }
+        status: { type: string, enum: [posted, rejected] }
+        reject_code: { type: [string, 'null'], enum: [insufficient_funds, validation_failed, null] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        legs: { type: array, items: { $ref: '#/components/schemas/Leg' } }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+    HoldCreate:
+      type: object
+      required: [business_ref, attempt, debit_account, credit_account, amount_minor, currency, expires_in_seconds]
+      additionalProperties: false
+      properties:
+        business_ref: { $ref: '#/components/schemas/BusinessRef' }
+        attempt: { $ref: '#/components/schemas/Attempt' }
+        debit_account: { $ref: '#/components/schemas/Account' }
+        credit_account: { $ref: '#/components/schemas/Account' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        expires_in_seconds: { type: integer, minimum: 1, maximum: 2592000, description: 'Tras este plazo sin resolverse, el monto vuelve a la cuenta de origen.' }
+    Hold:
+      type: object
+      required: [id, object, result, business_ref, attempt, status, debit_account, credit_account, amount_minor, currency, expires_at, created_at]
+      properties:
+        id: { type: string, pattern: '^hd_[a-z0-9]{10,40}$' }
+        object: { const: hold }
+        result: { type: string, enum: [created, exists] }
+        business_ref: { $ref: '#/components/schemas/BusinessRef' }
+        attempt: { $ref: '#/components/schemas/Attempt' }
+        status: { type: string, enum: [pending, posted, voided, expired] }
+        debit_account: { $ref: '#/components/schemas/Account' }
+        credit_account: { $ref: '#/components/schemas/Account' }
+        amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        posted_amount_minor: { oneOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { type: 'null' }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        expires_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        resolved_at: { oneOf: [{ $ref: 'common.yaml#/components/schemas/Timestamp' }, { type: 'null' }] }
+    Balance:
+      type: object
+      required: [object, account, currency, balance_minor, pending_debits_minor, as_of]
+      properties:
+        object: { const: balance }
+        account: { $ref: '#/components/schemas/Account' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        balance_minor:
+          allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }]
+          description: 'Disponible: créditos confirmados − débitos confirmados − débitos pendientes. Para cuentas de naturaleza deudora (`platform:fees` no lo es; `connector:*:clearing` sí) se interpreta con `nature`.'
+        nature: { type: string, enum: [credit, debit], description: Naturaleza de la cuenta; define cómo leer `balance_minor`. }
+        pending_debits_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        pending_credits_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        as_of: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+    StatementLine:
+      type: object
+      required: [id, business_ref, attempt, leg_index, direction, counterparty_account, amount_minor, code, posted_at]
+      properties:
+        id: { type: string, pattern: '^sl_[a-z0-9]{10,40}$' }
+        business_ref: { $ref: '#/components/schemas/BusinessRef' }
+        attempt: { $ref: '#/components/schemas/Attempt' }
+        leg_index: { type: integer, minimum: 0 }
+        direction: { type: string, enum: [debit, credit] }
+        counterparty_account: { $ref: '#/components/schemas/Account' }
+        amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        code: { type: string }
+        posted_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }

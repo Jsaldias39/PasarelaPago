@@ -1,12 +1,13 @@
 # Plan maestro — Pasarela de pagos ALOVIDA
 
-> **AVANCE: 0 / 95 — 0,0 %.** Peldaño de evidencia: **`DISCOVERED`**. Es un plan: no hay código
-> todavía y ninguna afirmación de acá dice que algo funcione.
+> **AVANCE: 8 / 107 — 7,5 %.** Ola 0 en curso. Peldaño de evidencia: **`TESTED`** para lo marcado `HECHO` en los carriles
+> (librerías `@pay/*`, plantilla de servicio, Compose local y tres spikes), **`UNKNOWN`** para el resto. Los 11 servicios
+> todavía no existen: lo que hay son librerías, contratos en borrador y la plantilla. Evidencia en [`../trabajo/ola-0/`](../trabajo/ola-0/REPORTE.md).
 >
 > - Fuente del pedido: procesos **7.1–7.9** de `SALUD/📋 Registro de procesos por módulo.md` (bóveda `mantra_core_technologies_health_docs`).
 > - Decisiones del dueño: [`DECISIONES.md`](./DECISIONES.md) (D-01 a D-15, tensiones T-01 a T-03 y preguntas abiertas Q-01 a Q-10).
 > - Investigación open source y estándares: [`INVESTIGACION.md`](./INVESTIGACION.md).
-> - Carriles: [`carriles/`](./carriles/).
+> - Carriles: [`carriles/`](./carriles/) · Spikes de la ola 0: [`../spikes/`](../spikes/) · Contratos: [`../../contracts/`](../../contracts/).
 > - Corte de la API leído: `mantra-core-health-api` `origin/dev` @ `4e64353a` (módulo `payments`: 3 controllers, 14 rutas, 53 entidades).
 
 ## 1 · Qué se pide y cómo se cubre
@@ -32,6 +33,12 @@ propio QR, lleva el libro mayor de cada comercio y le paga desde una cuenta reca
 **Condición de salida a producción (T-03):** no se mueve dinero real hasta que existan la cuenta
 recaudadora y el visto bueno de la asesoría legal sobre el encuadre en el reglamento del BCB
 (RD 079/2022). Hasta entonces, todo corre contra el simulador.
+
+**Sandbox y producción (D-26).** `PAY_MODE=sandbox|live`. En `sandbox` los cobros van a `pay-mockbank`, las claves son
+`sk_test_…` y toda respuesta lleva `X-Pay-Mode: sandbox`; nada mueve dinero. En `live` el conector `mock` se niega a cargar
+y el sistema no arranca si está configurado. El mock cumple el mismo contrato que el conector real
+(`contracts/openapi/internal-connectors-v1.yaml`) y se prueba con los mismos tests, de modo que cuando el Banco Mercantil
+entregue credenciales (Q-01, Q-11) el cambio sea de configuración. Un doble **nunca** se presenta como el banco real.
 
 ## 3 · Arquitectura
 
@@ -67,7 +74,7 @@ flowchart LR
   classDef ext fill:#eee,stroke:#999
 ```
 
-### 3.1 Servicios (11)
+### 3.1 Servicios (11 de producto + 1 de sandbox)
 
 | Servicio | Responsabilidad (lo que nadie más hace) | Almacén | Dueño |
 |---|---|---|---|
@@ -82,6 +89,7 @@ flowchart LR
 | `pay-merchants` | Alta, KYC, contrato versionado, tarifario completo, API keys, estados del comercio. | Postgres `pay_merchants` + almacén de objetos (KYC) | P5 |
 | `pay-risk` | Reglas y límites, cribado de sanciones con **moov Watchman**, decisión `allow / review / deny`. | Postgres `pay_risk` | P5 |
 | `pay-schedules` | Mandatos y pagos programados (7.7), comisiones programadas (7.8). | Postgres `pay_schedules` | P5 |
+| `pay-mockbank` | **Solo sandbox (D-26).** Banco simulado con la misma interfaz que el conector real: QR, tarjeta, transferencia, extractos y callbacks firmados, con escenarios deterministas por importe. Se niega a arrancar con `PAY_MODE=live`. | Postgres `pay_mockbank` | P4 |
 
 ### 3.2 Reglas de separación (no negociables)
 
@@ -142,13 +150,13 @@ necesita la aprobación del dueño y de cada consumidor. Los cambios aditivos so
 
 | Carril | Eje | Carpetas | Microtareas | Archivo |
 |---|---|---|---|---|
-| **P1** | Plataforma, contratos, borde y cumplimiento | `contracts/`, `platform/`, `services/pay-edge`, `services/pay-webhooks`, `docs/cumplimiento/` | 20 | [`P1`](./carriles/P1-plataforma-contratos-y-borde.md) |
-| **P2** | Dinero en reposo | `services/pay-ledger`, `services/pay-settlement` | 17 | [`P2`](./carriles/P2-ledger-y-liquidacion.md) |
+| **P1** | Plataforma, contratos, borde, cumplimiento y E2E sandbox | `contracts/`, `platform/`, `e2e/`, `services/pay-edge`, `services/pay-webhooks`, `docs/cumplimiento/` | 26 | [`P1`](./carriles/P1-plataforma-contratos-y-borde.md) |
+| **P2** | Dinero en reposo | `services/pay-ledger`, `services/pay-settlement` | 18 | [`P2`](./carriles/P2-ledger-y-liquidacion.md) |
 | **P3** | Ciclo de vida del pago y bóveda | `services/pay-payments`, `services/pay-vault` | 18 | [`P3`](./carriles/P3-nucleo-de-pagos.md) |
-| **P4** | Rieles externos | `services/pay-connectors`, `services/pay-qr` | 17 | [`P4`](./carriles/P4-conectores-ruteo-y-qr.md) |
+| **P4** | Rieles externos y banco simulado | `services/pay-connectors`, `services/pay-qr`, `services/pay-mockbank` | 22 | [`P4`](./carriles/P4-conectores-ruteo-y-qr.md) |
 | **P5** | Comercios, riesgo y programados | `services/pay-merchants`, `services/pay-risk`, `services/pay-schedules` | 18 | [`P5`](./carriles/P5-comercios-riesgo-y-programados.md) |
-| **INT** | El monolito cobra por la pasarela (ola 4, lidera P3) | `mantra-core-health-api` | 5 | [`INT`](./carriles/INT-monolito-como-cliente.md) |
-| | **Total** | | **95** | |
+| **INT** | El monolito cobra por la pasarela (ola 5, lidera P3) | `mantra-core-health-api` | 5 | [`INT`](./carriles/INT-monolito-como-cliente.md) |
+| | **Total** | | **107** | |
 
 Las carpetas son **disjuntas**: cada programador escribe solo en las suyas. `CODEOWNERS` lo hace
 cumplir en los PRs. Los contratos se proponen por PR a `contracts/`, que revisan P1 y los
@@ -162,7 +170,8 @@ consumidores.
 | **1 · Servicios contra dobles** | 2–4 | Cada carril construye contra dobles de los demás, en los tres niveles (regla 65). | Tests unitarios y de integración contra su propia base real en verde. |
 | **2 · Integración** | 5–6 | Dobles reemplazados por servicios reales; flujos E1–E6 con el conector simulador. | E1–E6 en verde contra el stack real. |
 | **3 · Endurecimiento** | 7–9 | Inyección de fallos, **prueba de carga a 2× 100.000 pagos/día (T-01)**, gates de seguridad, segmentación PCI, *staging* en Coolify multiservidor, conectores del Mercantil si hay credenciales (D-16). | Gates de §7 en verde con evidencia pegada; decisión de despliegue tomada con los números. |
-| **4 · Integración del monolito** | 10–11 | Carril INT. | REQ-INT-1 a 3. |
+| **4 · Capa sandbox (mock)** | 10–11 | `pay-mockbank`, semillas sintéticas y la suite E2E de un comando (D-26): el sistema completo se prueba **sin credenciales ni configuración externa**, y pasar a producción es cambiar configuración. Carriles P4.H4 y P1.H5. | `yarn e2e` con E1–E8 en verde sobre el stack sandbox; guardia `PAY_MODE=live` demostrada. |
+| **5 · Integración del monolito** | 12–13 | Carril INT, ya probado contra el sandbox. | REQ-INT-1 a 3. |
 
 ## 6 · Kill-test global y flujos E2E
 
@@ -183,6 +192,8 @@ pago no termina en **un solo** estado terminal, no está hecho.
 | E7 | Cobro con tarjeta por los campos alojados del PSP sin un solo PAN fuera de `pay-vault` | P3 · P4 |
 | E8 | Transferencia bancaria confirmada por la línea del extracto | P4 · P2 · P3 |
 
+Los ocho se ejecutan en la ola 4 con `yarn e2e` contra el sandbox (D-26). Cada flujo usa un importe que dispara un escenario concreto de `pay-mockbank` (tabla en P4.H4.M3).
+
 ## 7 · Gates comunes (todo servicio, antes de cerrar la ola 3)
 
 | Gate | Cómo se demuestra |
@@ -199,6 +210,7 @@ pago no termina en **un solo** estado terminal, no está hecho.
 | Observabilidad | Traza OTel de E1 de punta a punta en Jaeger |
 | Fallos | Experimento de inyección de fallos documentado |
 | Carga | Su parte del objetivo de T-01, medida |
+| Sandbox | (ola 4) Sus flujos E2E pasan contra `pay-mockbank` y los tests de contrato del conector son idénticos para el simulador y el real |
 
 ## 8 · Riesgos
 
@@ -211,4 +223,5 @@ pago no termina en **un solo** estado terminal, no está hecho.
 | Contratos mal congelados | Retrabajo en cadena | Revisión cruzada obligatoria en la ola 0. |
 | 11 servicios para 5 personas | Carga operativa | Plantilla única, CI reutilizable, un Compose. |
 | Sin ambiente de pruebas del Mercantil (D-16) | E2E solo contra el simulador | Declarado así; la integración real se verifica aparte. |
+| Mock que se desvía del banco real | Un E2E verde que no sirve para producción | Mismos tests de contrato para el simulador y el real (P1.H5.M4); el mock no inventa campos del banco (Q-11); cuando haya credenciales, paridad corrida contra el real. |
 | Redondeo de comisiones (D-20) | Dinero perdido | `@pay/money` + test de propiedades (comisión + neto = bruto). |

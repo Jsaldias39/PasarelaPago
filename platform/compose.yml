@@ -1,6 +1,6 @@
 # Stack local de la pasarela (P1.H1.M1). Puertos altos (54xxx) para no chocar con nada del equipo.
 #   docker compose -f platform/compose.yml up -d          → núcleo (verificado)
-#   docker compose -f platform/compose.yml --profile full up -d → suma TigerBeetle, Svix, OpenBao y Watchman (sin verificar: ver platform/README.md)
+#   docker compose -f platform/compose.yml --profile full up -d → suma TigerBeetle, Svix y OpenBao (sin verificar: ver platform/README.md)
 # Credenciales: solo desarrollo local. TODOS los puertos publicados escuchan solo en 127.0.0.1 (revisión de seguridad:
 # Redis y NATS van sin autenticación porque no son alcanzables fuera de la máquina; no uses este archivo en un servidor).
 name: pay
@@ -76,18 +76,21 @@ services:
       <<: *healthy
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:14269/ >/dev/null"]
 
-  # ---- perfil `full`: SIN VERIFICAR en el entorno donde se escribió. Ver platform/README.md. ----
-  # Watchman v0.31.3 baja las listas de sanciones al arrancar y termina con código 1 si no puede (sin salida a internet).
-  # Escucha en 0.0.0.0:9094 según su log; el healthcheck apunta ahí y falta confirmarlo con salida a internet.
+  # SOLO SANDBOX: `v2-static` trae las listas OFAC CONGELADAS de 2019 (7.379 registros) para arrancar sin internet.
+  # Sirve para ejercitar la mecánica de `pay-risk`, NUNCA para cribar personas reales. En producción las listas
+  # vigentes se cargan desde un caché propio (docs/spikes/watchman.md). API de negocio :8084 (sin autenticación: red interna).
   watchman:
-    profiles: [full]
-    image: ${HUB:-docker.io}/moov/watchman:v0.31.3
+    image: ${HUB:-docker.io}/moov/watchman:v2-static
+    environment:
+      INCLUDED_LISTS: us_ofac   # sin esto carga 0 listas (verificado)
     ports: ["127.0.0.1:54084:8084"]
     healthcheck:
       <<: *healthy
-      start_period: 60s
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9094/live >/dev/null || wget -qO- http://127.0.0.1:8084/live >/dev/null"]
+      start_period: 30s
+      # La imagen no trae wget ni curl: se usa /dev/tcp de bash y se exige que la lista tenga registros.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8084 && printf 'GET /v2/listinfo HTTP/1.0\\r\\n\\r\\n' >&3 && cat <&3 | grep -Eq '\"us_ofac\":[1-9]'"]
 
+  # ---- perfil `full`: SIN VERIFICAR en el entorno donde se escribió. Ver platform/README.md. ----
   tigerbeetle:
     profiles: [full]
     image: ghcr.io/tigerbeetle/tigerbeetle:latest

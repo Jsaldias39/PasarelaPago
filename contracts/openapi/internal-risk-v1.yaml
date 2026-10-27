@@ -1,0 +1,140 @@
+# Contrato INTERNO de pay-risk. BORRADOR de la ola 0 (`v1-draft`): no está congelado.
+openapi: 3.1.0
+info:
+  title: pay-risk — API interna v1
+  version: 1.0.0-draft
+  description: |
+    Evaluación de riesgo de un cobro antes de mandarlo al proveedor.
+
+    - **Expone:** P5 (`pay-risk`).
+    - **Consume:** `pay-payments` (P3), primera actividad de `PaymentWorkflow`.
+    - **Seguridad:** mTLS + `X-Service-Id`.
+
+    ## Objetivo de latencia
+
+    **p99 < 300 ms** por evaluación (REQ del carril P5). El llamador pone un *timeout* de 300 ms.
+
+    ## Si el servicio no responde: la política vive en el llamador
+
+    `pay-risk` no decide qué pasa cuando está caído: no puede. La política es de `pay-payments` y es
+    *fail-closed* sobre el umbral: sin respuesta, un cobro de monto alto se rechaza con `risk_unavailable`
+    (`503`); por debajo del umbral, `pay-payments` puede dejarlo pasar si así lo configura el negocio. Este contrato solo
+    garantiza que, cuando responde, la decisión trae un motivo estable.
+
+    ## Datos del pagador
+
+    El cribado de sanciones (moov Watchman) necesita un nombre. Se manda en `screening.name`, se usa en memoria
+    para la búsqueda y **no se guarda en claro ni se registra** (regla 90.2). Lo que queda auditado es la
+    huella del pagador, el resultado y la versión de las reglas.
+
+    ## Límites (D-23)
+
+    Los límites por transacción, por día y por pagador son **configurables y no tienen valores por defecto**: nadie
+    inventó un número. Sin límites cargados, la evaluación responde `allow` con `reason_code: no_limits_configured`,
+    de modo que sea visible que la regla no está activa.
+servers:
+  - url: http://pay-risk:3000
+    description: Marcador de la red interna.
+security:
+  - mTLS: []
+tags:
+  - { name: Assessments, description: Evaluaciones de riesgo }
+paths:
+  /assessments:
+    post:
+      operationId: riskCreateAssessment
+      tags: [Assessments]
+      x-owner: P5
+      summary: Evalúa un cobro
+      description: 'Idempotente por `Idempotency-Key`: reevaluar el mismo intento devuelve la misma decisión (y la misma `rule_version`).'
+      x-open-question: 'El umbral de coincidencia aproximada para sanciones lo fija cumplimiento: en el spike de Watchman, una coincidencia exacta puntuó 0,812 y un nombre con una letra cambiada 0,602 (`docs/spikes/watchman.md`). Hasta que se defina, `screening.min_score` es obligatorio en la configuración del servicio y no tiene valor por defecto.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AssessmentCreate' } } }
+      responses:
+        '201': { description: Evaluación registrada., content: { application/json: { schema: { $ref: '#/components/schemas/Assessment' } } } }
+        '200': { description: 'Ya existía una evaluación con esa Idempotency-Key.', content: { application/json: { schema: { $ref: '#/components/schemas/Assessment' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '503':
+          description: 'El cribado de sanciones no está disponible. El llamador aplica su política (*fail-closed* sobre el umbral); `pay-risk` nunca responde `allow` si no pudo cribar.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /assessments/{id}:
+    get:
+      operationId: riskGetAssessment
+      tags: [Assessments]
+      x-owner: P5
+      summary: Consulta una evaluación (auditoría)
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^ra_[a-z0-9]{10,40}$' } }
+      responses:
+        '200': { description: La evaluación., content: { application/json: { schema: { $ref: '#/components/schemas/Assessment' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+components:
+  securitySchemes:
+    mTLS:
+      type: mutualTLS
+      description: Certificado de servicio. La identidad del llamador se confirma además con `X-Service-Id`.
+  parameters:
+    ServiceId:
+      name: X-Service-Id
+      in: header
+      required: true
+      description: Servicio llamador. Tiene que coincidir con la identidad del certificado mTLS.
+      schema: { type: string, pattern: '^pay-[a-z]+$', examples: [pay-payments] }
+    Traceparent:
+      name: traceparent
+      in: header
+      required: false
+      description: W3C Trace Context.
+      schema: { type: string, pattern: '^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$' }
+  schemas:
+    Decision:
+      type: string
+      enum: [allow, review, deny]
+      description: '`allow` sigue; `review` retiene el cobro para una persona; `deny` lo rechaza.'
+    AssessmentCreate:
+      type: object
+      required: [merchant_id, payment_intent_id, amount_minor, currency, method]
+      additionalProperties: false
+      properties:
+        merchant_id: { type: string, pattern: '^mc_[a-z0-9]{10,40}$' }
+        payment_intent_id: { type: string, pattern: '^pi_[a-z0-9]{10,40}$' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        method: { type: string, enum: [qr, card, bank_transfer, wallet] }
+        payer_fingerprint: { type: string, maxLength: 128, description: 'Huella opaca del pagador (por ejemplo, de la tarjeta o del usuario) para límites por pagador. No es reversible a datos personales.' }
+        screening:
+          type: object
+          x-sensitive: true
+          additionalProperties: false
+          required: [name]
+          properties:
+            name: { type: string, minLength: 1, maxLength: 200, description: 'Nombre a cribar contra listas de sanciones. Se usa en memoria; no se guarda ni se registra.' }
+    Assessment:
+      type: object
+      required: [id, object, decision, reason_code, rule_version, screened, created_at]
+      properties:
+        id: { type: string, pattern: '^ra_[a-z0-9]{10,40}$' }
+        object: { const: risk_assessment }
+        payment_intent_id: { type: string, pattern: '^pi_[a-z0-9]{10,40}$' }
+        decision: { $ref: '#/components/schemas/Decision' }
+        reason_code:
+          type: string
+          pattern: '^[a-z][a-z0-9_]*$'
+          description: 'Motivo estable. Ejemplos: `ok`, `no_limits_configured`, `amount_over_limit`, `velocity_exceeded`, `sanctions_match`, `sanctions_possible_match`.'
+        rule_version: { type: integer, minimum: 1, description: 'Versión del conjunto de reglas aplicado, para reproducir la decisión.' }
+        screened: { type: boolean, description: '`true` si se cribó contra sanciones. Si es `false`, la decisión nunca es `allow` por esa vía.' }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }

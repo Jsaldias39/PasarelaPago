@@ -1,6 +1,6 @@
 # Carril P1 — Plataforma, contratos y borde
 
-> **Estado:** `TODO` · **AVANCE: 0 / 20 — 0,0 %** · **Peldaño:** `UNKNOWN`
+> **Estado:** `EN CURSO` (ola 0) · **AVANCE: 5 / 26 — 19,2 %** · **Peldaño:** `TESTED` en lo marcado HECHO; `UNKNOWN` en el resto
 > **Predecesor:** ninguno. **Este carril es el predecesor de la ola 0 de todos los demás**: sin `pay-platform` sano y la plantilla publicada, nadie arranca.
 > **Carpetas del monorepo:** `contracts/`, `platform/`, `services/pay-edge/`, `services/pay-webhooks/` · cumplimiento en `docs/cumplimiento/`.
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md) · Investigación: [`../INVESTIGACION.md`](../INVESTIGACION.md)
@@ -46,14 +46,15 @@ original, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P1.H1.M1 | Compose local con las 8 dependencias y sus *healthchecks* | Todas en `healthy` | `docker compose ps --format json \| jq '.[].Health'` → todo `healthy` | TODO |
-| P1.H1.M2 | Plantilla de servicio NestJS 11 + MikroORM 7 + pino + OTel + `/health` + outbox e inbox | Un servicio *hello* generado arranca y responde | `curl -s localhost:PORT/health` → `{"status":"ok"}` | TODO |
-| P1.H1.M3 | Librería `@pay/money`, reciclando `payment-money.ts` y su spec de la API | Los specs reciclados pasan sin cambios de aserción | `yarn workspace @pay/money test` en verde | TODO |
-| P1.H1.M4 | `@pay/problem` (RFC 9457) + catálogo de `code` | Esquema validado por ajv | `yarn workspace @pay/problem test` | TODO |
-| P1.H1.M5 | `@pay/idempotency`: reclamo con `INSERT` único, fases atómicas, respuesta guardada, horizonte de 24 h | 50 peticiones concurrentes con la misma clave → 1 sola ejecución | Test de integración contra Postgres real en verde | TODO |
-| P1.H1.M6 | `@pay/webhook-signature`: Standard Webhooks `v1` y `v1a`, comparación en tiempo constante | Los vectores de prueba de la especificación verifican | `yarn workspace @pay/webhook-signature test` | TODO |
-| P1.H1.M7 | Sobre CloudEvents + plantilla AsyncAPI 3 + CI de `pay-contracts` (lint de OpenAPI y AsyncAPI, detección de cambios que rompen) | Un PR que borra un campo requerido falla en CI | CI rojo sobre una rama de prueba, con la salida pegada | TODO |
-| P1.H1.M8 | CI reutilizable: typecheck, lint, test, imagen y la prueba de separación de bases (REQ-P1-7) | El servicio *hello* falla al intentar leer `pay_ledger` | Log del job pegado | TODO |
+| P1.H1.M1 | Compose local con las 8 dependencias y sus *healthchecks* | Todas en `healthy` | `docker compose ps --format json \| jq '.[].Health'` → todo `healthy` | A MEDIAS |
+| P1.H1.M2 | Plantilla de servicio NestJS 11 + MikroORM 7 + pino + OTel + `/health` + outbox e inbox | Un servicio *hello* generado arranca y responde | `curl -s localhost:PORT/health` → `{"status":"ok"}` → [evidencia](../../trabajo/ola-0/evidencia/P1.H1.M2-plantilla.txt) | HECHO |
+| P1.H1.M3 | Librería `@pay/money`, reciclando `payment-money.ts` y su spec de la API | Los specs reciclados pasan sin cambios de aserción | `yarn workspace @pay/money test` en verde → [evidencia](../../trabajo/ola-0/evidencia/P1.H1.M3-money.txt) | HECHO |
+| P1.H1.M4 | `@pay/problem` (RFC 9457) + catálogo de `code` | Esquema validado por ajv | `yarn workspace @pay/problem test` → [evidencia](../../trabajo/ola-0/evidencia/P1.H1.M4-problem.txt) | HECHO |
+| P1.H1.M5 | `@pay/idempotency`: reclamo con `INSERT` único, fases atómicas, respuesta guardada, horizonte de 24 h | 50 peticiones concurrentes con la misma clave → 1 sola ejecución | Test de integración contra Postgres real en verde → [evidencia](../../trabajo/ola-0/evidencia/P1.H1.M5-idempotency.txt) | HECHO |
+| P1.H1.M6 | `@pay/webhook-signature`: Standard Webhooks `v1` y `v1a`, comparación en tiempo constante | Los vectores de prueba de la especificación verifican | `yarn workspace @pay/webhook-signature test` → [evidencia](../../trabajo/ola-0/evidencia/P1.H1.M6-webhook-signature.txt) | HECHO |
+| P1.H1.M7 | Sobre CloudEvents + plantilla AsyncAPI 3 + CI de `pay-contracts` (lint de OpenAPI y AsyncAPI, detección de cambios que rompen) | Un PR que borra un campo requerido falla en CI | CI rojo sobre una rama de prueba, con la salida pegada | A MEDIAS |
+| P1.H1.M8 | CI reutilizable: typecheck, lint, test, imagen y la prueba de separación de bases (REQ-P1-7) | El servicio *hello* falla al intentar leer `pay_ledger` | Log del job pegado | A MEDIAS |
+| P1.H1.M9 | Adaptador que expone la transacción de MikroORM como `Queryable`, para escribir una entidad y encolar su evento en **la misma** transacción | Un evento encolado dentro de `em.transactional` no existe si la transacción se deshace | Test de integración con MikroORM y Postgres reales | TODO |
 
 ## H2 — `pay-edge` (olas 1 y 2)
 
@@ -91,6 +92,19 @@ original, tampoco.
 | P1.H4.M2 | Cuestionario para la asesoría legal: encuadre del modo A en el reglamento del BCB (RD 079/2022 y RD 069/2021), rol de la ASFI, cuenta recaudadora, custodia de fondos de terceros, facturación de la comisión | Cada pregunta con su fuente y el supuesto que hoy toma el software | `docs/cumplimiento/preguntas-legales.md` | TODO |
 | P1.H4.M3 | Segmentación de red en Coolify: `pay-vault` en una red aislada, solo alcanzable por `pay-payments` | Desde `pay-edge`, una conexión a `pay-vault` falla; desde `pay-payments`, funciona | Salida de las dos pruebas pegada | TODO |
 
+## H5 — Sandbox de punta a punta (ola 4, D-26)
+
+**CA:** Dado el repo recién clonado y sin ninguna credencial externa, cuando se corre un comando, entonces todo el sistema corre en modo sandbox y los flujos E1–E8 pasan.
+**DoD:** `yarn e2e` con 8/8 PASS y la salida pegada.
+
+| ID | Microtarea | CA (binario) | DoD (comando de verificación) | Estado |
+|---|---|---|---|---|
+| P1.H5.M1 | `platform/compose.mock.yml`: suma todos los servicios y `pay-mockbank`, con `PAY_MODE=sandbox` | Todo `healthy` con un solo comando | `docker compose -f platform/compose.yml -f platform/compose.mock.yml up -d --wait` → todo `healthy` | TODO |
+| P1.H5.M2 | Semillas sintéticas **declaradas como tales** (comercios, claves `sk_test_`, tarifas, usuarios con billetera, mandatos) | La segunda corrida no inserta nada | `yarn seed:sandbox` dos veces → 0 inserciones la segunda | TODO |
+| P1.H5.M3 | Suite E2E `e2e/` con E1–E8 y vigilancia de errores de los servicios | 8/8 PASS y ningún 5xx inesperado | `yarn e2e` → 8 passed | TODO |
+| P1.H5.M4 | Prueba de paridad mock/real: los mismos tests de contrato corren contra `pay-mockbank` y, cuando haya credenciales, contra el conector real | Misma suite, mismos resultados esperados | `yarn test:parity` → verde contra el mock; contra el real queda declarado `BLOQUEADO` hasta tener acceso (Q-01, Q-11) | TODO |
+| P1.H5.M5 | Runbook «de sandbox a producción»: lista exacta de variables y credenciales que cambian, y guardia de modo | Con `PAY_MODE=live` y el conector `mock` configurado, el sistema NO arranca | Arranque con esa combinación → falla con mensaje claro (salida pegada) | TODO |
+
 ## Dobles (regla 65)
 
 | Colaborador que falta | Contrato | Correcto | Límite | Inválido |
@@ -100,6 +114,14 @@ original, tampoco.
 | Servicios internos detrás del borde | OpenAPI interna | `200` | Respuesta lenta en el borde del *timeout* | `503` → el borde devuelve `502` RFC 9457 sin filtrar detalle |
 
 Lo verificado contra dobles se declara así en el reporte. La integración real es la ola 2.
+
+## Estado de la ola 0 (A MEDIAS, con las cuatro respuestas)
+
+**P1.H1.M1 — Compose local.** *Qué anda:* Postgres con un rol y una base por servicio, NATS JetStream, Redis, Temporal (con su base), Jaeger y Watchman (sandbox) llegan a `healthy` con `docker compose up -d` (evidencia: [`compose.txt`](../../trabajo/ola-0/evidencia/P1.H1.M1-compose.txt)). *Qué no anda / no se verificó:* TigerBeetle, Svix y OpenBao están en el perfil `full` y **no se ejecutaron**: sus imágenes no se pudieron bajar en el entorno de trabajo. *Qué falta:* correr `--profile full` con acceso al registro y confirmar los tres *healthchecks*. *Dónde quedó:* `platform/compose.yml`, valida con `docker compose config`.
+
+**P1.H1.M7 — Contratos y CI de contratos.** *Qué anda:* el sobre CloudEvents con su JSON Schema y 333 mutaciones rechazadas; `yarn contracts:lint` valida 7 OpenAPI y 4 AsyncAPI ([`contratos.txt`](../../trabajo/ola-0/evidencia/P1.H1.M7-contratos.txt)). *Qué no anda:* **no existe la detección de cambios que rompen** (que un PR que borra un campo requerido falle). *Qué falta:* integrar `oasdiff` (u otra herramienta) contra la rama base y probarlo con un PR de prueba. *Dónde quedó:* `contracts/scripts/lint-contracts.mjs`.
+
+**P1.H1.M8 — CI reutilizable.** *Qué anda:* la prueba de separación de bases (99/99 comprobaciones, [`separacion.txt`](../../trabajo/ola-0/evidencia/P1.H1.M8-separacion.txt)) y `.github/workflows/ci.yml`. *Qué no anda:* el workflow **nunca se ejecutó en GitHub** (no hay forma de correrlo desde acá). *Qué falta:* un PR de prueba que lo dispare y su salida. *Dónde quedó:* `.github/workflows/ci.yml`.
 
 ## Gates y entrega
 

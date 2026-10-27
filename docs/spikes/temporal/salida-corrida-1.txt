@@ -1,0 +1,21 @@
+# servidor Temporal {"serverVersion":"1.25.2","capabilities":10}
+# SDK {"worker":"1.24.0","client":"1.24.0"}
+## T1 camino feliz → resultado {"status":"succeeded","compensated":[]}
+efectos {"createCharge.commit":1,"recordLedger.start":1,"recordLedger.commit":1,"notify.commit":1}
+## T2 vencimiento (expireMs=3000, sin señal) → resultado {"status":"expired","compensated":["cancelCharge"]}
+tiempo hasta terminar (ms) 3204
+efectos {"createCharge.commit":1,"cancelCharge.commit":1}
+## T3 fallo inyectado en notify → resultado {"status":"failed","compensated":["reverseLedger","cancelCharge"],"error":"notify rechazado (fallo inyectado)"}
+efectos {"createCharge.commit":1,"recordLedger.start":1,"recordLedger.commit":1,"notify.rejected":1,"reverseLedger.commit":1,"cancelCharge.commit":1}
+orden real de efectos (act.ev) ["createCharge.commit","recordLedger.start","recordLedger.commit","notify.rejected","reverseLedger.commit","cancelCharge.commit"]
+## T4 worker pid=16726 muerto con kill -9; estado del workflow {"status":"RUNNING"}
+## T4 resultado tras relanzar el worker y enviar la señal {"status":"succeeded","compensated":[]}
+segundos desde la señal hasta terminar 10.2
+efectos {"createCharge.commit":1,"recordLedger.start":1,"recordLedger.commit":1,"notify.commit":1}
+pids que ejecutaron actividades [16726,16895]
+## T5 worker muerto con kill -9 DENTRO de recordLedger (start=1, commit=0) {"createCharge.commit":1,"recordLedger.start":1}
+## T5 resultado tras relanzar el worker {"status":"succeeded","compensated":[]}
+efectos {"createCharge.commit":1,"recordLedger.start":2,"recordLedger.commit":1,"notify.commit":1}
+líneas en el ledger para ledger-t5 1
+## T6 recordLedger llamada dos veces con el mismo id (fuera de Temporal) {"primera":{"applied":true},"segunda":{"applied":false}}
+# fin

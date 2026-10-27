@@ -1,6 +1,6 @@
 # Carril P5 — Comercios, riesgo y pagos programados
 
-> **Estado:** `TODO` · **AVANCE: 0 / 18 — 0,0 %** · **Peldaño:** `UNKNOWN`
+> **Estado:** `EN CURSO` (ola 0) · **AVANCE: 0 / 18 — 0,0 %** · **Peldaño:** `TESTED` en lo marcado HECHO; `UNKNOWN` en el resto
 > **Predecesor:** P1.H1 (plataforma y plantilla).
 > **Carpetas del monorepo:** `services/pay-merchants/`, `services/pay-risk/`, `services/pay-schedules/` · esquema en `mantra-core-health-model`.
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md)
@@ -63,7 +63,7 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P5.H2.M1 | **Spike** Watchman: cargar listas, latencia de búsqueda, licencia en su `LICENSE` | Responde sí o no con criterio | `evidencia/spike-watchman.md` | TODO |
+| P5.H2.M1 | **Spike** Watchman: cargar listas, latencia de búsqueda, licencia en su `LICENSE` | Responde sí o no con criterio | `evidencia/spike-watchman.md` | A MEDIAS |
 | P5.H2.M2 | Motor de reglas versionado (monto, velocidad por comercio y pagador, horario) | REQ-P5-5 (velocidad) | Test pegado | TODO |
 | P5.H2.M3 | Cribado de sanciones integrado | REQ-P5-5 (sanciones) | Test con nombres sintéticos de la lista de prueba | TODO |
 | P5.H2.M4 | `POST /assessments` con p99 < 300 ms | Latencia medida | Salida de la prueba de carga | TODO |
@@ -90,6 +90,10 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 | P3 intents | `internal/payments/v1/intents` | Intento creado | El mismo mandato y periodo dos veces → un intento | Comercio suspendido → `403` |
 | P2 ledger y payouts | `internal/ledger/v1/holds` · `settlement/v1/payouts` | Retención y payout aceptados | Saldo exactamente igual al monto | `insufficient_funds` |
 | Watchman | Su API HTTP | Sin coincidencia | Coincidencia aproximada en el umbral | Watchman caído → `review`, nunca `allow` |
+
+## Estado de la ola 0 (A MEDIAS, con las cuatro respuestas)
+
+**P5.H2.M1 — Spike Watchman.** *Qué anda:* con `moov/watchman:v2-static` (v0.58.1, **datos congelados de 2019**, 7.379 registros) la API responde con p99 < 30 ms en 50 búsquedas por caso ([`watchman.md`](../../spikes/watchman.md), `TESTED`). *Qué no anda:* **no se cargaron las listas vigentes** (sin acceso a treasury.gov y otras desde el entorno); una coincidencia exacta puntuó solo 0,812 y un error de una letra 0,602. *Qué falta:* cargar las listas vigentes desde un caché propio, medir bajo concurrencia, y que cumplimiento fije los umbrales (Q-12). *Dónde quedó:* Watchman `v2-static` en el Compose, solo para sandbox.
 
 ## Gates y entrega
 

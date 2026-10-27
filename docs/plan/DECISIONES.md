@@ -32,7 +32,20 @@
 | D-22 | Contracargos | **Los paga el comercio:** se debitan de su saldo y, si no alcanza, quedan como deuda para el próximo corte. | P3.H2.M6 y P2.H2.M2 (neteo de la deuda). |
 | D-23 | Límites de riesgo | **Configurables, sin valores inventados.** Por transacción, por día y por pagador; los valores los carga el negocio o el banco. | P5.H2.M2: el motor arranca sin límites por defecto y lo declara. |
 | D-24 | Pagador | **Invitado + billetera opcional:** se paga por QR, tarjeta o transferencia sin cuenta; el saldo AloVida existe solo para usuarios registrados. | P2.H1.M8 y la cuenta `user:{id}:wallet`. |
+| D-26 | Capa mock / sandbox (pedido del dueño, 2026-10-27) | **Al final del proyecto se agrega una capa mock** para probar TODO el sistema de punta a punta sin depender de credenciales ni de configuración externa: un banco simulado (`pay-mockbank`) con **la misma interfaz que el conector real**, datos sintéticos y una suite E2E de un comando. Pasar a producción es cambiar configuración, no código. | Ola 4 del plan; carriles P4.H4 y P1.H5. Reglas: el mock cumple el mismo contrato que el conector real y se prueba con los mismos tests de contrato; `PAY_MODE=sandbox\|live` (en `live` el mock se niega a cargar); toda respuesta de sandbox lleva `X-Pay-Mode: sandbox`; escenarios deterministas por importe; nunca se presenta como el banco real (regla 65). |
 | D-25 | Equipo | Los nombres de P1–P5 los asigna el dueño después. | `CODEOWNERS` con marcadores. |
+
+## Hallazgos de la ola 0 que cambian el diseño (spikes ejecutados)
+
+| ID | Hallazgo | Evidencia | Qué cambia |
+|---|---|---|---|
+| H-TB1 | TigerBeetle: una transferencia **rechazada** no se puede reintentar con el mismo `id` (`id_already_failed`). | [`spikes/tigerbeetle.md`](../spikes/tigerbeetle.md) H-1 | El contrato del ledger recibe `business_ref` + `attempt`; el servidor deriva el id. Ver P2.H1.M4 y P3.H2.M3. |
+| H-TB2 | Las rechazadas no se guardan; lote máximo observado 8189; 8 clientes simultáneos en `--development` y 32 en producción; un `cluster_id` equivocado no da error, no responde; ~3 GiB solo para arrancar la réplica. | ídem H-2 a H-6 | P2.H1.M9 (rastro de rechazos en Postgres), *timeouts* propios, cliente de larga vida, dimensionado en Coolify. |
+| H-TM1 | Temporal entrega la actividad **al menos una vez**: tras `kill -9` el cuerpo corrió dos veces y el efecto una (por el id idempotente). Recuperación observada ~8,7 s (timeout de la actividad). | [`spikes/temporal.md`](../spikes/temporal.md) | Toda actividad con efecto externo es idempotente por construcción; el tiempo de recuperación entra en la prueba de carga. |
+| H-WM1 | Watchman: no pudo cargar las listas vigentes sin internet; `v2-static` trae datos de 2019 (solo sandbox). Un nombre exacto puntuó 0,812 y uno con un error de una letra 0,602 con `minMatch` 0,80. | [`spikes/watchman.md`](../spikes/watchman.md) | El umbral lo fija cumplimiento (Q-12); las listas vigentes salen de un caché propio; Watchman caído ⇒ `review`, nunca `allow`. |
+| H-BM1 | Banco Mercantil: **no hay API pública**; hay que pedirle al banco 15 cosas. | [`spikes/banco-mercantil.md`](../spikes/banco-mercantil.md) | P4.H2.M3/M4 contra real quedan condicionados a recibir documentación y ambiente de pruebas (Q-01). El mock (D-26) cubre el hueco sin inventar nada del banco. |
+| H-LIC1 | **Formance no tiene licencia declarada** (el repo nuevo) y el viejo es MIT condicionado a `ee/`. Corrige la investigación inicial. | [`spikes/licencias.md`](../spikes/licencias.md) | Descartado como alternativa del ledger. OpenBao es MPL-2.0 (copyleft por archivo). |
+| H-CV1 / H-SV1 / H-OB1 | card-vault, Svix y OpenBao: imágenes no accesibles desde el entorno de trabajo y el sistema de permisos denegó ejecutar código de terceros descargado; quedan en revisión documental. | [`spikes/card-vault.md`](../spikes/card-vault.md), [`svix.md`](../spikes/svix.md), [`openbao.md`](../spikes/openbao.md) | Su verificación en ejecución queda pendiente (perfil `full` del Compose, sin verificar). |
 
 ## Tensiones registradas (no se resuelven por conveniencia)
 
@@ -44,6 +57,18 @@
 
 ## Preguntas abiertas
 
-Ninguna a la fecha. Q-01 a Q-10 quedaron respondidas en D-16 a D-25 (2026-10-27). Lo que queda
-fuera del software está en las tensiones T-01 (volumen contra Coolify) y T-03 (cuenta recaudadora
-y visto bueno legal).
+Q-01 a Q-10 quedaron respondidas en D-16 a D-25. Salieron nuevas de los spikes:
+
+| ID | Pregunta | Quién | Bloquea |
+|---|---|---|---|
+| Q-11 | ¿Quién pide al Banco Mercantil los 15 puntos de `spikes/banco-mercantil.md` y cuándo? | Dueño | P4.H2.M3/M4 contra real |
+| Q-12 | Umbrales de cribado (`review`/`deny`) y qué campos se envían a Watchman; ¿se exigen listas bolivianas? | Cumplimiento | P5.H2.M3 |
+| Q-13 | Formance: ¿hace falta confirmar su licencia por escrito, o se descarta del todo? | Dueño | Nada (TigerBeetle pasó) |
+| Q-14 | Formato exacto de las claves Ed25519 `whsk_`/`whpk_` (el spec no fija los bytes). El código usa 64 bytes (semilla ‖ pública) y 32 bytes. | P1 + quien consuma `v1a` | P1.H3 si algún comercio pide `v1a` |
+| Q-15 | Mandatos (7.7 y 7.8): ¿ALOVIDA tiene un comercio `mc_` propio para cobrar comisiones (7.8)? ¿Se admiten beneficiarios externos y cómo se registran? Hoy `MandateCreate` solo admite comercios de la pasarela. | Dueño + P5 | P5.H3, `public-v1.yaml` |
+| Q-16 | `PaymentIntent`: ¿cuál es el estado inicial y cuándo se emite `payment_intent.requires_action` además de `created`? Faltan códigos de error para «riesgo denegó» y «tarjeta rechazada» en el catálogo de `@pay/problem`. | P3 | P3.H1, `asyncapi/payments.yaml` |
+| Q-17 | La API key debe llevar su `key_id` embebido en el secreto para que `pay-edge` la encuentre sin recorrer todos los hashes; definir el formato. | P5 + P1 | P1.H2.M1 |
+| Q-18 | ¿Evento `payout.in_transit` y recurso público `dispute`? El estado público de payout existe pero no tiene evento; las disputas solo existen como eventos. | P2 + P3 | `asyncapi/ledger-settlement.yaml` |
+| Q-19 | Bóveda: ¿quién aloja el formulario de captura de tarjeta (el banco o `pay-vault`) y `reveal` devuelve la tarjeta o hace de proxy hacia el proveedor? | Dueño + P3 + QSA | P3.H3 |
+
+(Q-01 a Q-10, ya respondidas: Lo que queda fuera del software está en las tensiones T-01 (volumen contra Coolify) y T-03 (cuenta recaudadora y visto bueno legal).)

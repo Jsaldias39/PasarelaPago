@@ -1,0 +1,1629 @@
+# Eventos de pay-merchants y pay-schedules (P5). BORRADOR `v1-draft`.
+asyncapi: 3.0.0
+info:
+  title: Eventos de pay-merchants y pay-schedules (P5)
+  version: 1.0.0-draft
+  description: |-
+    BORRADOR de la ola 0 (`v1-draft`): todavía NO está congelado. Dueño: P5 (`pay-merchants`, `pay-schedules`). Revisan los consumidores listados en cada operación.
+
+    **Sobre.** Todo evento es un CloudEvent 1.0 en modo estructurado JSON (`contracts/schemas/cloudevent.schema.json`),
+    publicado por el outbox del servicio hacia JetStream con el `id` del evento como `Nats-Msg-Id`.
+    `data` lleva SOLO ids, estados e importes (`amount_minor` en centavos, `currency`): nunca datos personales,
+    documentos, PAN, nombres ni cuentas bancarias completas (`x-pii: none`).
+
+    **Entrega: al menos una vez.** El consumidor DEBE tolerar duplicados y reordenamiento:
+    - Duplicado: el mismo `id` otra vez. Se descarta con el inbox (`processOnce`, clave `(consumidor, id)`).
+    - Reordenamiento: el orden solo se garantiza **por agregado** (mismo `subject`, publicados por un único relé).
+      Entre agregados distintos no hay orden. Un evento atrasado no puede hacer retroceder un estado terminal.
+    - Regla de decisión del consumidor ante un evento, tomando como modelo `payment-callback-machine` de la API:
+      `aplicar` (avance legítimo) · `duplicado` (reentrega del mismo hecho: no muta nada) · `obsoleto`
+      (hecho anterior ya superado: se ignora sin error) · `contradiccion` (incompatible con un estado terminal:
+      no se sobrescribe, se deja para conciliación humana).
+
+    **Publicadores:** `pay-merchants` (`source: /pay-merchants`, stream `PAY_MERCHANTS`, temas `pay-merchants.>`) para `merchant.*`, `fee_schedule.published` y `api_key.*`;
+    `pay-schedules` (`source: /pay-schedules`, stream `PAY_SCHEDULES`, temas `pay-schedules.>`) para `mandate.*` y `scheduled_payment.*`.
+    **Consumidores (PLAN-MAESTRO §4):** P1 (`pay-edge`, `pay-webhooks`), P2 (`pay-settlement`) y P3 (`pay-payments`).
+
+    Estos eventos son la **réplica de datos** que evita que un servicio lea la base de otro (regla de separación 5): `pay-payments` y `pay-edge` no consultan a `pay-merchants`, escuchan.
+    Un consumidor nuevo arranca desde el último `fee_schedule.published` y `merchant.*` de cada comercio (reproducción del stream).
+servers:
+  nats:
+    host: nats.pay.internal:4222
+    protocol: nats
+    description: 'NATS JetStream (D-10). El host es un marcador: el real se define al desplegar. Streams `PAY_MERCHANTS`
+      (temas `pay-merchants.>`) y `PAY_SCHEDULES` (temas `pay-schedules.>`).'
+defaultContentType: application/cloudevents+json
+channels:
+  merchantCreated:
+    address: pay-merchants.merchant.created
+    description: Tema NATS JetStream `pay-merchants.merchant.created`. Lo publica `pay-merchants` por outbox.
+    messages:
+      MerchantCreated:
+        $ref: '#/components/messages/MerchantCreated'
+  merchantActivated:
+    address: pay-merchants.merchant.activated
+    description: Tema NATS JetStream `pay-merchants.merchant.activated`. Lo publica `pay-merchants` por outbox.
+    messages:
+      MerchantActivated:
+        $ref: '#/components/messages/MerchantActivated'
+  merchantSuspended:
+    address: pay-merchants.merchant.suspended
+    description: Tema NATS JetStream `pay-merchants.merchant.suspended`. Lo publica `pay-merchants` por outbox.
+    messages:
+      MerchantSuspended:
+        $ref: '#/components/messages/MerchantSuspended'
+  merchantClosed:
+    address: pay-merchants.merchant.closed
+    description: Tema NATS JetStream `pay-merchants.merchant.closed`. Lo publica `pay-merchants` por outbox.
+    messages:
+      MerchantClosed:
+        $ref: '#/components/messages/MerchantClosed'
+  feeSchedulePublished:
+    address: pay-merchants.fee_schedule.published
+    description: Tema NATS JetStream `pay-merchants.fee_schedule.published`. Lo publica `pay-merchants` por outbox.
+    messages:
+      FeeSchedulePublished:
+        $ref: '#/components/messages/FeeSchedulePublished'
+  apiKeyCreated:
+    address: pay-merchants.api_key.created
+    description: Tema NATS JetStream `pay-merchants.api_key.created`. Lo publica `pay-merchants` por outbox.
+    messages:
+      ApiKeyCreated:
+        $ref: '#/components/messages/ApiKeyCreated'
+  apiKeyRevoked:
+    address: pay-merchants.api_key.revoked
+    description: Tema NATS JetStream `pay-merchants.api_key.revoked`. Lo publica `pay-merchants` por outbox.
+    messages:
+      ApiKeyRevoked:
+        $ref: '#/components/messages/ApiKeyRevoked'
+  mandateCreated:
+    address: pay-schedules.mandate.created
+    description: Tema NATS JetStream `pay-schedules.mandate.created`. Lo publica `pay-schedules` por outbox.
+    messages:
+      MandateCreated:
+        $ref: '#/components/messages/MandateCreated'
+  mandateCanceled:
+    address: pay-schedules.mandate.canceled
+    description: Tema NATS JetStream `pay-schedules.mandate.canceled`. Lo publica `pay-schedules` por outbox.
+    messages:
+      MandateCanceled:
+        $ref: '#/components/messages/MandateCanceled'
+  scheduledPaymentExecuted:
+    address: pay-schedules.scheduled_payment.executed
+    description: Tema NATS JetStream `pay-schedules.scheduled_payment.executed`. Lo publica `pay-schedules` por
+      outbox.
+    messages:
+      ScheduledPaymentExecuted:
+        $ref: '#/components/messages/ScheduledPaymentExecuted'
+  scheduledPaymentFailed:
+    address: pay-schedules.scheduled_payment.failed
+    description: Tema NATS JetStream `pay-schedules.scheduled_payment.failed`. Lo publica `pay-schedules` por outbox.
+    messages:
+      ScheduledPaymentFailed:
+        $ref: '#/components/messages/ScheduledPaymentFailed'
+  scheduledPaymentInsufficientFunds:
+    address: pay-schedules.scheduled_payment.insufficient_funds
+    description: Tema NATS JetStream `pay-schedules.scheduled_payment.insufficient_funds`. Lo publica `pay-schedules`
+      por outbox.
+    messages:
+      ScheduledPaymentInsufficientFunds:
+        $ref: '#/components/messages/ScheduledPaymentInsufficientFunds'
+operations:
+  publishMerchantCreated:
+    action: send
+    channel:
+      $ref: '#/channels/merchantCreated'
+    summary: pay-merchants publica merchant.created
+    x-publisher: pay-merchants
+    messages:
+    - $ref: '#/channels/merchantCreated/messages/MerchantCreated'
+  consumeMerchantCreatedByPayEdge:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantCreated'
+    summary: pay-edge (P1) consume merchant.created
+    description: 'Mantiene la réplica de comercios y claves: autentica y rechaza comercios suspendidos o claves
+      revocadas.'
+    x-consumer: pay-edge
+    x-lane: P1
+    x-inbox-consumer: pay-edge.merchant.created
+    messages:
+    - $ref: '#/channels/merchantCreated/messages/MerchantCreated'
+  consumeMerchantCreatedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantCreated'
+    summary: pay-webhooks (P1) consume merchant.created
+    description: Reenvía el evento a los endpoints del comercio.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.merchant.created
+    messages:
+    - $ref: '#/channels/merchantCreated/messages/MerchantCreated'
+  consumeMerchantCreatedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantCreated'
+    summary: pay-settlement (P2) consume merchant.created
+    description: Sin efecto de negocio; el plan lo asigna a P2.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.merchant.created
+    messages:
+    - $ref: '#/channels/merchantCreated/messages/MerchantCreated'
+  consumeMerchantCreatedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantCreated'
+    summary: pay-payments (P3) consume merchant.created
+    description: Mantiene la réplica del tarifario y del estado del comercio para cotizar y rechazar cobros.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.merchant.created
+    messages:
+    - $ref: '#/channels/merchantCreated/messages/MerchantCreated'
+  publishMerchantActivated:
+    action: send
+    channel:
+      $ref: '#/channels/merchantActivated'
+    summary: pay-merchants publica merchant.activated
+    x-publisher: pay-merchants
+    messages:
+    - $ref: '#/channels/merchantActivated/messages/MerchantActivated'
+  consumeMerchantActivatedByPayEdge:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantActivated'
+    summary: pay-edge (P1) consume merchant.activated
+    description: 'Mantiene la réplica de comercios y claves: autentica y rechaza comercios suspendidos o claves
+      revocadas.'
+    x-consumer: pay-edge
+    x-lane: P1
+    x-inbox-consumer: pay-edge.merchant.activated
+    messages:
+    - $ref: '#/channels/merchantActivated/messages/MerchantActivated'
+  consumeMerchantActivatedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantActivated'
+    summary: pay-webhooks (P1) consume merchant.activated
+    description: Reenvía el evento a los endpoints del comercio.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.merchant.activated
+    messages:
+    - $ref: '#/channels/merchantActivated/messages/MerchantActivated'
+  consumeMerchantActivatedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantActivated'
+    summary: pay-settlement (P2) consume merchant.activated
+    description: Sin efecto de negocio; el plan lo asigna a P2.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.merchant.activated
+    messages:
+    - $ref: '#/channels/merchantActivated/messages/MerchantActivated'
+  consumeMerchantActivatedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantActivated'
+    summary: pay-payments (P3) consume merchant.activated
+    description: Mantiene la réplica del tarifario y del estado del comercio para cotizar y rechazar cobros.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.merchant.activated
+    messages:
+    - $ref: '#/channels/merchantActivated/messages/MerchantActivated'
+  publishMerchantSuspended:
+    action: send
+    channel:
+      $ref: '#/channels/merchantSuspended'
+    summary: pay-merchants publica merchant.suspended
+    x-publisher: pay-merchants
+    messages:
+    - $ref: '#/channels/merchantSuspended/messages/MerchantSuspended'
+  consumeMerchantSuspendedByPayEdge:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantSuspended'
+    summary: pay-edge (P1) consume merchant.suspended
+    description: 'Mantiene la réplica de comercios y claves: autentica y rechaza comercios suspendidos o claves
+      revocadas.'
+    x-consumer: pay-edge
+    x-lane: P1
+    x-inbox-consumer: pay-edge.merchant.suspended
+    messages:
+    - $ref: '#/channels/merchantSuspended/messages/MerchantSuspended'
+  consumeMerchantSuspendedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantSuspended'
+    summary: pay-webhooks (P1) consume merchant.suspended
+    description: Reenvía el evento a los endpoints del comercio.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.merchant.suspended
+    messages:
+    - $ref: '#/channels/merchantSuspended/messages/MerchantSuspended'
+  consumeMerchantSuspendedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantSuspended'
+    summary: pay-settlement (P2) consume merchant.suspended
+    description: Sin efecto de negocio; el plan lo asigna a P2.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.merchant.suspended
+    messages:
+    - $ref: '#/channels/merchantSuspended/messages/MerchantSuspended'
+  consumeMerchantSuspendedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantSuspended'
+    summary: pay-payments (P3) consume merchant.suspended
+    description: Mantiene la réplica del tarifario y del estado del comercio para cotizar y rechazar cobros.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.merchant.suspended
+    messages:
+    - $ref: '#/channels/merchantSuspended/messages/MerchantSuspended'
+  publishMerchantClosed:
+    action: send
+    channel:
+      $ref: '#/channels/merchantClosed'
+    summary: pay-merchants publica merchant.closed
+    x-publisher: pay-merchants
+    messages:
+    - $ref: '#/channels/merchantClosed/messages/MerchantClosed'
+  consumeMerchantClosedByPayEdge:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantClosed'
+    summary: pay-edge (P1) consume merchant.closed
+    description: 'Mantiene la réplica de comercios y claves: autentica y rechaza comercios suspendidos o claves
+      revocadas.'
+    x-consumer: pay-edge
+    x-lane: P1
+    x-inbox-consumer: pay-edge.merchant.closed
+    messages:
+    - $ref: '#/channels/merchantClosed/messages/MerchantClosed'
+  consumeMerchantClosedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantClosed'
+    summary: pay-webhooks (P1) consume merchant.closed
+    description: Reenvía el evento a los endpoints del comercio.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.merchant.closed
+    messages:
+    - $ref: '#/channels/merchantClosed/messages/MerchantClosed'
+  consumeMerchantClosedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantClosed'
+    summary: pay-settlement (P2) consume merchant.closed
+    description: Sin efecto de negocio; el plan lo asigna a P2.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.merchant.closed
+    messages:
+    - $ref: '#/channels/merchantClosed/messages/MerchantClosed'
+  consumeMerchantClosedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/merchantClosed'
+    summary: pay-payments (P3) consume merchant.closed
+    description: Mantiene la réplica del tarifario y del estado del comercio para cotizar y rechazar cobros.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.merchant.closed
+    messages:
+    - $ref: '#/channels/merchantClosed/messages/MerchantClosed'
+  publishFeeSchedulePublished:
+    action: send
+    channel:
+      $ref: '#/channels/feeSchedulePublished'
+    summary: pay-merchants publica fee_schedule.published
+    x-publisher: pay-merchants
+    messages:
+    - $ref: '#/channels/feeSchedulePublished/messages/FeeSchedulePublished'
+  consumeFeeSchedulePublishedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/feeSchedulePublished'
+    summary: pay-webhooks (P1) consume fee_schedule.published
+    description: Reenvía el evento a los endpoints del comercio.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.fee_schedule.published
+    messages:
+    - $ref: '#/channels/feeSchedulePublished/messages/FeeSchedulePublished'
+  consumeFeeSchedulePublishedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/feeSchedulePublished'
+    summary: pay-settlement (P2) consume fee_schedule.published
+    description: Usa el tarifario o el mandato en el corte semanal, el abono mensual y el neteo de comisiones.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.fee_schedule.published
+    messages:
+    - $ref: '#/channels/feeSchedulePublished/messages/FeeSchedulePublished'
+  consumeFeeSchedulePublishedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/feeSchedulePublished'
+    summary: pay-payments (P3) consume fee_schedule.published
+    description: Mantiene la réplica del tarifario y del estado del comercio para cotizar y rechazar cobros.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.fee_schedule.published
+    messages:
+    - $ref: '#/channels/feeSchedulePublished/messages/FeeSchedulePublished'
+  publishApiKeyCreated:
+    action: send
+    channel:
+      $ref: '#/channels/apiKeyCreated'
+    summary: pay-merchants publica api_key.created
+    x-publisher: pay-merchants
+    messages:
+    - $ref: '#/channels/apiKeyCreated/messages/ApiKeyCreated'
+  consumeApiKeyCreatedByPayEdge:
+    action: receive
+    channel:
+      $ref: '#/channels/apiKeyCreated'
+    summary: pay-edge (P1) consume api_key.created
+    description: 'Mantiene la réplica de comercios y claves: autentica y rechaza comercios suspendidos o claves
+      revocadas.'
+    x-consumer: pay-edge
+    x-lane: P1
+    x-inbox-consumer: pay-edge.api_key.created
+    messages:
+    - $ref: '#/channels/apiKeyCreated/messages/ApiKeyCreated'
+  consumeApiKeyCreatedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/apiKeyCreated'
+    summary: pay-webhooks (P1) consume api_key.created
+    description: Sin efecto de negocio hacia el comercio; el plan lo asigna a P1.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.api_key.created
+    messages:
+    - $ref: '#/channels/apiKeyCreated/messages/ApiKeyCreated'
+  consumeApiKeyCreatedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/apiKeyCreated'
+    summary: pay-settlement (P2) consume api_key.created
+    description: Sin efecto de negocio; el plan lo asigna a P2.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.api_key.created
+    messages:
+    - $ref: '#/channels/apiKeyCreated/messages/ApiKeyCreated'
+  consumeApiKeyCreatedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/apiKeyCreated'
+    summary: pay-payments (P3) consume api_key.created
+    description: Sin efecto de negocio; el plan lo asigna a P3.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.api_key.created
+    messages:
+    - $ref: '#/channels/apiKeyCreated/messages/ApiKeyCreated'
+  publishApiKeyRevoked:
+    action: send
+    channel:
+      $ref: '#/channels/apiKeyRevoked'
+    summary: pay-merchants publica api_key.revoked
+    x-publisher: pay-merchants
+    messages:
+    - $ref: '#/channels/apiKeyRevoked/messages/ApiKeyRevoked'
+  consumeApiKeyRevokedByPayEdge:
+    action: receive
+    channel:
+      $ref: '#/channels/apiKeyRevoked'
+    summary: pay-edge (P1) consume api_key.revoked
+    description: 'Mantiene la réplica de comercios y claves: autentica y rechaza comercios suspendidos o claves
+      revocadas.'
+    x-consumer: pay-edge
+    x-lane: P1
+    x-inbox-consumer: pay-edge.api_key.revoked
+    messages:
+    - $ref: '#/channels/apiKeyRevoked/messages/ApiKeyRevoked'
+  consumeApiKeyRevokedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/apiKeyRevoked'
+    summary: pay-webhooks (P1) consume api_key.revoked
+    description: Sin efecto de negocio hacia el comercio; el plan lo asigna a P1.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.api_key.revoked
+    messages:
+    - $ref: '#/channels/apiKeyRevoked/messages/ApiKeyRevoked'
+  consumeApiKeyRevokedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/apiKeyRevoked'
+    summary: pay-settlement (P2) consume api_key.revoked
+    description: Sin efecto de negocio; el plan lo asigna a P2.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.api_key.revoked
+    messages:
+    - $ref: '#/channels/apiKeyRevoked/messages/ApiKeyRevoked'
+  consumeApiKeyRevokedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/apiKeyRevoked'
+    summary: pay-payments (P3) consume api_key.revoked
+    description: Sin efecto de negocio; el plan lo asigna a P3.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.api_key.revoked
+    messages:
+    - $ref: '#/channels/apiKeyRevoked/messages/ApiKeyRevoked'
+  publishMandateCreated:
+    action: send
+    channel:
+      $ref: '#/channels/mandateCreated'
+    summary: pay-schedules publica mandate.created
+    x-publisher: pay-schedules
+    messages:
+    - $ref: '#/channels/mandateCreated/messages/MandateCreated'
+  consumeMandateCreatedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/mandateCreated'
+    summary: pay-webhooks (P1) consume mandate.created
+    description: Reenvía el evento a los endpoints del comercio.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.mandate.created
+    messages:
+    - $ref: '#/channels/mandateCreated/messages/MandateCreated'
+  consumeMandateCreatedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/mandateCreated'
+    summary: pay-settlement (P2) consume mandate.created
+    description: Usa el tarifario o el mandato en el corte semanal, el abono mensual y el neteo de comisiones.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.mandate.created
+    messages:
+    - $ref: '#/channels/mandateCreated/messages/MandateCreated'
+  consumeMandateCreatedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/mandateCreated'
+    summary: pay-payments (P3) consume mandate.created
+    description: Sin efecto de negocio; el plan lo asigna a P3.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.mandate.created
+    messages:
+    - $ref: '#/channels/mandateCreated/messages/MandateCreated'
+  publishMandateCanceled:
+    action: send
+    channel:
+      $ref: '#/channels/mandateCanceled'
+    summary: pay-schedules publica mandate.canceled
+    x-publisher: pay-schedules
+    messages:
+    - $ref: '#/channels/mandateCanceled/messages/MandateCanceled'
+  consumeMandateCanceledByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/mandateCanceled'
+    summary: pay-webhooks (P1) consume mandate.canceled
+    description: Reenvía el evento a los endpoints del comercio.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.mandate.canceled
+    messages:
+    - $ref: '#/channels/mandateCanceled/messages/MandateCanceled'
+  consumeMandateCanceledByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/mandateCanceled'
+    summary: pay-settlement (P2) consume mandate.canceled
+    description: Usa el tarifario o el mandato en el corte semanal, el abono mensual y el neteo de comisiones.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.mandate.canceled
+    messages:
+    - $ref: '#/channels/mandateCanceled/messages/MandateCanceled'
+  consumeMandateCanceledByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/mandateCanceled'
+    summary: pay-payments (P3) consume mandate.canceled
+    description: Sin efecto de negocio; el plan lo asigna a P3.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.mandate.canceled
+    messages:
+    - $ref: '#/channels/mandateCanceled/messages/MandateCanceled'
+  publishScheduledPaymentExecuted:
+    action: send
+    channel:
+      $ref: '#/channels/scheduledPaymentExecuted'
+    summary: pay-schedules publica scheduled_payment.executed
+    x-publisher: pay-schedules
+    messages:
+    - $ref: '#/channels/scheduledPaymentExecuted/messages/ScheduledPaymentExecuted'
+  consumeScheduledPaymentExecutedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/scheduledPaymentExecuted'
+    summary: pay-webhooks (P1) consume scheduled_payment.executed
+    description: Reenvía el evento a los endpoints del comercio.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.scheduled_payment.executed
+    messages:
+    - $ref: '#/channels/scheduledPaymentExecuted/messages/ScheduledPaymentExecuted'
+  consumeScheduledPaymentExecutedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/scheduledPaymentExecuted'
+    summary: pay-settlement (P2) consume scheduled_payment.executed
+    description: Usa el tarifario o el mandato en el corte semanal, el abono mensual y el neteo de comisiones.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.scheduled_payment.executed
+    messages:
+    - $ref: '#/channels/scheduledPaymentExecuted/messages/ScheduledPaymentExecuted'
+  consumeScheduledPaymentExecutedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/scheduledPaymentExecuted'
+    summary: pay-payments (P3) consume scheduled_payment.executed
+    description: Sin efecto de negocio; el plan lo asigna a P3.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.scheduled_payment.executed
+    messages:
+    - $ref: '#/channels/scheduledPaymentExecuted/messages/ScheduledPaymentExecuted'
+  publishScheduledPaymentFailed:
+    action: send
+    channel:
+      $ref: '#/channels/scheduledPaymentFailed'
+    summary: pay-schedules publica scheduled_payment.failed
+    x-publisher: pay-schedules
+    messages:
+    - $ref: '#/channels/scheduledPaymentFailed/messages/ScheduledPaymentFailed'
+  consumeScheduledPaymentFailedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/scheduledPaymentFailed'
+    summary: pay-webhooks (P1) consume scheduled_payment.failed
+    description: Reenvía el evento a los endpoints del comercio.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.scheduled_payment.failed
+    messages:
+    - $ref: '#/channels/scheduledPaymentFailed/messages/ScheduledPaymentFailed'
+  consumeScheduledPaymentFailedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/scheduledPaymentFailed'
+    summary: pay-settlement (P2) consume scheduled_payment.failed
+    description: Usa el tarifario o el mandato en el corte semanal, el abono mensual y el neteo de comisiones.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.scheduled_payment.failed
+    messages:
+    - $ref: '#/channels/scheduledPaymentFailed/messages/ScheduledPaymentFailed'
+  consumeScheduledPaymentFailedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/scheduledPaymentFailed'
+    summary: pay-payments (P3) consume scheduled_payment.failed
+    description: Sin efecto de negocio; el plan lo asigna a P3.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.scheduled_payment.failed
+    messages:
+    - $ref: '#/channels/scheduledPaymentFailed/messages/ScheduledPaymentFailed'
+  publishScheduledPaymentInsufficientFunds:
+    action: send
+    channel:
+      $ref: '#/channels/scheduledPaymentInsufficientFunds'
+    summary: pay-schedules publica scheduled_payment.insufficient_funds
+    x-publisher: pay-schedules
+    messages:
+    - $ref: '#/channels/scheduledPaymentInsufficientFunds/messages/ScheduledPaymentInsufficientFunds'
+  consumeScheduledPaymentInsufficientFundsByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/scheduledPaymentInsufficientFunds'
+    summary: pay-webhooks (P1) consume scheduled_payment.insufficient_funds
+    description: Reenvía el evento a los endpoints del comercio.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.scheduled_payment.insufficient_funds
+    messages:
+    - $ref: '#/channels/scheduledPaymentInsufficientFunds/messages/ScheduledPaymentInsufficientFunds'
+  consumeScheduledPaymentInsufficientFundsByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/scheduledPaymentInsufficientFunds'
+    summary: pay-settlement (P2) consume scheduled_payment.insufficient_funds
+    description: Usa el tarifario o el mandato en el corte semanal, el abono mensual y el neteo de comisiones.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.scheduled_payment.insufficient_funds
+    messages:
+    - $ref: '#/channels/scheduledPaymentInsufficientFunds/messages/ScheduledPaymentInsufficientFunds'
+  consumeScheduledPaymentInsufficientFundsByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/scheduledPaymentInsufficientFunds'
+    summary: pay-payments (P3) consume scheduled_payment.insufficient_funds
+    description: Sin efecto de negocio; el plan lo asigna a P3.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.scheduled_payment.insufficient_funds
+    messages:
+    - $ref: '#/channels/scheduledPaymentInsufficientFunds/messages/ScheduledPaymentInsufficientFunds'
+components:
+  messages:
+    MerchantCreated:
+      name: merchant.created
+      title: Se registró un comercio
+      summary: Se registró un comercio
+      description: Se registró un comercio
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-merchants
+            type:
+              const: merchant.created
+            subject:
+              $ref: '#/components/schemas/MerchantId'
+            data:
+              $ref: '#/components/schemas/MerchantCreatedData'
+      examples:
+      - name: merchant.created (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 8efed634-b09b-5c5d-b710-a56ad4b90cdf
+          source: /pay-merchants
+          type: merchant.created
+          subject: mc_5c048c31m1fb
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            merchant_id: mc_5c048c31m1fb
+            status: pending
+            created_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    MerchantActivated:
+      name: merchant.activated
+      title: 'El comercio quedó activo: KYC aprobado y contrato aceptado'
+      summary: 'El comercio quedó activo: KYC aprobado y contrato aceptado'
+      description: |-
+        El comercio quedó activo: KYC aprobado y contrato aceptado
+
+        Solo se emite si el KYC está aprobado y el contrato aceptado en su versión vigente (REQ-P5-1).
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-merchants
+            type:
+              const: merchant.activated
+            subject:
+              $ref: '#/components/schemas/MerchantId'
+            data:
+              $ref: '#/components/schemas/MerchantActivatedData'
+      examples:
+      - name: merchant.activated (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 999438ea-da48-5325-bbb4-16d8acc3dbcb
+          source: /pay-merchants
+          type: merchant.activated
+          subject: mc_5c048c31m1fb
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            merchant_id: mc_5c048c31m1fb
+            status: active
+            activated_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    MerchantSuspended:
+      name: merchant.suspended
+      title: 'El comercio se suspendió: no puede crear cobros'
+      summary: 'El comercio se suspendió: no puede crear cobros'
+      description: |-
+        El comercio se suspendió: no puede crear cobros
+
+        `pay-payments` y `pay-edge` rechazan con `merchant_suspended` (403) a partir de este evento.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-merchants
+            type:
+              const: merchant.suspended
+            subject:
+              $ref: '#/components/schemas/MerchantId'
+            data:
+              $ref: '#/components/schemas/MerchantSuspendedData'
+      examples:
+      - name: merchant.suspended (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 3b0e4813-dc93-592d-b1c1-dc6593af6d66
+          source: /pay-merchants
+          type: merchant.suspended
+          subject: mc_5c048c31m1fb
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            merchant_id: mc_5c048c31m1fb
+            status: suspended
+            suspended_at: '2026-10-27T15:00:00.000Z'
+            reason: risk_review
+          merchantid: mc_5c048c31m1fb
+    MerchantClosed:
+      name: merchant.closed
+      title: El comercio se cerró
+      summary: El comercio se cerró
+      description: |-
+        El comercio se cerró
+
+        Estado terminal.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-merchants
+            type:
+              const: merchant.closed
+            subject:
+              $ref: '#/components/schemas/MerchantId'
+            data:
+              $ref: '#/components/schemas/MerchantClosedData'
+      examples:
+      - name: merchant.closed (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 87d35358-6b37-580f-a7f3-deac1d7af41a
+          source: /pay-merchants
+          type: merchant.closed
+          subject: mc_5c048c31m1fb
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            merchant_id: mc_5c048c31m1fb
+            status: closed
+            closed_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    FeeSchedulePublished:
+      name: fee_schedule.published
+      title: Se publicó una versión del tarifario de un comercio
+      summary: Se publicó una versión del tarifario de un comercio
+      description: |-
+        Se publicó una versión del tarifario de un comercio
+
+        Es la réplica del tarifario que usan `pay-payments` (cotiza) y `pay-edge`. Las versiones viejas quedan intactas: un cobro se cotiza con la versión vigente al crearse. Reglas de cálculo (redondeo D-20) en `@pay/money.splitFee`.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-merchants
+            type:
+              const: fee_schedule.published
+            subject:
+              $ref: '#/components/schemas/MerchantId'
+            data:
+              $ref: '#/components/schemas/FeeSchedulePublishedData'
+      examples:
+      - name: fee_schedule.published (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 22680693-244e-5013-8061-c549988ce7c9
+          source: /pay-merchants
+          type: fee_schedule.published
+          subject: mc_5c048c31m1fb
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            merchant_id: mc_5c048c31m1fb
+            version: 3
+            currency: BOB
+            effective_from: '2026-10-27T15:00:00.000Z'
+            effective_to: null
+            channels:
+            - channel: qr
+              percent: '2.5'
+              fixed_minor: 50
+            - channel: direct
+              percent: '1.8'
+              fixed_minor: 50
+              min_minor: 100
+              cap_minor: 5000
+            monthly_fee_minor: 0
+          merchantid: mc_5c048c31m1fb
+    ApiKeyCreated:
+      name: api_key.created
+      title: Se creó una clave de API (nunca viaja el secreto)
+      summary: Se creó una clave de API (nunca viaja el secreto)
+      description: |-
+        Se creó una clave de API (nunca viaja el secreto)
+
+        Una rotación emite `api_key.created` de la clave nueva; la vieja sigue válida durante el periodo de gracia y después se revoca.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-merchants
+            type:
+              const: api_key.created
+            subject:
+              $ref: '#/components/schemas/ApiKeyId'
+            data:
+              $ref: '#/components/schemas/ApiKeyCreatedData'
+      examples:
+      - name: api_key.created (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: d8eea5b7-2147-5c85-8267-e9c83811b7f8
+          source: /pay-merchants
+          type: api_key.created
+          subject: key_bm70q2b045qc
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            key_id: key_bm70q2b045qc
+            merchant_id: mc_5c048c31m1fb
+            mode: live
+            key_hash: $argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQ$aGFzaC1kZS1lamVtcGxv
+            last4: a1b2
+            created_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    ApiKeyRevoked:
+      name: api_key.revoked
+      title: Se revocó una clave de API; deja de servir en segundos
+      summary: Se revocó una clave de API; deja de servir en segundos
+      description: |-
+        Se revocó una clave de API; deja de servir en segundos
+
+        Puede llegar antes que el `api_key.created` correspondiente (reordenamiento): `pay-edge` debe recordar la revocación y no resucitar la clave.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-merchants
+            type:
+              const: api_key.revoked
+            subject:
+              $ref: '#/components/schemas/ApiKeyId'
+            data:
+              $ref: '#/components/schemas/ApiKeyRevokedData'
+      examples:
+      - name: api_key.revoked (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 626fac61-373d-5d9b-abb9-1db7bfae3b2f
+          source: /pay-merchants
+          type: api_key.revoked
+          subject: key_bm70q2b045qc
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            key_id: key_bm70q2b045qc
+            merchant_id: mc_5c048c31m1fb
+            mode: live
+            reason: rotated
+            revoked_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    MandateCreated:
+      name: mandate.created
+      title: Se programó un pago recurrente (7.7 / 7.8)
+      summary: Se programó un pago recurrente (7.7 / 7.8)
+      description: |-
+        Se programó un pago recurrente (7.7 / 7.8)
+
+        `merchant_id` es el pagador. El beneficiario es otro comercio de la pasarela (ver ambigüedad abierta en `public-v1.yaml`).
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-schedules
+            type:
+              const: mandate.created
+            subject:
+              $ref: '#/components/schemas/MandateId'
+            data:
+              $ref: '#/components/schemas/MandateCreatedData'
+      examples:
+      - name: mandate.created (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 73aeef32-9c12-5023-bd83-40281af9f26e
+          source: /pay-schedules
+          type: mandate.created
+          subject: md_170585987bbf
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            mandate_id: md_170585987bbf
+            merchant_id: mc_5c048c31m1fb
+            status: active
+            kind: pay_obligation
+            beneficiary_merchant_id: mc_fb6f32b683cf
+            amount_minor: 100000
+            currency: BOB
+            frequency: monthly
+            day_of_month: 5
+            start_date: '2026-11-05'
+            end_date: null
+          merchantid: mc_5c048c31m1fb
+    MandateCanceled:
+      name: mandate.canceled
+      title: Se canceló el mandato; los pagos ya ejecutados no se deshacen
+      summary: Se canceló el mandato; los pagos ya ejecutados no se deshacen
+      description: |-
+        Se canceló el mandato; los pagos ya ejecutados no se deshacen
+
+        Estado terminal.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-schedules
+            type:
+              const: mandate.canceled
+            subject:
+              $ref: '#/components/schemas/MandateId'
+            data:
+              $ref: '#/components/schemas/MandateCanceledData'
+      examples:
+      - name: mandate.canceled (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 4c1ab205-6af2-5b0f-89c3-968350ff2dff
+          source: /pay-schedules
+          type: mandate.canceled
+          subject: md_170585987bbf
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            mandate_id: md_170585987bbf
+            merchant_id: mc_5c048c31m1fb
+            status: canceled
+            canceled_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    ScheduledPaymentExecuted:
+      name: scheduled_payment.executed
+      title: El pago programado de un periodo se ejecutó
+      summary: El pago programado de un periodo se ejecutó
+      description: |-
+        El pago programado de un periodo se ejecutó
+
+        Una sola vez por `(mandato, periodo)` aunque el job corra dos veces.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-schedules
+            type:
+              const: scheduled_payment.executed
+            subject:
+              $ref: '#/components/schemas/ScheduledPaymentId'
+            data:
+              $ref: '#/components/schemas/ScheduledPaymentExecutedData'
+      examples:
+      - name: scheduled_payment.executed (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: ec4d84fb-569c-5c72-a7a7-d1832deaaba5
+          source: /pay-schedules
+          type: scheduled_payment.executed
+          subject: sp_kb20f479b7c3
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            scheduled_payment_id: sp_kb20f479b7c3
+            mandate_id: md_170585987bbf
+            merchant_id: mc_5c048c31m1fb
+            period: 2026-11
+            amount_minor: 100000
+            currency: BOB
+            ledger_transfer_id: tf_f19fb65q7q18
+            executed_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    ScheduledPaymentFailed:
+      name: scheduled_payment.failed
+      title: El pago programado de un periodo falló
+      summary: El pago programado de un periodo falló
+      description: El pago programado de un periodo falló
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-schedules
+            type:
+              const: scheduled_payment.failed
+            subject:
+              $ref: '#/components/schemas/ScheduledPaymentId'
+            data:
+              $ref: '#/components/schemas/ScheduledPaymentFailedData'
+      examples:
+      - name: scheduled_payment.failed (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 9ebd7914-9a36-5ff8-8996-2999ff714673
+          source: /pay-schedules
+          type: scheduled_payment.failed
+          subject: sp_kb20f479b7c3
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            scheduled_payment_id: sp_kb20f479b7c3
+            mandate_id: md_170585987bbf
+            merchant_id: mc_5c048c31m1fb
+            period: 2026-11
+            amount_minor: 100000
+            currency: BOB
+            failure_code: ledger_unavailable
+            attempt: 1
+            failed_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    ScheduledPaymentInsufficientFunds:
+      name: scheduled_payment.insufficient_funds
+      title: No hay fondos para el pago programado; se reintenta según la política
+      summary: No hay fondos para el pago programado; se reintenta según la política
+      description: |-
+        No hay fondos para el pago programado; se reintenta según la política
+
+        Equivale al `code` `insufficient_funds` del catálogo. `retry_at: null` indica que se agotaron los reintentos.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-schedules
+            type:
+              const: scheduled_payment.insufficient_funds
+            subject:
+              $ref: '#/components/schemas/ScheduledPaymentId'
+            data:
+              $ref: '#/components/schemas/ScheduledPaymentInsufficientFundsData'
+      examples:
+      - name: scheduled_payment.insufficient_funds (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 089a6cbb-525f-5918-99dc-a6857854473d
+          source: /pay-schedules
+          type: scheduled_payment.insufficient_funds
+          subject: sp_kb20f479b7c3
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            scheduled_payment_id: sp_kb20f479b7c3
+            mandate_id: md_170585987bbf
+            merchant_id: mc_5c048c31m1fb
+            period: 2026-11
+            amount_minor: 100000
+            currency: BOB
+            required_minor: 100000
+            available_minor: 50000
+            attempt: 1
+            retry_at: '2026-11-06T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+  schemas:
+    AmountMinor:
+      $ref: ../openapi/common.yaml#/components/schemas/AmountMinor
+    Currency:
+      $ref: ../openapi/common.yaml#/components/schemas/Currency
+    Timestamp:
+      $ref: ../openapi/common.yaml#/components/schemas/Timestamp
+    Date:
+      type: string
+      format: date
+    MerchantId:
+      type: string
+      pattern: ^mc_[a-z0-9]{10,40}$
+    LedgerTransferId:
+      type: string
+      pattern: ^tf_[a-z0-9]{10,40}$
+      description: Id del asiento en pay-ledger.
+    ApiKeyId:
+      type: string
+      pattern: ^key_[a-z0-9]{10,40}$
+    MandateId:
+      type: string
+      pattern: ^md_[a-z0-9]{10,40}$
+    ScheduledPaymentId:
+      type: string
+      pattern: ^sp_[a-z0-9]{10,40}$
+    Period:
+      type: string
+      pattern: ^\d{4}-(0[1-9]|1[0-2])$
+      description: Mes del pago programado, AAAA-MM.
+    MerchantCreatedData:
+      type: object
+      additionalProperties: false
+      required:
+      - merchant_id
+      - status
+      - created_at
+      properties:
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: pending
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se registró un comercio
+    MerchantActivatedData:
+      type: object
+      additionalProperties: false
+      required:
+      - merchant_id
+      - status
+      - activated_at
+      properties:
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: active
+        activated_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: 'El comercio quedó activo: KYC aprobado y contrato aceptado'
+    MerchantSuspendedData:
+      type: object
+      additionalProperties: false
+      required:
+      - merchant_id
+      - status
+      - suspended_at
+      - reason
+      properties:
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: suspended
+        suspended_at:
+          $ref: '#/components/schemas/Timestamp'
+        reason:
+          type: string
+          enum:
+          - kyc_expired
+          - risk_review
+          - contract_breach
+          - manual
+      description: 'El comercio se suspendió: no puede crear cobros'
+    MerchantClosedData:
+      type: object
+      additionalProperties: false
+      required:
+      - merchant_id
+      - status
+      - closed_at
+      properties:
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: closed
+        closed_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: El comercio se cerró
+    FeeSchedulePublishedData:
+      type: object
+      additionalProperties: false
+      required:
+      - merchant_id
+      - version
+      - currency
+      - effective_from
+      - effective_to
+      - channels
+      properties:
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        version:
+          type: integer
+          minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        effective_from:
+          $ref: '#/components/schemas/Timestamp'
+        effective_to:
+          oneOf:
+          - $ref: '#/components/schemas/Timestamp'
+          - type: 'null'
+        channels:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - channel
+            - percent
+            properties:
+              channel:
+                type: string
+                enum:
+                - qr
+                - card
+                - bank_transfer
+                - wallet
+                - direct
+              percent:
+                type: string
+                pattern: ^\d{1,3}(\.\d{1,6})?$
+                description: 'Porcentaje como cadena: `2.5` es el 2,5 %. Misma forma que `FeeRule.percent` de @pay/money.'
+              fixed_minor:
+                $ref: '#/components/schemas/AmountMinor'
+              min_minor:
+                $ref: '#/components/schemas/AmountMinor'
+              cap_minor:
+                $ref: '#/components/schemas/AmountMinor'
+        monthly_fee_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          description: 'Abono mensual (D-07). Opcional: no todos los acuerdos lo tienen.'
+      description: Se publicó una versión del tarifario de un comercio
+    ApiKeyCreatedData:
+      type: object
+      additionalProperties: false
+      required:
+      - key_id
+      - merchant_id
+      - mode
+      - key_hash
+      - last4
+      - created_at
+      properties:
+        key_id:
+          $ref: '#/components/schemas/ApiKeyId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        mode:
+          type: string
+          enum:
+          - test
+          - live
+        key_hash:
+          type: string
+          pattern: ^\$argon2id\$
+          description: Hash argon2id (cadena PHC) del secreto. Con él `pay-edge` verifica; el secreto nunca se publica.
+        last4:
+          type: string
+          minLength: 4
+          maxLength: 4
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se creó una clave de API (nunca viaja el secreto)
+    ApiKeyRevokedData:
+      type: object
+      additionalProperties: false
+      required:
+      - key_id
+      - merchant_id
+      - mode
+      - reason
+      - revoked_at
+      properties:
+        key_id:
+          $ref: '#/components/schemas/ApiKeyId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        mode:
+          type: string
+          enum:
+          - test
+          - live
+        reason:
+          type: string
+          enum:
+          - revoked_by_merchant
+          - rotated
+          - compromised
+        revoked_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se revocó una clave de API; deja de servir en segundos
+    MandateCreatedData:
+      type: object
+      additionalProperties: false
+      required:
+      - mandate_id
+      - merchant_id
+      - status
+      - kind
+      - beneficiary_merchant_id
+      - amount_minor
+      - currency
+      - frequency
+      - day_of_month
+      - start_date
+      - end_date
+      properties:
+        mandate_id:
+          $ref: '#/components/schemas/MandateId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: active
+        kind:
+          type: string
+          enum:
+          - pay_obligation
+          - pay_commission
+        beneficiary_merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        frequency:
+          const: monthly
+        day_of_month:
+          type: integer
+          minimum: 1
+          maximum: 28
+        start_date:
+          $ref: '#/components/schemas/Date'
+        end_date:
+          oneOf:
+          - $ref: '#/components/schemas/Date'
+          - type: 'null'
+      description: Se programó un pago recurrente (7.7 / 7.8)
+    MandateCanceledData:
+      type: object
+      additionalProperties: false
+      required:
+      - mandate_id
+      - merchant_id
+      - status
+      - canceled_at
+      properties:
+        mandate_id:
+          $ref: '#/components/schemas/MandateId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: canceled
+        canceled_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se canceló el mandato; los pagos ya ejecutados no se deshacen
+    ScheduledPaymentExecutedData:
+      type: object
+      additionalProperties: false
+      required:
+      - scheduled_payment_id
+      - mandate_id
+      - merchant_id
+      - period
+      - amount_minor
+      - currency
+      - ledger_transfer_id
+      - executed_at
+      properties:
+        scheduled_payment_id:
+          $ref: '#/components/schemas/ScheduledPaymentId'
+        mandate_id:
+          $ref: '#/components/schemas/MandateId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        period:
+          $ref: '#/components/schemas/Period'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        ledger_transfer_id:
+          $ref: '#/components/schemas/LedgerTransferId'
+        executed_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: El pago programado de un periodo se ejecutó
+    ScheduledPaymentFailedData:
+      type: object
+      additionalProperties: false
+      required:
+      - scheduled_payment_id
+      - mandate_id
+      - merchant_id
+      - period
+      - amount_minor
+      - currency
+      - failure_code
+      - attempt
+      - failed_at
+      properties:
+        scheduled_payment_id:
+          $ref: '#/components/schemas/ScheduledPaymentId'
+        mandate_id:
+          $ref: '#/components/schemas/MandateId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        period:
+          $ref: '#/components/schemas/Period'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        failure_code:
+          type: string
+          enum:
+          - insufficient_funds
+          - merchant_suspended
+          - ledger_unavailable
+          - invalid_state_transition
+          - internal_error
+        attempt:
+          type: integer
+          minimum: 1
+        failed_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: El pago programado de un periodo falló
+    ScheduledPaymentInsufficientFundsData:
+      type: object
+      additionalProperties: false
+      required:
+      - scheduled_payment_id
+      - mandate_id
+      - merchant_id
+      - period
+      - amount_minor
+      - currency
+      - required_minor
+      - available_minor
+      - attempt
+      - retry_at
+      properties:
+        scheduled_payment_id:
+          $ref: '#/components/schemas/ScheduledPaymentId'
+        mandate_id:
+          $ref: '#/components/schemas/MandateId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        period:
+          $ref: '#/components/schemas/Period'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        required_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        available_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        attempt:
+          type: integer
+          minimum: 1
+        retry_at:
+          oneOf:
+          - $ref: '#/components/schemas/Timestamp'
+          - type: 'null'
+      description: No hay fondos para el pago programado; se reintenta según la política

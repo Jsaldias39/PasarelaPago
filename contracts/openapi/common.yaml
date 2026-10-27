@@ -1,0 +1,110 @@
+# Componentes compartidos por TODAS las APIs de la pasarela (públicas e internas).
+# Convenciones (se congelan con el resto en `v1-frozen`):
+#   - Dinero: entero en unidades menores (`amount_minor`), moneda ISO 4217 (`currency`). v1 solo BOB (D-06).
+#   - Identificadores: prefijo + base32 sin ambigüedades (`pi_`, `re_`, `po_`, `md_`, `key_`, `we_`, `py_`).
+#   - Fechas: RFC 3339 en UTC.
+#   - Errores: RFC 9457 (`application/problem+json`) con `code` estable (contracts/schemas/problem.schema.json).
+#   - Listas: paginación por cursor, orden determinista (created_at desc, id desc).
+#   - Mutaciones públicas: `Idempotency-Key` obligatoria.
+openapi: 3.1.0
+info:
+  title: Componentes comunes de la pasarela
+  version: 1.0.0-draft
+  description: Archivo de componentes; no define rutas.
+paths: {}
+components:
+  schemas:
+    Problem:
+      $ref: '../schemas/problem.schema.json'
+    Currency:
+      type: string
+      enum: [BOB]
+      description: Moneda ISO 4217. En v1 solo bolivianos (D-06).
+    AmountMinor:
+      type: integer
+      format: int64
+      minimum: 0
+      maximum: 9007199254740991
+      description: Importe en unidades menores (centavos). Entero seguro de JSON; nunca coma flotante.
+      examples: [10000]
+    Timestamp:
+      type: string
+      format: date-time
+      description: RFC 3339, siempre en UTC.
+    Metadata:
+      type: object
+      maxProperties: 20
+      propertyNames: { pattern: '^[a-z][a-z0-9_]{0,39}$' }
+      additionalProperties: { type: string, maxLength: 200 }
+      description: >-
+        Pares clave-valor del comercio. No pongas datos personales ni de tarjeta; la pasarela los
+        copia a logs de soporte.
+    ListMeta:
+      type: object
+      required: [object, has_more]
+      properties:
+        object: { const: list }
+        has_more: { type: boolean }
+        next_cursor: { type: [string, 'null'], description: Cursor opaco para la página siguiente. }
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Clave única por intento de negocio (hasta 255 caracteres, se recomienda un UUID). El mismo
+        valor con el mismo cuerpo repite la respuesta original; con otro cuerpo da 422
+        `idempotency_key_reused`; mientras la primera sigue en curso da 409
+        `idempotency_request_in_progress`. Se conserva 24 h.
+      schema: { type: string, minLength: 8, maxLength: 255 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    StartingAfter:
+      name: starting_after
+      in: query
+      description: Cursor opaco devuelto en `next_cursor`.
+      schema: { type: string, maxLength: 200 }
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Id de correlación del cliente (8 a 64 caracteres `[A-Za-z0-9._-]`). Se devuelve en la respuesta y en `request_id` de los errores.
+      schema: { type: string, pattern: '^[A-Za-z0-9._-]{8,64}$' }
+  headers:
+    XRequestId:
+      description: Id de correlación de esta petición.
+      schema: { type: string }
+    IdempotencyReplayed:
+      description: '`true` si la respuesta es la guardada de una petición anterior con la misma Idempotency-Key.'
+      schema: { type: string, enum: ['true'] }
+    RetryAfter:
+      description: Segundos a esperar antes de reintentar.
+      schema: { type: integer, minimum: 0 }
+  responses:
+    BadRequest:
+      description: Petición mal formada o falta una cabecera obligatoria (`idempotency_key_required`).
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Unauthorized:
+      description: Falta la credencial o no es válida (`unauthorized`).
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Forbidden:
+      description: Sin permiso, o comercio suspendido (`forbidden`, `merchant_suspended`).
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    NotFound:
+      description: No existe, o es de otro comercio (`resource_not_found`). Nunca se distingue entre las dos.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Conflict:
+      description: Estado incompatible o petición idéntica en curso (`invalid_state_transition`, `idempotency_request_in_progress`).
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Unprocessable:
+      description: Validación o regla de negocio (`validation_failed`, `idempotency_key_reused`, `insufficient_funds`, `fee_exceeds_amount`).
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    TooManyRequests:
+      description: Límite de velocidad (`rate_limited`).
+      headers: { Retry-After: { $ref: '#/components/headers/RetryAfter' } }
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    ServerError:
+      description: Error interno (`internal_error`) o dependencia caída (`risk_unavailable`, `connector_unavailable`, `ledger_unavailable`).
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }

@@ -1,0 +1,39 @@
+# CI de la pasarela (P1.H1.M8). NUNCA se ejecutó en GitHub desde donde se escribió: ver docs/plan/carriles/P1 «Estado de la ola 0».
+name: ci
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar (Yarn 4 está versionado en .yarn/releases)
+        run: yarn install --immutable
+      - name: Stack local (Postgres con un rol por servicio, NATS JetStream)
+        run: docker compose -f platform/compose.yml up -d --wait postgres nats
+      - name: Separación de bases
+        run: platform/scripts/check-db-separation.sh
+      - run: yarn typecheck
+      - run: yarn lint
+      - run: yarn build
+      - name: Pruebas (contra Postgres y NATS reales)
+        run: yarn test
+      - name: Contratos (OpenAPI y AsyncAPI)
+        run: yarn contracts:lint
+      - name: La plantilla de servicio sigue funcionando
+        run: platform/scripts/verify-template.sh
+      - name: Apagar el stack
+        if: always()
+        run: docker compose -f platform/compose.yml down -v

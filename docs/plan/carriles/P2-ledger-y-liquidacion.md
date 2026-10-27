@@ -1,6 +1,7 @@
 # Carril P2 — Ledger y liquidación (dinero en reposo)
 
-> **Estado:** `TODO` · **AVANCE: 0 / 17 — 0,0 %** · **Peldaño:** `UNKNOWN`
+> **Estado:** `EN CURSO` (ola 0) · **AVANCE: 1 / 18 — 5,6 %** · **Peldaño:** `TESTED` en lo marcado HECHO; `UNKNOWN` en el resto
+> **Antes de empezar, leé** [`spikes/tigerbeetle.md`](../../spikes/tigerbeetle.md) (hallazgos H-1 a H-7).
 > **Predecesor:** P1.H1 (plataforma y plantilla). Ningún otro: los colaboradores se simulan.
 > **Carpetas del monorepo:** `services/pay-ledger/`, `services/pay-settlement/` · esquema en `mantra-core-health-model`.
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md)
@@ -48,14 +49,15 @@ hecho. Y sumar todos los débitos y créditos del ledger después de E1–E5: si
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P2.H1.M1 | **Spike** TigerBeetle: cliente Node, dos fases, invariantes, vencimiento, licencia confirmada en su `LICENSE` | Responde sí o no a «¿sirve?», con criterio escrito | `evidencia/spike-tigerbeetle.md` con las salidas | TODO |
+| P2.H1.M1 | **Spike** TigerBeetle: cliente Node, dos fases, invariantes, vencimiento, licencia confirmada en su `LICENSE` | Responde sí o no a «¿sirve?», con criterio escrito | `evidencia/spike-tigerbeetle.md` con las salidas → [spike](../../spikes/tigerbeetle.md): **SÍ con condiciones** (`TESTED`) | HECHO |
 | P2.H1.M2 | Esquema `pay_ledger` (metadatos de cuentas y transferencias) en el modelo, por el pipeline | Sin deriva modelo ↔ base ↔ ORM | Salida del verificador de deriva | TODO |
 | P2.H1.M3 | Plan de cuentas y mapeo cuenta lógica ↔ id de 128 bits, determinista | La misma cuenta lógica da siempre el mismo id | Test de propiedad | TODO |
-| P2.H1.M4 | `POST /transfers` (lote enlazado, atómico) con `id` derivado por el llamador | REQ-P2-1 y 2 | Test concurrente (10×) contra TigerBeetle real | TODO |
+| P2.H1.M4 | `POST /transfers` (lote enlazado, atómico) con `business_ref` estable + `attempt`; el servidor deriva el id de 128 bits. Un rechazo exige subir `attempt` (H-TB1) | REQ-P2-1 y 2, y un reintento tras rechazo con el mismo `attempt` devuelve el mismo rechazo mientras que con `attempt`+1 se acepta | Test concurrente (10×) contra TigerBeetle real | TODO |
 | P2.H1.M5 | `POST /holds`, `/holds/{id}/post`, `/holds/{id}/void` con vencimiento | REQ-P2-3 | Test con vencimiento corto | TODO |
 | P2.H1.M6 | `GET /balances` y `/statements` paginados, con orden determinista | Extracto estable entre páginas | Test pegado | TODO |
 | P2.H1.M7 | Job de invariante global + evento `ledger.transfer.posted` por outbox | REQ-P2-4; sin outbox no hay evento | Test pegado | TODO |
 | P2.H1.M8 | Medio de pago **saldo AloVida**: transferencia de `merchant:{id}:available` (o billetera del usuario) al comercio cobrador, atómica y con invariante de saldo | Saldo insuficiente → rechazo sin efecto; saldo justo → aceptado | Test contra TigerBeetle real | TODO |
+| P2.H1.M9 | Rastro de rechazos en Postgres (`pay_ledger`): TigerBeetle no guarda las transferencias rechazadas (H-TB2) | Toda transferencia rechazada deja una fila con `business_ref`, `attempt` y motivo | Test de integración: rechazar una transferencia y encontrar su fila | TODO |
 
 ## H2 — `pay-settlement` (olas 1 y 2)
 

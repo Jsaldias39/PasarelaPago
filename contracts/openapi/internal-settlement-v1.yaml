@@ -1,0 +1,362 @@
+# Contrato INTERNO de pay-settlement. BORRADOR de la ola 0 (`v1-draft`): no está congelado.
+openapi: 3.1.0
+info:
+  title: pay-settlement — API interna v1
+  version: 1.0.0-draft
+  description: |
+    Corte de liquidación, pagos a comercios (payouts) y conciliación.
+
+    - **Expone:** P2 (`pay-settlement`).
+    - **Consume:** `pay-schedules` (P5) para pagar comisiones y obligaciones programadas (procesos 7.7 y 7.8);
+      el job de corte y los operadores de conciliación (consola interna, fuera de este plan).
+    - **Habla con:** `pay-ledger` (retenciones y asientos) y `pay-connectors` (extractos). Nunca guarda saldos.
+    - **Seguridad:** mTLS + `X-Service-Id`.
+
+    ## Corte semanal (D-08, D-19)
+
+    El corte corre **los lunes**. Libera a `available` lo cobrado hasta **7 días antes** (T+7) y crea un payout por
+    comercio con saldo. Es idempotente por `cutoff_date`: correrlo dos veces el mismo lunes no paga dos veces.
+
+    ## Rieles de pago (`rail`)
+
+    - `bank_transfer`: transferencia desde la cuenta recaudadora (modo A, D-02). Es el riel real.
+    - `acquirer_settlement`: liquidación como adquirente (modo B). **Es un doble declarado**: D-02 eligió el
+      modo A. Responde igual que el real, pero no mueve dinero y se marca `simulated: true`.
+
+    ## Conciliación
+
+    Cruza el extracto del banco (`pay-connectors`) con el ledger. Una diferencia **no ajusta el ledger sola**:
+    queda como excepción para que una persona la resuelva (REQ-P2-6).
+servers:
+  - url: http://pay-settlement:3000
+    description: Marcador de la red interna.
+security:
+  - mTLS: []
+tags:
+  - { name: Payouts, description: Pagos a comercios }
+  - { name: Batches, description: Corte de liquidación }
+  - { name: Reconciliation, description: Conciliación y excepciones }
+paths:
+  /payouts:
+    post:
+      operationId: settlementCreatePayout
+      tags: [Payouts]
+      x-owner: P2
+      summary: Paga un monto disponible a un comercio
+      description: 'Retiene el monto en `merchant:{id}:available`, ordena el pago por el riel y confirma (`post`) o anula (`void`) la retención según el resultado. Un monto mayor al disponible da `422 insufficient_funds` sin efecto.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PayoutCreate' } } }
+      responses:
+        '201': { description: Payout creado., content: { application/json: { schema: { $ref: '#/components/schemas/Payout' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+    get:
+      operationId: settlementListPayouts
+      tags: [Payouts]
+      x-owner: P2
+      summary: Lista payouts
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/Limit'
+        - $ref: 'common.yaml#/components/parameters/StartingAfter'
+        - { name: merchant_id, in: query, schema: { $ref: '#/components/schemas/MerchantId' } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/PayoutStatus' } }
+      responses:
+        '200':
+          description: Página de payouts, del más nuevo al más viejo.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: 'common.yaml#/components/schemas/ListMeta'
+                  - type: object
+                    required: [data]
+                    properties: { data: { type: array, items: { $ref: '#/components/schemas/Payout' } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /payouts/{id}:
+    get:
+      operationId: settlementGetPayout
+      tags: [Payouts]
+      x-owner: P2
+      summary: Consulta un payout
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^po_[a-z0-9]{10,40}$' } }
+      responses:
+        '200': { description: El payout., content: { application/json: { schema: { $ref: '#/components/schemas/Payout' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /batches:
+    post:
+      operationId: settlementRunBatch
+      tags: [Batches]
+      x-owner: P2
+      summary: Corre el corte de liquidación
+      description: 'Libera a `available` lo cobrado hasta `release_before` y crea un payout por comercio con saldo. Idempotente por `cutoff_date`: repetirlo devuelve el mismo lote.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BatchCreate' } } }
+      responses:
+        '201': { description: Lote creado y en ejecución., content: { application/json: { schema: { $ref: '#/components/schemas/Batch' } } } }
+        '200': { description: 'Ya existía el lote de ese `cutoff_date`.', content: { application/json: { schema: { $ref: '#/components/schemas/Batch' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+    get:
+      operationId: settlementListBatches
+      tags: [Batches]
+      x-owner: P2
+      summary: Lista los lotes de liquidación
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/Limit'
+        - $ref: 'common.yaml#/components/parameters/StartingAfter'
+      responses:
+        '200':
+          description: Página de lotes, del más nuevo al más viejo.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: 'common.yaml#/components/schemas/ListMeta'
+                  - type: object
+                    required: [data]
+                    properties: { data: { type: array, items: { $ref: '#/components/schemas/Batch' } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /reconciliation_runs:
+    post:
+      operationId: settlementCreateReconciliationRun
+      tags: [Reconciliation]
+      x-owner: P2
+      summary: Concilia el extracto de un conector contra el ledger
+      description: 'Pide el extracto a `pay-connectors`, lo cruza con el ledger y registra las diferencias como excepciones. No modifica el ledger.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReconciliationRunCreate' } } }
+      responses:
+        '202': { description: Corrida aceptada; se consulta por su id., content: { application/json: { schema: { $ref: '#/components/schemas/ReconciliationRun' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /reconciliation_runs/{id}:
+    get:
+      operationId: settlementGetReconciliationRun
+      tags: [Reconciliation]
+      x-owner: P2
+      summary: Estado de una corrida de conciliación
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^rr_[a-z0-9]{10,40}$' } }
+      responses:
+        '200': { description: La corrida., content: { application/json: { schema: { $ref: '#/components/schemas/ReconciliationRun' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /reconciliation_exceptions:
+    get:
+      operationId: settlementListReconciliationExceptions
+      tags: [Reconciliation]
+      x-owner: P2
+      summary: Lista las excepciones de conciliación
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/Limit'
+        - $ref: 'common.yaml#/components/parameters/StartingAfter'
+        - { name: status, in: query, schema: { type: string, enum: [open, resolved, dismissed] } }
+      responses:
+        '200':
+          description: Página de excepciones, de la más nueva a la más vieja.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: 'common.yaml#/components/schemas/ListMeta'
+                  - type: object
+                    required: [data]
+                    properties: { data: { type: array, items: { $ref: '#/components/schemas/ReconciliationException' } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /reconciliation_exceptions/{id}/resolve:
+    post:
+      operationId: settlementResolveReconciliationException
+      tags: [Reconciliation]
+      x-owner: P2
+      summary: Cierra una excepción con la decisión de una persona
+      description: 'Registra quién decidió y por qué. `request_adjustment` NO ajusta el ledger: solicita el asiento de ajuste por el flujo normal (`code: adjustment`) con su propia aprobación.'
+      x-open-question: 'Quién puede aprobar un ajuste y con qué tope no lo define el stakeholder. Confirmar con el dueño y contabilidad antes de congelar.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^rx_[a-z0-9]{10,40}$' } }
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReconciliationExceptionResolve' } } }
+      responses:
+        '200': { description: Excepción cerrada., content: { application/json: { schema: { $ref: '#/components/schemas/ReconciliationException' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+components:
+  securitySchemes:
+    mTLS:
+      type: mutualTLS
+      description: Certificado de servicio. La identidad del llamador se confirma además con `X-Service-Id`.
+  parameters:
+    ServiceId:
+      name: X-Service-Id
+      in: header
+      required: true
+      description: Servicio llamador. Tiene que coincidir con la identidad del certificado mTLS.
+      schema: { type: string, pattern: '^pay-[a-z]+$', examples: [pay-schedules] }
+    Traceparent:
+      name: traceparent
+      in: header
+      required: false
+      description: W3C Trace Context.
+      schema: { type: string, pattern: '^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$' }
+  schemas:
+    MerchantId:
+      type: string
+      pattern: '^mc_[a-z0-9]{10,40}$'
+    Rail:
+      type: string
+      enum: [bank_transfer, acquirer_settlement]
+      description: '`acquirer_settlement` es un doble declarado (modo B, D-02): no mueve dinero.'
+    PayoutStatus:
+      type: string
+      enum: [pending, in_transit, paid, failed]
+    PayoutCreate:
+      type: object
+      required: [merchant_id, amount_minor, currency, rail]
+      additionalProperties: false
+      properties:
+        merchant_id: { $ref: '#/components/schemas/MerchantId' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        rail: { $ref: '#/components/schemas/Rail' }
+        reason:
+          type: string
+          enum: [weekly_cut, mandate_obligation, mandate_commission, manual]
+          description: 'Origen del pago. `manual` queda auditado con el llamador.'
+        batch_id: { type: string, pattern: '^sb_[a-z0-9]{10,40}$' }
+    Payout:
+      type: object
+      required: [id, object, merchant_id, amount_minor, currency, rail, simulated, status, created_at]
+      properties:
+        id: { type: string, pattern: '^po_[a-z0-9]{10,40}$' }
+        object: { const: payout }
+        merchant_id: { $ref: '#/components/schemas/MerchantId' }
+        amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        rail: { $ref: '#/components/schemas/Rail' }
+        simulated: { type: boolean, description: '`true` si el riel es un doble y no movió dinero real.' }
+        status: { $ref: '#/components/schemas/PayoutStatus' }
+        hold_id: { type: [string, 'null'], pattern: '^hd_[a-z0-9]{10,40}$', description: 'Retención del ledger que respalda el pago.' }
+        batch_id: { type: [string, 'null'] }
+        failure_code: { type: [string, 'null'] }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        paid_at: { oneOf: [{ $ref: 'common.yaml#/components/schemas/Timestamp' }, { type: 'null' }] }
+    BatchCreate:
+      type: object
+      required: [cutoff_date]
+      additionalProperties: false
+      properties:
+        cutoff_date: { type: string, format: date, description: 'Fecha del corte (un lunes en la política vigente, D-19). Clave de idempotencia del lote.' }
+        release_days: { type: integer, minimum: 0, maximum: 60, default: 7, description: 'Desfase T+N. Por defecto 7 (D-19).' }
+    Batch:
+      type: object
+      required: [id, object, cutoff_date, release_before, status, created_at]
+      properties:
+        id: { type: string, pattern: '^sb_[a-z0-9]{10,40}$' }
+        object: { const: settlement_batch }
+        cutoff_date: { type: string, format: date }
+        release_before: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        status: { type: string, enum: [running, completed, failed] }
+        merchants_count: { type: integer, minimum: 0 }
+        released_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        payouts_count: { type: integer, minimum: 0 }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        completed_at: { oneOf: [{ $ref: 'common.yaml#/components/schemas/Timestamp' }, { type: 'null' }] }
+    ReconciliationRunCreate:
+      type: object
+      required: [connector, period_from, period_to]
+      additionalProperties: false
+      properties:
+        connector: { type: string, enum: [mock, mercantil_qr, mercantil_card, bank_transfer] }
+        period_from: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        period_to: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+    ReconciliationRun:
+      type: object
+      required: [id, object, connector, period_from, period_to, status, created_at]
+      properties:
+        id: { type: string, pattern: '^rr_[a-z0-9]{10,40}$' }
+        object: { const: reconciliation_run }
+        connector: { type: string }
+        period_from: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        period_to: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        status: { type: string, enum: [running, completed, failed] }
+        matched_count: { type: integer, minimum: 0 }
+        exception_count: { type: integer, minimum: 0 }
+        failure_code: { type: [string, 'null'], description: 'Por ejemplo `statement_malformed`: el extracto no se pudo leer y no se asentó nada.' }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        completed_at: { oneOf: [{ $ref: 'common.yaml#/components/schemas/Timestamp' }, { type: 'null' }] }
+    ReconciliationException:
+      type: object
+      required: [id, object, run_id, kind, status, created_at]
+      properties:
+        id: { type: string, pattern: '^rx_[a-z0-9]{10,40}$' }
+        object: { const: reconciliation_exception }
+        run_id: { type: string, pattern: '^rr_[a-z0-9]{10,40}$' }
+        kind:
+          type: string
+          enum: [missing_in_ledger, missing_in_statement, amount_mismatch, duplicate_in_statement, unknown_reference]
+        provider_reference: { type: [string, 'null'] }
+        business_ref: { type: [string, 'null'] }
+        statement_amount_minor: { oneOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { type: 'null' }] }
+        ledger_amount_minor: { oneOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { type: 'null' }] }
+        status: { type: string, enum: [open, resolved, dismissed] }
+        resolved_by: { type: [string, 'null'], description: 'Identificador de la persona que decidió (no su nombre).' }
+        resolution_note: { type: [string, 'null'], maxLength: 500 }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+    ReconciliationExceptionResolve:
+      type: object
+      required: [resolution, resolved_by, note]
+      additionalProperties: false
+      properties:
+        resolution: { type: string, enum: [request_adjustment, dismiss], description: '`dismiss` = falsa alarma; `request_adjustment` = pide un asiento de ajuste por el flujo normal.' }
+        resolved_by: { type: string, minLength: 1, maxLength: 100 }
+        note: { type: string, minLength: 1, maxLength: 500, description: 'Motivo. Sin datos personales.' }

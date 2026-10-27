@@ -1,0 +1,16 @@
+# Sondeo de conexiones de cliente simultáneas (sondeo-clientes.cjs) — salida literal
+# Réplica de 1 nodo con --development (puerto 19001):
+seq N=5 ok=5 timeout=0 total_ms=3376 ms_por_cliente=607,607,600,902,600
+seq N=10 ok=8 timeout=2 total_ms=45608 ms_por_cliente=607,610,602,604,601,608,603,1211,20002,20020
+par N=10 ok=8 timeout=2 total_ms=20139 ms_por_cliente=600,598,596,597,597,595,601,596,20001,20000
+# Dos procesos a la vez, 5 clientes cada uno, conexiones retenidas 12 s:
+procA: par N=5 ok=5 timeout=0 total_ms=650 ms_por_cliente=600,598,598,597,598
+procB: par N=5 ok=5 timeout=0 total_ms=18117 ms_por_cliente=599,598,598,18070,13081
+# Un proceso con 8 retenidos 15 s + un cliente extra desde otro proceso a los 8 s:
+procC(8): par N=8 ok=8 timeout=0 total_ms=688 ms_por_cliente=604,598,600,599,597,600,599,597
+procD(1 extra): par N=1 ok=1 timeout=0 total_ms=10650 ms_por_cliente=10639
+# Réplica de 1 nodo SIN --development (puerto 19002):
+par N=10 ok=10 timeout=0 total_ms=709 ms_por_cliente=598,598,597,597,597,596,597,597,600,598
+par N=40 ok=32 timeout=8 total_ms=21560 ms_por_cliente=1549,...
+par N=64 ok=32 timeout=32 total_ms=23585 ms_por_cliente=3565...
+par N=70 ok=32 timeout=38 total_ms=21195 ms_por_cliente=1185...

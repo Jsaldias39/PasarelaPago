@@ -1,6 +1,6 @@
 # Carril P3 — Núcleo de pagos (`pay-payments`)
 
-> **Estado:** `TODO` · **AVANCE: 0 / 18 — 0,0 %** · **Peldaño:** `UNKNOWN`
+> **Estado:** `EN CURSO` (ola 0) · **AVANCE: 1 / 18 — 5,6 %** · **Peldaño:** `TESTED` en lo marcado HECHO; `UNKNOWN` en el resto
 > **Predecesor:** P1.H1 (plataforma y plantilla). Riesgo, conectores y ledger se simulan.
 > **Carpetas del monorepo:** `services/pay-payments/`, `services/pay-vault/` · esquema en `mantra-core-health-model`. **Lidera además el carril de integración** ([`INT-monolito-como-cliente.md`](./INT-monolito-como-cliente.md), ola 4).
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md)
@@ -48,7 +48,7 @@ cuerpo: si no responde `422 idempotency_key_reused`, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P3.H1.M1 | **Spike** Temporal: workflow con señal, *timer* y compensación, reiniciando el worker a la mitad | El workflow termina tras `docker kill` del worker | `evidencia/spike-temporal.md` | TODO |
+| P3.H1.M1 | **Spike** Temporal: workflow con señal, *timer* y compensación, reiniciando el worker a la mitad | El workflow termina tras `docker kill` del worker | `evidencia/spike-temporal.md` → [spike](../../spikes/temporal.md): **SÍ con condiciones** (`TESTED`) | HECHO |
 | P3.H1.M2 | Esquema `pay_payments` en el modelo (partiendo de `payment_intents`, `refunds`, `payment_disputes`, `payment_cancellation_requests`) | Sin deriva | Verificador de deriva | TODO |
 | P3.H1.M3 | Máquina de estados del intento, reciclando `payment-callback-machine.ts` y su spec | Los specs reciclados pasan + REQ-P3-2 y 3 | `yarn test` pegado | TODO |
 | P3.H1.M4 | `POST/GET /payment_intents` + `cancel` con `@pay/idempotency` | REQ-P3-1 con 50 concurrentes | Test de integración | TODO |
@@ -64,7 +64,7 @@ cuerpo: si no responde `422 idempotency_key_reused`, tampoco.
 |---|---|---|---|---|
 | P3.H2.M1 | `PaymentWorkflow`: riesgo → conector → espera de señal o vencimiento → ledger → evento | Camino feliz de punta a punta contra dobles | Test de workflow (*test env* de Temporal) | TODO |
 | P3.H2.M2 | Política de llamadas síncronas: *timeouts*, reintentos solo ante errores reintentables, *circuit breaker*; riesgo *fail-closed* sobre el umbral | Riesgo caído + monto alto → `failed` con `risk_unavailable` | Test pegado | TODO |
-| P3.H2.M3 | Ids idempotentes derivados del intento para cada llamada al ledger y al conector | REQ-P3-4 con `docker kill` | Salida del experimento | TODO |
+| P3.H2.M3 | Ids idempotentes para cada llamada al ledger y al conector: `business_ref` estable por operación y `attempt` que sube solo tras un rechazo (H-TB1); toda actividad con efecto externo es idempotente (H-TM1) | REQ-P3-4 con `docker kill` | Salida del experimento | TODO |
 | P3.H2.M4 | Vencimiento + consulta de estado + anulación del QR | REQ-P3-7 | Test pegado | TODO |
 | P3.H2.M5 | `RefundWorkflow` con retención en dos fases | REQ-P3-6 | E3 en verde | TODO |
 | P3.H2.M6 | Disputas: apertura, evidencia y resultado, con su asiento (débito al comercio si se pierde) | Una disputa perdida deja el asiento correcto | Test pegado | TODO |
@@ -78,7 +78,7 @@ cuerpo: si no responde `422 idempotency_key_reused`, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P3.H3.M1 | **Spike** `hyperswitch-card-vault`: despliegue, API, gestión de claves con OpenBao, licencia en su `LICENSE` | Responde sí o no con criterio | `evidencia/spike-vault.md` | TODO |
+| P3.H3.M1 | **Spike** `hyperswitch-card-vault`: despliegue, API, gestión de claves con OpenBao, licencia en su `LICENSE` | Responde sí o no con criterio | `evidencia/spike-vault.md` | A MEDIAS |
 | P3.H3.M2 | `pay-vault` desplegado en la red aislada (P1.H4.M3), con tokens por comercio | Un token de otro comercio no se puede usar | Test pegado | TODO |
 | P3.H3.M3 | Medio **tarjeta**: por defecto con los campos alojados del PSP (token del PSP); con `pay-vault` cuando el comercio guarda la tarjeta | grep de PAN de prueba en logs, eventos y bases fuera de la bóveda → 0 | Salida del grep pegada | TODO |
 | P3.H3.M4 | Medios **saldo AloVida** (ledger, P2.H1.M8) y **transferencia** (`requires_action` con instrucciones, confirmada por el conector de P4) | Los dos terminan en `succeeded` contra dobles | Tests pegados | TODO |
@@ -90,6 +90,10 @@ cuerpo: si no responde `422 idempotency_key_reused`, tampoco.
 | P5 riesgo | `internal/risk/v1` | `allow` | Respuesta en 299 ms (borde del *timeout*) | `503` o *timeout* → política *fail-closed* |
 | P4 conectores | `internal/connectors/v1` | Cobro creado + callback `captured` | Callback duplicado y reordenado; callback que nunca llega | `422` del PSP → `failed` con motivo mapeado |
 | P2 ledger | `internal/ledger/v1` | Asiento aceptado | El mismo id dos veces → mismo resultado | `insufficient_funds` en el reembolso → reembolso `failed` |
+
+## Estado de la ola 0 (A MEDIAS, con las cuatro respuestas)
+
+**P3.H3.M1 — Spike `hyperswitch-card-vault`.** *Qué anda:* se leyó el repo (README, API, gestión de claves) y la licencia es Apache-2.0 ([`card-vault.md`](../../spikes/card-vault.md), `DISCOVERED`). *Qué no anda:* **no se ejecutó**: la imagen de ghcr.io no se puede descargar desde el entorno y el sistema de permisos denegó clonar y compilar código de terceros. *Qué falta:* levantarlo (imagen o compilación) en un entorno con acceso y probar crear, consultar y borrar un token. *Dónde quedó:* solo documentos en `docs/spikes/`.
 
 ## Gates y entrega
 
