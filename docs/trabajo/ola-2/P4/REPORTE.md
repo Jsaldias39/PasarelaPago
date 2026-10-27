@@ -35,3 +35,23 @@ Gates literales en `evidencia/`: `connectors-typecheck`, `connectors-build`, `co
 
 Gates literales en `evidencia/2b-*`: typecheck, build, test×2 (`--maxWorkers=2`) por servicio y `yarn eslint` desde la raíz, todos exit 0.
 **Decisiones:** D-P4-29 a D-P4-35. **Hallazgo:** el `health.spec.ts` de la plantilla (10 servicios) tiene una aserción intermitente (`not.toContain('4111')` contra un UUID aleatorio); corregida en los dos míos.
+
+---
+
+> **AVANCE (tanda 2c, arranque del arnés): 5 / 5 pedidos aplicados — 100 %.** Peldaño: `TESTED` (Postgres y NATS reales, procesos `node dist/main.js` reales; sin banco real).
+
+| # | Pedido | Estado | Evidencia |
+|---|---|---|---|
+| 1 | `BANK_TRANSFER_*`: en sandbox opcionales con valor sintético declarado (rótulo SANDBOX); en live los tres o ninguno, sin cuenta no se inventa | HECHO (tres niveles: correcto, límite, inválido) | `test/ola2-contratos.spec.ts` (8 casos nuevos), D-P4-36 |
+| 2 | `PAY_MODE` explícito y sin valor por defecto; bajo `live` no arranca con mock o doble | HECHO en los dos servicios, con el binario real y entorno armado desde cero | `pay-connectors/test/startup.spec.ts` (5), `pay-qr/test/startup.spec.ts` (5), D-P4-37/38/39 |
+| 3 | `mode` en eventos de `connectors.yaml` solo como propuesta | HECHO (`contracts/` intacto; propuesta #1 en `PROPUESTAS.md`) | — |
+| 4 | Cobro QR de importe normal capturado por callback firmado y por polling; documentado en el README | HECHO (temporizadores reales, espera por condición, control negativo; 8 corridas seguidas verdes) | `test/end-to-end.spec.ts` (4), README «Cobro de punta a punta sin banco real» |
+| 5 | `.env.example` coherentes con el arnés | HECHO (`PAY_QR_URL`, secreto del mock, `BANK_TRANSFER_*` opcionales y `QR_ACCOUNT_GUID`) | ambos `.env.example`, ambos README |
+
+**Hallazgo y arreglo (PRODUCT_BUG, D-P4-41):** una corrida con carga de la prueba de punta a punta falló (`evidencia/2c-connectors-test-0-FALLO-carrera.txt`). Causa demostrada: si el callback del banco llegaba entre la respuesta del proveedor y el `UPDATE charge_sent`, ese UPDATE devolvía `provider_status` a `pending` pese a que el callback ya estaba `applied`. Ahora la respuesta síncrona solo fija el estado si el cobro sigue `pending`. La prueba determinista falla sin el arreglo y pasa con él.
+
+**Gates literales** (`evidencia/2c-*`, `--maxWorkers=2`, una suite a la vez): connectors typecheck/build exit 0, 672 pasan ×2; qr typecheck/build exit 0, 97 pasan ×2; `yarn eslint services/pay-connectors services/pay-qr` exit 0. Los dos archivos `2c-connectors-test-0*` son de la corrida previa al arreglo (una falla, conservada a propósito).
+
+**Cambio de comportamiento a avisar:** un despliegue `live` que arrastre variables del simulador (`PAY_SECRET_CONNECTOR_MOCK_*`, `MOCK_PUMP_INTERVAL_MS`, cuenta con rótulo SANDBOX) o un `QR_ACCOUNT_GUID` provisional ahora no arranca.
+**No cubierto:** nada contra un banco real; el chequeo de GUID de pay-qr es por rótulo (un GUID de prueba sin esos rótulos pasaría); no se corrió el arnés e2e de P1 completo, solo los equivalentes dentro de mis servicios.
+**A MEDIAS:** nada. Adaptadores del Mercantil siguen sin documentación.
