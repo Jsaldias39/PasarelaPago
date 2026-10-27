@@ -23,7 +23,7 @@
 | DT-16 | `enabled_events` solo admite los 21 públicos o `*`. | El comercio no debe creer que recibe eventos internos. | P1 / propuesta 6 |
 | DT-17 | Entregas en vuelo por endpoint: **2**; lote por endpoint: **10**. | Un endpoint lento no ahoga a los demás (hallazgo de seguridad del coordinador). | — |
 | DT-18 | Plazo duro de pared por entrega (15 s) + tope de inactividad (10 s); **no se lee la respuesta**. | Evita DoS por goteo. | — |
-| DT-19 | El borde **rechaza** cuerpos con un número de tarjeta (Luhn, 13–19 dígitos) y JSON inválido (422). | Mantener `pay-edge` fuera del CDE. | P3 y QSA |
+| DT-19 | El borde **rechaza** cuerpos con un número de tarjeta (Luhn, 13–19 dígitos) y JSON inválido (422). Se revisa **cada token** del texto (no el objeto de `JSON.parse`, que pierde las claves duplicadas) y las corridas de separadores se colapsan antes de buscar. Un número de 13–19 dígitos que case Luhn por casualidad se rechaza aunque no sea una tarjeta. | Mantener `pay-edge` fuera del CDE. | P3 y QSA |
 | DT-20 | **`SvixEngine` no se escribió.** | La documentación de Svix no es accesible desde el entorno (DNS bloqueado) y la regla 00 prohíbe inventar APIs de terceros. Se dejó la interfaz `DeliveryEngine` y una **suite de contrato** que el adaptador deberá pasar. | P1, cuando haya acceso a Svix |
 | DT-21 | La salida por **proxy sin ruta a la red interna** (M6) no está implementada en código: es un control de despliegue. El código fija la IP validada, no sigue redirecciones y revalida en cada entrega. | Depende de Coolify/red. | P1 (plataforma) |
 | DT-22 | `pay-webhooks` no replica comercios: un evento de un comercio sin endpoints se consume sin entregas y se cuenta (`noEndpoints`). | No hay réplica en ese servicio. | P5 |

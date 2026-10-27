@@ -1,0 +1,23 @@
+$ (cd services/pay-edge && yarn typecheck)
+exit=0
+$ (cd services/pay-edge && yarn build)
+exit=0
+$ yarn eslint services/pay-edge   (raíz)
+exit=0
+$ (cd services/pay-edge && yarn test)  corrida 1/3
+Test Suites: 9 passed, 9 total
+Tests:       295 passed, 295 total
+$ (cd services/pay-edge && yarn test)  corrida 2/3
+Test Suites: 9 passed, 9 total
+Tests:       295 passed, 295 total
+$ (cd services/pay-edge && yarn test)  corrida 3/3
+Test Suites: 9 passed, 9 total
+Tests:       295 passed, 295 total
+$ yarn test test/pan-guard.spec.ts  (5 corridas)
+Tests:       120 passed, 120 total
+Tests:       120 passed, 120 total
+Tests:       120 passed, 120 total
+Tests:       120 passed, 120 total
+Tests:       120 passed, 120 total
+
+Mutaciones (salida de la sesión): (a) sin colapsar corridas de separadores fallan 19 de 120 pruebas; (b) sin inspeccionar los tokens de cadena fallan 63 de 120. Restaurado el código, 120/120.

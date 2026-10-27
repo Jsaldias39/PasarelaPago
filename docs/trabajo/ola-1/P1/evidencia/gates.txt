@@ -71,3 +71,14 @@ OK    contracts/asyncapi/payments.yaml
 
 11 contrato(s) válido(s)
 
+
+--- Actualización final (tras el endurecimiento de pan-guard) ---
+$ yarn eslint services/pay-edge services/pay-webhooks contracts/packages/orm-queryable
+exit=0
+$ yarn lint  (raíz: errores ajenos a P1)
+$ (cd services/pay-webhooks && yarn test)
+Test Suites: 9 passed, 9 total
+Tests:       344 passed, 344 total
+$ (cd services/pay-edge && yarn test)
+Test Suites: 9 passed, 9 total
+Tests:       295 passed, 295 total

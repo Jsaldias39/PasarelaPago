@@ -124,6 +124,94 @@ describe('inspectBody — nivel INVÁLIDO: JSON roto', () => {
   });
 });
 
+describe('inspectBody — claves duplicadas y corridas de separadores', () => {
+  const pan13 = withLuhn('4'.repeat(12));
+  const pan19 = withLuhn('4'.repeat(18));
+  const spaced = (pan: string, separator: string) => pan.replace(/(.{4})(?=.)/g, `$1${separator}`);
+
+  it.each([
+    ['PAN en la primera y valor inocente en la última', `{"card":"${VISA}","card":"x"}`],
+    ['PAN en la última', `{"card":"x","card":"${VISA}"}`],
+    ['PAN en el del medio de tres', `{"card":"a","card":"${VISA}","card":"b"}`],
+    ['duplicada y anidada', `{"a":{"card":"${VISA}","card":null},"b":1}`],
+    ['duplicada con el valor como número', `{"card":${VISA},"card":1}`],
+    ['duplicada dentro de una lista de objetos', `[{"n":"${VISA}","n":"z"},{"n":"ok"}]`],
+    ['duplicada con escapes en el valor', String.raw`{"card":"4111111111111111","card":"x"}`],
+    ['duplicada con escapes en el NOMBRE de la clave', String.raw`{"card":"${VISA}","card":"x"}`],
+  ])('claves duplicadas — %s', (_name, body) => {
+    expect(inspectBody(b(body))).toBe('card_number');
+  });
+
+  it.each([
+    ['2 espacios', '  '],
+    ['3 espacios', '   '],
+    ['espacio y guion', ' - '],
+    ['punto, espacio y guion', '. -'],
+    ['5 separadores mezclados', ' .-_/'],
+    ['guion largo y espacio no separable', '–  '],
+    ['tabulaciones y saltos', String.raw`\t\n `],
+    ['signo menos y barra', '−/'],
+  ])('separadores — %s entre cada grupo', (_name, separator) => {
+    expect(inspectBody(b(`{"c":"${spaced(VISA, separator)}"}`))).toBe('card_number');
+  });
+
+  it.each([
+    ['2 espacios', '4111  1111  1111  1111'],
+    ['punto, espacio y guion', '4111. -1111. -1111. -1111'],
+    ['un dígito por vez, con espacios', '4 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1'],
+    ['separador al principio y al final', '  - 4111 1111 1111 1111 -  '],
+  ])('separadores — %s', (_name, value) => {
+    expect(inspectBody(b(`{"c":"${value}"}`))).toBe('card_number');
+  });
+
+  it('escapes COMBINADOS con corridas de separadores y con claves duplicadas', () => {
+    const body = String.raw`{"c":"41 . -11   1111–– 1111 . 1111","c":"x"}`;
+    expect(inspectBody(b(body))).toBe('card_number');
+  });
+
+  it('13 y 19 dígitos (los extremos), pegados y con separadores mezclados', () => {
+    for (const pan of [pan13, pan19]) {
+      expect(inspectBody(b(`{"c":"${pan}"}`))).toBe('card_number');
+      expect(inspectBody(b(`{"c":"${spaced(pan, ' .- ')}"}`))).toBe('card_number');
+    }
+    // 12 y 20 dígitos quedan fuera
+    expect(inspectBody(b(`{"c":"${withLuhn('4'.repeat(11))}"}`))).toBe('clean');
+    expect(inspectBody(b(`{"c":"${withLuhn('4'.repeat(19))}"}`))).toBe('clean');
+  });
+
+  it('un número con exponente y un número enorme se detectan por su texto', () => {
+    expect(inspectBody(b('{"c":4.111111111111111e15,"c":0}'))).toBe('card_number');
+    expect(inspectBody(b(`{"c":${pan19},"c":0}`))).toBe('card_number');
+  });
+
+  it.each([
+    '{"amount_minor":1500,"currency":"BOB","fecha":"2026-10-27","hora":"15:00:00.000"}',
+    '{"a":"12 34 56","b":"78-90","c":"1.2.3.4.5"}',
+    '{"telefono":"+591 7123 4567"}', // 11 dígitos: debajo del mínimo de un PAN
+    '{"ip":"192.168.100.200","version":"1.2.3"}',
+    '{"x":1,"x":2,"x":3}', // claves duplicadas inocentes
+    '{"a":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]}', // muchos números chicos seguidos
+    '{"cuotas":"1 2 3 4 5 6 7 8 9 10 11 12"}', // sin Luhn de 13+ dígitos
+    '{"orden":"0000 0000 0000 0000"}', // 16 ceros: Luhn válido pero no es un PAN: ver abajo
+  ])('CORRECTO — números que no son PAN pasan: %s', (body) => {
+    // Los 16 ceros cumplen Luhn por definición; se rechaza a propósito (conservador). El resto debe pasar.
+    const expected = body.includes('0000 0000 0000 0000') ? 'card_number' : 'clean';
+    expect(inspectBody(b(body))).toBe(expected);
+  });
+
+  it.each([
+    '{"card":"4111 1111 1111 1111","card":',
+    '{"card":"x","card":"4111111111111111"',
+    '{"card":"4111111111111111",}',
+    '{"a":"\\x41"}', // escape inválido
+    '{"a":"\u0001"}', // carácter de control sin escapar
+    "{'card':'4111111111111111'}",
+  ])('INVÁLIDO — JSON mal formado %p ⇒ invalid_json (nunca lanza)', (body) => {
+    expect(() => inspectBody(b(body))).not.toThrow();
+    expect(inspectBody(b(body))).toBe('invalid_json');
+  });
+});
+
 describe('pay-edge rechaza el PAN y el JSON roto', () => {
   let h: EdgeHarness;
   let token: string;
@@ -170,6 +258,18 @@ describe('pay-edge rechaza el PAN y el JSON roto', () => {
     expect(JSON.stringify(res.body)).not.toMatch(/4111|Unexpected|position/);
     expect(h.doubles['pay-payments'].requests).toHaveLength(0);
     h.contract.assertResponse({ method: 'POST', path: '/payment_intents', status: 422, body: res.body });
+  });
+
+  it.each([
+    ['clave duplicada con el PAN primero', `{"amount_minor":1000,"currency":"BOB","n":"${VISA}","n":"x"}`],
+    ['clave duplicada con el PAN último', `{"amount_minor":1000,"currency":"BOB","n":"x","n":"${VISA}"}`],
+    ['separadores mezclados', '{"amount_minor":1000,"currency":"BOB","n":"4111 . -1111  1111 _ 1111"}'],
+  ])('LÍMITE (%s): 422 card_number_detected y no llega al servicio', async (_name, body) => {
+    const res = await post(body);
+    expect(res.status).toBe(422);
+    expect(res.body.errors).toEqual([{ field: 'body', code: 'card_number_detected', message: expect.any(String) }]);
+    expect(JSON.stringify(res.body)).not.toMatch(/4111|1111/);
+    expect(h.doubles['pay-payments'].requests).toHaveLength(0);
   });
 
   it('un cuerpo vacío en una mutación sin cuerpo sigue pasando', async () => {
