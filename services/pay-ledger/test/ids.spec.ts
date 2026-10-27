@@ -58,7 +58,9 @@ describe('ids deterministas (P2.H1.M3)', () => {
 
 describe('plan de cuentas', () => {
   it.each([
-    ['merchant:mc_k3m9x2q7ab:pending', 'merchant_pending', 'credit', false], // PLAN-MAESTRO §3.3: sin invariante; el saldo negativo es la deuda por contracargo (P2-D2),
+    ['merchant:mc_k3m9x2q7ab:pending', 'merchant_pending', 'credit', true],
+    // La deuda del comercio: cuenta deudora que no se puede pagar de más (P2-D2)
+    ['merchant:mc_k3m9x2q7ab:debt', 'merchant_debt', 'debit', true],
     ['merchant:mc_k3m9x2q7ab:available', 'merchant_available', 'credit', true],
     ['user:usr_abc-123:wallet', 'user_wallet', 'credit', true],
     ['platform:fees', 'platform_fees', 'credit', false],

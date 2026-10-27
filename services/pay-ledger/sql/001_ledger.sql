@@ -6,7 +6,7 @@
 -- Cuentas lógicas del plan de cuentas (PLAN-MAESTRO §3.3) y su id determinista de 128 bits en TigerBeetle.
 CREATE TABLE ledger_accounts (
   account    text        NOT NULL,
-  kind       text        NOT NULL CHECK (kind IN ('merchant_pending', 'merchant_available', 'user_wallet', 'platform_fees', 'connector_clearing', 'payout_clearing', 'schedule_reserve')),
+  kind       text        NOT NULL CHECK (kind IN ('merchant_pending', 'merchant_available', 'merchant_debt', 'user_wallet', 'platform_fees', 'connector_clearing', 'payout_clearing', 'schedule_reserve')),
   tb_id      char(32)    NOT NULL,                       -- hex del id de 128 bits
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT ledger_accounts_pkey PRIMARY KEY (account),

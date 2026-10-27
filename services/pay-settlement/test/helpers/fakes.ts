@@ -42,8 +42,9 @@ interface StoredHold extends LedgerHold {
   resolvedBy?: string;
 }
 
-// PLAN-MAESTRO §3.3: solo `available`, la billetera y la reserva no pueden quedar en negativo; `pending` sí (deuda por contracargo).
-const LIMITED = /^(merchant:mc_[a-z0-9]+:available|user:.+:wallet|schedule:md_[a-z0-9]+:reserve)$/;
+// Como el ledger real: las cuentas acreedoras no quedan en negativo (`pending` incluida) y la deuda del comercio no se puede pagar de más.
+const LIMITED = /^(merchant:mc_[a-z0-9]+:(pending|available)|user:.+:wallet|schedule:md_[a-z0-9]+:reserve)$/;
+const DEBT = /^merchant:mc_[a-z0-9]+:debt$/;
 
 export class FakeLedger implements LedgerPort {
   readonly net = new Map<string, number>();
@@ -142,7 +143,7 @@ export class FakeLedger implements LedgerPort {
         probe.set(leg.debit_account, (probe.get(leg.debit_account) ?? 0) - leg.amount_minor);
         probe.set(leg.credit_account, (probe.get(leg.credit_account) ?? 0) + leg.amount_minor);
       }
-      const short = [...probe].some(([account, delta]) => LIMITED.test(account) && this.balanceOf(account) + delta < 0);
+      const short = [...probe].some(([account, delta]) => (LIMITED.test(account) && this.balanceOf(account) + delta < 0) || (DEBT.test(account) && this.balanceOf(account) + delta > 0));
       if (short) {
         history.push({ attempt: input.attempt, status: 'rejected', hash });
         this.txs.set(input.businessRef, history);

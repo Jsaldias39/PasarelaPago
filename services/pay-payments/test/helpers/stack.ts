@@ -114,7 +114,8 @@ export async function waitFor<T>(probe: () => Promise<T | undefined | false | nu
   }
 }
 
-export const key = (): string => `k-${randomBytes(8).toString('hex')}`;
+// 12 hex como máximo: ninguna corrida de dígitos llega a 13, así que una clave de prueba nunca se confunde con un PAN.
+export const key = (): string => `k-${randomBytes(6).toString('hex')}`;
 
 import { emitIntentEvent } from '../../src/events/emit';
 import { intentsRepo } from '../../src/persistence/intents.repo';

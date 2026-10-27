@@ -193,8 +193,8 @@ export class BatchService {
     }
 
     if (item.status === 'released') {
-      // Primero lo que el comercio debe (deuda en `pending`, cobros abiertos y el abono del mes), después lo que se le paga.
-      await this.netPendingDebt(batch, merchant);
+      // Primero lo que el comercio debe (deuda del comercio, cobros abiertos y el abono del mes), después lo que se le paga.
+      await this.netDebt(batch, merchant);
       await this.netting.collectOpenFor(merchant);
       const fee = await this.netting.chargeMonthlyFee(merchant, batch.cutoff_date);
       if (fee) await this.netting.collect(fee.id);
@@ -214,18 +214,18 @@ export class BatchService {
   }
 
   /**
-   * Un contracargo perdido se debita de `merchant:*:pending` (P3-D10) y, si supera lo pendiente, el saldo queda NEGATIVO: es la deuda del
-   * comercio (D-22). El corte la netea moviendo `min(deuda, disponible)` de `available` a `pending` (`adjustment`), con el monto fijado ANTES de
-   * llamar al ledger. Lo que el disponible no alcanza sigue debiéndose y se vuelve a intentar en el corte siguiente (nunca queda `available`
-   * negativo: lo impide el ledger). Si el ledger rechaza el movimiento porque el saldo cambió, este corte lo omite.
+   * Deuda del comercio por contracargo (D-22): lo que superó su saldo pendiente se asentó en `merchant:{id}:debt` (cuenta deudora; `pending`
+   * nunca queda en negativo). El corte la netea moviendo `min(deuda, disponible)` de `available` a `debt`, con el monto fijado ANTES de
+   * llamar al ledger. Lo que el disponible no alcanza sigue debiéndose y se reintenta en el corte siguiente (`available` nunca queda negativo y
+   * la deuda no se puede pagar de más: lo impide el ledger). Si el ledger rechaza el movimiento porque el saldo cambió, este corte lo omite.
    */
-  private async netPendingDebt(batch: BatchRow, merchant: string): Promise<void> {
+  private async netDebt(batch: BatchRow, merchant: string): Promise<void> {
     const row = (await this.pool.query<{ netting_minor: string | null; netting_attempt: number }>('SELECT netting_minor, netting_attempt FROM settlement_batch_items WHERE batch_id = $1 AND merchant_id = $2', [batch.id, merchant])).rows[0];
     let planned = row.netting_minor === null ? null : Number(row.netting_minor);
     if (planned === null) {
-      const pending = await this.ledger.getBalance(`merchant:${merchant}:pending`);
+      const owed = await this.ledger.getBalance(`merchant:${merchant}:debt`);
       const free = await this.ledger.getBalance(`merchant:${merchant}:available`);
-      const debt = pending && pending.nature === 'debit' ? pending.balance_minor : 0;
+      const debt = owed && owed.nature === 'debit' ? owed.balance_minor : 0;
       planned = Math.min(debt, free && free.nature === 'credit' ? free.balance_minor : 0);
       await this.pool.query('UPDATE settlement_batch_items SET netting_minor = $3, updated_at = $4 WHERE batch_id = $1 AND merchant_id = $2', [batch.id, merchant, planned, new Date()]);
     }
@@ -235,7 +235,7 @@ export class BatchService {
         {
           businessRef: businessRef(stableId('nd', batch.id, merchant), 'collect'),
           attempt: row.netting_attempt,
-          legs: [{ debit_account: `merchant:${merchant}:available`, credit_account: `merchant:${merchant}:pending`, amount_minor: planned, code: 'adjustment' }],
+          legs: [{ debit_account: `merchant:${merchant}:available`, credit_account: `merchant:${merchant}:debt`, amount_minor: planned, code: 'adjustment' }],
         },
         `netting-${batch.id}-${merchant}-${row.netting_attempt}`,
       );

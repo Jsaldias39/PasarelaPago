@@ -1,0 +1,61 @@
+# Corridas repetidas de las suites completas (una suite a la vez; Postgres compartido, max_connections=100)
+
+## pay-ledger — $ TB_ADDRESS=127.0.0.1:54300 yarn test   (5 corridas consecutivas, código final)
+run 1 exit=0
+Test Suites: 10 passed, 10 total
+Tests:       119 passed, 119 total
+Time:        14.915 s, estimated 15 s
+run 2 exit=0
+Test Suites: 10 passed, 10 total
+Tests:       119 passed, 119 total
+Time:        14.812 s, estimated 15 s
+run 3 exit=0
+Test Suites: 10 passed, 10 total
+Tests:       119 passed, 119 total
+Time:        15.434 s
+run 4 exit=0
+Test Suites: 10 passed, 10 total
+Tests:       119 passed, 119 total
+Time:        14.427 s, estimated 15 s
+run 5 exit=0
+Test Suites: 10 passed, 10 total
+Tests:       119 passed, 119 total
+Time:        14.984 s
+
+## pay-settlement — $ yarn test   (5 corridas consecutivas, código final)
+run 1 exit=0
+Test Suites: 20 passed, 20 total
+Tests:       404 passed, 404 total
+Time:        83.254 s
+run 2 exit=0
+Test Suites: 20 passed, 20 total
+Tests:       404 passed, 404 total
+Time:        49.535 s, estimated 83 s
+run 3 exit=0
+Test Suites: 20 passed, 20 total
+Tests:       404 passed, 404 total
+Time:        56.234 s
+run 4 exit=0
+Test Suites: 20 passed, 20 total
+Tests:       404 passed, 404 total
+Time:        59.971 s
+run 5 exit=0
+Test Suites: 20 passed, 20 total
+Tests:       404 passed, 404 total
+Time:        54.119 s, estimated 60 s
+
+## Fallas observadas durante el trabajo y su clase (regla: clasificar con evidencia)
+1. ENVIRONMENT — pay-ledger, corrida con 79 fallas y otra con 5: `53300 too many connections` / «remaining connection slots are reserved for roles with the
+   SUPERUSER attribute». Evidencia: `pg_stat_activity` mostraba ~50 conexiones de suites de otros carriles corriendo a la vez (pay_merchants, pay_payments…). Se
+   bajó `maxWorkers` a 2 en los dos servicios; las 3 corridas siguientes pasaron 116/116 sin otro cambio.
+2. PRODUCT_BUG (regresión introducida por mí, no un defecto de la prueba) — pay-ledger `ids.spec.ts › plan de cuentas › merchant:…:pending → merchant_pending
+   (… no negativo: true)`, determinista (1/119 en 5 corridas). Causa demostrada: había dejado `merchant:*:pending` sin invariante de no-negativo para que el
+   contracargo de P3 pudiera dejarlo negativo; la aserción original (`limited: true`) tenía razón y la revisión de seguridad también: sin el invariante cualquier débito o
+   liberación podía crear dinero. Corregido en el código y la aserción original quedó INTACTA: `pending` vuelve a ser no-negativo (`accounts.ts`) y el exceso de un
+   contracargo va a la cuenta deudora nueva `merchant:{id}:debt` (P2-D2). Pruebas nuevas (`transactions.spec.ts`): correcto (contracargo con saldo suficiente), límite
+   (saldo exacto; 1 centavo de más ⇒ ese centavo es deuda, todo en un asiento enlazado), inválido (los 8 códigos de movimiento rechazados al intentar dejar `pending`
+   en negativo, liberación de más rechazada, deuda que no se paga de más, permisos) y `batch.spec.ts` (6: neteo de la deuda en el corte, incluido tres cortes sin doble descuento).
+3. PRODUCT_BUG (hallado por prueba nueva, corregido) — pay-settlement `batch.service.ts`: reanudar un corte con el pago ya retenido intentaba insertar un payout
+   de monto 0 (CHECK `amount_minor >= 1`). La prueba nueva `el ledger retiene el pago del corte pero la respuesta se perdió…` FALLÓ sin el arreglo y pasa con él.
+4. PRODUCT_BUG (hallado por prueba nueva, corregido) — pay-settlement `statement-parsers.ts`: un camt.053 truncado se aceptaba (el parser de XML es permisivo)
+   y una fecha inválida lanzaba RangeError dejando la corrida en `running`. Corregido con `XMLValidator`, `Date.parse` + rango y mapeo a `StatementMalformedError`.

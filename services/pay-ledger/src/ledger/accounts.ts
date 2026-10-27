@@ -8,6 +8,7 @@
 export type AccountKind =
   | 'merchant_pending'
   | 'merchant_available'
+  | 'merchant_debt'
   | 'user_wallet'
   | 'platform_fees'
   | 'connector_clearing'
@@ -19,28 +20,32 @@ export interface AccountInfo {
   readonly kind: AccountKind;
   /** Lado en el que la cuenta tiene saldo «normal»: acreedora (el dinero es de alguien) o deudora (alguien nos debe). */
   readonly nature: 'credit' | 'debit';
-  /** `true` si TigerBeetle impide que quede en negativo (`debits_must_not_exceed_credits`). */
+  /**
+   * `true` si TigerBeetle impide que la cuenta se pase de su lado: una cuenta acreedora no puede quedar en negativo
+   * (`debits_must_not_exceed_credits`) y una deudora no puede pagarse de más (`credits_must_not_exceed_debits`).
+   */
   readonly limited: boolean;
   /** Comercio dueño de la cuenta, si lo hay. */
   readonly merchantId?: string;
 }
 
 const ACCOUNT_PATTERN =
-  /^(?:merchant:(mc_[a-z0-9]{10,40}):(pending|available)|user:([A-Za-z0-9_-]{3,60}):wallet|platform:fees|connector:([a-z_]{3,30}):clearing|payout:clearing|schedule:(md_[a-z0-9]{10,40}):reserve)$/;
+  /^(?:merchant:(mc_[a-z0-9]{10,40}):(pending|available|debt)|user:([A-Za-z0-9_-]{3,60}):wallet|platform:fees|connector:([a-z_]{3,30}):clearing|payout:clearing|schedule:(md_[a-z0-9]{10,40}):reserve)$/;
 
 /**
  * Descompone una cuenta lógica.
  *
- * Invariante de no-negativo (PLAN-MAESTRO §3.3): solo `available`, `wallet` y la reserva. `merchant:*:pending` NO lo lleva: un contracargo
- * perdido se debita ahí (P3-D10, D-22) y, si supera lo pendiente, el saldo negativo ES la deuda del comercio, que el corte netea contra su
- * disponible (pay-settlement, P2.H2.M2). Ver P2-D2 en DECISIONES-TOMADAS.md.
+ * Invariante de no-negativo, impuesta por TigerBeetle: `pending`, `available`, `wallet` y la reserva. Un contracargo perdido que supera lo
+ * pendiente NO deja `pending` en negativo (eso permitiría crear dinero con cualquier débito): el exceso se asienta como deuda en
+ * `merchant:{id}:debt`, una cuenta deudora que no se puede pagar de más. Ver P2-D2 en DECISIONES-TOMADAS.md.
  *
  * @returns `null` si el nombre no es una cuenta del plan de cuentas.
  */
 export function parseAccount(name: string): AccountInfo | null {
   const match = ACCOUNT_PATTERN.exec(name);
   if (!match) return null;
-  if (match[1]) return { name, kind: match[2] === 'pending' ? 'merchant_pending' : 'merchant_available', nature: 'credit', limited: match[2] === 'available', merchantId: match[1] };
+  if (match[1] && match[2] === 'debt') return { name, kind: 'merchant_debt', nature: 'debit', limited: true, merchantId: match[1] };
+  if (match[1]) return { name, kind: match[2] === 'pending' ? 'merchant_pending' : 'merchant_available', nature: 'credit', limited: true, merchantId: match[1] };
   if (match[3]) return { name, kind: 'user_wallet', nature: 'credit', limited: true };
   if (name === 'platform:fees') return { name, kind: 'platform_fees', nature: 'credit', limited: false };
   if (match[4]) return { name, kind: 'connector_clearing', nature: 'debit', limited: false };
@@ -58,9 +63,9 @@ export function parseAccount(name: string): AccountInfo | null {
  */
 const POLICY: Readonly<Record<string, readonly AccountKind[]>> = {
   // Cobros, reembolsos, billetera y comisión de cada cobro.
-  'pay-payments': ['merchant_pending', 'merchant_available', 'user_wallet', 'platform_fees', 'connector_clearing'],
+  'pay-payments': ['merchant_pending', 'merchant_available', 'merchant_debt', 'user_wallet', 'platform_fees', 'connector_clearing'],
   // Liberación pending→available, payouts, abono mensual, comisión semanal y ajustes de conciliación.
-  'pay-settlement': ['merchant_pending', 'merchant_available', 'platform_fees', 'payout_clearing', 'connector_clearing'],
+  'pay-settlement': ['merchant_pending', 'merchant_available', 'merchant_debt', 'platform_fees', 'payout_clearing', 'connector_clearing'],
   // Reserva de pagos programados (7.7 y 7.8).
   'pay-schedules': ['schedule_reserve', 'merchant_available', 'platform_fees'],
 };

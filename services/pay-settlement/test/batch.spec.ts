@@ -289,31 +289,34 @@ describe('corte semanal (P2.H2.M2, REQ-P2-5)', () => {
     });
   });
 
-  describe('deuda por contracargo en `pending` (D-22, P3-D10): el corte la netea contra el disponible', () => {
-    const debt = (m: string) => ctx.ledger.balanceOf(`merchant:${m}:pending`);
-    /** Cobro de 10.000 el 1/10 y contracargo perdido de 12.000 (bruto) el 8/10: `pending` queda en −2.000. */
+  describe('deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible', () => {
+    /** Lo que el comercio debe: la deuda es una cuenta deudora, su saldo contable es negativo. */
+    const owed = (m: string) => 0 - ctx.ledger.balanceOf(`merchant:${m}:debt`) || 0;
+    /** Cobro de 10.000 el 1/10 y contracargo perdido de 12.000 (bruto) el 8/10: 10.000 salen de `pending` y 2.000 quedan como deuda. */
     async function indebted(availableAmount: number) {
       const m = merchantId();
       await registerMerchant(ctx, m);
       ctx.ledger.seedCharge({ merchant: m, net: 10_000, fee: 0, at: new Date('2026-10-01T10:00:00Z'), ref: ref() });
-      ctx.ledger.seedMovement({ debit: `merchant:${m}:pending`, credit: 'connector:mock:clearing', amount: 12_000, at: new Date('2026-10-08T10:00:00Z'), ref: ref('dp'), code: 'adjustment' });
+      const dispute = ref('dp');
+      ctx.ledger.seedMovement({ debit: `merchant:${m}:pending`, credit: 'connector:mock:clearing', amount: 10_000, at: new Date('2026-10-08T10:00:00Z'), ref: dispute, code: 'adjustment' });
+      ctx.ledger.seedMovement({ debit: `merchant:${m}:debt`, credit: 'connector:mock:clearing', amount: 2_000, at: new Date('2026-10-08T10:00:00Z'), ref: dispute, code: 'adjustment' });
       if (availableAmount > 0) ctx.ledger.seedMovement({ debit: 'connector:mock:clearing', credit: `merchant:${m}:available`, amount: availableAmount, at: new Date('2026-09-20T10:00:00Z'), ref: ref(), code: 'release' });
-      expect(debt(m)).toBe(-2_000);
+      expect(owed(m)).toBe(2_000);
+      expect(ctx.ledger.balanceOf(`merchant:${m}:pending`)).toBe(0); // `pending` nunca queda negativo
       return m;
     }
     const cutAt = (date: string, hour = '05:00:00Z') => (ctx.ledger.now = () => new Date(`${date}T${hour}`));
 
-    it('mueve min(deuda, disponible) de available a pending con el monto fijado antes de llamar al ledger, y paga el resto', async () => {
+    it('mueve min(deuda, disponible) de available a debt con el monto fijado antes de llamar al ledger, y paga el resto', async () => {
       const m = await indebted(5_000);
       cutAt('2026-10-12');
       const res = await runBatch(BATCH_BODY('2026-10-12'));
       expect(res.body.status).toBe('completed');
-      expect(debt(m)).toBe(0); // la deuda quedó saldada
+      expect(owed(m)).toBe(0); // la deuda quedó saldada
       expect((await ctx.db.pool.query('SELECT amount_minor FROM settlement_payouts')).rows).toEqual([{ amount_minor: '3000' }]); // 5.000 − 2.000
       expect((await ctx.db.pool.query('SELECT netting_minor, netting_attempt FROM settlement_batch_items')).rows).toEqual([{ netting_minor: '2000', netting_attempt: 1 }]);
-      const moved = ctx.ledger.entries.find((e) => e.account === `merchant:${m}:pending` && e.code === 'adjustment' && e.direction === 'credit');
+      const moved = ctx.ledger.entries.find((e) => e.account === `merchant:${m}:debt` && e.code === 'adjustment' && e.direction === 'credit');
       expect(moved).toMatchObject({ counterparty_account: `merchant:${m}:available`, amount_minor: 2_000 });
-      // la liberación del cobro no se hizo con dinero que ya no está: el pendiente era negativo
       expect((await ctx.db.pool.query('SELECT released_minor FROM settlement_batch_items')).rows).toEqual([{ released_minor: '0' }]);
     });
 
@@ -321,23 +324,24 @@ describe('corte semanal (P2.H2.M2, REQ-P2-5)', () => {
       const m = await indebted(500);
       cutAt('2026-10-12');
       await runBatch(BATCH_BODY('2026-10-12'));
-      expect(debt(m)).toBe(-1_500);
+      expect(owed(m)).toBe(1_500);
       expect(available(m)).toBe(0);
       expect((await ctx.db.pool.query('SELECT 1 FROM settlement_payouts')).rowCount).toBe(0);
       ctx.ledger.seedMovement({ debit: 'connector:mock:clearing', credit: `merchant:${m}:available`, amount: 4_000, at: new Date('2026-10-13T10:00:00Z'), ref: ref(), code: 'release' });
       cutAt('2026-10-19');
       await runBatch(BATCH_BODY('2026-10-19'));
-      expect(debt(m)).toBe(0);
+      expect(owed(m)).toBe(0);
       expect((await ctx.db.pool.query('SELECT amount_minor FROM settlement_payouts')).rows).toEqual([{ amount_minor: '2500' }]);
     });
 
-    it('sin deuda no hay neteo; con la deuda ya saldada tampoco (no se mueve dos veces)', async () => {
+    it('sin deuda no hay neteo y la deuda nunca se paga de más', async () => {
       const m = merchantId();
       await registerMerchant(ctx, m);
       ctx.ledger.seedCharge({ merchant: m, net: 3_000, fee: 0, at: BEFORE_CUT_1, ref: ref() });
       await runBatch(BATCH_BODY(CUT_1));
       expect((await ctx.db.pool.query('SELECT netting_minor FROM settlement_batch_items')).rows).toEqual([{ netting_minor: '0' }]);
       expect(ctx.ledger.entries.filter((e) => e.code === 'adjustment')).toHaveLength(0);
+      expect(ctx.ledger.balanceOf(`merchant:${m}:debt`)).toBe(0);
     });
 
     it('repetir el corte, o cortarse justo después de asentar el neteo, no lo mueve dos veces', async () => {
@@ -346,11 +350,11 @@ describe('corte semanal (P2.H2.M2, REQ-P2-5)', () => {
       ctx.ledger.failNext('createTransaction', undefined, 1, true); // el neteo SE aplica y la respuesta se pierde
       const idem = key();
       expect((await ctx.as('pay-console').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', idem)).status).toBe(503);
-      expect(debt(m)).toBe(0);
+      expect(owed(m)).toBe(0);
       expect((await ctx.as('pay-console').post('/batches', BATCH_BODY('2026-10-12')).set('idempotency-key', idem)).body.status).toBe('completed');
       await runBatch(BATCH_BODY('2026-10-12'));
-      expect(ctx.ledger.entries.filter((e) => e.account === `merchant:${m}:pending` && e.code === 'adjustment' && e.direction === 'credit')).toHaveLength(1);
-      expect(debt(m)).toBe(0);
+      expect(ctx.ledger.entries.filter((e) => e.account === `merchant:${m}:debt` && e.code === 'adjustment' && e.direction === 'credit')).toHaveLength(1);
+      expect(owed(m)).toBe(0);
     });
 
     it('si el ledger rechaza el neteo (el saldo cambió), ese corte lo omite sin romper el lote y la deuda sigue', async () => {
@@ -359,22 +363,22 @@ describe('corte semanal (P2.H2.M2, REQ-P2-5)', () => {
       ctx.ledger.rejectNextTransaction(); // la liberación no tiene monto > 0, así que el primer asiento es el neteo
       const res = await runBatch(BATCH_BODY('2026-10-12'));
       expect(res.body.status).toBe('completed');
-      expect(debt(m)).toBe(-2_000);
+      expect(owed(m)).toBe(2_000);
       expect((await ctx.db.pool.query('SELECT netting_minor FROM settlement_batch_items')).rows).toEqual([{ netting_minor: '0' }]);
     });
 
-    it('tres cortes seguidos: la deuda se paga UNA vez (lo neteado vuelve a la ventana siguiente y no se descuenta de nuevo)', async () => {
+    it('tres cortes seguidos: la deuda se paga UNA vez y las ventanas de liberación no se distorsionan (el contracargo ya salió de `pending`)', async () => {
       const m = await indebted(5_000);
       cutAt('2026-10-12');
       await runBatch(BATCH_BODY('2026-10-12')); // netea 2.000; payout 3.000
       cutAt('2026-10-19');
-      const second = await runBatch(BATCH_BODY('2026-10-19')); // ventana [5/10, 12/10 04:00): cobro +10.000, contracargo −12.000 ⇒ nada que liberar
+      const second = await runBatch(BATCH_BODY('2026-10-19')); // ventana [5/10, 12/10 04:00): cobro +10.000, contracargo −10.000 ⇒ nada que liberar
       expect(second.body.released_minor).toBe(0);
       ctx.ledger.seedCharge({ merchant: m, net: 3_000, fee: 0, at: new Date('2026-10-14T15:00:00Z'), ref: ref() });
       cutAt('2026-10-26');
-      const third = await runBatch(BATCH_BODY('2026-10-26')); // ventana [12/10 04:00, 19/10 04:00): neteo +2.000 y cobro +3.000, con el arrastre de −2.000
+      const third = await runBatch(BATCH_BODY('2026-10-26'));
       expect(third.body.released_minor).toBe(3_000);
-      expect(debt(m)).toBe(0);
+      expect(owed(m)).toBe(0);
       expect((await ctx.db.pool.query('SELECT amount_minor FROM settlement_payouts ORDER BY created_at')).rows).toEqual([{ amount_minor: '3000' }, { amount_minor: '3000' }]);
     });
   });

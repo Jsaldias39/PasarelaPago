@@ -24,6 +24,7 @@ const ACCOUNT_CODE: Record<AccountKind, number> = {
   connector_clearing: 5,
   payout_clearing: 6,
   schedule_reserve: 7,
+  merchant_debt: 8,
 };
 
 /** Códigos de movimiento (`Leg.code` del contrato) como enteros de TigerBeetle. */
@@ -123,7 +124,8 @@ export class TigerBeetleEngine {
       reserved: 0,
       ledger: LEDGER_BOB,
       code: ACCOUNT_CODE[info.kind],
-      flags: info.limited ? AccountFlags.debits_must_not_exceed_credits : 0,
+      // Acreedora: no puede quedar en negativo. Deudora (la deuda del comercio): no puede pagarse de más.
+      flags: !info.limited ? 0 : info.nature === 'credit' ? AccountFlags.debits_must_not_exceed_credits : AccountFlags.credits_must_not_exceed_debits,
       timestamp: 0n,
     }));
     const results = await this.bounded('createAccounts', this.client.createAccounts(batch));

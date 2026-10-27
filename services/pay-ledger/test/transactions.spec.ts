@@ -200,31 +200,88 @@ describe('POST /transactions — atomicidad y saldo (REQ-P2-2, M8)', () => {
   });
 });
 
-describe('POST /transactions — merchant:pending sin invariante de no-negativo (PLAN-MAESTRO §3.3, P3-D10, D-22)', () => {
-  it('un contracargo que supera lo pendiente se asienta y deja el saldo en negativo (deuda), visible como nature debit', async () => {
+describe('POST /transactions — contracargo (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt`', () => {
+  const chargeback = (m: string, pendingPart: number, debtPart: number, caller = 'pay-payments') =>
+    createTx(
+      body(businessRef('dispute'), 1, [
+        ...(pendingPart > 0 ? [leg(`merchant:${m}:pending`, CLEARING, pendingPart, 'adjustment')] : []),
+        ...(debtPart > 0 ? [leg(`merchant:${m}:debt`, CLEARING, debtPart, 'adjustment')] : []),
+      ]),
+      caller,
+    );
+  const seedPending = async (m: string, amount: number) => expect((await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:pending`, amount)]))).status).toBe(201);
+
+  it('correcto: con saldo suficiente el contracargo sale entero de `pending` y no hay deuda', async () => {
     const m = merchantId();
-    expect((await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:pending`, 10_000)]))).status).toBe(201);
-    const chargeback = await createTx(body(businessRef('dispute'), 1, [leg(`merchant:${m}:pending`, CLEARING, 12_000, 'adjustment')]));
-    expect(chargeback.status).toBe(201);
-    expect(await balance(`merchant:${m}:pending`)).toMatchObject({ balance_minor: 2_000, nature: 'debit' });
+    await seedPending(m, 10_000);
+    expect((await chargeback(m, 8_000, 0)).status).toBe(201);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(2_000);
+    expect((await ctx.as('pay-settlement').get(`/balances?account=${encodeURIComponent(`merchant:${m}:debt`)}`)).status).toBe(404); // nunca se tocó
   });
 
-  it('en cambio `available` sigue sin poder quedar en negativo: el mismo débito se rechaza y no mueve nada', async () => {
+  it('límite: saldo exacto ⇒ `pending` en 0 sin deuda; un centavo de más ⇒ ese centavo es deuda y TODO se asienta junto', async () => {
     const m = merchantId();
-    expect((await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:available`, 10_000)]))).status).toBe(201);
-    const refused = await createTx(body(businessRef('dispute'), 1, [leg(`merchant:${m}:available`, CLEARING, 10_001, 'adjustment')]));
+    await seedPending(m, 10_000);
+    expect((await chargeback(m, 10_000, 0)).status).toBe(201);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(0);
+    const n = merchantId();
+    await seedPending(n, 10_000);
+    // el bruto del contracargo son 10.001: 10.000 salen de `pending` y 1 queda como deuda, en una sola transacción enlazada
+    expect((await chargeback(n, 10_000, 1)).status).toBe(201);
+    expect(await balance(`merchant:${n}:pending`)).toMatchObject({ balance_minor: 0, nature: 'credit' });
+    expect(await balance(`merchant:${n}:debt`)).toMatchObject({ balance_minor: 1, nature: 'debit' });
+  });
+
+  it('límite: el contracargo entero contra `pending` con 1 centavo menos del necesario se rechaza SIN mover nada (no deja saldo negativo)', async () => {
+    const m = merchantId();
+    await seedPending(m, 10_000);
+    const refused = await chargeback(m, 10_001, 0);
     expect(refused.status).toBe(422);
     expect(refused.body.code).toBe('insufficient_funds');
-    expect(await balance(`merchant:${m}:available`)).toMatchObject({ balance_minor: 10_000, nature: 'credit' });
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(10_000);
   });
 
-  it('la deuda se netea moviendo disponible → pendiente: el pendiente vuelve a cero', async () => {
+  it.each(['charge', 'fee', 'refund', 'payout', 'release', 'wallet_transfer', 'mandate', 'adjustment'])(
+    'inválido: ningún código (%s) puede dejar `pending` en negativo: se rechaza y no mueve nada',
+    async (code) => {
+      const m = merchantId();
+      await seedPending(m, 500);
+      const refused = await createTx(body(businessRef('overdraw'), 1, [leg(`merchant:${m}:pending`, CLEARING, 501, code)]), 'pay-payments');
+      expect(refused.status).toBe(422);
+      expect(refused.body.code).toBe('insufficient_funds');
+      expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(500);
+    },
+  );
+
+  it('inválido: liberar a `available` más de lo que hay en `pending` tampoco crea dinero', async () => {
     const m = merchantId();
+    await seedPending(m, 500);
+    const refused = await createTx(body(businessRef('release'), 1, [leg(`merchant:${m}:pending`, `merchant:${m}:available`, 501, 'release')]), 'pay-settlement');
+    expect(refused.status).toBe(422);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(500);
+    expect((await balance(`merchant:${m}:available`)).balance_minor).toBe(0); // la cuenta quedó registrada, sin un centavo
+  });
+
+  it('la deuda se netea con disponible (disponible → deuda) y no se puede pagar de más', async () => {
+    const m = merchantId();
+    await seedPending(m, 1_000);
+    await chargeback(m, 1_000, 2_000);
     await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:available`, 5_000)]));
-    await createTx(body(businessRef('dispute'), 1, [leg(`merchant:${m}:pending`, CLEARING, 2_000, 'adjustment')]));
-    const net = await createTx(body(businessRef('netting'), 1, [leg(`merchant:${m}:available`, `merchant:${m}:pending`, 2_000, 'adjustment')]), 'pay-settlement');
-    expect(net.status).toBe(201);
-    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(0);
+    const over = await createTx(body(businessRef('netting'), 1, [leg(`merchant:${m}:available`, `merchant:${m}:debt`, 2_001, 'adjustment')]), 'pay-settlement');
+    expect(over.status).toBe(422); // pagar más de lo que se debe no es posible
+    expect((await balance(`merchant:${m}:available`)).balance_minor).toBe(5_000);
+    const exact = await createTx(body(businessRef('netting'), 1, [leg(`merchant:${m}:available`, `merchant:${m}:debt`, 2_000, 'adjustment')]), 'pay-settlement');
+    expect(exact.status).toBe(201);
+    expect(await balance(`merchant:${m}:debt`)).toMatchObject({ balance_minor: 0 });
+    expect((await balance(`merchant:${m}:available`)).balance_minor).toBe(3_000);
+  });
+
+  it('permisos: pay-schedules y los servicios fuera de la política no tocan la deuda de un comercio', async () => {
+    const m = merchantId();
+    for (const caller of ['pay-schedules', 'pay-edge', 'pay-risk']) {
+      const res = await createTx(body(businessRef('debt'), 1, [leg(`merchant:${m}:debt`, CLEARING, 100, 'adjustment')]), caller);
+      expect(res.status).toBe(403);
+    }
   });
 });
 

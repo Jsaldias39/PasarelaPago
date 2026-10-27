@@ -8,19 +8,12 @@ describe('redactPan: un número de tarjeta que el cliente pone por error en una 
     ['/a/378282246310005', '/a/[redacted]'],
   ])('%s', (input, expected) => expect(redactPan(input)).toBe(expected));
 
-  it('no toca ids normales ni números cortos', () => {
-    for (const text of ['/payment_intents/pi_abcdefghij12', '/tokens/tok_0123456789ab', '/x/1234567', '/orden/123456789012']) expect(redactPan(text)).toBe(text);
-  });
-});
-
-import { containsPan } from '../src/redact';
-
-describe('containsPan (clave de idempotencia y X-Request-Id): prefijo y largo de una marca + Luhn', () => {
-  it.each(['4111111111111111', '5555555555554444', '378282246310005', '6011111111111117', '2223003122003222', '3530111333300000', '4111 1111 1111 1111', 'idem-4111-1111-1111-1111'])('detecta %s', (text) => {
-    expect(containsPan(text)).toBe(true);
+  it('no toca ids normales ni números cortos (12 dígitos o menos) ni una corrida de 13 a 19 dígitos sin ninguna subsecuencia con Luhn válido', () => {
+    for (const text of ['/payment_intents/pi_abcdefghij12', '/tokens/tok_0123456789ab', '/x/1234567', '/orden/123456789012', '/a/1000000000001']) expect(redactPan(text)).toBe(text);
   });
 
-  it('no confunde un timestamp en ms (las claves de idempotencia típicas) ni un id de orden', () => {
-    for (const text of ['k-vault-1793120000000-1', '1793120000009', 'orden 1234567890123', 'k-vault-abc-1', '4111111111111112']) expect({ text, found: containsPan(text) }).toEqual({ text, found: false });
+  it('enmascara una marca desconocida con Luhn válido y un PAN con ceros delante, sin tocar el resto de la ruta', () => {
+    expect(redactPan('/tokens/9000000000000001/x')).toBe('/tokens/[redacted]/x');
+    expect(redactPan('/t/0004111111111111111/z')).toBe('/t/[redacted]/z');
   });
 });

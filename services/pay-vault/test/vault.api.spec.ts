@@ -1,10 +1,11 @@
+import { randomBytes } from 'node:crypto';
 import request from 'supertest';
 import { VaultController } from '../src/vault/vault.controller';
 import { CONNECTORS, MC, MC2, PAYMENTS, normalizeOps, routesOf, startVault, type VaultTest } from './helpers/app';
 
 let v: VaultTest;
 let n = 0;
-const k = () => `k-vault-${Date.now()}-${n++}`;
+const k = () => `k-vault-${randomBytes(4).toString('hex')}-${n++}`;
 const PAN = '4111111111111111';
 const CARD = { number: PAN, expMonth: 12, expYear: 2030, cvv: '737', holderName: 'Ana Prueba' };
 

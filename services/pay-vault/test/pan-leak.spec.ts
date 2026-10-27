@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import request from 'supertest';
 import { CONNECTORS, MC, MC2, PAYMENTS, captureOutput, startVault, type VaultTest } from './helpers/app';
 
@@ -10,7 +11,7 @@ afterAll(async () => v.close());
 const SECRETS = ['4111111111111111', '4111 1111 1111 1111', '5555555555554444', 'TITULAR SENTINELA', '7391'];
 const http = () => request(v.app.getHttpServer());
 let n = 0;
-const k = () => `k-leak-${Date.now()}-${n++}`;
+const k = () => `k-leak-${randomBytes(4).toString('hex')}-${n++}`;
 
 /** Texto de TODAS las tablas del esquema de la prueba: si una columna guardara el PAN, aparecería acá. */
 async function dumpDatabase(): Promise<string> {
