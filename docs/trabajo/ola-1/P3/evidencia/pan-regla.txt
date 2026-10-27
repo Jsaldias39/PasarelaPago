@@ -1,0 +1,29 @@
+# Evidencia pan-regla — una sola regla de PAN en pay-payments y pay-vault
+Pedido de la revisión de seguridad: Luhn de 13 a 19 dígitos, SIN lista de marcas; se prueba cada subsecuencia contigua y los ceros a la izquierda;
+la regla de rechazo y la de redacción son la misma en los dos archivos (`services/pay-payments/src/domain/pan.ts` + `src/redact.ts`,
+`services/pay-vault/src/redact.ts`). Los dos specs de reglas (`pan.spec.ts` y `pan-rule.spec.ts`) llevan la MISMA tabla de casos y comparan
+cada implementación contra una referencia independiente en 4.000 cadenas con semilla fija (paridad entre servicios por transitividad).
+Tres niveles: correcto (PAN conocido y marca desconocida con Luhn válido se rechazan), límite (13 y 19 dígitos, ceros a la izquierda, PAN pegado
+a otros dígitos), inválido (12 y 20 dígitos sin subsecuencia válida, Luhn falso, solo ceros).
+Falso positivo asumido y documentado: DECISIONES-TOMADAS.md P3-D19.
+fecha: 2026-10-27T18:00:31Z
+directorio: services/pay-payments
+comando: yarn test src/domain/pan.spec.ts test/redact.spec.ts test/pan-leak.spec.ts --verbose --runInBand
+---- salida ----
+Test Suites: 3 passed, 3 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        5.051 s
+Ran all test suites matching src/domain/pan.spec.ts|test/redact.spec.ts|test/pan-leak.spec.ts.
+---- código de salida: 0 ----
+
+fecha: 2026-10-27T18:00:37Z
+directorio: services/pay-vault
+comando: yarn test test/pan-rule.spec.ts test/redact.spec.ts test/pan-leak.spec.ts --verbose --runInBand
+---- salida ----
+Test Suites: 3 passed, 3 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        1.703 s, estimated 2 s
+Ran all test suites matching test/pan-rule.spec.ts|test/redact.spec.ts|test/pan-leak.spec.ts.
+---- código de salida: 0 ----

@@ -1,74 +1,30 @@
 # Evidencia P3.H3.M2
-fecha: 2026-10-27T17:32:16Z
+fecha: 2026-10-27T17:59:53Z
 directorio: services/pay-vault
 comando: yarn test test/vault.api.spec.ts test/schema.drift.spec.ts test/health.spec.ts --verbose --runInBand
 ---- salida ----
-FAIL test/vault.api.spec.ts
-  ● P3.H3.M2 · sesión de captura y tokens por comercio › un token de OTRO comercio no se puede ver, usar ni borrar: 404 idéntico a uno inexistente, y el dueño no pierde el suyo
-
-    expect(received).toBe(expected) // Object.is equality
-
-    Expected: 200
-    Received: 422
-
-      75 |     }
-      76 |     expect((await http().get(`/tokens/${token}`).set(PAYMENTS).set('x-merchant-id', MC)).status).toBe(200);
-    > 77 |     expect((await reveal(token, MC, 'ch_aaaaaaaaaaaa')).status).toBe(200);
-         |                                                                 ^
-      78 |     expect(v.backend.has(token)).toBe(true);
-      79 |   });
-      80 |
-
-
-  ● reveal: único endpoint que devuelve la tarjeta › lo llama pay-connectors: devuelve los datos, sin caché, conforme al contrato, y deja rastro con el cobro
-
-    expect(received).toBe(expected) // Object.is equality
-
-    Expected: 200
-    Received: 422
-
-      106 |     const token = await tokenFor(MC, true);
-      107 |     const response = await reveal(token, MC, 'ch_chargeone0001');
-    > 108 |     expect(response.status).toBe(200);
-          |                             ^
-      109 |     expect(response.body).toEqual({ number: PAN, exp_month: 12, exp_year: 2030, holder_name: 'Ana Prueba' });
-      110 |     expect(response.headers['cache-control']).toBe('no-store');
-      111 |     expect(v.contract.validateResponse({ method: 'POST', path: `/tokens/${token}/reveal`, status: 200, body: response.body })).toEqual([]);
-
-
-  ● reveal: único endpoint que devuelve la tarjeta › si no se puede dejar rastro, NO se entrega la tarjeta
-
-    expect(received).toBe(expected) // Object.is equality
-
-    Expected: 500
-    Received: 422
-
-      142 |     try {
-      143 |       const response = await reveal(token, MC, 'ch_noaudit0000001');
-    > 144 |       expect(response.status).toBe(500);
-          |                               ^
-      145 |       expect(JSON.stringify(response.body)).not.toContain(PAN);
-      146 |     } finally {
-      147 |       await v.db.pool.query('ALTER TABLE reveal_audit_off RENAME TO reveal_audit');
-
-
-[31m[Nest] 12719  - [39m10/27/2026, 5:32:20 PM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+[31m[Nest] 10752  - [39m10/27/2026, 5:59:55 PM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[31m[Nest] 10752  - [39m10/27/2026, 5:59:56 PM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
   err: [32m'error'[39m,
   code: [32m'42P01'[39m,
   event_id: [90mundefined[39m
 }
 El relé del outbox falló
-{"level":30,"time":1793122340275,"pid":12719,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":1,"msg":"request completed"}
-[31m[Nest] 12719  - [39m10/27/2026, 5:32:20 PM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+{"level":30,"time":1793123996235,"pid":10752,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":2,"msg":"request completed"}
+[31m[Nest] 10752  - [39m10/27/2026, 5:59:56 PM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'88fe2d20-5d52-4e77-b637-dd84e8094284'[39m
+  request_id: [32m'a44f8824-aaba-42b9-916e-122db6a67bc6'[39m
 }
 Error no controlado
-{"level":30,"time":1793122340280,"pid":12719,"hostname":"vm","req":{"id":"88fe2d20-5d52-4e77-b637-dd84e8094284","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":1,"msg":"request errored"}
-{"level":30,"time":1793122340286,"pid":12719,"hostname":"vm","req":{"id":"7af6db81-d5a6-494d-84f7-a2626726708e","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
-Test Suites: 1 failed, 2 passed, 3 total
-Tests:       3 failed, 30 passed, 33 total
+{"level":30,"time":1793123996248,"pid":10752,"hostname":"vm","req":{"id":"a44f8824-aaba-42b9-916e-122db6a67bc6","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":1,"msg":"request errored"}
+{"level":30,"time":1793123996254,"pid":10752,"hostname":"vm","req":{"id":"f894307f-9459-43e5-9dc3-6bb58b97fde3","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+Test Suites: 3 passed, 3 total
+Tests:       33 passed, 33 total
 Snapshots:   0 total
-Time:        3.177 s, estimated 6 s
+Time:        2.652 s, estimated 4 s
 Ran all test suites matching test/vault.api.spec.ts|test/schema.drift.spec.ts|test/health.spec.ts.
----- código de salida: 1 ----
+---- código de salida: 0 ----

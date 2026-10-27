@@ -19,7 +19,7 @@ Libro mayor de partida doble de la pasarela. Carril P2 ([`docs/plan/carriles/P2-
   (`exists` / `id_already_failed`) sin mover el dinero dos veces.
 - **Eventos:** `ledger.transfer.posted` (uno por pata) y `ledger.hold.*` van al outbox **en la misma transacción** que registra el asiento.
 - **Invariante global** (`invariant.service.ts`): débitos = créditos y TigerBeetle = extracto de Postgres, por job y por prueba.
-- **Deuda por contracargo:** `pending` y `available` nunca quedan en negativo (TigerBeetle lo impide). El exceso de un contracargo se asienta en `merchant:{id}:debt`, cuenta deudora que no se puede pagar de más; el corte de `pay-settlement` la netea contra el disponible.
+- **Deuda por contracargo:** `pending` y `available` nunca quedan en negativo (TigerBeetle lo impide). Un contracargo (pata `adjustment` de `pending` a la compensación de un conector) lo parte el servidor en un lote enlazado: `min(bruto, pendiente)` desde `pending` y el exceso desde `merchant:{id}:debt`, cuenta deudora que no se puede pagar de más; el corte de `pay-settlement` la netea contra el disponible.
 - **Rastro de rechazos** (`ledger_rejections`): TigerBeetle no guarda las transferencias rechazadas.
 
 ## Probar

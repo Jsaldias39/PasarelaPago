@@ -1,48 +1,32 @@
 # Corridas repetidas de las suites completas (una suite a la vez; Postgres compartido, max_connections=100)
 
-## pay-ledger — $ TB_ADDRESS=127.0.0.1:54300 yarn test   (5 corridas consecutivas, código final)
+## pay-ledger — $ TB_ADDRESS=127.0.0.1:54300 yarn test   (3 corridas consecutivas, código final; antes de la última reforma hubo 5/5 verdes)
 run 1 exit=0
 Test Suites: 10 passed, 10 total
-Tests:       119 passed, 119 total
-Time:        14.915 s, estimated 15 s
+Tests:       138 passed, 138 total
+Time:        11.846 s, estimated 13 s
 run 2 exit=0
 Test Suites: 10 passed, 10 total
-Tests:       119 passed, 119 total
-Time:        14.812 s, estimated 15 s
+Tests:       138 passed, 138 total
+Time:        13.661 s
 run 3 exit=0
 Test Suites: 10 passed, 10 total
-Tests:       119 passed, 119 total
-Time:        15.434 s
-run 4 exit=0
-Test Suites: 10 passed, 10 total
-Tests:       119 passed, 119 total
-Time:        14.427 s, estimated 15 s
-run 5 exit=0
-Test Suites: 10 passed, 10 total
-Tests:       119 passed, 119 total
-Time:        14.984 s
+Tests:       138 passed, 138 total
+Time:        13.649 s, estimated 14 s
 
-## pay-settlement — $ yarn test   (5 corridas consecutivas, código final)
+## pay-settlement — $ yarn test   (3 corridas consecutivas, código final; antes hubo 5/5 verdes con 404 pruebas)
 run 1 exit=0
 Test Suites: 20 passed, 20 total
 Tests:       404 passed, 404 total
-Time:        83.254 s
+Time:        49.191 s
 run 2 exit=0
 Test Suites: 20 passed, 20 total
 Tests:       404 passed, 404 total
-Time:        49.535 s, estimated 83 s
+Time:        54.973 s
 run 3 exit=0
 Test Suites: 20 passed, 20 total
 Tests:       404 passed, 404 total
-Time:        56.234 s
-run 4 exit=0
-Test Suites: 20 passed, 20 total
-Tests:       404 passed, 404 total
-Time:        59.971 s
-run 5 exit=0
-Test Suites: 20 passed, 20 total
-Tests:       404 passed, 404 total
-Time:        54.119 s, estimated 60 s
+Time:        45.24 s, estimated 55 s
 
 ## Fallas observadas durante el trabajo y su clase (regla: clasificar con evidencia)
 1. ENVIRONMENT — pay-ledger, corrida con 79 fallas y otra con 5: `53300 too many connections` / «remaining connection slots are reserved for roles with the
@@ -52,10 +36,14 @@ Time:        54.119 s, estimated 60 s
    (… no negativo: true)`, determinista (1/119 en 5 corridas). Causa demostrada: había dejado `merchant:*:pending` sin invariante de no-negativo para que el
    contracargo de P3 pudiera dejarlo negativo; la aserción original (`limited: true`) tenía razón y la revisión de seguridad también: sin el invariante cualquier débito o
    liberación podía crear dinero. Corregido en el código y la aserción original quedó INTACTA: `pending` vuelve a ser no-negativo (`accounts.ts`) y el exceso de un
-   contracargo va a la cuenta deudora nueva `merchant:{id}:debt` (P2-D2). Pruebas nuevas (`transactions.spec.ts`): correcto (contracargo con saldo suficiente), límite
-   (saldo exacto; 1 centavo de más ⇒ ese centavo es deuda, todo en un asiento enlazado), inválido (los 8 códigos de movimiento rechazados al intentar dejar `pending`
-   en negativo, liberación de más rechazada, deuda que no se paga de más, permisos) y `batch.spec.ts` (6: neteo de la deuda en el corte, incluido tres cortes sin doble descuento).
+   contracargo va a la cuenta deudora nueva `merchant:{id}:debt` (P2-D2). El ledger parte el contracargo (`chargeback.ts`). Pruebas nuevas (`transactions.spec.ts`, describe «contracargo perdido»): monto < pendiente (una pata), = pendiente,
+   = pendiente + 1 centavo (dos patas, deuda 1), pendiente 0 (todo deuda), repetición idempotente, recuperación tras caída (se adopta lo aplicado), concurrencia (2 y 10
+   contracargos sobre el mismo pendiente: lo debitado de `pending` nunca lo supera y pending + deuda iguala los montos), inválido (7 códigos y 2 destinos rechazados al
+   intentar dejar `pending` en negativo, liberación de más rechazada, deuda que no se paga de más, permisos) y `batch.spec.ts` (6: neteo de la deuda en el corte, incluido tres cortes sin doble descuento).
 3. PRODUCT_BUG (hallado por prueba nueva, corregido) — pay-settlement `batch.service.ts`: reanudar un corte con el pago ya retenido intentaba insertar un payout
    de monto 0 (CHECK `amount_minor >= 1`). La prueba nueva `el ledger retiene el pago del corte pero la respuesta se perdió…` FALLÓ sin el arreglo y pasa con él.
 4. PRODUCT_BUG (hallado por prueba nueva, corregido) — pay-settlement `statement-parsers.ts`: un camt.053 truncado se aceptaba (el parser de XML es permisivo)
    y una fecha inválida lanzaba RangeError dejando la corrida en `running`. Corregido con `XMLValidator`, `Date.parse` + rango y mapeo a `StatementMalformedError`.
+5. PRODUCT_BUG latente (hallado por la prueba de recuperación del contracargo, corregido) — pay-ledger `ledger.service.ts`: reintentar un asiento de VARIAS patas que TigerBeetle ya
+   había aplicado daba 500: en un lote enlazado un `exists` hace fallar la cadena (`linked_event_failed` en las demás). Ahora se verifica por id que están todas las patas y se
+   lo trata como repetición. Prueba: `un asiento de varias patas ya aplicado por TigerBeetle … también se retoma sin duplicar`.

@@ -6,12 +6,13 @@ import { toSafeNumber } from '@pay/money';
 import { ProblemError } from '@pay/problem';
 import { PG_POOL } from '../database.module';
 import { AccountRegistry } from './account-registry';
-import { type AccountInfo, parseAccount } from './accounts';
+import { type AccountInfo, callerMayTouch, parseAccount } from './accounts';
+import { isChargeback, planLegs } from './chargeback';
 import { resolveAccounts } from './resolve-accounts';
 import { decideAttempt } from './attempts';
 import { type BalanceDto, type LegDto, type TransactionDto, balanceOf } from './dto';
 import { type PostedLeg, emitTransferPosted } from './ledger-events';
-import { accountTbId, legTbId, publicId } from './ids';
+import { accountTbId, publicId } from './ids';
 import { parseOrThrow, accountQuery, statementQuery, transactionCreate, merchantId } from './schemas';
 import { CreateTransferStatus, TB_ENGINE, TigerBeetleEngine, plainTransfer, transferStatusName } from './tb-engine';
 import { inTransaction } from './unit-of-work';
@@ -65,6 +66,8 @@ export class LedgerService {
     const input = parseOrThrow(transactionCreate, rawBody);
     const legs: LegDto[] = input.legs.map((leg) => ({ ...leg, code: leg.code ?? 'adjustment' }));
     const infos = resolveAccounts(legs, caller);
+    // Un contracargo que supera lo pendiente deja el exceso como deuda del comercio: el llamador tiene que poder tocar esa cuenta.
+    if (legs.some(isChargeback) && !callerMayTouch(caller, 'merchant_debt')) throw new ProblemError('forbidden', { detail: 'El servicio llamador no puede tocar ese tipo de cuenta' });
     const contentHash = sha256({ currency: input.currency, legs });
 
     const outcome = await inTransaction(this.pool, async (client): Promise<Outcome> => {
@@ -85,20 +88,35 @@ export class LedgerService {
           : { kind: 'problem', error: new ProblemError(decision.row.reject_code ?? 'validation_failed', { detail: 'Intento rechazado antes; reintentar exige attempt + 1' }) };
       }
 
-      await this.accounts.register(client, [...infos.values()]);
-      const batch = legs.map((leg, index) =>
+      // Dos contracargos del mismo comercio no se parten a la vez sobre el mismo saldo pendiente.
+      const plan = await (async () => {
+        const merchants = legs.filter(isChargeback).map((leg) => parseAccount(leg.debit_account)?.merchantId as string);
+        for (const merchant of [...new Set(merchants)].sort()) await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`ledger:chargeback:${merchant}`]);
+        return planLegs(this.tb, input.business_ref, input.attempt, legs);
+      })();
+      const settled = plan.legs; // lo que se asienta de verdad (con el contracargo ya partido)
+      const settledInfos = new Map(infos);
+      for (const leg of settled) for (const name of [leg.debit_account, leg.credit_account]) if (!settledInfos.has(name)) settledInfos.set(name, parseAccount(name) as AccountInfo);
+      await this.accounts.register(client, [...settledInfos.values()]);
+      const batch = settled.map((leg, index) =>
         plainTransfer(
           {
-            id: legTbId(input.business_ref, input.attempt, index),
+            id: plan.tbIds[index],
             debit: accountTbId(leg.debit_account),
             credit: accountTbId(leg.credit_account),
             amount: BigInt(leg.amount_minor),
             code: leg.code,
           },
-          index < legs.length - 1,
+          index < settled.length - 1,
         ),
       );
-      const verdict = interpretTransfers(await this.tb.createTransfers(batch));
+      let statuses = await this.tb.createTransfers(batch);
+      // En un lote enlazado, un `exists` hace fallar a toda la cadena (`linked_event_failed` en las demás). Si TigerBeetle ya había aplicado
+      // este asiento (caída antes de registrarlo en Postgres), se verifica por id que están TODAS las patas y se lo trata como repetición.
+      if (batch.length > 1 && statuses.some((st) => st === CreateTransferStatus.exists) && statuses.every((st) => st === CreateTransferStatus.exists || st === CreateTransferStatus.linked_event_failed)) {
+        if ((await this.tb.lookupTransfers(plan.tbIds)).length === plan.tbIds.length) statuses = statuses.map(() => CreateTransferStatus.exists);
+      }
+      const verdict = interpretTransfers(statuses);
       const txId = publicId('tx', input.business_ref, input.attempt);
       const now = new Date();
 
@@ -111,8 +129,8 @@ export class LedgerService {
         return { kind: 'problem', error: new ProblemError(verdict.code, { detail: 'Saldo insuficiente; reintentar exige attempt + 1' }) };
       }
 
-      const row = await this.insertTransaction(client, { txId, input, contentHash, status: 'posted', rejectCode: null, legs });
-      await this.recordLegs(client, { source: 'transaction', sourceId: txId, businessRef: input.business_ref, attempt: input.attempt, legs, postedAt: now });
+      const row = await this.insertTransaction(client, { txId, input, contentHash, status: 'posted', rejectCode: null, legs: settled });
+      await this.recordLegs(client, { source: 'transaction', sourceId: txId, businessRef: input.business_ref, attempt: input.attempt, legs: settled, postedAt: now });
       return { kind: 'ok', created: true, row };
     });
 

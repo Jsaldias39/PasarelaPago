@@ -5,10 +5,10 @@ Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
 Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
 
 ## pay-ledger/test/transactions.spec.ts
-✓ POST /transactions — atomicidad y saldo (REQ-P2-2, M8) › un lote con una pata sin saldo no aplica NINGUNA (lote enlazado) (39 ms)
-✓ POST /transactions — atomicidad y saldo (REQ-P2-2, M8) › saldo justo ⇒ aceptado; un centavo más ⇒ 422 y el saldo no cambia (93 ms)
-✓ POST /transactions — atomicidad y saldo (REQ-P2-2, M8) › medio «saldo AloVida»: la billetera paga a un comercio; sin saldo, rechazo sin efecto (97 ms)
-✓ POST /transactions — atomicidad y saldo (REQ-P2-2, M8) › de `merchant:available` de un comercio a `merchant:pending` de otro (transferencia entre comercios) (79 ms)
+✓ POST /transactions — atomicidad y saldo (REQ-P2-2, M8) › un lote con una pata sin saldo no aplica NINGUNA (lote enlazado) (23 ms)
+✓ POST /transactions — atomicidad y saldo (REQ-P2-2, M8) › saldo justo ⇒ aceptado; un centavo más ⇒ 422 y el saldo no cambia (71 ms)
+✓ POST /transactions — atomicidad y saldo (REQ-P2-2, M8) › medio «saldo AloVida»: la billetera paga a un comercio; sin saldo, rechazo sin efecto (72 ms)
+✓ POST /transactions — atomicidad y saldo (REQ-P2-2, M8) › de `merchant:available` de un comercio a `merchant:pending` de otro (transferencia entre comercios) (107 ms)
 ✓ POST /transactions — atomicidad y saldo (REQ-P2-2, M8) › 100 patas en un asiento se aplican; 101 se rechazan por validación (419 ms)
 
 RESULTADO P2.H1.M8: 5 pasan, 0 fallan, de 5.

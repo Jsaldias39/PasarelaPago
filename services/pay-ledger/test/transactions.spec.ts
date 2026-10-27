@@ -1,4 +1,5 @@
 import { ProblemError } from '@pay/problem';
+import { type AccountInfo, parseAccount } from '../src/ledger/accounts';
 import { accountTbId, legTbId } from '../src/ledger/ids';
 import { TigerBeetleEngine, plainTransfer } from '../src/ledger/tb-engine';
 import { loadLedgerConfig } from '../src/ledger/ledger.config';
@@ -200,58 +201,142 @@ describe('POST /transactions — atomicidad y saldo (REQ-P2-2, M8)', () => {
   });
 });
 
-describe('POST /transactions — contracargo (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt`', () => {
-  const chargeback = (m: string, pendingPart: number, debtPart: number, caller = 'pay-payments') =>
-    createTx(
-      body(businessRef('dispute'), 1, [
-        ...(pendingPart > 0 ? [leg(`merchant:${m}:pending`, CLEARING, pendingPart, 'adjustment')] : []),
-        ...(debtPart > 0 ? [leg(`merchant:${m}:debt`, CLEARING, debtPart, 'adjustment')] : []),
-      ]),
-      caller,
-    );
+describe('POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt`', () => {
+  /** El contracargo que manda P3: UNA pata por el monto bruto, `adjustment`, de `pending` a la compensación del conector. */
+  const chargeback = (m: string, gross: number, ref = businessRef('dispute'), attempt = 1) => createTx(body(ref, attempt, [leg(`merchant:${m}:pending`, CLEARING, gross, 'adjustment')]));
   const seedPending = async (m: string, amount: number) => expect((await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:pending`, amount)]))).status).toBe(201);
+  const debtOf = async (m: string) => {
+    const res = await ctx.as('pay-settlement').get(`/balances?account=${encodeURIComponent(`merchant:${m}:debt`)}`);
+    return res.status === 404 ? 0 : (res.body as { balance_minor: number; nature: string }).balance_minor;
+  };
+  const moved = async (ref: string) => (await ctx.db.pool.query('SELECT debit_account, credit_account, amount_minor FROM ledger_legs WHERE business_ref = $1 ORDER BY leg_index', [ref])).rows.map((r) => [r.debit_account, Number(r.amount_minor)]);
 
-  it('correcto: con saldo suficiente el contracargo sale entero de `pending` y no hay deuda', async () => {
+  it('monto < pendiente: UNA pata, sin deuda', async () => {
     const m = merchantId();
     await seedPending(m, 10_000);
-    expect((await chargeback(m, 8_000, 0)).status).toBe(201);
+    const res = await chargeback(m, 8_000);
+    expect(res.status).toBe(201);
+    expect(res.body.legs).toHaveLength(1);
     expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(2_000);
-    expect((await ctx.as('pay-settlement').get(`/balances?account=${encodeURIComponent(`merchant:${m}:debt`)}`)).status).toBe(404); // nunca se tocó
+    expect(await debtOf(m)).toBe(0);
   });
 
-  it('límite: saldo exacto ⇒ `pending` en 0 sin deuda; un centavo de más ⇒ ese centavo es deuda y TODO se asienta junto', async () => {
+  it('monto = pendiente: UNA pata, `pending` en 0, sin deuda', async () => {
     const m = merchantId();
     await seedPending(m, 10_000);
-    expect((await chargeback(m, 10_000, 0)).status).toBe(201);
+    const res = await chargeback(m, 10_000);
+    expect(res.body.legs).toHaveLength(1);
     expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(0);
-    const n = merchantId();
-    await seedPending(n, 10_000);
-    // el bruto del contracargo son 10.001: 10.000 salen de `pending` y 1 queda como deuda, en una sola transacción enlazada
-    expect((await chargeback(n, 10_000, 1)).status).toBe(201);
-    expect(await balance(`merchant:${n}:pending`)).toMatchObject({ balance_minor: 0, nature: 'credit' });
-    expect(await balance(`merchant:${n}:debt`)).toMatchObject({ balance_minor: 1, nature: 'debit' });
+    expect(await debtOf(m)).toBe(0);
   });
 
-  it('límite: el contracargo entero contra `pending` con 1 centavo menos del necesario se rechaza SIN mover nada (no deja saldo negativo)', async () => {
+  it('monto = pendiente + 1 centavo: DOS patas en un solo asiento enlazado (el pendiente y 1 centavo de deuda)', async () => {
     const m = merchantId();
     await seedPending(m, 10_000);
-    const refused = await chargeback(m, 10_001, 0);
+    const ref = businessRef('dispute');
+    const res = await chargeback(m, 10_001, ref);
+    expect(res.status).toBe(201);
+    expect(res.body.legs.map((l: { debit_account: string; amount_minor: number }) => [l.debit_account, l.amount_minor])).toEqual([[`merchant:${m}:pending`, 10_000], [`merchant:${m}:debt`, 1]]);
+    expect(await balance(`merchant:${m}:pending`)).toMatchObject({ balance_minor: 0, nature: 'credit' });
+    expect(await balance(`merchant:${m}:debt`)).toMatchObject({ balance_minor: 1, nature: 'debit' });
+    expect(await moved(ref)).toEqual([[`merchant:${m}:pending`, 10_000], [`merchant:${m}:debt`, 1]]);
+    // cada pata publicó su evento y figura en el extracto de su cuenta
+    expect(await count("SELECT count(*)::int AS n FROM outbox_events WHERE type = 'ledger.transfer.posted' AND envelope->'data'->>'ledger_ref' = $1", [ref])).toBe(2);
+  });
+
+  it('pendiente 0 (la cuenta ni existe): TODO el contracargo es deuda', async () => {
+    const m = merchantId();
+    const res = await chargeback(m, 7_000);
+    expect(res.status).toBe(201);
+    expect(res.body.legs).toHaveLength(1);
+    expect(res.body.legs[0].debit_account).toBe(`merchant:${m}:debt`);
+    expect(await debtOf(m)).toBe(7_000);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(0);
+  });
+
+  it('repetir el mismo (business_ref, attempt) devuelve lo mismo y no mueve dinero otra vez ni vuelve a partirlo con un saldo nuevo', async () => {
+    const m = merchantId();
+    await seedPending(m, 100);
+    const ref = businessRef('dispute');
+    const first = await chargeback(m, 250, ref);
+    const again = await chargeback(m, 250, ref);
+    expect(again.status).toBe(200);
+    expect(again.body.legs).toEqual(first.body.legs);
+    expect(await debtOf(m)).toBe(150);
+    expect(await count('SELECT count(*)::int AS n FROM ledger_legs WHERE business_ref = $1', [ref])).toBe(2);
+    expect((await chargeback(m, 251, ref)).body.code).toBe('idempotency_key_reused'); // otro contenido con el mismo intento
+  });
+
+  it('un llamador que ya partió el contracargo a mano también funciona', async () => {
+    const m = merchantId();
+    await seedPending(m, 100);
+    const res = await createTx(body(businessRef('dispute'), 1, [leg(`merchant:${m}:pending`, CLEARING, 100, 'adjustment'), leg(`merchant:${m}:debt`, CLEARING, 50, 'adjustment')]));
+    expect(res.status).toBe(201);
+    expect(await debtOf(m)).toBe(50);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(0);
+  });
+
+  it('recuperación: si TigerBeetle ya aplicó el contracargo partido y Postgres no lo registró, se ADOPTA lo aplicado (no se vuelve a partir con el saldo ya cambiado)', async () => {
+    const m = merchantId();
+    const ref = businessRef('dispute');
+    await seedPending(m, 100);
+    // el servicio murió justo después de aplicar: 100 de `pending` y 50 de deuda, en un lote enlazado
+    await ctx.engine.ensureAccounts([parseAccount(`merchant:${m}:debt`) as AccountInfo]);
+    await ctx.engine.createTransfers([
+      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment' }, true),
+      plainTransfer({ id: legTbId(ref, 1, 0, 'debt'), debit: accountTbId(`merchant:${m}:debt`), credit: accountTbId(CLEARING), amount: 50n, code: 'adjustment' }, false),
+    ]);
+    const [applied] = await ctx.engine.lookupAccounts([accountTbId(`merchant:${m}:debt`)]);
+    expect(applied.debits_posted).toBe(50n); // aplicado en TigerBeetle, todavía sin registro en Postgres
+    const res = await chargeback(m, 150, ref);
+    expect(res.status).toBe(201);
+    expect(res.body.legs.map((l: { amount_minor: number }) => l.amount_minor)).toEqual([100, 50]);
+    expect(await debtOf(m)).toBe(50); // no 50 + 150
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(0);
+  });
+
+  it('concurrencia: dos contracargos sobre el mismo pendiente ⇒ lo debitado de `pending` nunca supera el pendiente y pending + deuda iguala los montos', async () => {
+    const m = merchantId();
+    await seedPending(m, 100);
+    const results = await Promise.all([chargeback(m, 100), chargeback(m, 100)]);
+    expect(results.map((r) => r.status)).toEqual([201, 201]);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(0);
+    expect(await debtOf(m)).toBe(100);
+    const debits = await ctx.db.pool.query("SELECT debit_account, sum(amount_minor)::int AS n FROM ledger_legs WHERE debit_account IN ($1, $2) GROUP BY 1", [`merchant:${m}:pending`, `merchant:${m}:debt`]);
+    const by = Object.fromEntries(debits.rows.map((r) => [r.debit_account, r.n]));
+    expect(by[`merchant:${m}:pending`]).toBe(100);
+    expect(by[`merchant:${m}:pending`] + by[`merchant:${m}:debt`]).toBe(200);
+  });
+
+  it('concurrencia: diez contracargos de 30 sobre un pendiente de 100 ⇒ salen exactamente 100 de `pending` y 200 son deuda', async () => {
+    const m = merchantId();
+    await seedPending(m, 100);
+    const results = await Promise.all(Array.from({ length: 10 }, () => chargeback(m, 30)));
+    expect(results.every((r) => r.status === 201)).toBe(true);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(0);
+    expect(await debtOf(m)).toBe(200);
+  });
+
+  it.each(['charge', 'fee', 'refund', 'payout', 'release', 'wallet_transfer', 'mandate'])('inválido: el código %s NO puede dejar `pending` en negativo: se rechaza y no mueve nada', async (code) => {
+    const m = merchantId();
+    await seedPending(m, 500);
+    const refused = await createTx(body(businessRef('overdraw'), 1, [leg(`merchant:${m}:pending`, CLEARING, 501, code)]), 'pay-payments');
     expect(refused.status).toBe(422);
     expect(refused.body.code).toBe('insufficient_funds');
-    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(10_000);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(500);
+    expect(await debtOf(m)).toBe(0);
   });
 
-  it.each(['charge', 'fee', 'refund', 'payout', 'release', 'wallet_transfer', 'mandate', 'adjustment'])(
-    'inválido: ningún código (%s) puede dejar `pending` en negativo: se rechaza y no mueve nada',
-    async (code) => {
-      const m = merchantId();
-      await seedPending(m, 500);
-      const refused = await createTx(body(businessRef('overdraw'), 1, [leg(`merchant:${m}:pending`, CLEARING, 501, code)]), 'pay-payments');
+  it('inválido: `adjustment` hacia otro destino que no sea la compensación de un conector tampoco deja `pending` en negativo', async () => {
+    const m = merchantId();
+    await seedPending(m, 500);
+    for (const credit of ['platform:fees', `merchant:${m}:available`]) {
+      const refused = await createTx(body(businessRef('overdraw'), 1, [leg(`merchant:${m}:pending`, credit, 501, 'adjustment')]), 'pay-payments');
       expect(refused.status).toBe(422);
-      expect(refused.body.code).toBe('insufficient_funds');
-      expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(500);
-    },
-  );
+    }
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(500);
+    expect(await debtOf(m)).toBe(0);
+  });
 
   it('inválido: liberar a `available` más de lo que hay en `pending` tampoco crea dinero', async () => {
     const m = merchantId();
@@ -264,8 +349,7 @@ describe('POST /transactions — contracargo (D-22): `pending` nunca queda en ne
 
   it('la deuda se netea con disponible (disponible → deuda) y no se puede pagar de más', async () => {
     const m = merchantId();
-    await seedPending(m, 1_000);
-    await chargeback(m, 1_000, 2_000);
+    await chargeback(m, 2_000); // sin pendiente: todo deuda
     await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:available`, 5_000)]));
     const over = await createTx(body(businessRef('netting'), 1, [leg(`merchant:${m}:available`, `merchant:${m}:debt`, 2_001, 'adjustment')]), 'pay-settlement');
     expect(over.status).toBe(422); // pagar más de lo que se debe no es posible
@@ -276,11 +360,10 @@ describe('POST /transactions — contracargo (D-22): `pending` nunca queda en ne
     expect((await balance(`merchant:${m}:available`)).balance_minor).toBe(3_000);
   });
 
-  it('permisos: pay-schedules y los servicios fuera de la política no tocan la deuda de un comercio', async () => {
+  it('permisos: quien no puede tocar la deuda no la toca (ni directo ni por un contracargo)', async () => {
     const m = merchantId();
     for (const caller of ['pay-schedules', 'pay-edge', 'pay-risk']) {
-      const res = await createTx(body(businessRef('debt'), 1, [leg(`merchant:${m}:debt`, CLEARING, 100, 'adjustment')]), caller);
-      expect(res.status).toBe(403);
+      expect((await createTx(body(businessRef('debt'), 1, [leg(`merchant:${m}:debt`, CLEARING, 100, 'adjustment')]), caller)).status).toBe(403);
     }
   });
 });
@@ -365,6 +448,20 @@ describe('recuperación ante una caída entre TigerBeetle y Postgres (ids determ
     expect(res.status).toBe(201);
     expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(901); // 1 + 900, no 1 + 1800
     expect(await count('SELECT count(*)::int AS n FROM ledger_legs WHERE business_ref = $1', [ref])).toBe(1);
+  });
+
+  it('un asiento de varias patas ya aplicado por TigerBeetle (lote enlazado) también se retoma sin duplicar: `exists` hace fallar la cadena, y se verifica por id', async () => {
+    const m = merchantId();
+    const ref = businessRef();
+    await createTx(body(businessRef('seed'), 1, [leg(CLEARING, `merchant:${m}:pending`, 1)]));
+    await ctx.engine.createTransfers([
+      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 970n, code: 'charge' }, true),
+      plainTransfer({ id: legTbId(ref, 1, 1), debit: accountTbId(CLEARING), credit: accountTbId('platform:fees'), amount: 30n, code: 'fee' }, false),
+    ]);
+    const res = await createTx(body(ref, 1, [leg(CLEARING, `merchant:${m}:pending`, 970), leg(CLEARING, 'platform:fees', 30, 'fee')]));
+    expect(res.status).toBe(201);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(971); // 1 + 970, no 1 + 1940
+    expect(await count('SELECT count(*)::int AS n FROM ledger_legs WHERE business_ref = $1', [ref])).toBe(2);
   });
 
   it('TigerBeetle rechazó pero Postgres no registró: el reintento queda como rechazo (id_already_failed), sin mover dinero', async () => {

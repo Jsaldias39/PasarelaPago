@@ -5,7 +5,7 @@
 - Fecha: 2026-10-27 · Carril: [`P2-ledger-y-liquidacion.md`](../../../plan/carriles/P2-ledger-y-liquidacion.md) · Rama: `claude/adoring-allen-ly7r6f` (sin commit: lo hace el integrador)
 - **Peldaño de evidencia: `TESTED`** en las 15 `HECHO`. No hay `VERIFIED` ni `REGRESSION_VERIFIED`: falta el stack E1–E8 (ola 3) y un banco real.
 - Gates literales: [`evidencia/gates.txt`](./evidencia/gates.txt) (typecheck, build, `yarn lint` de la raíz y eslint del carril: todos `exit=0`).
-- Corridas repetidas: [`evidencia/corridas-repetidas.txt`](./evidencia/corridas-repetidas.txt): **pay-ledger 5/5 (119 pruebas)** y **pay-settlement 5/5 (404 pruebas)**, de a una suite por vez.
+- Corridas repetidas: [`evidencia/corridas-repetidas.txt`](./evidencia/corridas-repetidas.txt): **pay-ledger 3/3 (138 pruebas)** y **pay-settlement 3/3 (404 pruebas)** con el código final, de a una suite por vez (antes de la última reforma hubo 5/5 de cada una).
 
 ## Completado (CA cumplido y DoD ejecutado; salida en `evidencia/<ID>.txt`)
 
@@ -76,7 +76,7 @@ Quedan verificados SOLO contra el doble y pendientes contra lo real: el corte co
 
 ## Desvíos del plan y errores propios corregidos (detalle en `evidencia/corridas-repetidas.txt`)
 
-- Error mío (dos veces): primero puse `pending` con invariante sin avisar; luego lo quité para calzar con P3 y eso permitía crear dinero. Corregido otra vez tras la revisión de seguridad (P2-D2): `pending` es no-negativo y el exceso de un contracargo va a `merchant:{id}:debt`; el corte netea esa deuda. **P3 tiene que partir el asiento del contracargo** (hoy debita todo de `pending`).
+- Error mío (dos veces): primero puse `pending` con invariante sin avisar; luego lo quité para calzar con P3 y eso permitía crear dinero. Corregido otra vez tras la revisión de seguridad (P2-D2): `pending` es no-negativo y el exceso de un contracargo va a `merchant:{id}:debt`; el corte netea esa deuda. el ledger parte el contracargo por el servidor (una pata bruta de P3 ⇒ `pending` por lo que haya + `debt` por el exceso, en un lote enlazado), así que P3 no cambia.
 - `POST /charges` y `GET /exports/accounting` existen **fuera del contrato** (PROPUESTAS #10, #11); la prueba de contrato lista exactamente esas dos rutas extra.
 - La verificación de deriva compara contra un mapa del código y no contra entidades de un ORM, porque ningún servicio de esta ola usa ORM (P2-D24).
 

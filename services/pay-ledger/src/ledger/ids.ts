@@ -38,8 +38,9 @@ export function accountTbId(name: string): bigint {
 }
 
 /** Id de la transferencia de la pata `legIndex` del asiento (business_ref, attempt). */
-export function legTbId(businessRef: string, attempt: number, legIndex: number): bigint {
-  return hash128('tx', businessRef, attempt, legIndex);
+export function legTbId(businessRef: string, attempt: number, legIndex: number, part: 'main' | 'debt' = 'main'): bigint {
+  // `main` conserva el id de siempre; `debt` es la segunda mitad de un contracargo partido (ver `chargeback.ts`).
+  return part === 'main' ? hash128('tx', businessRef, attempt, legIndex) : hash128('tx', businessRef, attempt, legIndex, part);
 }
 
 /** Id de la retención (primera fase) de (business_ref, attempt). */

@@ -1,75 +1,75 @@
 # Evidencia P3.H1.M4
-fecha: 2026-10-27T17:35:23Z
+fecha: 2026-10-27T17:55:59Z
 directorio: services/pay-payments
 comando: yarn test test/intents.api.spec.ts test/internal.api.spec.ts --verbose --runInBand
 ---- salida ----
 Test Suites: 2 passed, 2 total
 Tests:       41 passed, 41 total
 Snapshots:   0 total
-Time:        21.658 s
+Time:        10.881 s, estimated 18 s
 Ran all test suites matching test/intents.api.spec.ts|test/internal.api.spec.ts.
 ---- código de salida: 0 ----
 
-fecha: 2026-10-27T17:37:31Z
+fecha: 2026-10-27T17:56:11Z
 directorio: services/pay-payments
 comando: yarn test test/intents.api.spec.ts -t 50 POST concurrentes --verbose --runInBand
 ---- salida ----
 Test Suites: 1 passed, 1 total
 Tests:       34 skipped, 1 passed, 35 total
 Snapshots:   0 total
-Time:        5.205 s, estimated 8 s
+Time:        4.105 s, estimated 7 s
 Ran all test suites matching test/intents.api.spec.ts with tests matching "50 POST concurrentes".
 ---- código de salida: 0 ----
 
-fecha: 2026-10-27T17:37:37Z
+fecha: 2026-10-27T17:56:16Z
 directorio: services/pay-payments
 comando: yarn test test/intents.api.spec.ts -t 50 POST concurrentes --verbose --runInBand
 ---- salida ----
 Test Suites: 1 passed, 1 total
 Tests:       34 skipped, 1 passed, 35 total
 Snapshots:   0 total
-Time:        4.449 s, estimated 6 s
+Time:        3.925 s, estimated 5 s
 Ran all test suites matching test/intents.api.spec.ts with tests matching "50 POST concurrentes".
 ---- código de salida: 0 ----
 
-fecha: 2026-10-27T17:37:43Z
+fecha: 2026-10-27T17:56:21Z
 directorio: services/pay-payments
 comando: yarn test test/intents.api.spec.ts -t 50 POST concurrentes --verbose --runInBand
 ---- salida ----
 Test Suites: 1 passed, 1 total
 Tests:       34 skipped, 1 passed, 35 total
 Snapshots:   0 total
-Time:        5.132 s
+Time:        4.243 s
 Ran all test suites matching test/intents.api.spec.ts with tests matching "50 POST concurrentes".
 ---- código de salida: 0 ----
 
-fecha: 2026-10-27T17:37:50Z
+fecha: 2026-10-27T17:56:26Z
 directorio: services/pay-payments
 comando: yarn test test/intents.api.spec.ts -t 50 POST concurrentes --verbose --runInBand
 ---- salida ----
 Test Suites: 1 passed, 1 total
 Tests:       34 skipped, 1 passed, 35 total
 Snapshots:   0 total
-Time:        5.233 s
+Time:        4.077 s, estimated 5 s
 Ran all test suites matching test/intents.api.spec.ts with tests matching "50 POST concurrentes".
 ---- código de salida: 0 ----
 
-fecha: 2026-10-27T17:37:57Z
+fecha: 2026-10-27T17:56:32Z
 directorio: services/pay-payments
 comando: yarn test test/intents.api.spec.ts -t 50 POST concurrentes --verbose --runInBand
 ---- salida ----
 Test Suites: 1 passed, 1 total
 Tests:       34 skipped, 1 passed, 35 total
 Snapshots:   0 total
-Time:        5.949 s, estimated 6 s
+Time:        4.095 s, estimated 5 s
 Ran all test suites matching test/intents.api.spec.ts with tests matching "50 POST concurrentes".
 ---- código de salida: 0 ----
 
 ==== NOTA DE HONESTIDAD (regla 80.4: ENVIRONMENT no se maquilla como PASS) ====
-En corridas anteriores de esta misma prueba (50 POST concurrentes) hubo 2 FALLAS en 10 repeticiones: las respuestas 500 traían SQLSTATE 53300
+En corridas anteriores de la prueba de 50 POST concurrentes hubo 2 FALLAS en 10 repeticiones: las respuestas 500 traían SQLSTATE 53300
 (`too_many_connections`). Causa demostrada: la Postgres compartida tiene `max_connections = 100`; en ese momento otro carril corría 6 suites
 de `pay-connectors` a la vez (visto con `ps`) y una consulta a `pg_stat_activity` devolvió «sorry, too many clients already». Además, el
 helper de prueba le daba al servicio un pool de 60 conexiones (el de @pay/testing) contra los 10 de producción (`database.module.ts`).
 Corrección (en el helper, no en el servicio ni en la aserción): el servicio bajo prueba usa ahora un pool de 10, igual que en producción, y las
 corridas esperan por condición a que haya conexiones libres. Las 5 repeticiones de arriba son posteriores a ese cambio y pasaron las 5.
-Queda como hallazgo para P1: ver PROPUESTAS.md PROP-14.
+Hallazgo para P1: ver PROPUESTAS.md PROP-14.

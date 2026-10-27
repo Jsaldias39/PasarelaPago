@@ -148,6 +148,12 @@ export class TigerBeetleEngine {
     return this.bounded('lookupAccounts', this.client.lookupAccounts([...ids]));
   }
 
+  /** Transferencias por id; las que no existen no aparecen. Sirve para retomar un asiento que TigerBeetle aplicó y Postgres no llegó a registrar. */
+  async lookupTransfers(ids: readonly bigint[]): Promise<Transfer[]> {
+    if (ids.length === 0) return [];
+    return this.bounded('lookupTransfers', this.client.lookupTransfers([...ids]));
+  }
+
   /** Lectura barata para el readiness: pide una cuenta que no existe. */
   async ping(): Promise<void> {
     await this.lookupAccounts([1n]);

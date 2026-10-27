@@ -5,10 +5,10 @@ Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
 Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
 
 ## pay-ledger/test/drift.spec.ts
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) › sin deriva: el SQL aplicado coincide con lo que el código asume (24 ms)
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › columna obligatoria no mapeada (16 ms)
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › columna opcional que el mapa no conoce (12 ms)
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › tabla ausente, columna ausente, tipo y nulabilidad divergentes (11 ms)
-✓ deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › tabla sin mapear e índice con nombre generado (21 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) › sin deriva: el SQL aplicado coincide con lo que el código asume (55 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › columna obligatoria no mapeada (47 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › columna opcional que el mapa no conoce (17 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › tabla ausente, columna ausente, tipo y nulabilidad divergentes (21 ms)
+✓ deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) › el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) › tabla sin mapear e índice con nombre generado (25 ms)
 
 RESULTADO P2.H1.M2: 5 pasan, 0 fallan, de 5.

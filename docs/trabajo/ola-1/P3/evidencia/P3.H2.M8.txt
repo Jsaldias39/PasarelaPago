@@ -1,9 +1,9 @@
 # Evidencia P3.H2.M8
-fecha: 2026-10-27T17:39:07Z
+fecha: 2026-10-27T17:59:03Z
 directorio: services/pay-payments
 comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
 ---- salida ----
-2026-10-27T17:39:15.621Z [WARN] Activity failed {
+2026-10-27T17:59:09.693Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'createCharge',
   error: ApplicationFailure: El conector no está disponible (sin efecto)
@@ -16,7 +16,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     category: undefined
   },
 }
-2026-10-27T17:39:16.614Z [WARN] Activity failed {
+2026-10-27T17:59:10.687Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'createCharge',
   error: ApplicationFailure: El conector no está disponible (sin efecto)
@@ -29,7 +29,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     category: undefined
   },
 }
-2026-10-27T17:39:17.603Z [WARN] Activity failed {
+2026-10-27T17:59:11.585Z [WARN] Activity failed {
   attempt: 3,
   activityType: 'createCharge',
   error: ApplicationFailure: El conector no está disponible (sin efecto)
@@ -42,7 +42,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     category: undefined
   },
 }
-2026-10-27T17:39:18.616Z [WARN] Activity failed {
+2026-10-27T17:59:12.640Z [WARN] Activity failed {
   attempt: 4,
   activityType: 'createCharge',
   error: ApplicationFailure: El conector no está disponible (sin efecto)
@@ -55,7 +55,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     category: undefined
   },
 }
-2026-10-27T17:39:19.209Z [WARN] Activity failed {
+2026-10-27T17:59:13.017Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -65,7 +65,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:20.218Z [WARN] Activity failed {
+2026-10-27T17:59:14.020Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -75,7 +75,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:21.228Z [WARN] Activity failed {
+2026-10-27T17:59:14.905Z [WARN] Activity failed {
   attempt: 3,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -85,7 +85,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:22.274Z [WARN] Activity failed {
+2026-10-27T17:59:15.907Z [WARN] Activity failed {
   attempt: 4,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -95,7 +95,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:23.499Z [WARN] Activity failed {
+2026-10-27T17:59:17.120Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -105,7 +105,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:24.515Z [WARN] Activity failed {
+2026-10-27T17:59:18.129Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -115,7 +115,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:26.556Z [WARN] Activity failed {
+2026-10-27T17:59:19.846Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'recordLedger',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -125,7 +125,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:28.037Z [WARN] Activity failed {
+2026-10-27T17:59:21.302Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'recordLedger',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -135,7 +135,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:29.033Z [WARN] Activity failed {
+2026-10-27T17:59:22.312Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'recordLedger',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -145,7 +145,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:30.052Z [WARN] Activity failed {
+2026-10-27T17:59:23.025Z [WARN] Activity failed {
   attempt: 3,
   activityType: 'recordLedger',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -155,7 +155,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:31.047Z [WARN] Activity failed {
+2026-10-27T17:59:24.027Z [WARN] Activity failed {
   attempt: 4,
   activityType: 'recordLedger',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -165,7 +165,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:36.196Z [WARN] Activity failed {
+2026-10-27T17:59:28.158Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'refundAtConnector',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -175,7 +175,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:37.195Z [WARN] Activity failed {
+2026-10-27T17:59:29.164Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'refundAtConnector',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -185,7 +185,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:38.208Z [WARN] Activity failed {
+2026-10-27T17:59:30.222Z [WARN] Activity failed {
   attempt: 3,
   activityType: 'refundAtConnector',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -195,7 +195,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:39.195Z [WARN] Activity failed {
+2026-10-27T17:59:31.294Z [WARN] Activity failed {
   attempt: 4,
   activityType: 'refundAtConnector',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -205,7 +205,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:40.367Z [WARN] Activity failed {
+2026-10-27T17:59:32.498Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'refundAtConnector',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -215,7 +215,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:41.379Z [WARN] Activity failed {
+2026-10-27T17:59:33.542Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'refundAtConnector',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -225,7 +225,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:39:43.124Z [WARN] Activity failed {
+2026-10-27T17:59:35.350Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'holdRefund',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -235,7 +235,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:44.196Z [WARN] Activity failed {
+2026-10-27T17:59:36.349Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'holdRefund',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -245,7 +245,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:45.288Z [WARN] Activity failed {
+2026-10-27T17:59:37.346Z [WARN] Activity failed {
   attempt: 3,
   activityType: 'holdRefund',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -255,7 +255,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:46.286Z [WARN] Activity failed {
+2026-10-27T17:59:38.350Z [WARN] Activity failed {
   attempt: 4,
   activityType: 'holdRefund',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -265,7 +265,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:47.553Z [WARN] Activity failed {
+2026-10-27T17:59:39.528Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'holdRefund',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -275,7 +275,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:48.625Z [WARN] Activity failed {
+2026-10-27T17:59:40.534Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'holdRefund',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -285,7 +285,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:57.373Z [WARN] Activity failed {
+2026-10-27T17:59:48.569Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'settleDispute',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -295,7 +295,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:58.324Z [WARN] Activity failed {
+2026-10-27T17:59:49.572Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'settleDispute',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -305,7 +305,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:58.901Z [WARN] Activity failed {
+2026-10-27T17:59:50.575Z [WARN] Activity failed {
   attempt: 3,
   activityType: 'settleDispute',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -315,7 +315,7 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:39:59.901Z [WARN] Activity failed {
+2026-10-27T17:59:51.575Z [WARN] Activity failed {
   attempt: 4,
   activityType: 'settleDispute',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -328,6 +328,6 @@ comando: yarn test test/failures.matrix.spec.ts --verbose --runInBand
 Test Suites: 1 passed, 1 total
 Tests:       15 passed, 15 total
 Snapshots:   0 total
-Time:        52.543 s, estimated 56 s
+Time:        48.235 s, estimated 50 s
 Ran all test suites matching test/failures.matrix.spec.ts.
 ---- código de salida: 0 ----

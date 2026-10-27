@@ -1,9 +1,9 @@
 # Evidencia P3.H2.M2
-fecha: 2026-10-27T17:36:38Z
+fecha: 2026-10-27T17:57:16Z
 directorio: services/pay-payments
 comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBand
 ---- salida ----
-2026-10-27T17:36:47.668Z [WARN] Activity failed {
+2026-10-27T17:57:25.492Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'createCharge',
   error: ApplicationFailure: El conector no está disponible (sin efecto)
@@ -16,7 +16,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     category: undefined
   },
 }
-2026-10-27T17:36:48.645Z [WARN] Activity failed {
+2026-10-27T17:57:26.518Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'createCharge',
   error: ApplicationFailure: El conector no está disponible (sin efecto)
@@ -29,7 +29,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     category: undefined
   },
 }
-2026-10-27T17:36:49.662Z [WARN] Activity failed {
+2026-10-27T17:57:27.496Z [WARN] Activity failed {
   attempt: 3,
   activityType: 'createCharge',
   error: ApplicationFailure: El conector no está disponible (sin efecto)
@@ -42,7 +42,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     category: undefined
   },
 }
-2026-10-27T17:36:50.646Z [WARN] Activity failed {
+2026-10-27T17:57:28.499Z [WARN] Activity failed {
   attempt: 4,
   activityType: 'createCharge',
   error: ApplicationFailure: El conector no está disponible (sin efecto)
@@ -55,7 +55,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     category: undefined
   },
 }
-2026-10-27T17:36:51.178Z [WARN] Activity failed {
+2026-10-27T17:57:28.976Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'recordLedger',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -65,7 +65,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:36:52.674Z [WARN] Activity failed {
+2026-10-27T17:57:30.406Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'recordLedger',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -75,7 +75,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:36:53.680Z [WARN] Activity failed {
+2026-10-27T17:57:31.420Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'recordLedger',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -85,7 +85,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:36:54.591Z [WARN] Activity failed {
+2026-10-27T17:57:32.466Z [WARN] Activity failed {
   attempt: 3,
   activityType: 'recordLedger',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -95,7 +95,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:36:55.589Z [WARN] Activity failed {
+2026-10-27T17:57:33.473Z [WARN] Activity failed {
   attempt: 4,
   activityType: 'recordLedger',
   error: UpstreamError: pay-ledger: server_error (500)
@@ -105,7 +105,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     problemCode: 'ledger_unavailable'
   },
 }
-2026-10-27T17:36:57.555Z [WARN] Activity failed {
+2026-10-27T17:57:35.257Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -115,7 +115,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:36:58.557Z [WARN] Activity failed {
+2026-10-27T17:57:36.256Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -125,7 +125,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:36:59.555Z [WARN] Activity failed {
+2026-10-27T17:57:37.256Z [WARN] Activity failed {
   attempt: 3,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -135,7 +135,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:37:00.560Z [WARN] Activity failed {
+2026-10-27T17:57:38.254Z [WARN] Activity failed {
   attempt: 4,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -145,7 +145,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:37:01.742Z [WARN] Activity failed {
+2026-10-27T17:57:39.419Z [WARN] Activity failed {
   attempt: 1,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -155,7 +155,7 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
     problemCode: 'internal_error'
   },
 }
-2026-10-27T17:37:02.752Z [WARN] Activity failed {
+2026-10-27T17:57:40.422Z [WARN] Activity failed {
   attempt: 2,
   activityType: 'createCharge',
   error: UpstreamError: pay-connectors: server_error (500)
@@ -168,6 +168,6 @@ comando: yarn test test/payment.workflow.spec.ts -t P3.H2.M2 --verbose --runInBa
 Test Suites: 1 passed, 1 total
 Tests:       19 skipped, 7 passed, 26 total
 Snapshots:   0 total
-Time:        24.095 s
+Time:        23.478 s
 Ran all test suites matching test/payment.workflow.spec.ts with tests matching "P3.H2.M2".
 ---- código de salida: 0 ----
