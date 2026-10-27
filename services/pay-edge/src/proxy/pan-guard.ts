@@ -11,47 +11,71 @@
  * - Los nombres de campo son tokens de cadena como cualquier otro, y los números se revisan por su texto (un número de más de
  *   2^53 pierde dígitos al decodificarse).
  * - Se normaliza (NFKC: dígitos de ancho completo; se quitan caracteres de ancho cero) y toda corrida de separadores (espacios,
- *   guiones de toda la familia, punto, barra, guion bajo, de cualquier longitud y mezcla) se colapsa en uno; recién entonces se
- *   buscan corridas de 13 a 19 dígitos que cumplan Luhn.
+ *   guiones de toda la familia, punto, barra, guion bajo, de cualquier longitud y mezcla) se colapsa en uno. Recién entonces se
+ *   toma cada corrida maximal de dígitos y se prueba con Luhn TODA ventana contigua de 13 a 19 dígitos (un PAN pegado a otros
+ *   dígitos no se esconde). COSTO: cuanto más larga la corrida, más ventanas, así que casi todo número de 20 dígitos o más se
+ *   rechaza aunque no sea una tarjeta (tasas medidas en test/pan-guard.spec.ts y docs/cumplimiento/pci-alcance.md).
  *
  * LÍMITE: no detecta un PAN partido en varios campos («4111», «1111», …) ni codificado (base64, hexadecimal). Eso lo cubre la
  * ausencia de cualquier campo de tarjeta en el contrato y el rechazo por forma de los demás controles.
  */
 export type BodyVerdict = 'clean' | 'card_number' | 'invalid_json';
 
-const CANDIDATE = /(?<![0-9])(?:[0-9] ?){12,18}[0-9](?![0-9])/g;
+/** Corrida maximal de dígitos con, a lo sumo, un espacio entre dígitos (los separadores ya se colapsaron en uno). */
+const DIGIT_RUN = /[0-9](?: ?[0-9])*/g;
 /** Caracteres que no cambian lo que lee una persona o un sistema: ancho cero, separadores de palabra, guion suave. */
 const INVISIBLE = /[\u00AD\u200B-\u200F\u2060\uFEFF]/g;
 /** Separadores entre grupos de dígitos: espacios (incluido el no separable), guiones de toda la familia, signo menos, punto, barra y guion bajo. */
 const SEPARATOR_RUN = /[\s\u00A0\u2010-\u2015\u2212.\-_/]+/g;
 const NUMBER_CHAR = /[0-9eE+\-.]/;
 
-function luhn(digits: string): boolean {
-  let sum = 0;
-  let double = false;
-  for (let i = digits.length - 1; i >= 0; i -= 1) {
-    let n = digits.charCodeAt(i) - 48;
-    if (double) {
-      n *= 2;
-      if (n > 9) n -= 9;
+const MIN_PAN = 13;
+const MAX_PAN = 19;
+
+/**
+ * ¿Alguna ventana contigua de 13 a 19 dígitos de esta corrida cumple Luhn? Una corrida maximal puede traer el PAN pegado a otros
+ * dígitos («12 / 4111 1111 1111 1111», «4111111111111111 - 7»): decidir solo por la corrida completa lo esquivaría, así que se
+ * prueban TODAS las ventanas. Cada una se resuelve en O(1) con sumas de prefijo por paridad de posición, así que el costo total
+ * es O(n × 7) aun con millones de dígitos y no hay retroceso de expresión regular.
+ */
+function runHasLuhnWindow(digits: string): boolean {
+  const n = digits.length;
+  if (n < MIN_PAN) return false;
+  // plain[x][i]: suma de los dígitos en posiciones j < i con j % 2 == x · doubled[x][i]: lo mismo pero con el dígito duplicado (Luhn)
+  const plain = [new Int32Array(n + 1), new Int32Array(n + 1)];
+  const doubled = [new Int32Array(n + 1), new Int32Array(n + 1)];
+  for (let j = 0; j < n; j += 1) {
+    const d = digits.charCodeAt(j) - 48;
+    const twice = d * 2 > 9 ? d * 2 - 9 : d * 2;
+    for (let x = 0; x < 2; x += 1) {
+      plain[x][j + 1] = plain[x][j] + (j % 2 === x ? d : 0);
+      doubled[x][j + 1] = doubled[x][j] + (j % 2 === x ? twice : 0);
     }
-    sum += n;
-    double = !double;
   }
-  return sum % 10 === 0;
+  for (let end = MIN_PAN; end <= n; end += 1) {
+    // En la ventana [start, end) el último dígito pesa 1, el anterior 2, etc.: pesa 1 si j y end-1 tienen la misma paridad.
+    const same = (end - 1) % 2;
+    for (let length = MIN_PAN; length <= MAX_PAN && length <= end; length += 1) {
+      const start = end - length;
+      const sum = plain[same][end] - plain[same][start] + doubled[1 - same][end] - doubled[1 - same][start];
+      if (sum % 10 === 0) return true;
+    }
+  }
+  return false;
 }
 
 function hasCardNumber(text: string): boolean {
   const normalized = text.normalize('NFKC').replace(INVISIBLE, '').replace(SEPARATOR_RUN, ' ');
-  for (const match of normalized.matchAll(CANDIDATE)) {
-    const digits = match[0].replace(/[^0-9]/g, '');
-    if (digits.length >= 13 && digits.length <= 19 && luhn(digits)) return true;
+  for (const match of normalized.matchAll(DIGIT_RUN)) {
+    if (runHasLuhnWindow(match[0].replace(/ /g, ''))) return true;
   }
   return false;
 }
 
 function numberHasCardNumber(source: string): boolean {
   if (hasCardNumber(source)) return true;
+  // Un entero escrito tal cual ya se revisó por su texto exacto (convertirlo a Number perdería dígitos por encima de 2^53).
+  if (/^-?[0-9]+$/.test(source)) return false;
   const value = Number(source);
   // 4.111111111111111e15 es el mismo entero que 4111111111111111
   return Number.isFinite(value) && Number.isInteger(value) && hasCardNumber(BigInt(value).toString());

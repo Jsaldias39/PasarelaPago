@@ -6,18 +6,38 @@ $ yarn eslint services/pay-edge   (raíz)
 exit=0
 $ (cd services/pay-edge && yarn test)  corrida 1/3
 Test Suites: 9 passed, 9 total
-Tests:       295 passed, 295 total
+Tests:       324 passed, 324 total
 $ (cd services/pay-edge && yarn test)  corrida 2/3
 Test Suites: 9 passed, 9 total
-Tests:       295 passed, 295 total
+Tests:       324 passed, 324 total
 $ (cd services/pay-edge && yarn test)  corrida 3/3
 Test Suites: 9 passed, 9 total
-Tests:       295 passed, 295 total
-$ yarn test test/pan-guard.spec.ts  (5 corridas)
-Tests:       120 passed, 120 total
-Tests:       120 passed, 120 total
-Tests:       120 passed, 120 total
-Tests:       120 passed, 120 total
-Tests:       120 passed, 120 total
+Tests:       324 passed, 324 total
+$ PAN_RATES=1 yarn test test/pan-guard.spec.ts   (tasas de falso positivo + 5 corridas)
+TASAS (5.000 cadenas al azar por largo, semilla fija)
+  12 dígitos:   0.0 % rechazadas
+  13 dígitos:   9.8 % rechazadas
+  14 dígitos:  27.7 % rechazadas
+  15 dígitos:  46.2 % rechazadas
+  16 dígitos:  64.8 % rechazadas
+  17 dígitos:  79.9 % rechazadas
+  18 dígitos:  89.2 % rechazadas
+  19 dígitos:  94.4 % rechazadas
+  20 dígitos:  96.9 % rechazadas
+  25 dígitos:  99.9 % rechazadas
+  30 dígitos: 100.0 % rechazadas
+  40 dígitos: 100.0 % rechazadas
+Tests:       149 passed, 149 total
+Tests:       149 passed, 149 total
+Tests:       149 passed, 149 total
+Tests:       149 passed, 149 total
+Tests:       149 passed, 149 total
 
-Mutaciones (salida de la sesión): (a) sin colapsar corridas de separadores fallan 19 de 120 pruebas; (b) sin inspeccionar los tokens de cadena fallan 63 de 120. Restaurado el código, 120/120.
+Mutaciones (salida de la sesión): (a) probar solo la corrida completa y no las ventanas: 10 de 149 pruebas fallan; (b) paridad de Luhn desplazada en las sumas de prefijo: 13 de 149 fallan (incluida la propiedad contra la referencia ingenua). Restaurado el código, 149/149.
+
+$ node (dist/proxy/pan-guard.js) — tiempos medidos sobre cuerpos patológicos (ver el límite de 3 s en los tests)
+900.000 dígitos en una cadena                        clean        96 ms
+900.000 dígitos (ceros y un 1 final)                 card_number  45 ms
+450.000 dígitos separados por espacios               clean        148 ms
+separadores mezclados sin fin (450 KB)               clean        24 ms
+5.000 cadenas de 48 dígitos                          card_number  0 ms

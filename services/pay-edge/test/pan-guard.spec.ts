@@ -31,14 +31,10 @@ function withLuhn(prefix: string): string {
 describe('inspectBody — nivel CORRECTO: lo limpio pasa', () => {
   it.each([
     '{"amount_minor":10000,"currency":"BOB"}',
-    '{"amount_minor":9007199254740991}', // 16 dígitos, no cumple Luhn
     '{"card_token":"tok_c92215200m49abcdef"}',
-    '{"ref":"1234567890123456"}',
     '{"phone":"71234567"}',
-    `{"n":4111111111111112}`, // un dígito cambiado: no es Luhn
     '{"ts":"2026-10-27T15:00:00.000Z"}',
     '{"a":"123456789012"}', // 12 dígitos: debajo del mínimo
-    '{"a":"41111111111111111111"}', // 20 dígitos: arriba del máximo
     '{"lista":[1,2,3],"anidado":{"x":{"y":["a","b"]}}}',
     '{"nota":"orden 4111 y luego 1111 en otro campo"}',
     '[]',
@@ -174,9 +170,8 @@ describe('inspectBody — claves duplicadas y corridas de separadores', () => {
       expect(inspectBody(b(`{"c":"${pan}"}`))).toBe('card_number');
       expect(inspectBody(b(`{"c":"${spaced(pan, ' .- ')}"}`))).toBe('card_number');
     }
-    // 12 y 20 dígitos quedan fuera
+    // 12 dígitos quedan fuera (un PAN mide 13 a 19)
     expect(inspectBody(b(`{"c":"${withLuhn('4'.repeat(11))}"}`))).toBe('clean');
-    expect(inspectBody(b(`{"c":"${withLuhn('4'.repeat(19))}"}`))).toBe('clean');
   });
 
   it('un número con exponente y un número enorme se detectan por su texto', () => {
@@ -209,6 +204,153 @@ describe('inspectBody — claves duplicadas y corridas de separadores', () => {
   ])('INVÁLIDO — JSON mal formado %p ⇒ invalid_json (nunca lanza)', (body) => {
     expect(() => inspectBody(b(body))).not.toThrow();
     expect(inspectBody(b(body))).toBe('invalid_json');
+  });
+});
+
+/** Referencia ingenua e independiente: prueba TODAS las ventanas de 13 a 19 dígitos de una corrida, una por una. */
+function bruteForceHasWindow(digits: string): boolean {
+  const luhnOk = (d: string) => {
+    let sum = 0;
+    let double = false;
+    for (let i = d.length - 1; i >= 0; i -= 1) {
+      let n = Number(d[i]);
+      if (double) {
+        n *= 2;
+        if (n > 9) n -= 9;
+      }
+      sum += n;
+      double = !double;
+    }
+    return sum % 10 === 0;
+  };
+  for (let length = 13; length <= 19; length += 1) for (let start = 0; start + length <= digits.length; start += 1) if (luhnOk(digits.slice(start, start + length))) return true;
+  return false;
+}
+
+/** PRNG determinista (xorshift32) para que las tasas y las propiedades sean reproducibles. */
+function prng(seed: number) {
+  let x = seed >>> 0 || 1;
+  return () => {
+    x ^= x << 13;
+    x >>>= 0;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    x >>>= 0;
+    return x / 2 ** 32;
+  };
+}
+const randomDigits = (next: () => number, length: number) => Array.from({ length }, () => String(Math.floor(next() * 10))).join('');
+
+/** Una corrida de `length` dígitos SIN ninguna ventana Luhn (se busca con la referencia ingenua). */
+function runWithoutWindow(length: number): string {
+  const next = prng(12345 + length);
+  for (let i = 0; i < 100_000; i += 1) {
+    const candidate = randomDigits(next, length);
+    if (!bruteForceHasWindow(candidate)) return candidate;
+  }
+  throw new Error(`no hay corrida limpia de ${length} dígitos`);
+}
+
+describe('inspectBody — ventana deslizante (un PAN pegado a otros dígitos no se esconde)', () => {
+  it.each([
+    ['dígitos y barra antes (ejemplo del hallazgo)', '12 / 4111 1111 1111 1111'],
+    ['un dígito suelto después (ejemplo del hallazgo)', '4111111111111111 - 7'],
+    ['antes y después', '12345 4111 1111 1111 1111 98765'],
+    ['pegado sin separador al número anterior', '0004111111111111111'],
+    ['pegado sin separador al siguiente', '41111111111111119999'],
+    ['con separadores mezclados por ambos lados', '99 . - 4111  1111_1111/1111 -.- 55'],
+    ['partido en dos corridas por una letra: la corrida con el PAN se detecta', 'ref A 12 4111 1111 1111 1111 B 34'],
+  ])('%s', (_name, value) => {
+    expect(inspectBody(b(`{"c":"${value}"}`))).toBe('card_number');
+    expect(inspectBody(b(`{"c":"${value}","c":"x"}`))).toBe('card_number');
+    expect(inspectBody(b(`{"a":[{"b":["${value}"]}]}`))).toBe('card_number');
+  });
+
+  it('como número JSON, con dígitos antes y después, el entero se detecta por su texto', () => {
+    expect(inspectBody(b(`{"c":12${VISA}}`))).toBe('card_number');
+    expect(inspectBody(b(`{"c":${VISA}7}`))).toBe('card_number');
+  });
+
+  it.each([13, 14, 15, 16, 17, 18, 19])('un PAN de %i dígitos EXACTOS dentro de una corrida más larga', (length) => {
+    const pan = withLuhn('5'.repeat(length - 1));
+    for (const [before, after] of [['', ''], ['7', ''], ['', '3'], ['90210', '12345'], ['1'.repeat(40), '8'.repeat(40)]]) {
+      expect(inspectBody(b(`{"c":"${before}${pan}${after}"}`))).toBe('card_number');
+    }
+  });
+
+  it('PROPIEDAD: el resultado coincide con la referencia ingenua en 4.000 corridas aleatorias (largos 1 a 48, con separadores)', () => {
+    const next = prng(20261027);
+    for (let i = 0; i < 4000; i += 1) {
+      const length = 1 + Math.floor(next() * 48);
+      const digits = randomDigits(next, length);
+      const spaced = digits.replace(/(\d)(?=\d)/g, (d) => (next() < 0.25 ? `${d}${[' ', ' - ', '. ', '/'][Math.floor(next() * 4)]}` : d));
+      expect(inspectBody(b(`{"c":"${spaced}"}`))).toBe(bruteForceHasWindow(digits) ? 'card_number' : 'clean');
+    }
+  });
+
+  it.each([12, 13, 16, 19, 20, 24])('CORRECTO: una corrida de %i dígitos sin ninguna ventana Luhn pasa', (length) => {
+    const run = runWithoutWindow(length);
+    expect(inspectBody(b(`{"id":"${run}"}`))).toBe('clean');
+    if (run[0] !== '0') expect(inspectBody(b(`{"id":${run}}`))).toBe('clean'); // un número JSON no empieza con 0
+  });
+
+  it('CORRECTO: identificadores con letras, fechas, importes y teléfonos (corridas de menos de 13 dígitos) pasan', () => {
+    for (const body of [
+      '{"payment_intent_id":"pi_c92215200m49","merchant_id":"mc_5c048c31m1fb"}',
+      '{"fecha":"2026-10-27T15:00:00.000Z","hasta":"27/10/2026 15:00"}',
+      '{"amount_minor":123456789012,"fee_minor":300}',
+      '{"tel":"+591 7123 4567","nit":"1020304050"}',
+      '{"uuid":"6f1f0a52-0d1c-4f4a-9a52-1f5a8c2f3a10"}',
+      '{"ip":"192.168.100.200","semver":"10.20.30"}',
+    ]) expect(inspectBody(b(body))).toBe('clean');
+  });
+
+  it('TASAS de falso positivo: cadenas numéricas AL AZAR (no tarjetas) que el borde rechaza, por largo de la corrida', () => {
+    const rows: string[] = [];
+    const rates = new Map<number, number>();
+    for (const length of [12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 40]) {
+      const next = prng(777 + length);
+      const samples = 5000;
+      let flagged = 0;
+      for (let i = 0; i < samples; i += 1) if (inspectBody(b(`{"c":"${randomDigits(next, length)}"}`)) === 'card_number') flagged += 1;
+      rates.set(length, flagged / samples);
+      rows.push(`${String(length).padStart(2)} dígitos: ${((flagged / samples) * 100).toFixed(1).padStart(5)} % rechazadas`);
+    }
+    if (process.env.PAN_RATES) process.stdout.write(`TASAS (5.000 cadenas al azar por largo, semilla fija)\n  ${rows.join('\n  ')}\n`);
+    expect(rates.get(12)).toBe(0); // menos de 13 dígitos nunca es un PAN
+    expect(rates.get(13)!).toBeGreaterThan(0.06);
+    expect(rates.get(13)!).toBeLessThan(0.14); // ≈ 1 de cada 10: una sola ventana
+    expect(rates.get(16)!).toBeGreaterThan(0.5);
+    expect(rates.get(16)!).toBeLessThan(0.8);
+    expect(rates.get(25)!).toBeGreaterThan(0.95);
+    expect(rates.get(40)!).toBeGreaterThan(0.99);
+  });
+
+  describe('costo: sin cuelgue ni retroceso catastrófico', () => {
+    const timed = (body: string) => {
+      const started = Date.now();
+      const verdict = inspectBody(b(body));
+      return { verdict, ms: Date.now() - started };
+    };
+
+    it.each([
+      ['900.000 dígitos en una cadena', () => `{"a":"${'7'.repeat(900_000)}"}`],
+      ['900.000 dígitos que nunca cierran una ventana válida por construcción (todos ceros menos el final)', () => `{"a":"${'0'.repeat(899_999)}1"}`],
+      ['450.000 dígitos separados por espacios', () => `{"a":"${'1 '.repeat(450_000)}"}`],
+      ['separadores mezclados sin fin', () => `{"a":"${'1 - . _ / '.repeat(90_000)}"}`],
+      ['un solo dígito y 900.000 separadores', () => `{"a":"1${' '.repeat(900_000)}2"}`],
+      ['un número JSON de 900.000 dígitos', () => `{"a":${'3'.repeat(900_000)}}`],
+    ])('%s', (_name, build) => {
+      const { verdict, ms } = timed(build());
+      expect(['clean', 'card_number']).toContain(verdict);
+      expect(ms).toBeLessThan(3000);
+    });
+
+    it('corridas de 40+ dígitos (muchas, en una lista) tardan lo mismo que una', () => {
+      const body = `{"a":[${Array.from({ length: 5000 }, () => `"${'8'.repeat(48)}"`).join(',')}]}`;
+      const { ms } = timed(body);
+      expect(ms).toBeLessThan(3000);
+    });
   });
 });
 
@@ -269,6 +411,16 @@ describe('pay-edge rechaza el PAN y el JSON roto', () => {
     expect(res.status).toBe(422);
     expect(res.body.errors).toEqual([{ field: 'body', code: 'card_number_detected', message: expect.any(String) }]);
     expect(JSON.stringify(res.body)).not.toMatch(/4111|1111/);
+    expect(h.doubles['pay-payments'].requests).toHaveLength(0);
+  });
+
+  it.each([
+    ['dígitos y barra antes', '12 / 4111 1111 1111 1111'],
+    ['un dígito suelto después', '4111111111111111 - 7'],
+  ])('LÍMITE (PAN pegado a otros dígitos: %s): 422 card_number_detected y no llega al servicio', async (_name, value) => {
+    const res = await post(`{"amount_minor":1000,"currency":"BOB","n":"${value}"}`);
+    expect(res.status).toBe(422);
+    expect(res.body.errors).toEqual([{ field: 'body', code: 'card_number_detected', message: expect.any(String) }]);
     expect(h.doubles['pay-payments'].requests).toHaveLength(0);
   });
 

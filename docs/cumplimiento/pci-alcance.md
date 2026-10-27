@@ -28,7 +28,7 @@
 | `pay-vault` | P3 | **CDE** | Guarda el PAN (tokeniza) y es el único que lo entrega (`reveal`). | `internal-vault-v1.yaml`; spike `docs/spikes/card-vault.md` (solo documental) |
 | `pay-connectors` | P4 | **CDE (provisoria)** | Es el único autorizado a llamar a `reveal` y a enviar la tarjeta al proveedor: el PAN **transita su memoria**. Pasaría a *conectado* solo si el diseño cambia a «la bóveda reenvía al proveedor» (decisión abierta A). | `internal-vault-v1.yaml` (`x-open-question` de `reveal`) |
 | `pay-payments` | P3 | **Conectado al CDE / impacta la seguridad** | Nunca recibe el PAN (opera con `card_token`), pero abre sesiones de captura y es uno de los dos servicios con acceso a la red del CDE. | `internal-vault-v1.yaml` («`pay-payments` jamás recibe un número de tarjeta») |
-| `pay-edge` | P1 | **Fuera de alcance, con controles que lo sostienen** | Enruta bytes de la API pública, donde no existe ningún campo de tarjeta; **no tiene ruta de red a `pay-vault`** (a demostrar en P1.H4.M3). Como el borde reenvía cuerpos sin interpretarlos, un cliente podría mandar un PAN por error: el borde lo **rechaza antes de reenviar** (422 `card_number_detected`) y no lo registra. Inspecciona **cada token** del JSON ya decodificado (escapes `\uXXXX`, claves duplicadas, corridas de separadores de cualquier longitud y mezcla, dígitos de ancho completo, anidado en objetos y listas, como número), y un JSON que no se puede interpretar también se rechaza (422 `invalid_json`). | `services/pay-edge/src/proxy/pan-guard.ts`; `services/pay-edge/test/pan-guard.spec.ts` (120 pruebas en tres niveles) |
+| `pay-edge` | P1 | **Fuera de alcance, con controles que lo sostienen** | Enruta bytes de la API pública, donde no existe ningún campo de tarjeta; **no tiene ruta de red a `pay-vault`** (a demostrar en P1.H4.M3). Como el borde reenvía cuerpos sin interpretarlos, un cliente podría mandar un PAN por error: el borde lo **rechaza antes de reenviar** (422 `card_number_detected`) y no lo registra. Inspecciona **cada token** del JSON ya decodificado (escapes `\uXXXX`, claves duplicadas, corridas de separadores de cualquier longitud y mezcla, el PAN pegado a otros dígitos (ventana deslizante), dígitos de ancho completo, anidado en objetos y listas, como número), y un JSON que no se puede interpretar también se rechaza (422 `invalid_json`). | `services/pay-edge/src/proxy/pan-guard.ts`; `services/pay-edge/test/pan-guard.spec.ts` (149 pruebas en tres niveles) |
 | `pay-webhooks` | P1 | **Fuera de alcance** | Entrega eventos públicos con política de payload «solo ids, estados e importes»; un evento con tarjeta, correo o teléfono en un valor se **rechaza**. Sin acceso al CDE. | `services/pay-webhooks/src/events/payload-policy.ts`; `test/payload-policy.spec.ts` |
 | `pay-ledger` | P2 | **Fuera de alcance** | Solo montos y cuentas. Sin datos de tarjeta. | `contracts/asyncapi/ledger-settlement.yaml` (`x-pii: none`) |
 | `pay-settlement` | P2 | **Fuera de alcance** | Cortes, payouts y conciliación. Sin datos de tarjeta. **Provisoria**: los extractos del banco (`camt.053`/CSV) pueden traer PAN enmascarado; confirmar con el banco que nunca llega completo. | pregunta B en §6 |
@@ -73,9 +73,20 @@ Todo lo que dice «Diseño» o «Falta» es trabajo de las olas 2 y 3 (`docs/pla
 | `pay-edge` no deja pasar cabeceras de identidad ni de modo del cliente | `services/pay-edge/test/authz.spec.ts` |
 | Los contratos públicos solo hablan de `card_token` | `contracts/openapi/public-v1.yaml` |
 
-**Límites declarados del guardia del borde:** no detecta un PAN partido en varios campos ni codificado (base64, hexadecimal); y una cadena
-numérica de 13 a 19 dígitos que case con Luhn por casualidad (≈ 1 de cada 10) se rechaza aunque no sea una tarjeta, por ejemplo una
-referencia propia del comercio: el mensaje de error le dice que use un token.
+**Límites declarados del guardia del borde:** no detecta un PAN partido en varios campos ni codificado (base64, hexadecimal). Prueba con Luhn
+**toda ventana contigua de 13 a 19 dígitos** de cada corrida de dígitos (así un PAN pegado a otros números, «12 / 4111 1111 1111 1111», no se
+esconde), y por eso rechaza **de más**: cadenas numéricas al azar que no son tarjetas, medidas con 5.000 muestras por largo (semilla fija,
+`PAN_RATES=1 yarn test test/pan-guard.spec.ts` en `services/pay-edge`):
+
+| Dígitos seguidos | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 25 | 30+ |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Rechazadas | 0 % | 9,8 % | 27,7 % | 46,2 % | 64,8 % | 79,9 % | 89,2 % | 94,4 % | 96,9 % | 99,9 % | 100 % |
+
+Consecuencia práctica: **un comercio no puede mandar por la API pública una cadena o un número de 13 o más dígitos seguidos** (referencias
+propias, identificadores numéricos largos, huellas) sin arriesgarse a un 422 `card_number_detected`; los identificadores de la pasarela
+llevan letras y no se ven afectados. Una alternativa que baja estas tasas sin dejar pasar tarjetas reales es exigir además el prefijo de
+una marca conocida (IIN) y el largo que le corresponde; no se aplicó porque deja pasar tarjetas de marcas que no estén en la tabla. Es una
+decisión de P3 y el QSA. Costo: lineal en el tamaño del cuerpo (900.000 dígitos en ~0,1 s).
 
 ## 6. Decisiones abiertas que cambian el alcance
 

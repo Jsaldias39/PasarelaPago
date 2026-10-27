@@ -60,8 +60,8 @@ describe('[DOBLE] reenvío a los servicios dueños — nivel CORRECTO', () => {
     for (const d of Object.values(h.doubles)) expect(d.violations).toEqual([]);
   });
 
-  it('reenvía los BYTES exactos del cuerpo (espacios, orden de claves, unicode, números grandes), sin reserializar', async () => {
-    const text = '{ "b" : 2,\n"a":"ñandú ✓ \\u00e9",  "n": 12345678901234567890 }';
+  it('reenvía los BYTES exactos del cuerpo (espacios, orden de claves, unicode, un entero justo por encima de 2^53), sin reserializar', async () => {
+    const text = '{ "b" : 2,\n"a":"ñandú ✓ \\u00e9",  "n": 9007199254740993 }';
     await h.http().post('/v1/payment_intents').set('Authorization', k.auth).set('Idempotency-Key', KEY).set('Content-Type', 'application/json').send(text);
     expect(h.doubles['pay-payments'].requests[0].body.equals(Buffer.from(text, 'utf8'))).toBe(true);
   });
