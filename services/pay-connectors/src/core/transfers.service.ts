@@ -32,9 +32,16 @@ interface TransferRow {
   status: TransferStatus;
   provider_reference: string | null;
   failure_code: string | null;
+  may_have_reached_provider: boolean;
   created_at: Date;
   updated_at: Date;
 }
+
+/**
+ * Referencia que se le presenta al proveedor: DETERMINISTA, derivada de (business_ref, attempt). Si el proceso muere entre enviar y
+ * registrar la respuesta, el reintento presenta la MISMA referencia y el proveedor deduplica en vez de pagar de nuevo.
+ */
+const providerReferenceOf = (row: Pick<TransferRow, 'business_ref' | 'attempt'>): string => `${row.business_ref}:${row.attempt}`;
 
 interface CreateTransfer {
   readonly businessRef: string;
@@ -94,8 +101,12 @@ function parse(body: unknown): CreateTransfer {
  *   contenido, 422 `idempotency_key_reused`. Una operación de negocio se paga UNA vez (índice único parcial sobre `paid`).
  * - El registro se escribe ANTES de llamar al proveedor. Un fallo ambiguo (timeout) deja la fila `pending`, responde 500 (nunca el
  *   código `connector_unavailable`, que el contrato reserva para «no se envió nada») y se resuelve con `GET /transfers/{reference}`.
- * - Solo `ConnectorUnavailableError` (el conector garantiza que NO envió nada) responde 502 `connector_unavailable`; en ese caso se
- *   borra el registro: no existe nada en el proveedor y el mismo `attempt` puede reintentarse.
+ * - Es un registro de dinero de SOLO-AGREGAR: nunca se borra una fila. Solo se cambia de estado, y `failed` únicamente si el proveedor
+ *   lo confirmó o el conector garantiza que no envió nada.
+ * - 502 `connector_unavailable` (definitivo: «no se envió nada») SOLO si es la PRIMERA llamada que pudo llegar al proveedor
+ *   (`may_have_reached_provider = false` antes de llamar) y falló con `ConnectorUnavailableError`. Si hubo cualquier intento previo que
+ *   pudo llegar (timeout, corte, 5xx de proxy), un `Unavailable` posterior NO prueba nada: 500 `internal_error`, la fila se conserva.
+ * - `404 transfer_not_found` SOLO si el proveedor respondió explícitamente `not_found`.
  */
 @Injectable()
 export class TransfersService {
@@ -157,23 +168,32 @@ export class TransfersService {
   }
 
   private async send(ctx: Parameters<Parameters<IdempotencyStore['execute']>[1]>[0], row: TransferRow): Promise<TransferRow> {
+    // Marca «pudo haber llegado» ANTES de llamar. `prior` dice si ya la había (un intento anterior pudo llegar).
+    const prior = row.may_have_reached_provider;
+    if (!prior) await this.pool.query('UPDATE connector_transfers SET may_have_reached_provider = true, updated_at = $2 WHERE id = $1', [row.id, this.clock.now()]);
+    const reference = providerReferenceOf(row);
     try {
       const result = await this.gateway.callIdempotent(row.connector, row.id, 'create_transfer', (c) =>
-        (c.createTransfer as NonNullable<typeof c.createTransfer>).call(c, { reference: row.id, amountMinor: row.amount_minor, destinationRef: row.destination_ref }, this.clock.now()),
+        (c.createTransfer as NonNullable<typeof c.createTransfer>).call(c, { reference, amountMinor: row.amount_minor, destinationRef: row.destination_ref }, this.clock.now()),
       );
       return await ctx.atomic('transfer_sent', (client) => this.settle(client, row.id, result.status, result.providerReference, result.failureCode ?? null));
     } catch (error) {
-      if (error instanceof ConnectorUnavailableError) {
-        // El conector garantiza que NO envió nada: no hay transferencia. Se borra el registro y el attempt puede reintentarse.
-        await this.pool.query("DELETE FROM connector_transfers WHERE id = $1 AND provider_reference IS NULL AND status = 'pending'", [row.id]);
+      if (error instanceof ConnectorUnavailableError && !prior) {
+        // Primera llamada que pudo llegar y el conector garantiza que NO envió nada: es lo único definitivo. Se cambia de estado (no se
+        // borra): `failed` con motivo; el llamador ordena el siguiente attempt.
+        await this.pool.query("UPDATE connector_transfers SET status = 'failed', failure_code = 'connector_unavailable', may_have_reached_provider = false, updated_at = $2 WHERE id = $1 AND status = 'pending' AND provider_reference IS NULL", [row.id, this.clock.now()]);
         throw new ProblemError('connector_unavailable', { detail: 'El proveedor no está disponible; no se envió ninguna orden' });
       }
-      if (error instanceof ConnectorTimeoutError) {
-        // AMBIGUO: la orden pudo ejecutarse. Nada de `connector_unavailable`; la persona o el servicio consulta GET /transfers/{reference}.
+      if (error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError) {
+        // AMBIGUO: la orden pudo ejecutarse. Nada de `connector_unavailable`; la fila queda y se resuelve con GET /transfers/{reference}.
         throw new ProblemError('internal_error', { detail: 'Resultado ambiguo: consultá GET /transfers/{reference} antes de decidir' });
       }
-      if (error instanceof ConnectorRejectedError) {
+      if (error instanceof ConnectorRejectedError && !prior) {
+        // Rechazo explícito del proveedor en la primera llamada: confirma que no se pagó.
         return await ctx.atomic('transfer_sent', (client) => this.settle(client, row.id, 'failed', null, error.code));
+      }
+      if (error instanceof ConnectorRejectedError) {
+        throw new ProblemError('internal_error', { detail: 'Resultado ambiguo: consultá GET /transfers/{reference} antes de decidir' });
       }
       throw error;
     }
@@ -182,7 +202,8 @@ export class TransfersService {
   private async settle(client: Queryable, id: string, status: TransferStatus, providerReference: string | null, failureCode: string | null): Promise<TransferRow> {
     const updated = await client.query(
       `UPDATE connector_transfers
-          SET status = $2, provider_reference = COALESCE($3, provider_reference), failure_code = $4, updated_at = $5
+          SET status = $2, provider_reference = COALESCE($3, provider_reference),
+              failure_code = CASE WHEN $2 = 'failed' THEN COALESCE($4, 'rejected_by_provider') ELSE $4 END, updated_at = $5
         WHERE id = $1 AND status NOT IN ('paid', 'failed')
         RETURNING *`,
       [id, status, providerReference, failureCode, this.clock.now()],
@@ -203,21 +224,25 @@ export class TransfersService {
     // Todo registro se escribe ANTES de llamar al proveedor: sin fila, el proveedor nunca recibió esa orden.
     if (!row) throw new ProblemError('transfer_not_found');
     if (TERMINAL.has(row.status)) return view(row);
+    const current = row;
 
     try {
-      const observed = await this.gateway.call(row.connector, row.id, 'get_transfer', (c) => (c.getTransfer as NonNullable<typeof c.getTransfer>).call(c, row?.id as string, this.clock.now()));
+      const observed = await this.gateway.call(row.connector, row.id, 'get_transfer', (c) =>
+        (c.getTransfer as NonNullable<typeof c.getTransfer>).call(c, providerReferenceOf(current), this.clock.now()),
+      );
+      if (observed.status === 'not_found') {
+        // El proveedor respondió de forma EXPLÍCITA que no tiene registro: es la única prueba de inexistencia que pide el contrato.
+        // La fila NO se borra (solo-agregar); queda pendiente y el mismo par puede volver a enviarse con la misma referencia.
+        throw new ProblemError('transfer_not_found');
+      }
       if (observed.status !== row.status || row.provider_reference === null) {
-        const current = row;
         row = await inTransaction(this.pool, (client) => this.settle(client, current.id, observed.status, observed.providerReference, observed.failureCode ?? null));
       }
     } catch (error) {
-      if (error instanceof ConnectorRejectedError) {
-        // El proveedor consultó y NO tiene registro de esa referencia: es la prueba de inexistencia que el contrato pide.
-        await this.pool.query("DELETE FROM connector_transfers WHERE id = $1 AND status = 'pending'", [row.id]);
-        throw new ProblemError('transfer_not_found');
-      }
-      if (!(error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError)) throw error;
-      // Sin respuesta del proveedor: se devuelve lo último que se sabe (no terminal), que obliga a quien llama a seguir esperando.
+      if (error instanceof ProblemError) throw error;
+      // Sin respuesta, o respuesta que no es un `not_found` explícito (rechazo genérico, 5xx, corte): NO prueba inexistencia.
+      // Se devuelve lo último que se sabe (no terminal), que obliga a quien llama a seguir esperando.
+      if (!(error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError || error instanceof ConnectorRejectedError)) throw error;
     }
     return view(row);
   }

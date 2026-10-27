@@ -1,4 +1,5 @@
 import { MockConnector } from '../src/connectors/mock/mock.connector';
+import { ConnectorTimeoutError, ConnectorUnavailableError, type ProviderChargeRequest } from '../src/domain/connector';
 import { SimulatedBank } from '../src/connectors/mock/simulated-bank';
 import { SERVICE_CONFIG, type ServiceConfig } from '../src/config';
 import { HealthService } from '../src/core/health.service';
@@ -89,6 +90,7 @@ describe('conmutación por error (REQ-P4-3)', () => {
       { connector: 'mercantil_qr', outcome: 'unavailable' },
       { connector: 'mock', outcome: 'ok' },
     ]);
+    primaryBank.setDown(false); // para poder leer su extracto
     expect(primaryBank.statement({ from: new Date(0), to: new Date(8.64e15) }).filter((l) => l.ourReference === response.body.id)).toEqual([]);
     expect((await t.db.pool.query('SELECT count(*)::int AS n FROM connector_charges')).rows[0].n).toBe(1);
   });
@@ -155,5 +157,38 @@ describe('conmutación por error (REQ-P4-3)', () => {
     } finally {
       config.timeoutRetries = 2;
     }
+  });
+
+  it('timeout y DESPUÉS Unavailable en el reintento ⇒ NO se conmuta a otro conector (el primero pudo haber cobrado): se queda en el mismo', async () => {
+    const preferred = t.app.get<ConnectorRegistry>(REGISTRY).get('mercantil_qr') as MockConnector;
+    const original = preferred.createCharge.bind(preferred);
+    let calls = 0;
+    preferred.createCharge = async (request: ProviderChargeRequest, now: Date) => {
+      calls += 1;
+      if (calls === 1) {
+        await original(request, now); // el proveedor cobra…
+        throw new ConnectorTimeoutError(); // …y la respuesta se pierde
+      }
+      throw new ConnectorUnavailableError('unreachable');
+    };
+    const key = uniqueKey();
+    const body = chargeBody({}, t.clock);
+    try {
+      const response = await post(t.app, '/charges', body, asPayments, key);
+      expect(response.status).toBe(502);
+      const row = (await t.db.pool.query('SELECT id, connector, ambiguous FROM connector_charges')).rows;
+      expect(row).toHaveLength(1);
+      expect(row[0]).toMatchObject({ connector: 'mercantil_qr', ambiguous: true });
+      expect((await attemptsOf(row[0].id)).every((a: { connector: string }) => a.connector === 'mercantil_qr')).toBe(true); // jamás se probó con `mock`
+      // Un reintento con el proveedor caído sigue sin cambiar de conector ni bajar la marca.
+      expect((await post(t.app, '/charges', body, asPayments, key)).status).toBe(502);
+      expect((await t.db.pool.query('SELECT connector, ambiguous FROM connector_charges')).rows[0]).toMatchObject({ connector: 'mercantil_qr', ambiguous: true });
+    } finally {
+      preferred.createCharge = original;
+    }
+    const resumed = await post(t.app, '/charges', body, asPayments, key);
+    expect(resumed.status).toBe(201);
+    expect(resumed.body.connector).toBe('mercantil_qr');
+    expect((await t.db.pool.query('SELECT count(*)::int AS n FROM connector_charges')).rows[0].n).toBe(1);
   });
 });

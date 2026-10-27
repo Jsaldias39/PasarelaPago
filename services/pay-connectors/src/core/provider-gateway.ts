@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { SERVICE_CONFIG, type ServiceConfig } from '../config';
 import { PG_POOL } from '../database.module';
-import { ConnectorTimeoutError, ConnectorUnavailableError, type Connector, type ConnectorCode } from '../domain/connector';
+import { ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError, type Connector, type ConnectorCode } from '../domain/connector';
 import type { ConnectorRegistry } from '../domain/registry';
 import { CLOCK, REGISTRY, type Clock } from './tokens';
 import { HealthService } from './health.service';
@@ -55,13 +55,24 @@ export class ProviderGateway {
     }
   }
 
-  /** Para operaciones idempotentes por referencia (cobro, reembolso): un timeout ambiguo se reintenta con la MISMA referencia. */
+  /**
+   * Para operaciones idempotentes por referencia (cobro, reembolso, transferencia): un timeout ambiguo se reintenta con la MISMA
+   * referencia. Una vez que HUBO un intento ambiguo, nada de lo que pase después prueba que no se ejecutó: un `Unavailable` o un
+   * rechazo en el reintento se elevan a ambiguo (`ConnectorTimeoutError`), nunca se informan como «no se envió» ni como fallo.
+   */
   async callIdempotent<T>(code: ConnectorCode, subjectId: string, operation: Operation, work: (connector: Connector) => Promise<T>): Promise<T> {
+    let ambiguous = false;
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await this.call(code, subjectId, operation, work);
       } catch (error) {
-        if (!(error instanceof ConnectorTimeoutError) || attempt >= this.config.timeoutRetries) throw error;
+        if (error instanceof ConnectorTimeoutError) {
+          ambiguous = true;
+          if (attempt >= this.config.timeoutRetries) throw error;
+          continue;
+        }
+        if (ambiguous && (error instanceof ConnectorUnavailableError || error instanceof ConnectorRejectedError)) throw new ConnectorTimeoutError();
+        throw error;
       }
     }
   }

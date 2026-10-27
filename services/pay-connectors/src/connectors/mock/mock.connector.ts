@@ -80,7 +80,7 @@ export class MockConnector implements Connector {
     return this.options.bank.transfer(request, now);
   }
 
-  async getTransfer(reference: string, now: Date): Promise<ProviderTransferResult> {
+  async getTransfer(reference: string, now: Date): Promise<ProviderTransferResult | { readonly status: 'not_found' }> {
     return this.options.bank.transferStatus(reference, now);
   }
 

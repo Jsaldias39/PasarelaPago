@@ -93,6 +93,8 @@ export class ChargesService {
       ? [row.connector]
       : [...(await this.routing.choose({ method: input.method, amountMinor: input.amountMinor, ...(input.preferred && { preferred: input.preferred }) })).candidates];
     if (candidates.length === 0) throw new ProblemError('connector_unavailable', { detail: 'Ningún conector disponible para este medio de pago' });
+    // Si ya hubo una llamada en vuelo, lo que pase ahora NO prueba que el proveedor no tenga el cobro (regla 11 del CLAUDE.md).
+    const priorAmbiguous = row.ambiguous;
 
     for (const code of candidates) {
       // Marca «llamada en vuelo» ANTES de llamar: si el proceso muere ahora, el reintento no cambia de conector.
@@ -124,6 +126,10 @@ export class ChargesService {
           return toChargeRow(updated.rows[0]);
         });
       } catch (error) {
+        if (error instanceof ConnectorUnavailableError && priorAmbiguous) {
+          // Un intento anterior pudo llegar: no se baja la marca ni se cambia de conector (podría cobrarse dos veces).
+          throw new ProblemError('connector_unavailable', { detail: 'El proveedor no respondió; reintentá con la misma Idempotency-Key' });
+        }
         if (error instanceof ConnectorUnavailableError) {
           // Seguro: el proveedor no recibió nada. Se baja la marca y se prueba con el siguiente conector.
           await this.pool.query('UPDATE connector_charges SET ambiguous = false, updated_at = $2 WHERE id = $1', [row.id, this.clock.now()]);
@@ -132,6 +138,9 @@ export class ChargesService {
         if (error instanceof ConnectorTimeoutError) {
           // Ambiguo: el cobro puede existir. Se queda marcado y NO se prueba con otro conector.
           throw new ProblemError('connector_unavailable', { detail: 'El proveedor no respondió a tiempo; reintentá con la misma Idempotency-Key' });
+        }
+        if (error instanceof ConnectorRejectedError && priorAmbiguous) {
+          throw new ProblemError('connector_unavailable', { detail: 'Resultado ambiguo; reintentá con la misma Idempotency-Key' });
         }
         if (error instanceof ConnectorRejectedError) {
           await this.pool.query(`UPDATE connector_charges SET provider_status = 'failed', failure_code = $2, ambiguous = false, updated_at = $3 WHERE id = $1`, [row.id, error.code, this.clock.now()]);

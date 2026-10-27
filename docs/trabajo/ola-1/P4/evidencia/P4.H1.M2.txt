@@ -1,0 +1,50 @@
+# P4.H1.M2 — esquema aplicado a un esquema vacío (dos veces: idempotente)
+
+TABLAS:
+  bank_transfer_references (4 columnas)
+  connector_api_attempts (7 columnas)
+  connector_callback_endpoints (6 columnas)
+  connector_callback_events (9 columnas)
+  connector_charges (23 columnas)
+  connector_health (9 columnas)
+  connector_refunds (12 columnas)
+  connector_transfers (15 columnas)
+  idempotency_keys (11 columnas)
+  inbox_events (3 columnas)
+  outbox_events (11 columnas)
+  routing_rule_sets (4 columnas)
+  statement_exceptions (8 columnas)
+ÍNDICES (todos con nombre explícito):
+  bank_transfer_references_charge_uidx
+  bank_transfer_references_pkey
+  connector_api_attempts_pkey
+  connector_api_attempts_subject_idx
+  connector_callback_endpoints_path_uidx
+  connector_callback_endpoints_pkey
+  connector_callback_events_charge_idx
+  connector_callback_events_dedup_uidx
+  connector_callback_events_pkey
+  connector_charges_caller_key_uidx
+  connector_charges_live_intent_uidx
+  connector_charges_pkey
+  connector_charges_poll_idx
+  connector_health_pkey
+  connector_refunds_caller_key_uidx
+  connector_refunds_charge_idx
+  connector_refunds_pkey
+  connector_transfers_one_paid_uidx
+  connector_transfers_pkey
+  connector_transfers_ref_attempt_uidx
+  idempotency_keys_expires_at_idx
+  idempotency_keys_pkey
+  inbox_events_pkey
+  outbox_events_pending_idx
+  outbox_events_pkey
+  outbox_events_seq_key
+  routing_rule_sets_one_active_uidx
+  routing_rule_sets_pkey
+  statement_exceptions_line_uidx
+  statement_exceptions_pkey
+índices con nombre generado: 0
+CHECK nombrados con prefijo del esquema propio: connector_api_attempts_latency_ms_check, connector_api_attempts_operation_check, connector_api_attempts_outcome_check, connector_callback_endpoints_replay_window_seconds_check, connector_callback_events_observed_via_check, connector_callback_events_provider_event_id_check, connector_callback_events_result_check, connector_charges_amount_minor_check, connector_charges_connector_check, connector_charges_currency_check, connector_charges_id_check, connector_charges_merchant_id_check, connector_charges_method_check, connector_charges_mode_check, connector_charges_payment_intent_id_check, connector_charges_provider_status_check, connector_health_consecutive_failures_check, connector_health_last_reason_check, connector_health_mode_check, connector_health_status_check, connector_refunds_amount_minor_check, connector_refunds_currency_check, connector_refunds_id_check, connector_refunds_status_check, connector_transfers_amount_minor_check, connector_transfers_attempt_check, connector_transfers_business_ref_check, connector_transfers_connector_check, connector_transfers_currency_check, connector_transfers_destination_ref_check, connector_transfers_failed_reason_ck, connector_transfers_id_check, connector_transfers_mode_check, connector_transfers_status_check
+exit=0

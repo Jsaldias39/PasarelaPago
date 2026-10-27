@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS connector_refunds (
   status             text        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'succeeded', 'failed')),
   provider_reference text,
   failure_code       text,
+  may_have_reached_provider boolean NOT NULL DEFAULT false,   -- ver connector_transfers
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now()
 );
@@ -115,10 +116,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS routing_rule_sets_one_active_uidx ON routing_r
 -- Referencia única de la transferencia bancaria; el pagador la escribe y con ella se concilia.
 CREATE TABLE IF NOT EXISTS bank_transfer_references (
   reference  text        PRIMARY KEY CHECK (reference ~ '^TR[A-Z2-7]{10}$'),
-  charge_id  text        NOT NULL UNIQUE REFERENCES connector_charges (id),
+  charge_id  text        NOT NULL REFERENCES connector_charges (id),
   expires_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS bank_transfer_references_charge_uidx ON bank_transfer_references (charge_id);
 
 -- Líneas de extracto que no cierran (sin cobro, importe distinto, crédito repetido). Quedan para conciliación humana; no se descartan.
 CREATE TABLE IF NOT EXISTS statement_exceptions (
@@ -149,8 +151,13 @@ CREATE TABLE IF NOT EXISTS connector_transfers (
   status             text        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_transit', 'paid', 'failed')),
   provider_reference text,
   failure_code       text,
+  -- true desde ANTES de la primera llamada al proveedor: a partir de ahí una orden pudo haber llegado y la fila NO se descarta jamás.
+  -- Solo mientras sea false un `connector_unavailable` prueba que no se envió nada.
+  may_have_reached_provider boolean NOT NULL DEFAULT false,
   created_at         timestamptz NOT NULL DEFAULT now(),
-  updated_at         timestamptz NOT NULL DEFAULT now()
+  updated_at         timestamptz NOT NULL DEFAULT now(),
+  -- Registro de dinero de solo-agregar: `failed` solo con explicación (la confirmó el proveedor o el conector garantiza que no envió).
+  CONSTRAINT connector_transfers_failed_reason_ck CHECK (status <> 'failed' OR failure_code IS NOT NULL)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS connector_transfers_ref_attempt_uidx ON connector_transfers (business_ref, attempt);
 -- Una operación de negocio se paga una sola vez, aunque se ordenen intentos distintos.

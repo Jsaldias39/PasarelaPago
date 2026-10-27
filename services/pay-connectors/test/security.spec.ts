@@ -8,7 +8,7 @@ import { SIMULATED_BANK } from '../src/core/mock-pump.service';
 import { REGISTRY } from '../src/core/tokens';
 import type { ConnectorRegistry } from '../src/domain/registry';
 import type { SimulatedBank } from '../src/connectors/mock/simulated-bank';
-import { asPayments, asSettlement, chargeBody, createTestApp, get, post, uniqueKey, type TestApp } from './support/app';
+import { asPayments, asSettlement, chargeBody, createTestApp, get, post, type TestApp } from './support/app';
 
 const SECRET = process.env.PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET as string;
 const SECRET_BODY = SECRET.replace(/^whsec_/, '');

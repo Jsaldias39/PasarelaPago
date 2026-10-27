@@ -70,26 +70,29 @@ export class RefundsService {
         if (BigInt(others.rows[0].total as string) + refund.amount_minor > charge.amount_minor) {
           throw new ProblemError('validation_failed', { errors: [{ field: 'amount_minor', code: 'exceeds_refundable' }] });
         }
-        const reopened = await client.query(`UPDATE connector_refunds SET status = 'pending', failure_code = NULL, updated_at = $2 WHERE id = $1 RETURNING *`, [refund.id, this.clock.now()]);
+        const reopened = await client.query(`UPDATE connector_refunds SET status = 'pending', failure_code = NULL, may_have_reached_provider = false, updated_at = $2 WHERE id = $1 RETURNING *`, [refund.id, this.clock.now()]);
         return toRefundRow(reopened.rows[0]);
       });
     }
+    // Marca «pudo haber llegado» ANTES de llamar; `prior` dice si un intento anterior ya pudo llegar.
+    const prior = refund.may_have_reached_provider;
+    if (!prior) await this.pool.query('UPDATE connector_refunds SET may_have_reached_provider = true, updated_at = $2 WHERE id = $1', [refund.id, this.clock.now()]);
     try {
-      const result = await this.gateway.callIdempotent(charge.connector, charge.id, 'refund', (c) =>
+      const result = await this.gateway.callIdempotent(charge.connector, refund.id, 'refund', (c) =>
         c.refund({ reference: refund.id, chargeReference: charge.id, amountMinor: refund.amount_minor }, this.clock.now()),
       );
       const status = result.status === 'captured' ? 'succeeded' : result.status;
       return await ctx.atomic('refund_sent', (client) => this.settle(client, refund, charge, status, result.providerReference, result.failureCode ?? null));
     } catch (error) {
-      if (error instanceof ConnectorUnavailableError) {
-        // Seguro: el proveedor no recibió nada. Se libera la reserva (sin evento) y el llamador anula su retención del ledger.
-        // El reintento con la misma clave retoma acá y vuelve a reservar.
-        await this.pool.query(`UPDATE connector_refunds SET status = 'failed', failure_code = 'connector_unavailable', updated_at = $2 WHERE id = $1`, [refund.id, this.clock.now()]);
+      if (error instanceof ConnectorUnavailableError && !prior) {
+        // Primera llamada que pudo llegar y el conector garantiza que no envió nada: se libera la reserva (sin evento) y el llamador anula
+        // su retención del ledger. El reintento con la misma clave retoma acá y vuelve a reservar.
+        await this.pool.query(`UPDATE connector_refunds SET status = 'failed', failure_code = 'connector_unavailable', may_have_reached_provider = false, updated_at = $2 WHERE id = $1`, [refund.id, this.clock.now()]);
         throw new ProblemError('connector_unavailable', { detail: 'El proveedor no está disponible para reembolsar' });
       }
-      if (error instanceof ConnectorTimeoutError) {
-        // Ambiguo: el reembolso puede existir. La reserva se mantiene y el reintento usa la misma referencia `cr_…`.
-        throw new ProblemError('connector_unavailable', { detail: 'El proveedor no respondió a tiempo; reintentá con la misma Idempotency-Key' });
+      if (error instanceof ConnectorUnavailableError || error instanceof ConnectorTimeoutError || (error instanceof ConnectorRejectedError && prior)) {
+        // AMBIGUO (regla 11): el reembolso pudo ejecutarse. La reserva se mantiene, NO se dice «sin efecto» y el reintento usa `cr_…`.
+        throw new ProblemError('internal_error', { detail: 'Resultado ambiguo; reintentá con la misma Idempotency-Key o consultá el cobro' });
       }
       if (error instanceof ConnectorRejectedError) {
         await ctx.atomic('refund_sent', (client) => this.settle(client, refund, charge, 'failed', null, error.code));

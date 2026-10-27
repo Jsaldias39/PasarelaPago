@@ -163,6 +163,9 @@ export interface Connector {
   probe(now: Date): Promise<ProbeResult>;
   /** Transferencia SALIENTE (pago a un comercio). Opcional: un conector sin esta capacidad la rechaza con 422. Idempotente por `request.reference`. */
   createTransfer?(request: ProviderTransferRequest, now: Date): Promise<ProviderTransferResult>;
-  /** Consulta autoritativa al proveedor por la referencia con la que se ordenó. */
-  getTransfer?(reference: string, now: Date): Promise<ProviderTransferResult>;
+  /**
+   * Consulta autoritativa al proveedor por la referencia con la que se ordenó. `{ status: 'not_found' }` SOLO si el proveedor respondió
+   * de forma explícita que no tiene registro: un error, un rechazo genérico o un 404 sin cuerpo NO son `not_found`.
+   */
+  getTransfer?(reference: string, now: Date): Promise<ProviderTransferResult | { readonly status: 'not_found' }>;
 }

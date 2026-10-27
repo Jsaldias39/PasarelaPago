@@ -1,5 +1,9 @@
 import request from 'supertest';
 import { SERVICE_CONFIG, type ServiceConfig } from '../src/config';
+import { MockConnector } from '../src/connectors/mock/mock.connector';
+import { REGISTRY } from '../src/core/tokens';
+import type { ConnectorRegistry } from '../src/domain/registry';
+import { ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError, type ProviderTransferRequest } from '../src/domain/connector';
 import type { SimulatedBank } from '../src/connectors/mock/simulated-bank';
 import { SIMULATED_BANK } from '../src/core/mock-pump.service';
 import { asPayments, asSettlement, createTestApp, post, uniqueKey, type TestApp } from './support/app';
@@ -166,27 +170,146 @@ describe('POST /transfers', () => {
     });
   });
 
-  it('proveedor caído ANTES de enviar: 502 `connector_unavailable` (definitivo), no queda registro y el mismo attempt se puede reintentar', async () => {
+  it('proveedor caído ANTES de enviar nada: 502 `connector_unavailable` (definitivo) y la fila pasa a `failed` con motivo (no se borra); el siguiente attempt se acepta', async () => {
     const b = body();
     bank.setDown(true);
     const down = await order(b);
     expect(down.status).toBe(502);
     expect(down.body.code).toBe('connector_unavailable');
     t.contract.assertResponse({ method: 'POST', path: '/transfers', status: 502, body: down.body });
-    expect(await rows()).toHaveLength(0);
-    const notFound = await getTransfer(`${b.business_ref}:1`);
-    expect(notFound.status).toBe(404);
+    expect(await rows()).toEqual([{ business_ref: b.business_ref, attempt: 1, status: 'failed', provider_reference: null, failure_code: 'connector_unavailable' }]);
     bank.setDown(false);
-    const retry = await order(b);
-    expect(retry.status).toBe(201);
-    expect(retry.body.status).toBe('paid');
+    // El mismo par devuelve lo que ya se registró; para reintentar se ordena el siguiente attempt.
+    const same = await order(b);
+    expect(same.status).toBe(200);
+    expect(same.body).toMatchObject({ status: 'failed', failure_code: 'connector_unavailable' });
+    expect((await getTransfer(`${b.business_ref}:1`)).body.status).toBe('failed');
+    const next = await order({ ...b, attempt: 2 });
+    expect(next.status).toBe(201);
+    expect(next.body.status).toBe('paid');
+    expect(bank.transferCount()).toBe(1);
   });
 
-  it('caída del simulador por importe (centavos 06) ⇒ 502 definitivo', async () => {
+  it('caída del simulador por importe (centavos 06) ⇒ 502 definitivo, fila `failed`, y el banco no ejecutó nada', async () => {
     const response = await order(body({ amount_minor: 250006 }));
     expect(response.status).toBe(502);
     expect(response.body.code).toBe('connector_unavailable');
-    expect(await rows()).toHaveLength(0);
+    expect((await rows())[0]).toMatchObject({ status: 'failed', failure_code: 'connector_unavailable' });
+    expect(bank.transferCount()).toBe(0);
+  });
+
+  describe('regla 11 — un resultado ambiguo no se convierte en definitivo', () => {
+    const mock = () => t.app.get<ConnectorRegistry>(REGISTRY).get('mock') as MockConnector;
+    const config = () => t.app.get<ServiceConfig>(SERVICE_CONFIG) as { timeoutRetries: number };
+
+    it('timeout y DESPUÉS `Unavailable` en el reintento ⇒ NO es `connector_unavailable`: 500, la fila se conserva marcada como «pudo llegar»', async () => {
+      const connector = mock();
+      const original = connector.createTransfer.bind(connector);
+      let calls = 0;
+      connector.createTransfer = async (request: ProviderTransferRequest, now: Date) => {
+        calls += 1;
+        if (calls === 1) {
+          await original(request, now); // el banco la ejecuta…
+          throw new ConnectorTimeoutError(); // …y la respuesta se pierde
+        }
+        throw new ConnectorUnavailableError('unreachable'); // el reintento no encuentra al banco
+      };
+      try {
+        const b = body();
+        const response = await order(b);
+        expect(response.status).toBe(500);
+        expect(response.body.code).toBe('internal_error');
+        expect(response.body.code).not.toBe('connector_unavailable');
+        const stored = await t.db.pool.query('SELECT status, may_have_reached_provider FROM connector_transfers');
+        expect(stored.rows).toEqual([{ status: 'pending', may_have_reached_provider: true }]);
+        expect(bank.transferCount()).toBe(1); // el banco SÍ la ejecutó
+      } finally {
+        connector.createTransfer = original;
+      }
+    });
+
+    it('la fila de una transferencia posiblemente enviada NUNCA desaparece: ni por fallos, ni por consultas, ni por caídas', async () => {
+      const connector = mock();
+      const originalGet = connector.getTransfer.bind(connector);
+      config().timeoutRetries = 0;
+      try {
+        const b = body({ amount_minor: 250007 });
+        expect((await order(b)).status).toBe(500); // ambiguo
+        const before = await rows();
+        bank.setDown(true);
+        expect((await order(b)).status).toBe(500); // el reintento encuentra al banco caído: sigue ambiguo
+        expect((await getTransfer(`${b.business_ref}:1`)).status).toBe(200); // consulta sin respuesta: último estado
+        connector.getTransfer = async () => {
+          throw new ConnectorRejectedError('validation_failed', 'rechazo genérico');
+        };
+        expect((await getTransfer(`${b.business_ref}:1`)).status).toBe(200);
+        expect(await rows()).toEqual(before);
+        expect(before).toHaveLength(1);
+      } finally {
+        connector.getTransfer = originalGet;
+        config().timeoutRetries = 2;
+        bank.setDown(false);
+      }
+    });
+
+    it('un rechazo GENÉRICO en la consulta NO es `transfer_not_found`: devuelve el último estado conocido', async () => {
+      const connector = mock();
+      const originalGet = connector.getTransfer.bind(connector);
+      const b = body({ amount_minor: 250002 });
+      await order(b); // en tránsito
+      connector.getTransfer = async () => {
+        throw new ConnectorRejectedError('validation_failed', 'referencia desconocida');
+      };
+      try {
+        const response = await getTransfer(`${b.business_ref}:1`);
+        expect(response.status).toBe(200);
+        expect(response.body.status).toBe('in_transit');
+        expect(response.body.code).not.toBe('transfer_not_found');
+      } finally {
+        connector.getTransfer = originalGet;
+      }
+    });
+
+    it('`not_found` EXPLÍCITO del proveedor ⇒ 404 transfer_not_found, y la fila igual se conserva', async () => {
+      const b = body();
+      await t.db.pool.query(
+        "INSERT INTO connector_transfers (id, business_ref, attempt, caller, connector, mode, amount_minor, currency, destination_ref, may_have_reached_provider) VALUES ('tr_ghostghostghost1', $1, 1, 'pay-settlement', 'mock', 'sandbox', 1000, 'BOB', 'dest', true)",
+        [b.business_ref],
+      );
+      const response = await getTransfer(`${b.business_ref}:1`);
+      expect(response.status).toBe(404);
+      expect(response.body.code).toBe('transfer_not_found');
+      expect(await rows()).toHaveLength(1);
+    });
+
+    it('referencia DETERMINISTA: dos envíos del mismo par separados por una caída presentan la MISMA referencia y el banco ejecuta UNA transferencia', async () => {
+      const connector = mock();
+      const original = connector.createTransfer.bind(connector);
+      const seen: string[] = [];
+      connector.createTransfer = async (request: ProviderTransferRequest, now: Date) => {
+        seen.push(request.reference);
+        return original(request, now);
+      };
+      config().timeoutRetries = 0;
+      try {
+        const b = body({ amount_minor: 250007 });
+        expect((await order(b)).status).toBe(500); // el banco ejecuta y la respuesta se pierde
+        bank.setDown(true);
+        expect((await order(b)).status).toBe(500); // caída entre el envío y el registro de la respuesta
+        bank.setDown(false);
+        const done = await order(b);
+        expect(done.status).toBe(200);
+        expect(done.body.status).toBe('paid');
+        expect(seen).toHaveLength(3);
+        expect(new Set(seen)).toEqual(new Set([`${b.business_ref}:1`]));
+        expect(bank.transferCount()).toBe(1);
+        expect(await rows()).toHaveLength(1);
+      } finally {
+        connector.createTransfer = original;
+        config().timeoutRetries = 2;
+        bank.setDown(false);
+      }
+    });
   });
 
   it.each([
@@ -248,18 +371,6 @@ describe('GET /transfers/{reference}', () => {
     expect(response.headers['content-type']).toContain('application/problem+json');
     expect(response.body.code).toBe('transfer_not_found');
     t.contract.assertResponse({ method: 'GET', path: '/transfers/po_inexistente:payout:1', status: 404, body: response.body });
-  });
-
-  it('el proveedor confirma que NO tiene registro de una orden pendiente ⇒ 404 transfer_not_found y se limpia la fila', async () => {
-    const b = body();
-    await t.db.pool.query(
-      "INSERT INTO connector_transfers (id, business_ref, attempt, caller, connector, mode, amount_minor, currency, destination_ref) VALUES ('tr_ghostghostghost1', $1, 1, 'pay-settlement', 'mock', 'sandbox', 1000, 'BOB', 'dest')",
-      [b.business_ref],
-    );
-    const response = await getTransfer(`${b.business_ref}:1`);
-    expect(response.status).toBe(404);
-    expect(response.body.code).toBe('transfer_not_found');
-    expect(await rows()).toHaveLength(0);
   });
 
   it('proveedor sin respuesta ⇒ el último estado conocido (no terminal), nunca un 404', async () => {

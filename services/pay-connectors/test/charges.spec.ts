@@ -1,4 +1,8 @@
 import { SERVICE_CONFIG, type ServiceConfig } from '../src/config';
+import { MockConnector } from '../src/connectors/mock/mock.connector';
+import { REGISTRY } from '../src/core/tokens';
+import { ConnectorTimeoutError, ConnectorUnavailableError, type ProviderRefundRequest } from '../src/domain/connector';
+import type { ConnectorRegistry } from '../src/domain/registry';
 import { SIMULATED_BANK, MockPumpService } from '../src/core/mock-pump.service';
 import type { SimulatedBank } from '../src/connectors/mock/simulated-bank';
 import { asPayments, asSettlement, chargeBody, createTestApp, get, intentId, post, uniqueKey, type TestApp } from './support/app';
@@ -371,6 +375,38 @@ describe('POST /charges/{id}/refunds', () => {
     const retry = await post(t.app, `/charges/${id}/refunds`, { amount_minor: 10000 }, asPayments, key);
     expect(retry.status).toBe(201);
     expect(retry.body.status).toBe('succeeded');
+    expect((await t.db.pool.query('SELECT count(*)::int AS n FROM connector_refunds')).rows[0].n).toBe(1);
+  });
+
+  it('timeout y DESPUÉS Unavailable en el reintento ⇒ 500 ambiguo (jamás «sin efecto»): la reserva se mantiene y la misma clave lo completa sin reembolsar dos veces', async () => {
+    const id = await paid();
+    const connector = t.app.get<ConnectorRegistry>(REGISTRY).get('mock') as MockConnector;
+    const original = connector.refund.bind(connector);
+    let calls = 0;
+    connector.refund = async (request: ProviderRefundRequest, now: Date) => {
+      calls += 1;
+      if (calls === 1) {
+        await original(request, now); // el proveedor reembolsa…
+        throw new ConnectorTimeoutError(); // …y la respuesta se pierde
+      }
+      throw new ConnectorUnavailableError('unreachable');
+    };
+    const key = uniqueKey();
+    try {
+      const response = await post(t.app, `/charges/${id}/refunds`, { amount_minor: 10000 }, asPayments, key);
+      expect(response.status).toBe(500);
+      expect(response.body.code).toBe('internal_error');
+      expect(response.body.code).not.toBe('connector_unavailable');
+      const stored = (await t.db.pool.query('SELECT status, may_have_reached_provider FROM connector_refunds')).rows;
+      expect(stored).toEqual([{ status: 'pending', may_have_reached_provider: true }]);
+      // La reserva sigue: no se puede reembolsar otra vez lo mismo.
+      expect((await post(t.app, `/charges/${id}/refunds`, { amount_minor: 1 })).status).toBe(422);
+    } finally {
+      connector.refund = original;
+    }
+    const resumed = await post(t.app, `/charges/${id}/refunds`, { amount_minor: 10000 }, asPayments, key);
+    expect(resumed.status).toBe(201);
+    expect(resumed.body.status).toBe('succeeded');
     expect((await t.db.pool.query('SELECT count(*)::int AS n FROM connector_refunds')).rows[0].n).toBe(1);
   });
 });

@@ -32,7 +32,6 @@ beforeEach(async () => {
 type Signed = { headers: Record<string, string>; rawBody: Buffer };
 const deliver = (signed: Signed, path = '/callbacks/mock') => request(t.app.getHttpServer()).post(path).set(signed.headers).set('content-type', 'application/json').send(signed.rawBody.toString('utf8'));
 const sign = (callback: ScheduledCallback) => mock.signCallback(callback, t.clock.now());
-const dueFor = (chargeId: string) => bank.dueCallbacks(t.clock.now()).filter((c) => c.reference === chargeId);
 
 async function charge(amount = 10000): Promise<{ id: string; due: ScheduledCallback[] }> {
   const response = await post(t.app, '/charges', chargeBody({ amount_minor: amount }, t.clock), asPayments, uniqueKey());

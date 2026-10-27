@@ -204,11 +204,15 @@ export class SimulatedBank {
     return this.transferResult(created, now);
   }
 
-  transferStatus(reference: string, now: Date): ProviderTransferResult {
+  transferStatus(reference: string, now: Date): ProviderTransferResult | { status: 'not_found' } {
     if (this.down) throw new ConnectorUnavailableError('unreachable');
     const found = this.transfers.get(reference);
-    if (!found) throw new ConnectorRejectedError('validation_failed', 'referencia desconocida');
-    return this.transferResult(found, now);
+    return found ? this.transferResult(found, now) : { status: 'not_found' }; // el banco responde explícitamente: no hay registro
+  }
+
+  /** Cuántas transferencias DISTINTAS ejecutó el banco (una orden repetida con la misma referencia no suma). Para probar que no se paga dos veces. */
+  transferCount(): number {
+    return this.transfers.size;
   }
 
   private transferResult(transfer: SimTransfer, now: Date): ProviderTransferResult {

@@ -69,6 +69,7 @@ export interface RefundRow {
   status: 'pending' | 'succeeded' | 'failed';
   provider_reference: string | null;
   failure_code: string | null;
+  may_have_reached_provider: boolean;
   created_at: Date;
   updated_at: Date;
 }
