@@ -7,6 +7,11 @@ export interface LedgerConfig {
   readonly holdSweepIntervalMs: number;
   /** Margen sobre `expires_at` antes de dar una retención por vencida (reloj de Postgres contra el de TigerBeetle). */
   readonly holdExpirySkewMs: number;
+  /**
+   * Sufijo que aparta los ids de TigerBeetle de este despliegue de los de otro que comparta el mismo cluster (por ejemplo, pruebas de
+   * integración de otros servicios). Vacío en producción: cambiarlo en un ledger con datos huérfana el dinero ya registrado.
+   */
+  readonly idNamespace: string;
 }
 
 export const LEDGER_CONFIG = Symbol('LEDGER_CONFIG');
@@ -27,5 +32,12 @@ export function loadLedgerConfig(env: NodeJS.ProcessEnv = process.env): LedgerCo
     invariantIntervalMs: integer(env, 'LEDGER_INVARIANT_INTERVAL_MS', 0, 0),
     holdSweepIntervalMs: integer(env, 'LEDGER_HOLD_SWEEP_INTERVAL_MS', 0, 0),
     holdExpirySkewMs: integer(env, 'LEDGER_HOLD_EXPIRY_SKEW_MS', 2000, 0),
+    idNamespace: idNamespace(env.LEDGER_ID_NAMESPACE),
   };
+}
+
+function idNamespace(raw: string | undefined): string {
+  if (raw === undefined || raw === '') return '';
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(raw)) throw new Error('LEDGER_ID_NAMESPACE inválido: 1 a 40 caracteres [A-Za-z0-9_-]');
+  return raw;
 }

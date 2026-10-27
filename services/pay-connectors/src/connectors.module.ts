@@ -1,6 +1,6 @@
 import { Inject, Logger, Module, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
 import { IdempotencyStore } from '@pay/idempotency';
-import type { Pool } from 'pg';
+import { Pool } from 'pg';
 import { BankTransferConnector, DbTransferReferenceStore } from './connectors/bank-transfer/bank-transfer.connector';
 import { MockConnector, type QrPort } from './connectors/mock/mock.connector';
 import { SimulatedBank } from './connectors/mock/simulated-bank';
@@ -14,7 +14,7 @@ import { ProviderGateway } from './core/provider-gateway';
 import { RefundsService } from './core/refunds.service';
 import { RoutingService } from './core/routing.service';
 import { StatementsService } from './core/statements.service';
-import { CLOCK, QR_PORT, REGISTRY, SECRETS, systemClock } from './core/tokens';
+import { CLOCK, LOCK_POOL, QR_PORT, REGISTRY, SECRETS, systemClock } from './core/tokens';
 import { SERVICE_CONFIG, type ServiceConfig } from './config';
 import { PG_POOL } from './database.module';
 import { ConnectorRegistry } from './domain/registry';
@@ -39,6 +39,21 @@ const unconfiguredQr: QrPort = {
   controllers: [ChargesController, TransfersController, StatementsController, CallbacksController, ConnectorHealthController],
   providers: [
     { provide: CLOCK, useValue: systemClock },
+    {
+      provide: LOCK_POOL,
+      inject: [SERVICE_CONFIG],
+      useFactory: (config: ServiceConfig) =>
+        new Pool({
+          host: config.db.host,
+          port: config.db.port,
+          user: config.db.user,
+          password: config.db.password,
+          database: config.db.name,
+          max: config.lockPool.max,
+          connectionTimeoutMillis: config.lockPool.waitMs,
+          application_name: 'pay-connectors-locks',
+        }),
+    },
     { provide: SECRETS, useFactory: (): SecretProvider => new EnvSecretProvider() },
     { provide: QR_PORT, inject: [SERVICE_CONFIG], useFactory: (config: ServiceConfig): QrPort => (config.qrUrl ? new HttpQrClient(config.qrUrl) : unconfiguredQr) },
     // [DOBLE] Bancos simulados: solo existen en sandbox y los carga la guardia de modo del registro.
@@ -87,6 +102,7 @@ export class ConnectorsModule implements OnModuleInit, OnApplicationShutdown {
     private readonly health: HealthService,
     private readonly statements: StatementsService,
     private readonly pump: MockPumpService,
+    @Inject(LOCK_POOL) private readonly lockPool: Pool,
   ) {}
 
   /** Temporizadores del servicio. Con intervalo 0 no corre ninguno (las pruebas disparan cada tarea a mano). */
@@ -105,7 +121,8 @@ export class ConnectorsModule implements OnModuleInit, OnApplicationShutdown {
     if (this.config.mode === 'sandbox') every(this.config.mockPumpIntervalMs, 'mock-pump', () => this.pump.tick());
   }
 
-  onApplicationShutdown(): void {
+  async onApplicationShutdown(): Promise<void> {
     for (const timer of this.timers) clearInterval(timer);
+    await this.lockPool.end();
   }
 }

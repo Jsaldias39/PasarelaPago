@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
 const NAMESPACE = 'alovida-pay|settlement|v1';
 
-export type IdPrefix = 'po' | 'sb' | 'rr' | 'rx' | 'cg' | 'rl';
+export type IdPrefix = 'po' | 'sb' | 'rr' | 'rx' | 'cg' | 'rl' | 'nd';
 
 function base32(bytes: Uint8Array, length: number): string {
   let out = '';

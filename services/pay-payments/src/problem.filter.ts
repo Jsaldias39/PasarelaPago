@@ -26,7 +26,8 @@ export class ProblemFilter implements ExceptionFilter {
       const code = this.codeFor(exception.getStatus());
       body = problem(code, common);
     } else {
-      this.logger.error({ err: exception instanceof Error ? exception.name : 'desconocido', request_id: requestId }, 'Error no controlado');
+      // Solo nombre y SQLSTATE: el mensaje de un error de base puede traer valores (regla 90.2.1).
+      this.logger.error({ err: exception instanceof Error ? exception.name : 'desconocido', code: (exception as { code?: string } | null)?.code, request_id: requestId }, 'Error no controlado');
       body = problem('internal_error', common);
     }
     response.status(body.status).type(PROBLEM_CONTENT_TYPE).json(body);

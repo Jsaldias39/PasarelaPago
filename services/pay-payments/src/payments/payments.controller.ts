@@ -8,7 +8,6 @@ import { PaymentsService } from './payments.service';
 
 const MERCHANT_ID = /^mc_[a-z0-9]{10,40}$/;
 const INTENT_ID = /^pi_[a-z0-9]{10,40}$/;
-const REFUND_ID = /^re_[a-z0-9]{10,40}$/;
 
 /** `X-Merchant-Id` lo pone pay-edge tras autenticar la clave de API; acá solo se valida la forma (la autoridad es el edge). */
 function merchantOf(header: string | undefined): string {
@@ -69,4 +68,3 @@ export class PaymentsController {
   }
 }
 
-export { REFUND_ID };

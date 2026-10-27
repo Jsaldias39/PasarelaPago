@@ -1,0 +1,10 @@
+# Evidencia P2.H1.M9
+
+Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
+
+Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
+
+## pay-ledger/test/transactions.spec.ts
+✓ POST /transactions — rastro de rechazos (P2.H1.M9) › un rechazo deja una fila con business_ref, attempt y motivo; repetirlo no duplica el rastro (42 ms)
+
+RESULTADO P2.H1.M9: 1 pasan, 0 fallan, de 1.

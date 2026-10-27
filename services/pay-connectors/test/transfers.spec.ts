@@ -2,6 +2,8 @@ import request from 'supertest';
 import { SERVICE_CONFIG, type ServiceConfig } from '../src/config';
 import { MockConnector } from '../src/connectors/mock/mock.connector';
 import { REGISTRY } from '../src/core/tokens';
+import { PG_POOL } from '../src/database.module';
+import type { Pool } from 'pg';
 import type { ConnectorRegistry } from '../src/domain/registry';
 import { ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError, type ProviderTransferRequest } from '../src/domain/connector';
 import type { SimulatedBank } from '../src/connectors/mock/simulated-bank';
@@ -492,3 +494,70 @@ describe('GET /transfers/{reference}', () => {
     expect(response.body.code).toBe('resource_not_found');
   });
 });
+
+describe('POST /transfers — ráfaga de transferencias DISTINTAS mayor que los pools (sin interbloqueo ni DoS)', () => {
+  const REFS = 40;
+  it.each([1, 2, 3])('corrida %i: %i transferencias distintas a la vez con 4 conexiones de candado y pool de datos de 10 terminan todas, una orden por transferencia', async () => {
+    const small = await createTestApp({ config: { lockPool: { max: 4, waitMs: 20_000 } } });
+    const smallBank = small.app.get<SimulatedBank>(SIMULATED_BANK);
+    const connector = small.app.get<ConnectorRegistry>(REGISTRY).get('mock') as MockConnector;
+    const original = connector.createTransfer.bind(connector);
+    let calls = 0;
+    connector.createTransfer = async (request: ProviderTransferRequest, now: Date) => {
+      calls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      return original(request, now);
+    };
+    try {
+      const started = Date.now();
+      const responses = await Promise.all(Array.from({ length: REFS }, () => post(small.app, '/transfers', body(), asSettlement, uniqueKey()).then((r) => r)));
+      expect(responses.map((r) => r.status)).toEqual(Array(REFS).fill(201));
+      expect(responses.every((r) => r.body.status === 'paid')).toBe(true);
+      expect(calls).toBe(REFS);
+      expect(smallBank.transferCount()).toBe(REFS);
+      expect(Date.now() - started).toBeLessThan(30_000);
+      expect((await (small.app.get<Pool>(PG_POOL)).query('SELECT count(*)::int AS n FROM connector_transfers')).rows[0].n).toBe(REFS);
+    } finally {
+      connector.createTransfer = original;
+      await small.close();
+    }
+  });
+
+  it('sin capacidad de candado en el plazo ⇒ 500 definido (no un 4xx, que la clave guardaría) SIN haber llamado al proveedor; la misma clave completa después, una orden por transferencia', async () => {
+    const small = await createTestApp({ config: { lockPool: { max: 1, waitMs: 120 } } });
+    const smallBank = small.app.get<SimulatedBank>(SIMULATED_BANK);
+    const connector = small.app.get<ConnectorRegistry>(REGISTRY).get('mock') as MockConnector;
+    const original = connector.createTransfer.bind(connector);
+    let calls = 0;
+    connector.createTransfer = async (request: ProviderTransferRequest, now: Date) => {
+      calls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return original(request, now);
+    };
+    try {
+      const jobs = Array.from({ length: 5 }, () => ({ b: body(), key: uniqueKey() }));
+      const first = await Promise.all(jobs.map((j) => post(small.app, '/transfers', j.b, asSettlement, j.key).then((r) => r)));
+      const statuses = first.map((r) => r.status);
+      expect(statuses.every((s) => s === 201 || s === 500)).toBe(true); // ningún cuelgue, ningún otro resultado (el 4xx quedaría guardado por la clave y no se podría reintentar)
+      expect(statuses.filter((s) => s === 201).length).toBeGreaterThanOrEqual(1);
+      expect(statuses.filter((s) => s === 500).length).toBeGreaterThanOrEqual(1);
+      for (const r of first.filter((x) => x.status === 500)) expect(r.body.code).toBe('internal_error');
+      expect(calls).toBe(statuses.filter((s) => s === 201).length); // los 409 no llegaron al proveedor
+      // Reintentar con la MISMA clave hasta completar: una orden por transferencia.
+      for (let round = 0; round < 10; round += 1) {
+        const pending = jobs.filter((_j, i) => (first[i]?.status ?? 0) !== 201 && !(jobs[i] as { done?: boolean }).done);
+        if (pending.length === 0) break;
+        for (const j of pending) {
+          const r = await post(small.app, '/transfers', j.b, asSettlement, j.key);
+          if (r.status === 201 || r.status === 200) (j as { done?: boolean }).done = true;
+        }
+      }
+      expect(smallBank.transferCount()).toBe(5);
+      expect((await (small.app.get<Pool>(PG_POOL)).query("SELECT count(*)::int AS n FROM connector_transfers WHERE status = 'paid'")).rows[0].n).toBe(5);
+    } finally {
+      connector.createTransfer = original;
+      await small.close();
+    }
+  });
+});
+

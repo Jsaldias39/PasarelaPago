@@ -235,6 +235,42 @@ describe('P3.H2.M3 · idempotencia: repetir, reordenar y duplicar no cambia el r
   });
 });
 
+describe('P3.H2.M3 · caída del servicio a mitad de POST /payment_intents', () => {
+  it('Temporal no responde al arrancar el workflow: la petición falla SIN guardar una respuesta y el reintento con la misma clave retoma sobre el MISMO intento', async () => {
+    let failures = 1;
+    const flaky = new Proxy(stack.orchestrator, {
+      get(target, property, receiver) {
+        if (property === 'startPayment') {
+          return async (intentId: string) => {
+            if (failures > 0) {
+              failures -= 1;
+              throw new Error('Temporal no responde');
+            }
+            return target.startPayment(intentId);
+          };
+        }
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const { PaymentsService } = await import('../src/payments/payments.service');
+    const service = new PaymentsService(stack.deps, flaky);
+    const k = key();
+    await expect(service.createIntent(MC, k, QR)).rejects.toThrow('Temporal no responde');
+    const { intentIdFor } = await import('../src/domain/ids');
+    const id = intentIdFor(MC, k);
+    expect(await statusOf(stack, id)).toBe('processing'); // la fila quedó escrita, el workflow no arrancó
+    const retry = await service.createIntent(MC, k, QR);
+    expect(retry.status).toBe(201);
+    expect(retry.body.id).toBe(id);
+    expect(retry.body.status).toBe('requires_action');
+    expect(stack.connectors.chargeCreations.get(id)).toBe(1);
+    expect((await eventsOf(stack, id)).filter((e) => e.type === 'payment_intent.created')).toHaveLength(1);
+    const n = await stack.db.pool.query('SELECT count(*)::int AS n FROM payment_intents WHERE id = $1', [id]);
+    expect(n.rows[0].n).toBe(1);
+  });
+});
+
 describe('P3.H2.M4 · vencimiento, consulta de estado y evento perdido (REQ-P3-7)', () => {
   it('un evento perdido: el cobro pagado en el banco se resuelve solo por la consulta de estado', async () => {
     const id = (await create()).id as string;

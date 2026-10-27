@@ -11,7 +11,7 @@ import { badRequest } from '../raw-problem';
 import { withSendLock } from './send-lock';
 import { inTransaction } from './db';
 import { ProviderGateway } from './provider-gateway';
-import { CLOCK, REGISTRY, type Clock } from './tokens';
+import { CLOCK, LOCK_POOL, REGISTRY, type Clock } from './tokens';
 
 const BUSINESS_REF = /^[A-Za-z0-9:._-]{3,150}$/;
 const REFERENCE = /^[A-Za-z0-9:._-]{3,200}$/;
@@ -114,6 +114,7 @@ function parse(body: unknown): CreateTransfer {
 export class TransfersService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
+    @Inject(LOCK_POOL) private readonly lockPool: Pool,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(REGISTRY) private readonly registry: ConnectorRegistry,
     private readonly idempotency: IdempotencyStore,
@@ -178,7 +179,7 @@ export class TransfersService {
    * el primero y, si ya quedó resuelto, lo devuelve sin llamar de nuevo al proveedor.
    */
   private async send(ctx: Parameters<Parameters<IdempotencyStore['execute']>[1]>[0], row: TransferRow): Promise<TransferRow> {
-    return withSendLock(this.pool, row.id, async () => {
+    return withSendLock(this.lockPool, row.id, async () => {
       const fresh = await this.findById(row.id);
       if (TERMINAL.has(fresh.status) || fresh.provider_reference !== null) return fresh;
 

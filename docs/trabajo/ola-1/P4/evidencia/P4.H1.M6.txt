@@ -2,15 +2,9 @@
 $ yarn test test/ops.spec.ts -t poller
 (cwd: services/pay-connectors; PAY_TEST_DATABASE_URL=postgres://pay_connectors:***@127.0.0.1:54321/pay_connectors)
 
-[31m[Nest] 4666  - [39m10/27/2026, 5:10:36 PM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'NatsError'[39m,
-  code: [32m'CONNECTION_DRAINING'[39m,
-  event_id: [32m'f65d2cca-576f-44e6-80b8-ae2bba767703'[39m
-}
-El relé del outbox falló
 Test Suites: 1 passed, 1 total
 Tests:       4 skipped, 9 passed, 13 total
 Snapshots:   0 total
-Time:        3.307 s, estimated 8 s
+Time:        4.5 s, estimated 10 s
 Ran all test suites matching test/ops.spec.ts with tests matching "poller".
 exit=0

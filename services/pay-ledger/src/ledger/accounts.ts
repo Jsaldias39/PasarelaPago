@@ -31,15 +31,16 @@ const ACCOUNT_PATTERN =
 /**
  * Descompone una cuenta lógica.
  *
- * Decisión: `merchant:*:pending` también lleva la bandera de no-negativo. El plan marcaba solo `available`, `wallet` y la
- * reserva, pero liberar o reembolsar más de lo que hay pendiente sería crear dinero; ver DECISIONES-TOMADAS.md.
+ * Invariante de no-negativo (PLAN-MAESTRO §3.3): solo `available`, `wallet` y la reserva. `merchant:*:pending` NO lo lleva: un contracargo
+ * perdido se debita ahí (P3-D10, D-22) y, si supera lo pendiente, el saldo negativo ES la deuda del comercio, que el corte netea contra su
+ * disponible (pay-settlement, P2.H2.M2). Ver P2-D2 en DECISIONES-TOMADAS.md.
  *
  * @returns `null` si el nombre no es una cuenta del plan de cuentas.
  */
 export function parseAccount(name: string): AccountInfo | null {
   const match = ACCOUNT_PATTERN.exec(name);
   if (!match) return null;
-  if (match[1]) return { name, kind: match[2] === 'pending' ? 'merchant_pending' : 'merchant_available', nature: 'credit', limited: true, merchantId: match[1] };
+  if (match[1]) return { name, kind: match[2] === 'pending' ? 'merchant_pending' : 'merchant_available', nature: 'credit', limited: match[2] === 'available', merchantId: match[1] };
   if (match[3]) return { name, kind: 'user_wallet', nature: 'credit', limited: true };
   if (name === 'platform:fees') return { name, kind: 'platform_fees', nature: 'credit', limited: false };
   if (match[4]) return { name, kind: 'connector_clearing', nature: 'debit', limited: false };
@@ -51,7 +52,7 @@ export function parseAccount(name: string): AccountInfo | null {
 /**
  * Tipos de cuenta que cada servicio puede tocar (como débito o como crédito).
  *
- * Supuesto de la ola 1 (DECISIONES-TOMADAS.md D1, a confirmar con el dueño y contabilidad): el contrato dice que «el ledger valida
+ * Supuesto de la ola 1 (DECISIONES-TOMADAS.md P2-D1, a confirmar con el dueño y contabilidad): el contrato dice que «el ledger valida
  * que el llamador esté autorizado para las cuentas que toca» pero no da la matriz. Esta es la más estrecha que alcanza para los
  * flujos del plan; un servicio que no figura no toca nada.
  */

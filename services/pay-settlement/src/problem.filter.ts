@@ -1,6 +1,7 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { PROBLEM_CONTENT_TYPE, ProblemError, problem, type ProblemCode } from '@pay/problem';
+import { LedgerUnavailableError } from './settlement/errors';
 
 /**
  * Todo error sale como RFC 9457 con `code` estable y el `request_id` del cliente.
@@ -21,6 +22,9 @@ export class ProblemFilter implements ExceptionFilter {
     let body;
     if (exception instanceof ProblemError) {
       body = { ...exception.toProblem(), ...(requestId !== undefined && { request_id: requestId }), ...(instance !== undefined && { instance }) };
+    } else if (exception instanceof LedgerUnavailableError) {
+      // Una lectura del ledger que falló (extracto, exportación): 503 sin detalle. Las escrituras con dinero ya lo traducen en su servicio.
+      body = problem('ledger_unavailable', common);
     } else if (exception instanceof HttpException) {
       const code = this.codeFor(exception.getStatus());
       body = problem(code, common);

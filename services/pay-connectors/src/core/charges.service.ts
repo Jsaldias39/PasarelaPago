@@ -13,7 +13,7 @@ import { ProviderGateway } from './provider-gateway';
 import { withSendLock } from './send-lock';
 import { chargeView, publicStatus, TERMINAL, toChargeRow, type ChargeRow } from './rows';
 import { RoutingService } from './routing.service';
-import { CLOCK, type Clock } from './tokens';
+import { CLOCK, LOCK_POOL, type Clock } from './tokens';
 
 const ID = /^ch_[a-z0-9]{10,40}$/;
 
@@ -21,6 +21,7 @@ const ID = /^ch_[a-z0-9]{10,40}$/;
 export class ChargesService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
+    @Inject(LOCK_POOL) private readonly lockPool: Pool,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(SERVICE_CONFIG) private readonly config: ServiceConfig,
     private readonly idempotency: IdempotencyStore,
@@ -93,7 +94,7 @@ export class ChargesService {
    * ya llegó al proveedor o terminó, lo devuelve sin llamar de nuevo.
    */
   private async send(ctx: IdempotencyContext, initial: ChargeRow, input: CreateCharge): Promise<ChargeRow> {
-    return withSendLock(this.pool, initial.id, async () => {
+    return withSendLock(this.lockPool, initial.id, async () => {
       const row = await this.byId(initial.id);
       if (row.provider_reference !== null || row.provider_status !== 'pending') return row;
       return this.sendLocked(ctx, row, input);

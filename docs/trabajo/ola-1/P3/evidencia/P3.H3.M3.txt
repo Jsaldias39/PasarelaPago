@@ -1,0 +1,22 @@
+# Evidencia P3.H3.M3
+fecha: 2026-10-27T17:32:21Z
+directorio: services/pay-vault
+comando: yarn test test/pan-leak.spec.ts test/redact.spec.ts --verbose --runInBand
+---- salida ----
+Test Suites: 2 passed, 2 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        1.1 s, estimated 3 s
+Ran all test suites matching test/pan-leak.spec.ts|test/redact.spec.ts.
+---- código de salida: 0 ----
+
+fecha: 2026-10-27T17:32:23Z
+directorio: services/pay-payments
+comando: yarn test test/pan-leak.spec.ts test/redact.spec.ts test/media.spec.ts -t PAN|redactPan|tarjeta --verbose --runInBand
+---- salida ----
+Test Suites: 3 passed, 3 total
+Tests:       4 skipped, 7 passed, 11 total
+Snapshots:   0 total
+Time:        8.632 s, estimated 13 s
+Ran all test suites matching test/pan-leak.spec.ts|test/redact.spec.ts|test/media.spec.ts with tests matching "PAN|redactPan|tarjeta".
+---- código de salida: 0 ----

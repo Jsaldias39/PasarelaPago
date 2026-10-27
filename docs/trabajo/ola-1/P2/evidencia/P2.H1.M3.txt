@@ -1,0 +1,37 @@
+# Evidencia P2.H1.M3
+
+Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
+
+Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
+
+## pay-ledger/test/ids.spec.ts
+✓ ids deterministas (P2.H1.M3) › la misma cuenta lógica da siempre el mismo id de 128 bits, y cuentas distintas dan ids distintos (3 ms)
+✓ ids deterministas (P2.H1.M3) › valor fijado: un cambio accidental del algoritmo de derivación rompería todos los ids ya asentados (1 ms)
+✓ ids deterministas (P2.H1.M3) › el id de la pata depende de business_ref, attempt e índice (H-TB1: un reintento tras rechazo usa un id nuevo) (1 ms)
+✓ ids deterministas (P2.H1.M3) › los dominios no se pisan: la misma cadena como cuenta, pata, retención y resolución da ids distintos (1 ms)
+✓ ids deterministas (P2.H1.M3) › propiedad (20.000 casos): nunca 0 ni 2^128−1, sin colisiones, y los ids públicos cumplen los patrones del contrato (2132 ms)
+✓ ids deterministas (P2.H1.M3) › hash128 corrige los dos valores prohibidos de TigerBeetle (111 ms)
+✓ plan de cuentas › merchant:mc_k3m9x2q7ab:pending → merchant_pending (credit, no negativo: false) (1 ms)
+✓ plan de cuentas › merchant:mc_k3m9x2q7ab:available → merchant_available (credit, no negativo: true) (0 ms)
+✓ plan de cuentas › user:usr_abc-123:wallet → user_wallet (credit, no negativo: true) (1 ms)
+✓ plan de cuentas › platform:fees → platform_fees (credit, no negativo: false) (0 ms)
+✓ plan de cuentas › connector:mercantil_qr:clearing → connector_clearing (debit, no negativo: false) (1 ms)
+✓ plan de cuentas › payout:clearing → payout_clearing (credit, no negativo: false) (0 ms)
+✓ plan de cuentas › schedule:md_k3m9x2q7ab:reserve → schedule_reserve (credit, no negativo: true) (0 ms)
+✓ plan de cuentas › rechaza "" (0 ms)
+✓ plan de cuentas › rechaza "platform:fee" (1 ms)
+✓ plan de cuentas › rechaza "merchant:mc_short:pending" (0 ms)
+✓ plan de cuentas › rechaza "merchant:mc_k3m9x2q7ab:other" (0 ms)
+✓ plan de cuentas › rechaza "user:a:wallet" (0 ms)
+✓ plan de cuentas › rechaza "connector:AB:clearing" (0 ms)
+✓ plan de cuentas › rechaza "x" (0 ms)
+✓ plan de cuentas › rechaza "merchant:mc_k3m9x2q7ab:pending " (0 ms)
+✓ plan de cuentas › rechaza "platform:fees
+" (0 ms)
+✓ plan de cuentas › extrae el comercio dueño (1 ms)
+
+## pay-ledger/test/config.spec.ts
+✓ configuración de pay-ledger › sin TB_ADDRESS no arranca; los valores por defecto son los de producción (sin job del invariante propio ni namespace) (5 ms)
+✓ namespace de ids de TigerBeetle › apartar el namespace cambia TODOS los ids (cuentas e ids públicos) y es determinista (1 ms)
+
+RESULTADO P2.H1.M3: 25 pasan, 0 fallan, de 25.

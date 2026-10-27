@@ -49,7 +49,10 @@ export function parseJsonStatement(lines: readonly unknown[]): StatementLine[] {
     if (candidate === null || typeof candidate !== 'object') throw new StatementMalformedError('línea inválida', i + 1);
     if (candidate.currency !== undefined && candidate.currency !== 'BOB') throw new StatementMalformedError('moneda distinta de BOB', i + 1);
     // `charge_id` y `description` son del contrato pero no entran a la conciliación; la glosa puede traer datos personales y se descarta.
-    const { currency: _currency, charge_id: _chargeId, description: _description, ...rest } = candidate;
+    const rest = { ...candidate };
+    delete rest.currency;
+    delete rest.charge_id;
+    delete rest.description;
     return validated({ our_reference: null, booked_at: null, ...rest }, i);
   });
 }
@@ -61,7 +64,7 @@ export function parseCsvStatement(text: string): StatementLine[] {
   if (Buffer.byteLength(text) > MAX_STATEMENT_BYTES) throw new StatementMalformedError('extracto demasiado grande');
   let records: Record<string, string>[];
   try {
-    records = parseCsv(text.replace(/^﻿/, ''), { columns: true, skip_empty_lines: true, trim: true, relax_column_count: false, bom: true }) as Record<string, string>[];
+    records = parseCsv(text, { columns: true, skip_empty_lines: true, trim: true, relax_column_count: false, bom: true }) as Record<string, string>[];
   } catch (error) {
     const line = (error as { lines?: number }).lines;
     throw new StatementMalformedError('CSV ilegible', line);

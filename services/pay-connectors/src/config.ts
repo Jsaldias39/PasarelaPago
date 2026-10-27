@@ -12,6 +12,8 @@ export interface ServiceConfig {
   readonly poller: { readonly intervalMs: number; readonly minAgeMs: number; readonly baseBackoffMs: number; readonly maxBackoffMs: number; readonly batchSize: number };
   readonly health: { readonly intervalMs: number; readonly downAfterFailures: number };
   /** Reintentos de la MISMA llamada ante un timeout ambiguo (con la misma referencia) antes de responder 502. */
+  /** Candados de envío: conexiones dedicadas (tope de envíos simultáneos distintos) y cuánto se espera una conexión antes de responder 409. */
+  readonly lockPool: { readonly max: number; readonly waitMs: number };
   readonly timeoutRetries: number;
   /** Callbacks por minuto y por conector antes de responder 429. */
   readonly callbackRatePerMinute: number;
@@ -68,6 +70,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
       batchSize: integer(env, 'POLLER_BATCH_SIZE', 50, 1),
     },
     health: { intervalMs: integer(env, 'HEALTH_INTERVAL_MS', 10_000), downAfterFailures: integer(env, 'HEALTH_DOWN_AFTER_FAILURES', 3, 1) },
+    lockPool: { max: integer(env, 'LOCK_POOL_MAX', 20, 1), waitMs: integer(env, 'LOCK_WAIT_MS', 15_000, 1) },
     timeoutRetries: integer(env, 'TIMEOUT_RETRIES', 2),
     callbackRatePerMinute: integer(env, 'CALLBACK_RATE_PER_MINUTE', 600, 1),
     mockPumpIntervalMs: integer(env, 'MOCK_PUMP_INTERVAL_MS', 1_000),

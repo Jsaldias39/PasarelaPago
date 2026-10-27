@@ -58,6 +58,9 @@ export const payoutListQuery = listQuery.extend({
   status: z.enum(['pending', 'in_transit', 'paid', 'failed']).optional(),
 });
 
+/** La consulta pública (`public-v1.yaml`) solo admite `limit` y `starting_after`: el comercio sale de `X-Merchant-Id`, no de un parámetro. */
+export const publicPayoutListQuery = listQuery;
+
 export const exceptionListQuery = listQuery.extend({ status: z.enum(['open', 'resolved', 'dismissed']).optional() });
 
 export const exportQuery = z.strictObject({ period_from: timestamp, period_to: timestamp, format: z.enum(['json', 'csv']).default('json') });

@@ -1,0 +1,57 @@
+# Evidencia P2.H2.M8
+
+Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
+
+Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
+
+## pay-settlement/test/payout.spec.ts
+✓ payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) › modo B (settlement.mode=acquirer, REQ-P2-7, P2.H2.M8) › usa el riel acquirer_settlement, que es un doble: el pago sale `simulated: true` y no se le pide nada al conector (1030 ms)
+✓ payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) › modo B (settlement.mode=acquirer, REQ-P2-7, P2.H2.M8) › en modo A el riel real no es simulado (433 ms)
+
+## pay-settlement/test/config.spec.ts
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › valores por defecto: modo A, sandbox, corte los lunes (D-19), UTC−4, T+7, retención de 7 días, conector de pruebas (4 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › falta LEDGER_URL ⇒ no arranca y dice cuál (5 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › falta CONNECTORS_URL ⇒ no arranca y dice cuál (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › falta OPERATOR_TOKEN_PUBLIC_KEY ⇒ no arranca y dice cuál (2 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › falta OPERATOR_TOKEN_ISSUER ⇒ no arranca y dice cuál (2 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › falta OPERATOR_TOKEN_AUDIENCE ⇒ no arranca y dice cuál (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › LEDGER_URL="pay-ledger:3000" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › LEDGER_URL="ftp://pay-ledger" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › CONNECTORS_URL="no es una url" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_MODE="cualquiera" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › PAY_MODE="staging" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_CUTOFF_WEEKDAY="7" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_CUTOFF_WEEKDAY="lunes" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_TZ_OFFSET_MINUTES="9999" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_RELEASE_DAYS="61" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_RELEASE_DAYS="-1" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_PAYOUT_HOLD_TTL_SECONDS="10" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_PAYOUT_HOLD_TTL_SECONDS="3000000" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_HTTP_TIMEOUT_MS="10" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_SWEEP_INTERVAL_MS="-5" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_TRANSFER_CONNECTOR="visa" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_STATEMENT_FORMATS="mock:xlsx" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › SETTLEMENT_STATEMENT_FORMATS="sin-formato" ⇒ no arranca (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › settlement.mode=acquirer es un doble: arranca en sandbox y NUNCA con PAY_MODE=live (marcaría como pagado lo que no salió) (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › el conector de pruebas `mock` no puede mover dinero en producción (1 ms)
+✓ configuración de pay-settlement: falla al arrancar con algo faltante o peligroso › día de corte: 0–6 o `any`; formatos de extracto por conector (2 ms)
+
+## pay-settlement/test/rails.spec.ts
+✓ AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8) › se declara simulado y de modo B (3 ms)
+✓ AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8) › correcto: la orden se «paga» con una referencia reconocible como simulada (1 ms)
+✓ AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8) › límite: 1 centavo y el mayor entero seguro se aceptan; repetir la orden da el mismo resultado (1 ms)
+✓ AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8) › inválido: el monto 0 se rechaza sin «pagar» (1 ms)
+✓ AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8) › inválido: el monto -1 se rechaza sin «pagar» (1 ms)
+✓ AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8) › inválido: el monto 1.5 se rechaza sin «pagar» (1 ms)
+✓ AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8) › inválido: el monto NaN se rechaza sin «pagar» (1 ms)
+✓ AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8) › inválido: el monto Infinity se rechaza sin «pagar» (0 ms)
+✓ AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8) › inválido: el monto 9007199254740992 se rechaza sin «pagar» (0 ms)
+✓ AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8) › la consulta responde siempre con la misma referencia simulada (nunca deja una orden en el aire) (1 ms)
+
+## pay-settlement/test/health-mode.spec.ts
+✓ settlement.mode en el arranque › modo A (por defecto): el reporte de salud dice banco real, no simulado (159 ms)
+✓ settlement.mode en el arranque › modo B en sandbox: arranca y el reporte dice que el riel es un doble (simulated: true) (47 ms)
+✓ settlement.mode en el arranque › modo B con PAY_MODE=live: NO arranca (21 ms)
+✓ settlement.mode en el arranque › PAY_MODE=live con el conector `mock`: NO arranca (18 ms)
+
+RESULTADO P2.H2.M8: 42 pasan, 0 fallan, de 42.

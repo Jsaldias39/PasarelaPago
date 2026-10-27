@@ -58,7 +58,7 @@ describe('los tres formatos dan la misma línea normalizada', () => {
   });
 
   it('un BOM al inicio del CSV no rompe la cabecera', () => {
-    expect(parseCsvStatement(`﻿${csv([CSV_ROW])}`)).toEqual([LINE]);
+    expect(parseCsvStatement(`${String.fromCharCode(0xfeff)}${csv([CSV_ROW])}`)).toEqual([LINE]);
   });
 });
 

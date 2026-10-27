@@ -5,7 +5,6 @@ import { BATCH_BODY, feeSchedule, ref, registerMerchant } from './helpers/scenar
 
 const CUT_OCT_19 = '2026-10-19';
 const CUT_OCT_26 = '2026-10-26';
-const CUT_NOV_2 = '2026-11-02';
 const BEFORE_CUT_1 = new Date('2026-10-05T15:00:00Z');
 const BEFORE_CUT_2 = new Date('2026-10-14T15:00:00Z');
 
@@ -44,11 +43,19 @@ describe('abono mensual (P2.H2.M9, D-07)', () => {
     expect(fees()).toBe(2000);
     expect(await charges()).toHaveLength(1);
     expect((await ctx.db.pool.query('SELECT amount_minor FROM settlement_payouts ORDER BY created_at')).rows).toEqual([{ amount_minor: '8000' }, { amount_minor: '5000' }]);
-    // el mes siguiente sí
-    ctx.ledger.seedCharge({ merchant: m, net: 7000, fee: 0, at: new Date('2026-10-20T15:00:00Z'), ref: ref() });
-    await runBatch(CUT_NOV_2);
+  });
+
+  it('el mes siguiente sí se cobra otro abono (cortes del 28/9 y del 5/10)', async () => {
+    const m = merchantId();
+    await plan(m, 1, 2000);
+    ctx.ledger.seedCharge({ merchant: m, net: 10000, fee: 0, at: new Date('2026-09-10T15:00:00Z'), ref: ref() });
+    ctx.ledger.seedCharge({ merchant: m, net: 6000, fee: 0, at: new Date('2026-09-25T15:00:00Z'), ref: ref() });
+    await runBatch('2026-09-28');
+    expect(fees()).toBe(2000);
+    await runBatch('2026-10-05');
     expect(fees()).toBe(4000);
-    expect((await charges()).map((c: { period_key: string }) => c.period_key)).toEqual(['2026-10', '2026-11']);
+    expect((await charges()).map((c: { period_key: string }) => c.period_key)).toEqual(['2026-09', '2026-10']);
+    expect((await ctx.db.pool.query('SELECT amount_minor FROM settlement_payouts ORDER BY created_at')).rows).toEqual([{ amount_minor: '8000' }, { amount_minor: '4000' }]);
   });
 
   it('repetir el corte del mismo lunes no vuelve a cobrar el abono', async () => {

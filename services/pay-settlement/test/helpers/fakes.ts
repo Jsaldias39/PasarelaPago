@@ -42,7 +42,8 @@ interface StoredHold extends LedgerHold {
   resolvedBy?: string;
 }
 
-const LIMITED = /^(merchant:mc_[a-z0-9]+:(pending|available)|user:.+:wallet|schedule:md_[a-z0-9]+:reserve)$/;
+// PLAN-MAESTRO §3.3: solo `available`, la billetera y la reserva no pueden quedar en negativo; `pending` sí (deuda por contracargo).
+const LIMITED = /^(merchant:mc_[a-z0-9]+:available|user:.+:wallet|schedule:md_[a-z0-9]+:reserve)$/;
 
 export class FakeLedger implements LedgerPort {
   readonly net = new Map<string, number>();

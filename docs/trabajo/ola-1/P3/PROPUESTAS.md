@@ -64,3 +64,8 @@
 ## PROP-13 · `.eslintrc`/`eslint.config.mjs` raíz: `jest.config.cjs` de TODOS los servicios falla el lint
 - **Hallazgo (trabajo ajeno, no se tocó):** `yarn eslint services/*/jest.config.cjs` da 4 errores por archivo (`require`/`module`/`__dirname` no definidos, `no-require-imports`) porque la configuración raíz no declara los globals de CommonJS para `*.cjs`.
 - **Parche propuesto:** en `eslint.config.mjs` agregar un bloque `files: ['**/*.cjs']` con `languageOptions.globals: globals.node` y `@typescript-eslint/no-require-imports: off`.
+
+## PROP-14 · La Postgres compartida de desarrollo se satura (`max_connections = 100`) cuando varios carriles corren suites a la vez
+- **Dónde:** `platform/compose.yml` (Postgres) y la regla 70.1 (un solo test runner a la vez) que otro carril incumplió en la corrida observada (6 `yarn workspace pay-connectors test` simultáneos).
+- **Efecto:** fallas intermitentes `53300` en pruebas de otros carriles que no son bugs del producto (clase ENVIRONMENT).
+- **Parche propuesto:** (a) `-c max_connections=300` en el servicio `postgres` del Compose de desarrollo; (b) que `@pay/testing` (`createIsolatedDatabase`) cree el pool con `max` configurable y por defecto 10, no 60; (c) un candado (`flock /tmp/pay-test.lock`) en el script de `yarn test` de cada servicio.

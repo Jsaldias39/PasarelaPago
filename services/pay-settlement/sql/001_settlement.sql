@@ -55,6 +55,10 @@ CREATE TABLE settlement_batch_items (
   ledger_attempt       integer     NOT NULL DEFAULT 1 CHECK (ledger_attempt >= 1),
   release_ref          text,
   released_minor       bigint      NOT NULL DEFAULT 0 CHECK (released_minor >= 0),
+  -- Deuda en `merchant:*:pending` (contracargo perdido que superó lo pendiente, P3-D10) que el corte netea moviendo disponible → pendiente.
+  -- NULL = todavía no planeado; el monto se fija ANTES de llamar al ledger, como el de la liberación.
+  netting_minor        bigint      CHECK (netting_minor >= 0),
+  netting_attempt      integer     NOT NULL DEFAULT 1 CHECK (netting_attempt >= 1),
   payout_id            text,
   failure_code         text,
   updated_at           timestamptz NOT NULL DEFAULT now(),

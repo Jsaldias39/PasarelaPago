@@ -12,12 +12,13 @@ import { ChargesService } from './charges.service';
 import { ProviderGateway } from './provider-gateway';
 import { withSendLock } from './send-lock';
 import { refundView, toChargeRow, toRefundRow, type RefundRow } from './rows';
-import { CLOCK, type Clock } from './tokens';
+import { CLOCK, LOCK_POOL, type Clock } from './tokens';
 
 @Injectable()
 export class RefundsService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
+    @Inject(LOCK_POOL) private readonly lockPool: Pool,
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly idempotency: IdempotencyStore,
     private readonly charges: ChargesService,
@@ -62,7 +63,7 @@ export class RefundsService {
 
   /** Envío al proveedor SERIALIZADO por reembolso: un segundo envío concurrente espera y reutiliza lo que dejó el primero. */
   private async send(ctx: IdempotencyContext, initial: RefundRow): Promise<RefundRow> {
-    return withSendLock(this.pool, initial.id, async () => {
+    return withSendLock(this.lockPool, initial.id, async () => {
       let refund = toRefundRow((await this.pool.query('SELECT * FROM connector_refunds WHERE id = $1', [initial.id])).rows[0]);
       if (refund.status === 'succeeded' || (refund.status === 'failed' && refund.failure_code !== 'connector_unavailable')) return refund; // ya lo resolvió otro envío
       const charge = await this.charges.byId(refund.charge_id);

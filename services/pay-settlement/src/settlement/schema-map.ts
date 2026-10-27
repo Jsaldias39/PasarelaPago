@@ -41,6 +41,8 @@ export const SETTLEMENT_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<stri
     ledger_attempt: col('integer'),
     release_ref: col('text', true),
     released_minor: col('bigint'),
+    netting_minor: col('bigint', true),
+    netting_attempt: col('integer'),
     payout_id: col('text', true),
     failure_code: col('text', true),
     updated_at: col('timestamp with time zone'),

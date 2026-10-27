@@ -18,8 +18,9 @@ function digest(...parts: (string | number)[]): Buffer {
 }
 
 /**
- * SOLO PRUEBAS: aparta los ids de este proceso del resto en un TigerBeetle compartido (las cuentas de plataforma, como `platform:fees`, tienen
- * un nombre fijo y, sin esto, todas las suites suman sobre las mismas). Cambiarlo en un servicio con datos huérfana el dinero ya registrado.
+ * Aparta los ids de este proceso de los de otro despliegue en un TigerBeetle compartido (las cuentas de plataforma, como `platform:fees`, tienen
+ * un nombre fijo y, sin esto, todos los procesos suman sobre las mismas). Pruebas de integración: una por proceso. En producción no se usa:
+ * cambiarlo en un ledger con datos huérfana el dinero ya registrado (`LEDGER_ID_NAMESPACE`, ver ledger.config.ts).
  */
 export function useIdNamespace(suffix: string): void {
   namespace = `${BASE_NAMESPACE}|${suffix}`;

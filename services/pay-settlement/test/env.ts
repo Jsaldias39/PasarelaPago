@@ -7,7 +7,9 @@ process.env.DB_PORT ??= '54321';
 process.env.DB_NAME ??= 'pay_settlement';
 process.env.DB_USER ??= 'pay_settlement';
 process.env.DB_PASSWORD ??= 'dev_only_settlement';
-process.env.NATS_URL ??= 'nats://127.0.0.1:54222';
+// Sin NATS_URL: las pruebas que arrancan la aplicación completa no se suscriben a los consumidores durables compartidos del NATS de
+// desarrollo (compiten por los mismos mensajes). `nats.spec.ts` prueba NATS de verdad y le pasa su propia URL.
+delete process.env.NATS_URL;
 // Los colaboradores se prueban con dobles o con un servidor HTTP local; estas URLs solo tienen que ser válidas para arrancar.
 process.env.LEDGER_URL ??= 'http://127.0.0.1:9';
 process.env.CONNECTORS_URL ??= 'http://127.0.0.1:9';

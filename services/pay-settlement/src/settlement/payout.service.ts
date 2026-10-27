@@ -9,7 +9,7 @@ import { businessRef, stableId } from './ids';
 import { LEDGER_PORT, type LedgerPort, PAYOUT_RAILS, type PayoutOrder, type PayoutRail, type RailOutcome } from './ports';
 import { emitPayoutCreated, emitPayoutFailed, emitPayoutPaid } from './settlement-events';
 import { SETTLEMENT_CONFIG, type SettlementConfig } from './settlement.config';
-import { decodeCursor, encodeCursor, fieldError, parseOrThrow, payoutCreate, payoutId, payoutListQuery } from './schemas';
+import { decodeCursor, encodeCursor, fieldError, parseOrThrow, payoutCreate, payoutId, payoutListQuery, publicPayoutListQuery } from './schemas';
 import { inTransaction } from './unit-of-work';
 
 export type RailMap = Readonly<Record<Rail, PayoutRail>>;
@@ -130,7 +130,8 @@ export class PayoutService {
 
   /** Listado paginado (del más nuevo al más viejo, desempate por id). `forMerchant` fija el comercio y no se puede cambiar por la consulta. */
   async list(rawQuery: unknown, forMerchant?: string) {
-    const q = parseOrThrow(payoutListQuery, rawQuery);
+    // Con comercio fijado (consulta pública) no existen ni `merchant_id` ni `status`: se rechazan, no se ignoran en silencio.
+    const q = parseOrThrow(forMerchant ? publicPayoutListQuery : payoutListQuery, rawQuery) as ReturnType<typeof payoutListQuery.parse>;
     const cursor = q.starting_after ? decodeCursor(q.starting_after) : null;
     const { rows } = await this.pool.query<PayoutRow>(
       `SELECT ${PAYOUT_COLUMNS} FROM settlement_payouts

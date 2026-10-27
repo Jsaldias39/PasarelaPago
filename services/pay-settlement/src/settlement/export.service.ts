@@ -26,7 +26,6 @@ export interface AccountingExport {
   readonly balanced: boolean;
 }
 
-const MERCHANT = /^merchant:(mc_[a-z0-9]{10,40}):pending$/;
 const net = (entries: readonly LedgerStatementEntry[], side: 'credit' | 'debit'): number => entries.filter((e) => e.direction === side).reduce((s, e) => s + e.amount_minor, 0);
 
 /**

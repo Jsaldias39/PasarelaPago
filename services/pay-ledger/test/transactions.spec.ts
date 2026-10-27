@@ -200,6 +200,34 @@ describe('POST /transactions — atomicidad y saldo (REQ-P2-2, M8)', () => {
   });
 });
 
+describe('POST /transactions — merchant:pending sin invariante de no-negativo (PLAN-MAESTRO §3.3, P3-D10, D-22)', () => {
+  it('un contracargo que supera lo pendiente se asienta y deja el saldo en negativo (deuda), visible como nature debit', async () => {
+    const m = merchantId();
+    expect((await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:pending`, 10_000)]))).status).toBe(201);
+    const chargeback = await createTx(body(businessRef('dispute'), 1, [leg(`merchant:${m}:pending`, CLEARING, 12_000, 'adjustment')]));
+    expect(chargeback.status).toBe(201);
+    expect(await balance(`merchant:${m}:pending`)).toMatchObject({ balance_minor: 2_000, nature: 'debit' });
+  });
+
+  it('en cambio `available` sigue sin poder quedar en negativo: el mismo débito se rechaza y no mueve nada', async () => {
+    const m = merchantId();
+    expect((await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:available`, 10_000)]))).status).toBe(201);
+    const refused = await createTx(body(businessRef('dispute'), 1, [leg(`merchant:${m}:available`, CLEARING, 10_001, 'adjustment')]));
+    expect(refused.status).toBe(422);
+    expect(refused.body.code).toBe('insufficient_funds');
+    expect(await balance(`merchant:${m}:available`)).toMatchObject({ balance_minor: 10_000, nature: 'credit' });
+  });
+
+  it('la deuda se netea moviendo disponible → pendiente: el pendiente vuelve a cero', async () => {
+    const m = merchantId();
+    await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:available`, 5_000)]));
+    await createTx(body(businessRef('dispute'), 1, [leg(`merchant:${m}:pending`, CLEARING, 2_000, 'adjustment')]));
+    const net = await createTx(body(businessRef('netting'), 1, [leg(`merchant:${m}:available`, `merchant:${m}:pending`, 2_000, 'adjustment')]), 'pay-settlement');
+    expect(net.status).toBe(201);
+    expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(0);
+  });
+});
+
 describe('POST /transactions — rastro de rechazos (P2.H1.M9)', () => {
   it('un rechazo deja una fila con business_ref, attempt y motivo; repetirlo no duplica el rastro', async () => {
     const m = merchantId();

@@ -53,7 +53,7 @@ export class BatchService {
       const releaseDays = input.release_days ?? this.config.releaseDays;
       const cutoff = localMidnight(input.cutoff_date, this.config.tzOffsetMinutes);
       // La fecha tiene que existir de verdad (2026-02-30 pasa el formato de zod pero no el calendario).
-      if (cutoff.toISOString().length === 0 || new Date(`${input.cutoff_date}T00:00:00Z`).toISOString().slice(0, 10) !== input.cutoff_date) throw fieldError('cutoff_date', 'invalid_date');
+      if (new Date(`${input.cutoff_date}T00:00:00Z`).toISOString().slice(0, 10) !== input.cutoff_date) throw fieldError('cutoff_date', 'invalid_date');
       if (this.config.cutoffWeekday !== null && new Date(`${input.cutoff_date}T00:00:00Z`).getUTCDay() !== this.config.cutoffWeekday) throw fieldError('cutoff_date', 'not_a_cutoff_day');
       if (cutoff.getTime() > Date.now()) throw fieldError('cutoff_date', 'future_cutoff');
 
@@ -193,20 +193,56 @@ export class BatchService {
     }
 
     if (item.status === 'released') {
-      // Primero lo que el comercio debe (deudas abiertas y el abono del mes), después lo que se le paga.
+      // Primero lo que el comercio debe (deuda en `pending`, cobros abiertos y el abono del mes), después lo que se le paga.
+      await this.netPendingDebt(batch, merchant);
       await this.netting.collectOpenFor(merchant);
       const fee = await this.netting.chargeMonthlyFee(merchant, batch.cutoff_date);
       if (fee) await this.netting.collect(fee.id);
       const balance = await this.ledger.getBalance(`merchant:${merchant}:available`);
       const free = balance && balance.nature === 'credit' ? balance.balance_minor : 0;
       let payoutId: string | null = null;
-      // Si el pago de este corte ya existe (reintento), se retoma tal cual: su monto no se recalcula.
+      // Si el pago de este corte ya existe (reintento tras un corte del proceso) se RETOMA tal cual: su monto no se recalcula —el disponible
+      // ya descuenta la retención— y no se vuelve a insertar.
       const existing = await this.pool.query<{ id: string }>('SELECT id FROM settlement_payouts WHERE batch_id = $1 AND merchant_id = $2', [batch.id, merchant]);
-      if (existing.rows[0] || free > 0) {
-        const payout = await this.payouts.createForBatch({ batchId: batch.id, merchantId: merchant, amountMinor: free, periodFrom: batch.period_from, periodTo: batch.release_before });
-        payoutId = payout.id;
+      if (existing.rows[0]) {
+        payoutId = (await this.payouts.advance(existing.rows[0].id)).id;
+      } else if (free > 0) {
+        payoutId = (await this.payouts.createForBatch({ batchId: batch.id, merchantId: merchant, amountMinor: free, periodFrom: batch.period_from, periodTo: batch.release_before })).id;
       }
       await this.pool.query(`UPDATE settlement_batch_items SET status = 'done', payout_id = $3, updated_at = $4 WHERE batch_id = $1 AND merchant_id = $2`, [batch.id, merchant, payoutId, new Date()]);
+    }
+  }
+
+  /**
+   * Un contracargo perdido se debita de `merchant:*:pending` (P3-D10) y, si supera lo pendiente, el saldo queda NEGATIVO: es la deuda del
+   * comercio (D-22). El corte la netea moviendo `min(deuda, disponible)` de `available` a `pending` (`adjustment`), con el monto fijado ANTES de
+   * llamar al ledger. Lo que el disponible no alcanza sigue debiéndose y se vuelve a intentar en el corte siguiente (nunca queda `available`
+   * negativo: lo impide el ledger). Si el ledger rechaza el movimiento porque el saldo cambió, este corte lo omite.
+   */
+  private async netPendingDebt(batch: BatchRow, merchant: string): Promise<void> {
+    const row = (await this.pool.query<{ netting_minor: string | null; netting_attempt: number }>('SELECT netting_minor, netting_attempt FROM settlement_batch_items WHERE batch_id = $1 AND merchant_id = $2', [batch.id, merchant])).rows[0];
+    let planned = row.netting_minor === null ? null : Number(row.netting_minor);
+    if (planned === null) {
+      const pending = await this.ledger.getBalance(`merchant:${merchant}:pending`);
+      const free = await this.ledger.getBalance(`merchant:${merchant}:available`);
+      const debt = pending && pending.nature === 'debit' ? pending.balance_minor : 0;
+      planned = Math.min(debt, free && free.nature === 'credit' ? free.balance_minor : 0);
+      await this.pool.query('UPDATE settlement_batch_items SET netting_minor = $3, updated_at = $4 WHERE batch_id = $1 AND merchant_id = $2', [batch.id, merchant, planned, new Date()]);
+    }
+    if (planned < 1) return;
+    try {
+      await this.ledger.createTransaction(
+        {
+          businessRef: businessRef(stableId('nd', batch.id, merchant), 'collect'),
+          attempt: row.netting_attempt,
+          legs: [{ debit_account: `merchant:${merchant}:available`, credit_account: `merchant:${merchant}:pending`, amount_minor: planned, code: 'adjustment' }],
+        },
+        `netting-${batch.id}-${merchant}-${row.netting_attempt}`,
+      );
+    } catch (error) {
+      if (!(error instanceof LedgerRejectedError)) throw error;
+      this.logger.warn({ batch: batch.id, merchant, code: error.code }, 'El ledger rechazó el neteo de la deuda; queda para el próximo corte');
+      await this.pool.query('UPDATE settlement_batch_items SET netting_minor = 0, updated_at = $3 WHERE batch_id = $1 AND merchant_id = $2', [batch.id, merchant, new Date()]);
     }
   }
 

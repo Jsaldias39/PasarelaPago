@@ -70,7 +70,7 @@ export interface TestApp {
 export async function createTestApp(options: { controllers?: Array<new (...args: never[]) => unknown>; config?: Partial<ServiceConfig> } = {}): Promise<TestApp> {
   const db = await createIsolatedDatabase(SQL);
   const contract = await loadContract(SPEC);
-  const appPool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${db.schema}`, max: 20 });
+  const appPool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${db.schema}`, max: 10 });
   const clock = new TestClock();
   const qr = new FakeQr();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule], ...(options.controllers && { controllers: options.controllers }) })

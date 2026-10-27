@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
-import { createIsolatedDatabase, type IsolatedDatabase } from '@pay/testing';
+import { Pool } from 'pg';
+import { createIsolatedDatabase, TEST_DATABASE_URL, type IsolatedDatabase } from '@pay/testing';
 import { loadConfig, type ServiceConfig } from '../../src/config';
 import { createDeps, type Deps } from '../../src/deps';
 import { TemporalOrchestrator } from '../../src/payments/orchestrator';
@@ -45,6 +46,7 @@ export interface Stack {
   readonly worker: PaymentsWorker | undefined;
   /** Entorno con el que se armó la configuración: sirve para levantar workers como procesos aparte. */
   readonly env: Record<string, string>;
+  readonly servicePool: Pool;
   stop(): Promise<void>;
 }
 
@@ -78,16 +80,20 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
     ...options.env,
   };
   const config = loadConfig(env);
-  const deps = createDeps(db.pool as never, config, { wallet });
+  // El servicio usa SU pool, del tamaño del de producción (10): la Postgres es compartida por todos los carriles y un pool de 60
+  // conexiones por prueba la satura (SQLSTATE 53300). `db.pool` queda solo para que la prueba consulte y verifique.
+  const servicePool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${db.schema}`, max: 10 });
+  const deps = createDeps(servicePool as never, config, { wallet });
   const worker = options.inProcessWorker === false ? undefined : await startPaymentsWorker(deps, { workflowsPath: WORKFLOWS_PATH });
   const orchestrator = await TemporalOrchestrator.connect({ address: config.temporal.address, namespace: config.temporal.namespace, taskQueue });
   const service = new PaymentsService(deps, orchestrator);
   return {
-    db, config, deps, service, orchestrator, risk, connectors, ledger, wallet, worker, env,
+    db, config, deps, service, orchestrator, risk, connectors, ledger, wallet, worker, env, servicePool,
     async stop() {
       await worker?.shutdown();
       await orchestrator.close();
       await Promise.all([risk.stop(), connectors.stop(), ledger.stop()]);
+      await servicePool.end();
       await db.drop();
     },
   };
