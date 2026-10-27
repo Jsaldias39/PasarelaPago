@@ -1,0 +1,217 @@
+# O2.P2.H5 (tanda 2c) pay-ledger: PAY_MODE explícito, guardia live, clave↔despliegue, .env.example
+
+## test/deployment.spec.ts — 30/30 pasan
+  [passed] PAY_MODE en la configuración: obligatorio, sin valor por defecto ausente ⇒ no arranca y el mensaje dice qué falta y que no hay valor por defecto
+  [passed] PAY_MODE en la configuración: obligatorio, sin valor por defecto vacío ⇒ no arranca y el mensaje dice qué falta y que no hay valor por defecto
+  [passed] PAY_MODE en la configuración: obligatorio, sin valor por defecto "staging" es inválido
+  [passed] PAY_MODE en la configuración: obligatorio, sin valor por defecto "prod" es inválido
+  [passed] PAY_MODE en la configuración: obligatorio, sin valor por defecto "SANDBOX" es inválido
+  [passed] PAY_MODE en la configuración: obligatorio, sin valor por defecto "test" es inválido
+  [passed] PAY_MODE en la configuración: obligatorio, sin valor por defecto "Live" es inválido
+  [passed] PAY_MODE en la configuración: obligatorio, sin valor por defecto " live" es inválido
+  [passed] PAY_MODE en la configuración: obligatorio, sin valor por defecto sandbox se acepta tal cual
+  [passed] PAY_MODE en la configuración: obligatorio, sin valor por defecto live se acepta tal cual
+  [passed] guardia de despliegue: live no acepta dobles sandbox acepta reales y dobles
+  [passed] guardia de despliegue: live no acepta dobles live acepta colaboradores reales
+  [passed] guardia de despliegue: live no acepta dobles live con un doble sin marca ⇒ error con su nombre
+  [passed] guardia de despliegue: live no acepta dobles live con uno que dice no ser real ⇒ error con su nombre
+  [passed] guardia de despliegue: live no acepta dobles el motor de verdad se declara real
+  [passed] arranque de la aplicación PAY_MODE=sandbox con TigerBeetle real: arranca y responde /health/ready
+  [passed] arranque de la aplicación PAY_MODE=live con TigerBeetle real: arranca y responde /health/ready
+  [passed] arranque de la aplicación sin PAY_MODE: NO arranca (mensaje claro)
+  [passed] arranque de la aplicación PAY_MODE inválido: NO arranca
+  [passed] arranque de la aplicación PAY_MODE=live con un motor que es un doble: NO arranca
+  [passed] arranque de la aplicación PAY_MODE=sandbox con un doble: arranca (los dobles son de sandbox)
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live la tabla de correspondencia
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue sandbox con X-Pay-Mode="test" ⇒ true
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue sandbox con X-Pay-Mode="live" ⇒ false
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue live con X-Pay-Mode="live" ⇒ true
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue live con X-Pay-Mode="test" ⇒ false
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue sandbox con X-Pay-Mode=undefined ⇒ false
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue live con X-Pay-Mode=undefined ⇒ false
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue sandbox con X-Pay-Mode="sandbox" ⇒ false
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue live con X-Pay-Mode="" ⇒ false
+
+## test/config.spec.ts — 10/10 pasan
+  [passed] configuración de pay-ledger sin TB_ADDRESS no arranca; los valores por defecto son los de producción (sin job del invariante propio ni namespace)
+  [passed] configuración de pay-ledger TB_CLUSTER_ID="-1" es inválido
+  [passed] configuración de pay-ledger TB_TIMEOUT_MS="5" es inválido
+  [passed] configuración de pay-ledger LEDGER_INVARIANT_INTERVAL_MS="x" es inválido
+  [passed] configuración de pay-ledger LEDGER_ID_NAMESPACE="con espacios" es inválido
+  [passed] configuración de pay-ledger LEDGER_ID_NAMESPACE="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" es inválido
+  [passed] configuración de pay-ledger LEDGER_ID_NAMESPACE="ñandú" es inválido
+  [passed] configuración de pay-ledger LEDGER_ID_NAMESPACE válido se acepta
+  [passed] namespace de ids de TigerBeetle apartar el namespace cambia TODOS los ids (cuentas e ids públicos) y es determinista
+  [passed] EVENTS_CARRY_MODE apagado por defecto; acepta true|false; cualquier otro valor falla al arrancar
+
+## test/mode.spec.ts — 45/45 pasan
+  [passed] correcto: el modo válido opera y los dos modos son independientes en modo test todas las rutas internas responden con su contrato
+  [passed] correcto: el modo válido opera y los dos modos son independientes en modo live todas las rutas internas responden con su contrato
+  [passed] correcto: el modo válido opera y los dos modos son independientes el MISMO business_ref, intento y cuentas en test y en live son dos asientos distintos, con ids distintos y saldos independientes
+  [passed] correcto: el modo válido opera y los dos modos son independientes el invariante global verifica los dos modos por separado y cierra sin diferencias
+  [passed] correcto: el modo válido opera y los dos modos son independientes un contracargo partido (pendiente + deuda) opera dentro de su modo y no toca el otro
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) el dinero cargado en test no se puede gastar en el modo contrario: rechazo por saldo y nada se mueve
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) el dinero cargado en live no se puede gastar en el modo contrario: rechazo por saldo y nada se mueve
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) un saldo y un extracto creados en test no existen en el modo contrario (404, sin revelar nada)
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) un saldo y un extracto creados en live no existen en el modo contrario (404, sin revelar nada)
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) un asiento de test no se consulta con el modo contrario (404)
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) un asiento de live no se consulta con el modo contrario (404)
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) una retención de test no se consulta, confirma ni anula desde el modo contrario: sigue pendiente y reservada
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) una retención de live no se consulta, confirma ni anula desde el modo contrario: sigue pendiente y reservada
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) la misma Idempotency-Key usada en el otro modo NO repite la respuesta guardada del primero
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) el rechazo por saldo de un modo no consume el intento del otro y queda registrado con su modo
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) concurrencia: 10 cobros simultáneos en cada modo sobre la misma cuenta lógica suman por separado
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) las cuentas de plataforma compartidas por nombre (platform:fees) son distintas en TigerBeetle por modo
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions sin la cabecera ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions vacío ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions en mayúsculas ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions sandbox (modo de despliegue, no de clave) ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions un valor cualquiera ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions dos modos ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds sin la cabecera ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds vacío ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds en mayúsculas ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds sandbox (modo de despliegue, no de clave) ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds un valor cualquiera ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds dos modos ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones sin la cabecera ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones vacío ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones en mayúsculas ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones sandbox (modo de despliegue, no de clave) ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones un valor cualquiera ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones dos modos ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público sin la cabecera ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público vacío ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público en mayúsculas ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público sandbox (modo de despliegue, no de clave) ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público un valor cualquiera ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público dos modos ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` una clave %2$s contra un despliegue %1$s ⇒ 403 en TODAS las rutas, sin asentar nada (test solo opera contra sandbox; live, contra live)
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` una clave %2$s contra un despliegue %1$s ⇒ 403 en TODAS las rutas, sin asentar nada (test solo opera contra sandbox; live, contra live)
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` el modo solo sale de la cabecera: un `mode` en el cuerpo o en la consulta se rechaza como campo desconocido y no cambia de modo
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` el almacenamiento también lo impide: un modo fuera de test|live no entra a ninguna tabla y una pata no puede nombrar una cuenta de otro modo
+
+## test/env-example.spec.ts — 4/4 pasan
+  [passed] .env.example de pay-ledger declara PAY_MODE activo (es obligatorio, sin valor por defecto) y alcanza para que la configuración cargue
+  [passed] .env.example de pay-ledger documenta TODAS las variables que el arnés e2e le pasa al ledger (activas o comentadas)
+  [passed] .env.example de pay-ledger el puerto y el TigerBeetle del ejemplo son los del plan: 3105 y el de desarrollo (54300)
+  [passed] .env.example de pay-ledger el ledger arranca en el arnés sin ningún paso manual: no necesita nada más que lo que el arnés le pasa (TigerBeetle propio incluido)
+
+# O2.P2.H5 (tanda 2c) pay-settlement: renombre pay-backoffice (contrato), PAY_MODE explícito, guardia live, clave↔despliegue, .env.example
+
+## test/deployment.spec.ts — 23/23 pasan
+  [passed] guardia de despliegue: live no acepta dobles ni el conector mock los clientes HTTP de verdad se declaran reales; los dobles no
+  [passed] guardia de despliegue: live no acepta dobles ni el conector mock live con colaboradores reales arranca
+  [passed] guardia de despliegue: live no acepta dobles ni el conector mock live: el ledger es un doble ⇒ NO arranca y lo nombra
+  [passed] guardia de despliegue: live no acepta dobles ni el conector mock live: los conectores son un doble ⇒ NO arranca y lo nombra
+  [passed] guardia de despliegue: live no acepta dobles ni el conector mock live: el riel es el doble del modo B ⇒ NO arranca y lo nombra
+  [passed] guardia de despliegue: live no acepta dobles ni el conector mock live con settlement.mode=acquirer o con el conector mock ⇒ NO arranca; juntos, los nombra a todos
+  [passed] guardia de despliegue: live no acepta dobles ni el conector mock sandbox acepta dobles, el modo B y el conector mock
+  [passed] arranque de la aplicación sin PAY_MODE: NO arranca (mensaje claro, sin valor por defecto)
+  [passed] arranque de la aplicación PAY_MODE inválido: NO arranca
+  [passed] arranque de la aplicación sandbox con el conector mock: arranca y el reporte de salud lo dice
+  [passed] arranque de la aplicación live con colaboradores reales (clientes HTTP, riel bancario, conector de verdad): arranca
+  [passed] arranque de la aplicación live con un ledger doble: NO arranca
+  [passed] arranque de la aplicación live con un conector doble: NO arranca
+  [passed] arranque de la aplicación sandbox con dobles: arranca (los dobles son de sandbox)
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live la tabla de correspondencia
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue sandbox con X-Pay-Mode="test" ⇒ true
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue sandbox con X-Pay-Mode="live" ⇒ false
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue live con X-Pay-Mode="live" ⇒ true
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue live con X-Pay-Mode="test" ⇒ false
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue sandbox con X-Pay-Mode=undefined ⇒ false
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue live con X-Pay-Mode=undefined ⇒ false
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue sandbox con X-Pay-Mode="sandbox" ⇒ false
+  [passed] relación con X-Pay-Mode: una clave test solo opera contra sandbox; live, contra live despliegue live con X-Pay-Mode="" ⇒ false
+
+## test/config.spec.ts — 27/27 pasan
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso valores por defecto: modo A, sandbox, corte los lunes (D-19), UTC−4, T+7, retención de 7 días, conector de pruebas
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso PAY_MODE es obligatorio y NO tiene valor por defecto: ausente o vacío no arranca; nunca se asume sandbox ni live
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso falta LEDGER_URL ⇒ no arranca y dice cuál
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso falta CONNECTORS_URL ⇒ no arranca y dice cuál
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso falta OPERATOR_TOKEN_PUBLIC_KEY ⇒ no arranca y dice cuál
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso falta OPERATOR_TOKEN_ISSUER ⇒ no arranca y dice cuál
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso falta OPERATOR_TOKEN_AUDIENCE ⇒ no arranca y dice cuál
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso LEDGER_URL="pay-ledger:3000" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso LEDGER_URL="ftp://pay-ledger" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso CONNECTORS_URL="no es una url" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_MODE="cualquiera" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso PAY_MODE="staging" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_CUTOFF_WEEKDAY="7" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_CUTOFF_WEEKDAY="lunes" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_TZ_OFFSET_MINUTES="9999" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_RELEASE_DAYS="61" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_RELEASE_DAYS="-1" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_PAYOUT_HOLD_TTL_SECONDS="10" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_PAYOUT_HOLD_TTL_SECONDS="3000000" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_HTTP_TIMEOUT_MS="10" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_SWEEP_INTERVAL_MS="-5" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_TRANSFER_CONNECTOR="visa" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_STATEMENT_FORMATS="mock:xlsx" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso SETTLEMENT_STATEMENT_FORMATS="sin-formato" ⇒ no arranca
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso settlement.mode=acquirer es un doble: arranca en sandbox y NUNCA con PAY_MODE=live (marcaría como pagado lo que no salió)
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso el conector de pruebas `mock` no puede mover dinero en producción
+  [passed] configuración de pay-settlement: falla al arrancar con algo faltante o peligroso día de corte: 0–6 o `any`; formatos de extracto por conector
+
+## test/mode.spec.ts — 31/31 pasan
+  [passed] correcto: cada modo opera con lo suyo y todo lo propaga un pago en test se retiene, se paga y se publica con ese modo; el ledger y el conector reciben el mismo modo
+  [passed] correcto: cada modo opera con lo suyo y todo lo propaga un pago en live se retiene, se paga y se publica con ese modo; el ledger y el conector reciben el mismo modo
+  [passed] correcto: cada modo opera con lo suyo y todo lo propaga la misma Idempotency-Key en los dos modos son DOS pagos distintos, cada uno en su ledger, sin repetir la respuesta del otro
+  [passed] correcto: cada modo opera con lo suyo y todo lo propaga el pago suelto emite payout.created sin lote y válido; el del corte lo trae
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) el dinero de test no se puede pagar en el modo contrario: 422 por saldo, sin retención ni orden al conector
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) el dinero de live no se puede pagar en el modo contrario: 422 por saldo, sin retención ni orden al conector
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) un pago de test no se lista ni se consulta con el modo contrario (404, sin revelar nada)
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) un pago de live no se lista ni se consulta con el modo contrario (404, sin revelar nada)
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) concurrencia: 10 pagos simultáneos por modo sobre el mismo comercio suman por separado y ninguno cruza
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) el corte del MISMO lunes en los dos modos son dos lotes; cada uno libera solo lo cobrado en su modo y repetir uno no toca el otro
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) un cobro con la misma referencia en los dos modos son dos cobros; cada uno se cobra solo de su saldo, y el abono mensual sale una vez POR modo
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) la exportación contable es de UN modo: no suma comisiones ni líneas del otro
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) conciliación la corrida lee el ledger de SU modo; la misma diferencia en los dos modos abre una excepción en cada uno (el dedupe no las funde)
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) conciliación una corrida o una excepción de un modo no se consulta ni se resuelve desde el otro (404) y sigue abierta
+  [passed] límite: lo de un modo NO se ve, NO se gasta y NO se paga desde el otro (test↔live, en los dos sentidos) conciliación un extracto que prueba un pago solo confirma payouts del MISMO modo
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero sin la cabecera ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero vacío ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero en mayúsculas ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero sandbox (modo de despliegue, no de clave) ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero un valor cualquiera ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las rutas que mueven dinero dos modos ⇒ 403 forbidden, nada escrito, ni una llamada al ledger ni al conector
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución sin la cabecera ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución vacío ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución en mayúsculas ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución sandbox (modo de despliegue, no de clave) ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución un valor cualquiera ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` las lecturas y la resolución dos modos ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` una clave %2$s contra un despliegue %1$s ⇒ 403 en TODAS las rutas, sin escribir nada ni llamar al ledger o al conector (test solo opera contra sandbox; live, contra live)
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` una clave %2$s contra un despliegue %1$s ⇒ 403 en TODAS las rutas, sin escribir nada ni llamar al ledger o al conector (test solo opera contra sandbox; live, contra live)
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` el modo solo sale de la cabecera: un `mode` en el cuerpo o en la consulta se rechaza como campo desconocido y no cambia de modo
+  [passed] inválido: sin un modo válido NO se atiende, NO se escribe nada y NO se cae en `live` el almacenamiento también lo impide: ninguna tabla de registro acepta un modo fuera de test|live
+
+## test/inbound-mode.spec.ts — 3/3 pasan
+  [passed] llamadas entrantes que el contrato documenta la tabla del contrato es la que se espera (si cambia, esta prueba lo avisa; no se asumen llamadores)
+  [passed] llamadas entrantes que el contrato documenta cada par (servicio, operación) documentado: CON modo no es 403; SIN modo o con un valor inválido, 403 forbidden
+  [passed] llamadas entrantes que el contrato documenta un llamador NO documentado recibe 403 aunque mande un modo válido; no se agregan llamadores
+
+## test/ledger-real.spec.ts — 11/11 pasan
+  [passed] payouts contra el ledger real retiene, ordena el pago y confirma: el dinero del comercio baja y payout:clearing sube exactamente el monto
+  [passed] payouts contra el ledger real un monto mayor al disponible lo rechaza el ledger real: 422 insufficient_funds, sin efecto
+  [passed] payouts contra el ledger real kill-test del lane: 20 pagos simultáneos que juntos superan lo disponible ⇒ exactamente los que caben, saldo nunca negativo
+  [passed] payouts contra el ledger real diez pedidos con la misma clave: un solo pago en el ledger real
+  [passed] payouts contra el ledger real el riel falla sin efecto: el ledger real anula la retención y el saldo vuelve entero
+  [passed] payouts contra el ledger real ambiguo: la retención real sigue viva (el dinero reservado) y la consulta «pagado» la confirma en el ledger real
+  [passed] el modo contra el ledger real (D-28): sandbox↔test, live↔live un pay-settlement live apuntando a un ledger sandbox NO paga: el ledger real rechaza la clave live (403), el pago no sale y no hay orden al conector
+  [passed] el modo contra el ledger real (D-28): sandbox↔test, live↔live dos despliegues reales (ledger sandbox y ledger live): el mismo comercio con dinero en cada uno paga de SU saldo; el de live no ve el de sandbox
+  [passed] cobros netos y conciliación contra el ledger real comisión programada: el ledger real acredita platform:fees y debita al comercio; sin saldo queda deuda y el ledger no se pasa de negativo
+  [passed] cobros netos y conciliación contra el ledger real conciliación: el extracto del banco contra el extracto REAL de la cuenta de compensación; la diferencia queda como excepción y el ledger no cambia
+  [passed] cobros netos y conciliación contra el ledger real el saldo y el extracto de una cuenta que el ledger real nunca vio son «sin movimientos», no un error
+
+## test/env-example.spec.ts — 4/4 pasan
+  [passed] .env.example de pay-settlement declara PAY_MODE activo (obligatorio, sin valor por defecto) y, con la clave de operador, la configuración carga
+  [passed] .env.example de pay-settlement documenta TODAS las variables que el arnés e2e le pasa a pay-settlement (activas o comentadas)
+  [passed] .env.example de pay-settlement las URLs entre servicios apuntan al puerto que esos servicios declaran en SU .env.example (LEDGER_URL → pay-ledger, CONNECTORS_URL → pay-connectors)
+  [passed] .env.example de pay-settlement la audiencia del ejemplo es la que el arnés usa para firmar la credencial de operador
+
+## test/health-mode.spec.ts — 4/4 pasan
+  [passed] settlement.mode en el arranque modo A (por defecto): el reporte de salud dice banco real, no simulado
+  [passed] settlement.mode en el arranque modo B en sandbox: arranca y el reporte dice que el riel es un doble (simulated: true)
+  [passed] settlement.mode en el arranque modo B con PAY_MODE=live: NO arranca
+  [passed] settlement.mode en el arranque PAY_MODE=live con el conector `mock`: NO arranca

@@ -18,16 +18,19 @@ export interface LiveGuardResult {
 export async function bootUnderLive(only: readonly ServiceName[] = SERVICES, extraEnv: Partial<Record<ServiceName, Record<string, string>>> = {}): Promise<LiveGuardResult[]> {
   const envOverrides = Object.fromEntries(only.map((name) => [name, { PAY_MODE: 'live', ...extraEnv[name] }]));
   const stack = await startStack({ only, envOverrides, readyTimeoutMs: 25_000 });
+  let results: LiveGuardResult[] = [];
+  let leftover: readonly number[] = [];
   try {
-    return only.map((service) => {
+    results = only.map((service) => {
       const status = stack.services[service];
       const log = status.logFile ? readFileSync(status.logFile, 'utf8') : '';
       return { service, started: status.started, healthy: status.healthy, log };
     });
   } finally {
-    const report = await stopStack(stack, { keepLogs: false });
-    if (report.leftoverPids.length > 0) throw new Error(`Procesos que no cerraron: ${report.leftoverPids.join(', ')}`);
+    leftover = (await stopStack(stack, { keepLogs: false })).leftoverPids;
   }
+  if (leftover.length > 0) throw new Error(`Procesos que no cerraron: ${leftover.join(', ')}`);
+  return results;
 }
 
 /** Una guardia que funciona: el servicio no llegó a estar sano y el motivo nombra el modo (no un fallo cualquiera). */

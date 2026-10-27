@@ -2,3 +2,24 @@
 Test Suites: 12 passed, 12 total
 Tests:       157 passed, 157 total
 === pay-merchants corrida 2 (21:52:17, load 8.77) ===
+Test Suites: 12 passed, 12 total
+Tests:       157 passed, 157 total
+=== pay-schedules corrida 1 (21:53:03, load 11.81) ===
+Test Suites: 11 passed, 11 total
+Tests:       167 passed, 167 total
+=== pay-schedules corrida 2 (21:53:58, load 13.01) ===
+Test Suites: 11 passed, 11 total
+Tests:       167 passed, 167 total
+=== pay-risk corrida 1 (21:54:35, load 12.51) ===
+LATENCIA {"label":"secuencial-1-busqueda","n":200,"p50":141.4,"p95":266.2,"p99":301.1,"max":312.6}
+LATENCIA {"label":"secuencial-2-busquedas","n":200,"p50":226.2,"p95":294.5,"p99":317.6,"max":441.8}
+LATENCIA {"label":"concurrente-4","n":400,"p50":247.9,"p95":372,"p99":416.1,"max":463.5}
+LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":20.3,"p95":82.3,"p99":162.4,"max":255}
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 1 búsqueda en Watchman (entity_type conocido): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 2 búsquedas en Watchman (tipo desconocido: persona y empresa): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › concurrencia moderada (4 clientes en paralelo), ≥ 400 llamadas — INFORMATIVA: el Watchman (monohilo por búsqueda) es el cuello de botella
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › el servicio SIN Watchman (cribado instantáneo [DOBLE]) aporta una fracción del presupuesto: p99 propio, ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › cada llamada medida dejó su rastro, con su duración interna registrada
+Test Suites: 1 failed, 11 passed, 12 total
+Tests:       5 failed, 183 passed, 188 total
+=== pay-risk corrida 2 (21:55:45, load 12.18) ===

@@ -1,4 +1,7 @@
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:net';
+import path from 'node:path';
 import type { INestApplication } from '@nestjs/common';
 import { newCloudEvent } from '@pay/outbox';
 import request from 'supertest';
@@ -7,7 +10,7 @@ import { EventHandlers } from '../src/events/handlers';
 import { assertNoDoublesInLive } from '../src/live-guard';
 import { replicasRepo } from '../src/persistence/replicas.repo';
 import { asMerchant, httpApp } from './helpers/http';
-import { key, MC, QR_FEES, seedMerchant, spawnWorker, startDirectIntent, startStack, statusOf, TEST_LEGAL_NAME, waitFor, type Stack } from './helpers/stack';
+import { key, MC, QR_FEES, seedMerchant, startDirectIntent, startStack, statusOf, TEST_LEGAL_NAME, waitFor, type Stack } from './helpers/stack';
 
 /** Tanda 2c: cribado D-29 (razón social del comercio + nombre del pagador), PAY_MODE explícito con guarda de dobles en `live`, y apagado limpio. */
 let stack: Stack;
@@ -18,6 +21,15 @@ const post = (merchantId = MC) => http().post('/payment_intents').set(asMerchant
 const PAYER = 'Persona Sintetica Uno'; // sintético: ningún dato real
 const BLOCKED_NAME = 'Entidad Sancionada de Prueba'; // sintético: es lo que el doble de pay-risk tiene en su lista
 let seq = 0;
+const freePort = (): Promise<number> =>
+  new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
 const nextId = () => `pi_ola2c${String(Date.now()).slice(-7)}${String(seq++).padStart(3, '0')}`;
 const callsFor = (intentId: string) => stack.risk.server.calls.filter((c) => (c.body as { payment_intent_id?: string }).payment_intent_id === intentId);
 const screeningOf = (call: { body: unknown }) => (call.body as { screening?: { name: string; entity_type?: string } }).screening;
@@ -96,7 +108,7 @@ describe('1 · D-29: se cribe la razón social del comercio y, si se da, el nomb
 
   it('inválido · comercio SIN razón social en la réplica (no hay fuente contractual): NO se inventa un nombre; sale sin screening y pay-risk responde review ⇒ risk_denied (D-30)', async () => {
     const merchant = 'mc_screen0000002';
-    await seedMerchant(stack, merchant, 'active', QR_FEES, undefined as never);
+    await seedMerchant(stack, merchant, 'active', QR_FEES, null);
     expect(await replicasRepo.merchantLegalName(stack.deps.pool, merchant)).toBeNull();
     const response = await post(merchant);
     expect(response.body).toMatchObject({ status: 'failed', last_error: { code: 'risk_denied' } });
@@ -221,18 +233,25 @@ describe('4 · bajo PAY_MODE=live el servicio se niega a arrancar con un doble o
 });
 
 describe('5 · apagado limpio: sin IllegalStateError «Not running» al recibir SIGTERM', () => {
-  it('el worker (proceso aparte, dist/worker-main.js) sale con código 0 y sin IllegalStateError en stdout/stderr', async () => {
-    const worker = spawnWorker(stack);
+  it('la API con el worker embebido (dist/main.js) sale con código 0 y sin IllegalStateError al recibir SIGTERM', async () => {
+    const port = await freePort();
+    const child = spawn(process.execPath, [path.join(process.cwd(), 'dist/main.js')], {
+      env: { ...stack.env, PORT: String(port), CONSUME_EVENTS: 'false', TEMPORAL_TASK_QUEUE: `p3-shutdown-${randomUUID().slice(0, 8)}`, PGOPTIONS: `-c search_path=${stack.db.schema}`, NODE_OPTIONS: '' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     let output = '';
-    worker.child.stdout?.on('data', (c: Buffer) => (output += c.toString()));
-    worker.child.stderr?.on('data', (c: Buffer) => (output += c.toString()));
-    await worker.ready;
-    const exited = new Promise<number | null>((resolve) => worker.child.once('exit', (code) => resolve(code)));
-    worker.child.kill('SIGTERM');
-    const code = await Promise.race([exited, new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 30_000).unref())]);
-    if (code === 'timeout') await worker.kill();
-    expect(code).toBe(0);
-    expect(output).not.toMatch(/IllegalStateError|Not running/);
+    child.stdout?.on('data', (c: Buffer) => (output += c.toString()));
+    child.stderr?.on('data', (c: Buffer) => (output += c.toString()));
+    const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
+    try {
+      await waitFor(async () => (await fetch(`http://127.0.0.1:${port}/health/live`).then((r) => r.ok).catch(() => false)) || undefined, 60_000, 'la API en pie');
+      child.kill('SIGTERM');
+      const code = await Promise.race([exited, new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 30_000).unref())]);
+      expect(code).toBe(0);
+      expect(output).not.toMatch(/IllegalStateError|Not running|Error happened during shutdown/);
+    } finally {
+      if (child.exitCode === null) child.kill('SIGKILL'); // por PID: nunca por nombre
+    }
   });
 
   it('el worker en proceso (el de Nest) se puede apagar dos veces sin error: shutdown() es idempotente', async () => {

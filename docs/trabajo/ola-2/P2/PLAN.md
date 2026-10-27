@@ -64,3 +64,20 @@
 | O2.P2.H4.M4 | Ids `tx_`/`hd_` con modo: deterministas entre reinicios y réplicas (prueba) + aviso de migración en el README | valores fijados iguales en procesos aparte | `yarn test ids` | HECHO |
 | O2.P2.H4.M5 | Consumidores de settlement con inbox, duplicados y desorden (pruebas) | un efecto por evento; mismo resultado en cualquier orden | `yarn test consumers nats` | HECHO |
 | O2.P2.H4.M6 | Gates y suites ≥ 2 corridas por servicio + reporte 2b | todo exit 0 | `evidencia/` | HECHO |
+
+---
+# Tanda 2c (2026-10-27) — D-31, PAY_MODE explícito, .env.example y arnés
+## H5 — Pendientes de la tanda 2c
+**CA:** Dado el pedido del coordinador (2c), cuando corren las suites entonces `pay-console` ya no existe en el código ni en las pruebas de `pay-settlement`, ambos servicios exigen `PAY_MODE` explícito y se niegan a arrancar con dobles bajo `live`, y el ledger arranca en el arnés sin pasos manuales.
+**DoD:** typecheck, build, eslint desde la raíz, `yarn test` ≥ 2 corridas por servicio con TigerBeetle real (una suite a la vez, `--maxWorkers=2`).
+**Estado:** HECHO
+
+| ID | Microtarea | CA | DoD | Estado |
+|---|---|---|---|---|
+| O2.P2.H5.M1 | D-31: `pay-console` → `pay-backoffice` en settlement (código, pruebas, README) y en mis docs de trabajo, sin cambiar comportamiento; la tabla «quién llama a qué» se sigue leyendo del contrato | 0 apariciones de `pay-console` (salvo la nota «antes provisorio»); `inbound-mode.spec` verde | `yarn test inbound-mode` | HECHO |
+| O2.P2.H5.M2 | `PAY_MODE` explícito, sin valor por defecto, en pay-ledger y pay-settlement | ausente/vacío/inválido ⇒ no arranca con mensaje claro | `yarn test deployment config` | HECHO |
+| O2.P2.H5.M3 | Bajo `live`, negarse a arrancar con cualquier doble o conector mock | live+doble ⇒ error que lo nombra; sandbox arranca | `yarn test deployment health-mode` | HECHO |
+| O2.P2.H5.M4 | Relación clave↔despliegue: `test` solo contra sandbox, `live` solo contra live (403 si no) en todas las rutas | 8+1 rutas del ledger y 11+1 de settlement | `yarn test mode` | HECHO |
+| O2.P2.H5.M5 | `.env.example` de los dos servicios consistentes con el arnés y entre sí | prueba que lee el arnés y los `.env.example` vecinos | `yarn test env-example` | HECHO |
+| O2.P2.H5.M6 | Confirmar que el ledger arranca en el arnés con TigerBeetle real, sin pasos manuales | `ready` con el entorno exacto de `envFor` | `evidencia/arnes/` | HECHO |
+| O2.P2.H5.M7 | Gates, suites ≥ 2 corridas por servicio y reporte 2c | todo exit 0 | `evidencia/` | HECHO |

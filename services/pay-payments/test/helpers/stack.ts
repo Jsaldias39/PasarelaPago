@@ -102,8 +102,8 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
 /** Razón social sintética de los comercios de prueba (el cribado de sanciones de D-29 la exige). */
 export const TEST_LEGAL_NAME = 'Comercio de Prueba S.R.L.';
 
-export async function seedMerchant(stack: Pick<Stack, 'deps'>, merchantId: string, status: 'active' | 'suspended' | 'pending' | 'closed' = 'active', channels = QR_FEES, legalName: string | undefined = TEST_LEGAL_NAME): Promise<void> {
-  await replicasRepo.upsertMerchantStatus(stack.deps.pool, merchantId, status, new Date(), legalName);
+export async function seedMerchant(stack: Pick<Stack, 'deps'>, merchantId: string, status: 'active' | 'suspended' | 'pending' | 'closed' = 'active', channels = QR_FEES, legalName: string | null = TEST_LEGAL_NAME): Promise<void> {
+  await replicasRepo.upsertMerchantStatus(stack.deps.pool, merchantId, status, new Date(), legalName ?? undefined);
   await replicasRepo.upsertFeeSchedule(stack.deps.pool, { merchantId, version: 1, currency: 'BOB', channels, effectiveFrom: new Date(Date.now() - 86_400_000), effectiveTo: null });
 }
 
