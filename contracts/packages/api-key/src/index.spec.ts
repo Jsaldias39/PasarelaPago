@@ -1,4 +1,4 @@
-import { generateApiKey, hashSecret, parseApiKey, verifyApiKey, verifySecret } from './index';
+import { generateApiKey, hashApiKey, parseApiKey, verifyApiKey } from './index';
 
 describe('api-key (D-27)', () => {
   it('genera una clave con el formato del contrato y la reconoce', () => {
@@ -27,24 +27,53 @@ describe('api-key (D-27)', () => {
     expect(verifyApiKey(spliced, key)).toBe(false);
   });
 
-  it('un token test no se confunde con uno live aunque compartan secreto', () => {
-    const key = generateApiKey('live');
-    const asTest = key.token.replace('sk_live_', 'sk_test_');
+  describe('confusión de modo (hallazgo de la revisión de seguridad)', () => {
+    it('una clave TEST reescrita como LIVE NO verifica contra su registro, ni contra uno cuyo modo se tomó del token', () => {
+      const test = generateApiKey('test');
+      const forged = test.token.replace('sk_test_', 'sk_live_');
+      expect(verifyApiKey(forged, test)).toBe(false); // el registro dice `test`
+      // aunque quien llama construya el registro con el modo del token (el error que se quiere impedir), el hash ya no coincide
+      expect(verifyApiKey(forged, { keyId: test.keyId, mode: 'live', keyHash: test.keyHash })).toBe(false);
+    });
+
+    it('una clave LIVE reescrita como TEST tampoco verifica', () => {
+      const live = generateApiKey('live');
+      const forged = live.token.replace('sk_live_', 'sk_test_');
+      expect(verifyApiKey(forged, live)).toBe(false);
+      expect(verifyApiKey(forged, { keyId: live.keyId, mode: 'test', keyHash: live.keyHash })).toBe(false);
+    });
+
+    it('el mismo secreto con otro modo o con otro id produce otro hash', () => {
+      const base = { mode: 'test' as const, keyId: 'key_aaaaaaaaaaaaaaaa', secret: 'b'.repeat(32) };
+      const hashes = new Set([hashApiKey(base), hashApiKey({ ...base, mode: 'live' }), hashApiKey({ ...base, keyId: 'key_cccccccccccccccc' })]);
+      expect(hashes.size).toBe(3);
+    });
+
+    it('un registro cuyo modo no coincide con el del token se rechaza aunque el hash sea el correcto', () => {
+      const key = generateApiKey('live');
+      expect(verifyApiKey(key.token, { keyId: key.keyId, mode: 'test', keyHash: key.keyHash })).toBe(false);
+    });
+  });
+
+  it('un token test y uno live con el mismo secreto son claves distintas', () => {
+    const live = generateApiKey('live');
+    const asTest = live.token.replace('sk_live_', 'sk_test_');
     expect(parseApiKey(asTest)?.mode).toBe('test');
-    expect(parseApiKey(asTest)?.keyId).toBe(key.keyId); // la verificación de modo la hace quien conoce el modo de la clave guardada
+    expect(parseApiKey(asTest)?.keyId).toBe(live.keyId);
+    expect(verifyApiKey(asTest, live)).toBe(false);
+  });
+
+  it('verifyApiKey no lanza ante un hash guardado mal formado', () => {
+    const key = generateApiKey('test');
+    for (const keyHash of ['', '$argon2id$v=19$...', `sha256$${'z'.repeat(64)}`]) {
+      expect(verifyApiKey(key.token, { keyId: key.keyId, mode: 'test', keyHash })).toBe(false);
+    }
   });
 
   it.each([undefined, null, 42, '', 'sk_live_', 'sk_prod_aaaaaaaaaaaaaaaa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'SK_LIVE_AAAAAAAAAAAAAAAA_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'sk_live_aaaaaaaaaaaaaaa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'sk_live_aaaaaaaaaaaaaaaa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', `sk_live_aaaaaaaaaaaaaaaa_${'a'.repeat(500)}`, 'sk_live_aaaaaaaaaaaaaaa1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'])(
     'parseApiKey devuelve null para %p sin lanzar',
     (value) => expect(parseApiKey(value)).toBeNull(),
   );
-
-  it('verifySecret no lanza ante un hash guardado mal formado', () => {
-    expect(verifySecret('x', '')).toBe(false);
-    expect(verifySecret('x', '$argon2id$v=19$...')).toBe(false);
-    expect(verifySecret('x', `sha256$${'z'.repeat(64)}`)).toBe(false);
-    expect(verifySecret('x', hashSecret('x'))).toBe(true);
-  });
 
   it('1.000 claves no colisionan (ids ni secretos)', () => {
     const ids = new Set<string>();

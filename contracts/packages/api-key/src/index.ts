@@ -9,8 +9,11 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
  *  - `secret` son 32 caracteres `[a-z2-7]` (160 bits de azar).
  * El `keyBody` va **dentro** del token para que `pay-edge` encuentre la clave por id y compare un solo hash, sin recorrerlas todas.
  *
- * Hash: SHA-256 del secreto. Es un secreto aleatorio de alta entropía, no una contraseña: un KDF lento (argon2id, scrypt) no
- * agrega seguridad y costaría decenas de ms en CADA petición del borde. Se compara en tiempo constante.
+ * Hash: SHA-256 de `modo | key_id | secreto`. Es un secreto aleatorio de alta entropía, no una contraseña: un KDF lento
+ * (argon2id, scrypt) no agrega seguridad y costaría decenas de ms en CADA petición del borde. Se compara en tiempo constante.
+ * **El modo y el id quedan atados al hash**: reescribir `sk_test_` a `sk_live_` (o cambiar el id) en un token robado o propio
+ * cambia el hash y la verificación falla, aunque quien llama olvide comparar el modo. Aun así, el modo con el que se
+ * enruta (sandbox o producción) debe salir SIEMPRE del registro guardado de la clave, nunca del token.
  * El secreto se muestra una sola vez; solo se guarda `key_hash`.
  */
 
@@ -46,16 +49,23 @@ export interface ParsedApiKey {
   readonly secret: string;
 }
 
-/** Hash del secreto, en la forma que se guarda: `sha256$<hex>`. */
-export function hashSecret(secret: string): string {
-  return `sha256$${createHash('sha256').update(secret).digest('hex')}`;
+export interface ApiKeyParts {
+  readonly mode: ApiKeyMode;
+  readonly keyId: string;
+  readonly secret: string;
+}
+
+/** Hash que se guarda: `sha256$<hex>` de `pay-api-key-v1|modo|key_id|secreto`. */
+export function hashApiKey(parts: ApiKeyParts): string {
+  return `sha256$${createHash('sha256').update(`pay-api-key-v1|${parts.mode}|${parts.keyId}|${parts.secret}`).digest('hex')}`;
 }
 
 /** Genera una clave nueva. */
 export function generateApiKey(mode: ApiKeyMode): GeneratedApiKey {
   const body = randomBase32(16);
   const secret = randomBase32(32);
-  return { keyId: `key_${body}`, token: `sk_${mode}_${body}_${secret}`, mode, last4: secret.slice(-4), keyHash: hashSecret(secret) };
+  const keyId = `key_${body}`;
+  return { keyId, token: `sk_${mode}_${body}_${secret}`, mode, last4: secret.slice(-4), keyHash: hashApiKey({ mode, keyId, secret }) };
 }
 
 /** Descompone un token. Devuelve `null` si no tiene la forma exacta (nunca lanza ni revela por qué). */
@@ -65,20 +75,21 @@ export function parseApiKey(token: unknown): ParsedApiKey | null {
   return match ? { mode: match[1] as ApiKeyMode, keyId: `key_${match[2]}`, secret: match[3] } : null;
 }
 
-/**
- * Compara el secreto recibido con el hash guardado, en tiempo constante.
- *
- * @returns `false` ante un hash mal formado en vez de lanzar.
- */
-export function verifySecret(secret: string, storedHash: string): boolean {
-  if (!HASH.test(storedHash)) return false;
-  const a = Buffer.from(hashSecret(secret));
-  const b = Buffer.from(storedHash);
-  return a.length === b.length && timingSafeEqual(a, b);
+/** Registro guardado de una clave (lo que `pay-edge` replica desde `api_key.created`). */
+export interface StoredApiKey {
+  readonly keyId: string;
+  readonly mode: ApiKeyMode;
+  readonly keyHash: string;
 }
 
-/** Atajo: ¿este token corresponde a esta clave guardada? */
-export function verifyApiKey(token: unknown, stored: { keyId: string; keyHash: string }): boolean {
+/**
+ * ¿Este token corresponde a esta clave guardada? Compara en tiempo constante y exige que coincidan el id **y el modo**
+ * guardados con los del token, además del hash (que ya los ata). Devuelve `false` ante cualquier forma inválida, sin lanzar.
+ */
+export function verifyApiKey(token: unknown, stored: StoredApiKey): boolean {
   const parsed = parseApiKey(token);
-  return parsed !== null && parsed.keyId === stored.keyId && verifySecret(parsed.secret, stored.keyHash);
+  if (parsed === null || parsed.keyId !== stored.keyId || parsed.mode !== stored.mode || !HASH.test(stored.keyHash)) return false;
+  const a = Buffer.from(hashApiKey(parsed));
+  const b = Buffer.from(stored.keyHash);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
