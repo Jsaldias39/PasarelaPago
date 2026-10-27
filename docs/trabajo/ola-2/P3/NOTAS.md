@@ -80,3 +80,18 @@ Con P3 cerrado en 2d, quedan estas cosas, ordenadas por cuánto bloquean (ningun
 6. **Arranque**: pay-payments y pay-vault exigen `PAY_MODE` (el arnés ya lo pone en `lib/services.ts`) y un worker de Temporal (`TEMPORAL_RUN_WORKER` no debe ser `false` en el proceso del E2E).
 
 No cubierto en 2d: lo de 1 a 5 contra servicios reales; el rechazo de `payer_name` por el pan-guard del borde (P1) —acá solo la defensa en profundidad del servicio—.
+
+
+# Tanda 2e (PROP-20 aplicada)
+
+Evidencia: `evidencia/2e-*.txt`. Pruebas tocadas: `ola2.tanda2c.spec.ts` §1, `ola2.tanda2d.spec.ts` (+ §1b nueva), `doubles/doubles.spec.ts`.
+
+1. **UNA evaluación por intento**, clave `${intentId}:risk`. `assessRisk` arma un solo bloque `screening`: `merchant_name` = razón social de la réplica (siempre que se conozca), `name` = `payer_name` SOLO si el intento lo trae. Desapareció la segunda llamada, la clave `:risk:payer` y `RiskRequest.keySuffix`.
+2. **Tipos de entidad: no se adivinan.** `merchant_entity_type` no se manda (la réplica no guarda el tipo legal del comercio; pay-risk usa `business` por defecto) y el `entity_type` del pagador tampoco (el contrato público solo trae un nombre, no si es persona o empresa): sin él pay-risk busca como persona y como empresa y manda el puntaje mayor, que es lo conservador para sanciones. Si P5/el dueño quieren otra cosa, es una línea en `RiskClient.screeningBody`.
+3. **Sin razón social** (la réplica no la tiene): la evaluación sale SIN `merchant_name` (con `name` si hay pagador; sin `screening` si tampoco) y pay-risk responde `review/screening_not_provided` ⇒ `risk_denied`. No se inventa ningún nombre (probado: el cuerpo no contiene el id ni nada derivado).
+4. **Doble de riesgo** cribando como el contrato nuevo (valida contra el YAML nuevo): `merchant_name` obligatorio para no caer en `review`; `name` opcional y un invitado no bloquea; un nombre de la lista en CUALQUIERA de las dos partes ⇒ `deny/sanctions_match` (gana la más grave, también si falta `merchant_name`); idempotente por clave.
+5. **Pruebas en tres niveles** (en `ola2.tanda2c.spec.ts` §1 y `ola2.tanda2d.spec.ts`): comercio con nombre ⇒ allow; sin razón social ⇒ risk_denied sin nombre inventado; pagador en la lista ⇒ deny (sin cargo); invitado sin nombre ⇒ no bloquea; riesgo caído ⇒ `risk_unavailable` fail-closed; `review` ⇒ deny.
+6. **Privacidad (§1b)**: stdout/stderr de un cobro con `payer_name` hasta el estado terminal no traen ni `payer_name` ni la razón social; `payer_name` no queda en ninguna tabla (salvo la columna de los intentos aún no terminales) y la razón social solo en `merchant_replica`. El log HTTP no serializa cuerpos (`src/app.module.ts`, serializers de `req`/`res`).
+7. Riesgo residual: si la razón social llega a la réplica ENTRE dos reintentos de la activity `assessRisk`, el segundo intento manda un cuerpo distinto con la misma clave y pay-risk responde `idempotency_key_reused` (422) ⇒ `RiskRejected` (no reintentable) y el workflow falla visible. Es raro (ventana de segundos tras el alta del comercio) y es fail-closed.
+
+**E1/E2 (actualiza la lista de la tanda 2d):** el punto 1 (PROP-20) queda resuelto del lado de P3. Siguen: la semilla del arnés debe publicar `legal_name` (P1, `e2e/lib/seed.ts`); el puntaje de Watchman del nombre sintético contra las listas de 2019 (`SANCTIONS_REVIEW_SCORE=0.60`) solo se sabe corriendo el arnés; `pay-edge` debe reenviar `payer_name`; y el tramo del medio contra servicios reales no se ha ejecutado nunca. Que el `pay-risk` real acepte exactamente el cuerpo que arma `RiskClient` (`merchant_name`, `name`) no se ejecutó: coincide con su controlador (`assessments.controller.ts`), pero lo prueba solo el arnés.

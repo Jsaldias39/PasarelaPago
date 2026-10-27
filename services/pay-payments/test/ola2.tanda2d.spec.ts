@@ -126,7 +126,7 @@ describe('1 · payer_name en POST /payment_intents (public-v1, D-33)', () => {
 });
 
 describe('1b · privacidad: ni payer_name ni legal_name en logs, salidas ni tablas ajenas', () => {
-  it('con un cobro con nombre de pagador llevado a un estado terminal: stdout/stderr no los traen; el nombre del pagador no queda en NINGUNA tabla; la razón social solo en merchant_replica', async () => {
+  it('con un cobro con nombre de pagador llevado a un estado terminal: stdout/stderr no los traen; el nombre del pagador no queda en ninguna tabla (salvo la columna de los intentos AÚN no terminales); la razón social solo en merchant_replica', async () => {
     const { result: id, output } = await captureOutput(async () => {
       const created = (await post({ ...QR, payer_name: PAYER })).body.id as string;
       await http().get(`/payment_intents/${created}`).set(asMerchant(MC));
@@ -139,12 +139,14 @@ describe('1b · privacidad: ni payer_name ni legal_name en logs, salidas ni tabl
     expect(output).not.toContain(TEST_LEGAL_NAME);
     const tables = (await stack.db.pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'")).rows as { table_name: string }[];
     const holders: string[] = [];
-    for (const { table_name } of tables) {
+    for (const { table_name } of tables.filter((t) => t.table_name !== 'payment_intents')) {
       const dump = JSON.stringify((await stack.db.pool.query(`SELECT row_to_json(t) FROM "${table_name}" t`)).rows);
       if (dump.includes(PAYER)) holders.push(`${table_name}:payer`);
       if (dump.includes(TEST_LEGAL_NAME)) holders.push(`${table_name}:legal`);
     }
     expect(holders.sort()).toEqual(['merchant_replica:legal']);
+    expect(Number((await stack.db.pool.query("SELECT count(*) AS n FROM payment_intents WHERE payer_name IS NOT NULL AND status IN ('succeeded', 'failed', 'canceled', 'expired')")).rows[0].n)).toBe(0);
+    expect(JSON.stringify((await stack.db.pool.query('SELECT description, metadata, failure_reason FROM payment_intents')).rows)).not.toContain(TEST_LEGAL_NAME);
     expect(await payerNameOf(id)).toBeNull();
   });
 });

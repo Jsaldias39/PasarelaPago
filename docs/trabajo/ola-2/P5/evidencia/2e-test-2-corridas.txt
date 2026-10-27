@@ -1,0 +1,21 @@
+### corrida 1 pay-merchants
+Test Suites: 13 passed, 13 total
+Tests:       163 passed, 163 total
+### corrida 1 pay-schedules
+Test Suites: 11 passed, 11 total
+Tests:       170 passed, 170 total
+### corrida 1 pay-risk
+FAIL test/latency.spec.ts (47.738 s)
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas
+Test Suites: 1 failed, 12 passed, 13 total
+Tests:       1 failed, 197 passed, 198 total
+### corrida 2 pay-merchants
+Test Suites: 13 passed, 13 total
+Tests:       163 passed, 163 total
+### corrida 2 pay-schedules
+Test Suites: 11 passed, 11 total
+Tests:       170 passed, 170 total
+### corrida 2 pay-risk
+Test Suites: 13 passed, 13 total
+Tests:       198 passed, 198 total
+DONE
