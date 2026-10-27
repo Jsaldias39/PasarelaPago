@@ -6,6 +6,7 @@ import { PG_POOL } from '../database.module';
 import { type BatchRow, BATCH_COLUMNS, batchDto } from './dto';
 import { LedgerRejectedError, LedgerUnavailableError } from './errors';
 import { businessRef, randomId, stableId } from './ids';
+import type { PayMode } from './mode';
 import { NettingService } from './netting.service';
 import { PayoutService } from './payout.service';
 import { LEDGER_PORT, type LedgerPort } from './ports';
@@ -47,8 +48,8 @@ export class BatchService {
   }
 
   /** `POST /batches`. Idempotente por `Idempotency-Key` y, sobre todo, por `cutoff_date`: el mismo lunes nunca se paga dos veces. */
-  run(rawBody: unknown, caller: string, idempotencyKey: string) {
-    return this.idempotency.execute({ scope: caller, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/batches', body: rawBody }) }, async () => {
+  run(rawBody: unknown, caller: string, mode: PayMode, idempotencyKey: string) {
+    return this.idempotency.execute({ scope: `${caller}|${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/batches', body: rawBody }) }, async () => {
       const input = parseOrThrow(batchCreate, rawBody);
       const releaseDays = input.release_days ?? this.config.releaseDays;
       const cutoff = localMidnight(input.cutoff_date, this.config.tzOffsetMinutes);
@@ -57,33 +58,33 @@ export class BatchService {
       if (this.config.cutoffWeekday !== null && new Date(`${input.cutoff_date}T00:00:00Z`).getUTCDay() !== this.config.cutoffWeekday) throw fieldError('cutoff_date', 'not_a_cutoff_day');
       if (cutoff.getTime() > Date.now()) throw fieldError('cutoff_date', 'future_cutoff');
 
-      const { batch, created } = await this.claim(input.cutoff_date, releaseDays, cutoff);
+      const { batch, created } = await this.claim(mode, input.cutoff_date, releaseDays, cutoff);
       if (batch.release_days !== releaseDays) throw fieldError('release_days', 'differs_from_existing_batch');
       const finished = await this.process(batch.id);
       return { status: created ? 201 : 200, body: batchDto(finished) };
     });
   }
 
-  private async claim(cutoffDate: string, releaseDays: number, cutoff: Date): Promise<{ batch: BatchRow; created: boolean }> {
+  private async claim(mode: PayMode, cutoffDate: string, releaseDays: number, cutoff: Date): Promise<{ batch: BatchRow; created: boolean }> {
     const releaseBefore = new Date(cutoff.getTime() - releaseDays * DAY_MS);
     const now = new Date();
     return inTransaction(this.pool, async (client) => {
       // Dos cortes a la vez para la misma fecha se serializan acá; el segundo ve el lote del primero.
-      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`batch:${cutoffDate}`]);
-      const existing = await client.query<BatchRow>(`SELECT ${BATCH_COLUMNS} FROM settlement_batches WHERE cutoff_date = $1`, [cutoffDate]);
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`batch:${mode}:${cutoffDate}`]);
+      const existing = await client.query<BatchRow>(`SELECT ${BATCH_COLUMNS} FROM settlement_batches WHERE mode = $1 AND cutoff_date = $2`, [mode, cutoffDate]);
       if (existing.rows[0]) return { batch: existing.rows[0], created: false };
       const previous = await client.query<{ release_before: Date }>(
-        `SELECT release_before FROM settlement_batches WHERE cutoff_date < $1 AND status = 'completed' ORDER BY cutoff_date DESC LIMIT 1`,
-        [cutoffDate],
+        `SELECT release_before FROM settlement_batches WHERE mode = $2 AND cutoff_date < $1 AND status = 'completed' ORDER BY cutoff_date DESC LIMIT 1`,
+        [cutoffDate, mode],
       );
       const first = await client.query<{ first_seen: Date | null }>('SELECT MIN(first_seen_at) AS first_seen FROM settlement_merchants');
       const periodFrom = previous.rows[0]?.release_before ?? first.rows[0].first_seen ?? releaseBefore;
       const id = randomId('sb');
       const inserted = await client.query<BatchRow>(
-        `INSERT INTO settlement_batches (id, cutoff_date, release_days, release_before, period_from, status, created_at)
-         VALUES ($1, $2, $3, $4, LEAST($5::timestamptz, $4::timestamptz), 'running', $6)
+        `INSERT INTO settlement_batches (id, cutoff_date, release_days, release_before, period_from, status, created_at, mode)
+         VALUES ($1, $2, $3, $4, LEAST($5::timestamptz, $4::timestamptz), 'running', $6, $7)
          RETURNING ${BATCH_COLUMNS}`,
-        [id, cutoffDate, releaseDays, releaseBefore, periodFrom, now],
+        [id, cutoffDate, releaseDays, releaseBefore, periodFrom, now, mode],
       );
       // Los comercios del lote se congelan acá: uno que aparezca a mitad del corte entra en el siguiente.
       await client.query(
@@ -147,12 +148,12 @@ export class BatchService {
     const pendingAccount = `merchant:${merchant}:pending`;
 
     if (item.status === 'pending') {
-      const state = await this.pool.query<{ watermark_at: Date | null; residual_minor: string }>('SELECT watermark_at, residual_minor FROM settlement_merchants WHERE merchant_id = $1', [merchant]);
+      const state = await this.pool.query<{ watermark_at: Date | null; residual_minor: string }>('SELECT watermark_at, residual_minor FROM settlement_merchant_marks WHERE mode = $1 AND merchant_id = $2', [batch.mode, merchant]);
       const watermark = state.rows[0]?.watermark_at ?? null;
       const residual = Number(state.rows[0]?.residual_minor ?? 0);
-      const entries = await this.ledger.listStatement(pendingAccount, { ...(watermark && { from: watermark.toISOString() }), to: batch.release_before.toISOString() });
+      const entries = await this.ledger.listStatement(batch.mode, pendingAccount, { ...(watermark && { from: watermark.toISOString() }), to: batch.release_before.toISOString() });
       const net = entries.reduce((sum, e) => sum + (e.direction === 'credit' ? e.amount_minor : -e.amount_minor), 0);
-      const balance = await this.ledger.getBalance(pendingAccount);
+      const balance = await this.ledger.getBalance(batch.mode, pendingAccount);
       const pendingNow = balance && balance.nature === 'credit' ? balance.balance_minor : 0;
       const available = residual + net;
       const release = Math.max(0, Math.min(available, pendingNow));
@@ -168,6 +169,7 @@ export class BatchService {
       if (release > 0) {
         try {
           await this.ledger.createTransaction(
+            batch.mode,
             {
               businessRef: businessRef(stableId('rl', batch.id, merchant), 'release'),
               attempt: item.ledger_attempt,
@@ -187,7 +189,11 @@ export class BatchService {
       await inTransaction(this.pool, async (client) => {
         const now = new Date();
         await client.query(`UPDATE settlement_batch_items SET status = 'released', released_minor = $3, updated_at = $4 WHERE batch_id = $1 AND merchant_id = $2`, [batch.id, merchant, release, now]);
-        await client.query(`UPDATE settlement_merchants SET watermark_at = $2, residual_minor = $3 WHERE merchant_id = $1`, [merchant, batch.release_before, item.new_residual_minor]);
+        await client.query(
+          `INSERT INTO settlement_merchant_marks (mode, merchant_id, watermark_at, residual_minor) VALUES ($1, $2, $3, $4)
+           ON CONFLICT (mode, merchant_id) DO UPDATE SET watermark_at = EXCLUDED.watermark_at, residual_minor = EXCLUDED.residual_minor`,
+          [batch.mode, merchant, batch.release_before, item.new_residual_minor],
+        );
       });
       item = { ...item, status: 'released' };
     }
@@ -195,10 +201,10 @@ export class BatchService {
     if (item.status === 'released') {
       // Primero lo que el comercio debe (deuda del comercio, cobros abiertos y el abono del mes), después lo que se le paga.
       await this.netDebt(batch, merchant);
-      await this.netting.collectOpenFor(merchant);
-      const fee = await this.netting.chargeMonthlyFee(merchant, batch.cutoff_date);
+      await this.netting.collectOpenFor(batch.mode, merchant);
+      const fee = await this.netting.chargeMonthlyFee(batch.mode, merchant, batch.cutoff_date);
       if (fee) await this.netting.collect(fee.id);
-      const balance = await this.ledger.getBalance(`merchant:${merchant}:available`);
+      const balance = await this.ledger.getBalance(batch.mode, `merchant:${merchant}:available`);
       const free = balance && balance.nature === 'credit' ? balance.balance_minor : 0;
       let payoutId: string | null = null;
       // Si el pago de este corte ya existe (reintento tras un corte del proceso) se RETOMA tal cual: su monto no se recalcula —el disponible
@@ -207,7 +213,7 @@ export class BatchService {
       if (existing.rows[0]) {
         payoutId = (await this.payouts.advance(existing.rows[0].id)).id;
       } else if (free > 0) {
-        payoutId = (await this.payouts.createForBatch({ batchId: batch.id, merchantId: merchant, amountMinor: free, periodFrom: batch.period_from, periodTo: batch.release_before })).id;
+        payoutId = (await this.payouts.createForBatch({ batchId: batch.id, mode: batch.mode, merchantId: merchant, amountMinor: free, periodFrom: batch.period_from, periodTo: batch.release_before })).id;
       }
       await this.pool.query(`UPDATE settlement_batch_items SET status = 'done', payout_id = $3, updated_at = $4 WHERE batch_id = $1 AND merchant_id = $2`, [batch.id, merchant, payoutId, new Date()]);
     }
@@ -223,8 +229,8 @@ export class BatchService {
     const row = (await this.pool.query<{ netting_minor: string | null; netting_attempt: number }>('SELECT netting_minor, netting_attempt FROM settlement_batch_items WHERE batch_id = $1 AND merchant_id = $2', [batch.id, merchant])).rows[0];
     let planned = row.netting_minor === null ? null : Number(row.netting_minor);
     if (planned === null) {
-      const owed = await this.ledger.getBalance(`merchant:${merchant}:debt`);
-      const free = await this.ledger.getBalance(`merchant:${merchant}:available`);
+      const owed = await this.ledger.getBalance(batch.mode, `merchant:${merchant}:debt`);
+      const free = await this.ledger.getBalance(batch.mode, `merchant:${merchant}:available`);
       const debt = owed && owed.nature === 'debit' ? owed.balance_minor : 0;
       planned = Math.min(debt, free && free.nature === 'credit' ? free.balance_minor : 0);
       await this.pool.query('UPDATE settlement_batch_items SET netting_minor = $3, updated_at = $4 WHERE batch_id = $1 AND merchant_id = $2', [batch.id, merchant, planned, new Date()]);
@@ -232,6 +238,7 @@ export class BatchService {
     if (planned < 1) return;
     try {
       await this.ledger.createTransaction(
+        batch.mode,
         {
           businessRef: businessRef(stableId('nd', batch.id, merchant), 'collect'),
           attempt: row.netting_attempt,
@@ -278,14 +285,14 @@ export class BatchService {
     });
   }
 
-  async list(rawQuery: unknown) {
+  async list(rawQuery: unknown, mode: PayMode) {
     const q = parseOrThrow(listQuery, rawQuery);
     const cursor = q.starting_after ? decodeCursor(q.starting_after) : null;
     const { rows } = await this.pool.query<BatchRow>(
       `SELECT ${BATCH_COLUMNS} FROM settlement_batches
-        WHERE ($1::timestamptz IS NULL OR (created_at, id) < ($1, $2))
+        WHERE mode = $4 AND ($1::timestamptz IS NULL OR (created_at, id) < ($1, $2))
         ORDER BY created_at DESC, id DESC LIMIT $3`,
-      [cursor?.at ?? null, cursor?.id ?? null, q.limit + 1],
+      [cursor?.at ?? null, cursor?.id ?? null, q.limit + 1, mode],
     );
     const page = rows.slice(0, q.limit);
     const last = page[page.length - 1];

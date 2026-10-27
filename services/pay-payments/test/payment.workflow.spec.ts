@@ -61,7 +61,10 @@ describe('P3.H2.M1 · PaymentWorkflow: riesgo → conector → espera → ledger
     for (const mode of ['deny', 'review'] as const) {
       stack.risk.mode = mode;
       const intent = await create();
-      expect(intent).toMatchObject({ status: 'failed', last_error: { code: 'validation_failed' } });
+      expect(intent).toMatchObject({ status: 'failed', last_error: { code: 'risk_denied' } });
+      const failed = (await eventsOf(stack, intent.id as string)).find((e) => e.type === 'payment_intent.failed');
+      expect((failed?.envelope.data as Record<string, unknown>).failure_code).toBe('risk_denied');
+      expect(validators.get('payment_intent.failed')?.(failed?.envelope)).toEqual([]);
       expect(stack.connectors.chargeFor(intent.id as string)).toBeUndefined();
       expect(stack.ledger.postedCount(`${intent.id}:capture`)).toBe(0);
     }

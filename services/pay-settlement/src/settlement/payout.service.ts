@@ -6,6 +6,7 @@ import { PG_POOL } from '../database.module';
 import { type PayoutRow, PAYOUT_COLUMNS, type Rail, payoutDto } from './dto';
 import { LedgerRejectedError, LedgerUnavailableError, RailAmbiguousError, RailUnavailableError } from './errors';
 import { businessRef, stableId } from './ids';
+import type { PayMode } from './mode';
 import { LEDGER_PORT, type LedgerPort, PAYOUT_RAILS, type PayoutOrder, type PayoutRail, type RailOutcome } from './ports';
 import { emitPayoutCreated, emitPayoutFailed, emitPayoutPaid } from './settlement-events';
 import { SETTLEMENT_CONFIG, type SettlementConfig } from './settlement.config';
@@ -16,6 +17,7 @@ export type RailMap = Readonly<Record<Rail, PayoutRail>>;
 
 export interface NewPayout {
   readonly id: string;
+  readonly mode: PayMode;
   readonly merchantId: string;
   readonly amountMinor: number;
   readonly reason: PayoutRow['reason'];
@@ -45,14 +47,14 @@ export class PayoutService {
   }
 
   /** `POST /payouts`. Idempotente por `(llamador, Idempotency-Key)`; si se corta a la mitad, el mismo pedido la retoma. */
-  create(rawBody: unknown, caller: string, idempotencyKey: string) {
-    return this.idempotency.execute({ scope: caller, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/payouts', body: rawBody }) }, async () => {
+  create(rawBody: unknown, caller: string, mode: PayMode, idempotencyKey: string) {
+    return this.idempotency.execute({ scope: `${caller}|${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/payouts', body: rawBody }) }, async () => {
       const input = parseOrThrow(payoutCreate, rawBody);
       if (input.reason === 'weekly_cut') throw fieldError('reason', 'reserved_for_batch');
       if (input.batch_id !== undefined) throw fieldError('batch_id', 'reserved_for_batch');
       if (input.rail !== this.activeRail.code) throw fieldError('rail', 'rail_not_enabled');
-      const id = stableId('po', caller, idempotencyKey);
-      const { row } = await this.insert({ id, merchantId: input.merchant_id, amountMinor: input.amount_minor, reason: input.reason, requestedBy: caller });
+      const id = stableId('po', mode, caller, idempotencyKey);
+      const { row } = await this.insert({ id, mode, merchantId: input.merchant_id, amountMinor: input.amount_minor, reason: input.reason, requestedBy: caller });
       const done = await this.advance(row.id);
       if (done.failure_code === 'insufficient_funds') throw new ProblemError('insufficient_funds', { detail: 'El comercio no tiene disponible ese monto' });
       return { status: 201, body: payoutDto(done) };
@@ -60,10 +62,11 @@ export class PayoutService {
   }
 
   /** Crea el pago del corte de un comercio. Mismo `(lote, comercio)` → mismo pago, siempre. */
-  async createForBatch(input: { batchId: string; merchantId: string; amountMinor: number; periodFrom: Date; periodTo: Date }): Promise<PayoutRow> {
+  async createForBatch(input: { batchId: string; mode: PayMode; merchantId: string; amountMinor: number; periodFrom: Date; periodTo: Date }): Promise<PayoutRow> {
     const id = stableId('po', input.batchId, input.merchantId);
     const { row } = await this.insert({
       id,
+      mode: input.mode,
       merchantId: input.merchantId,
       amountMinor: input.amountMinor,
       reason: 'weekly_cut',
@@ -80,8 +83,8 @@ export class PayoutService {
     const now = new Date();
     return inTransaction(this.pool, async (client) => {
       const inserted = await client.query<PayoutRow>(
-        `INSERT INTO settlement_payouts (id, merchant_id, amount_minor, currency, rail, simulated, reason, status, step, hold_business_ref, batch_id, requested_by, period_from, period_to, created_at, updated_at)
-         VALUES ($1, $2, $3, 'BOB', $4, $5, $6, 'pending', 'created', $7, $8, $9, $10, $11, $12, $12)
+        `INSERT INTO settlement_payouts (id, merchant_id, amount_minor, currency, rail, simulated, reason, status, step, hold_business_ref, batch_id, requested_by, period_from, period_to, created_at, updated_at, mode)
+         VALUES ($1, $2, $3, 'BOB', $4, $5, $6, 'pending', 'created', $7, $8, $9, $10, $11, $12, $12, $13)
          ON CONFLICT (id) DO NOTHING
          RETURNING ${PAYOUT_COLUMNS}`,
         [
@@ -97,14 +100,13 @@ export class PayoutService {
           input.periodFrom ?? now,
           input.periodTo ?? now,
           now,
+          input.mode,
         ],
       );
       if (inserted.rows[0]) {
         const row = inserted.rows[0];
-        // `payout.created` exige el lote (settlement_batch_id es obligatorio en el contrato): los pagos sueltos no lo emiten (PROPUESTAS.md).
-        if (row.batch_id) {
-          await emitPayoutCreated(client, { payoutId: row.id, merchantId: row.merchant_id, amountMinor: Number(row.amount_minor), batchId: row.batch_id, periodFrom: row.period_from, periodTo: row.period_to, at: now });
-        }
+        // `settlement_batch_id` es opcional en el contrato (ola 2): también un pago suelto anuncia su creación.
+        await emitPayoutCreated(client, { payoutId: row.id, mode: row.mode, merchantId: row.merchant_id, amountMinor: Number(row.amount_minor), batchId: row.batch_id, periodFrom: row.period_from, periodTo: row.period_to, at: now });
         return { row, created: true };
       }
       const existing = await client.query<PayoutRow>(`SELECT ${PAYOUT_COLUMNS} FROM settlement_payouts WHERE id = $1`, [input.id]);
@@ -113,34 +115,36 @@ export class PayoutService {
   }
 
   private order(row: PayoutRow): PayoutOrder {
-    return { payoutId: row.id, businessRef: row.hold_business_ref, attempt: 1, merchantId: row.merchant_id, amountMinor: Number(row.amount_minor), currency: 'BOB' };
+    return { payoutId: row.id, mode: row.mode, businessRef: row.hold_business_ref, attempt: 1, merchantId: row.merchant_id, amountMinor: Number(row.amount_minor), currency: 'BOB' };
   }
 
   private railOf(row: PayoutRow): PayoutRail {
     return this.rails[row.rail];
   }
 
-  async get(rawId: string): Promise<PayoutRow> {
+  /** `mode` solo lo pasa quien atiende una petición: un pago del otro modo no existe para ella (404). Los procesos internos leen sin modo. */
+  async get(rawId: string, mode?: PayMode): Promise<PayoutRow> {
     const id = payoutId.safeParse(rawId);
     if (!id.success) throw new ProblemError('resource_not_found');
-    const found = await this.pool.query<PayoutRow>(`SELECT ${PAYOUT_COLUMNS} FROM settlement_payouts WHERE id = $1`, [id.data]);
+    const found = await this.pool.query<PayoutRow>(`SELECT ${PAYOUT_COLUMNS} FROM settlement_payouts WHERE id = $1 AND ($2::text IS NULL OR mode = $2)`, [id.data, mode ?? null]);
     if (!found.rows[0]) throw new ProblemError('resource_not_found');
     return found.rows[0];
   }
 
   /** Listado paginado (del más nuevo al más viejo, desempate por id). `forMerchant` fija el comercio y no se puede cambiar por la consulta. */
-  async list(rawQuery: unknown, forMerchant?: string) {
+  async list(rawQuery: unknown, mode: PayMode, forMerchant?: string) {
     // Con comercio fijado (consulta pública) no existen ni `merchant_id` ni `status`: se rechazan, no se ignoran en silencio.
     const q = parseOrThrow(forMerchant ? publicPayoutListQuery : payoutListQuery, rawQuery) as ReturnType<typeof payoutListQuery.parse>;
     const cursor = q.starting_after ? decodeCursor(q.starting_after) : null;
     const { rows } = await this.pool.query<PayoutRow>(
       `SELECT ${PAYOUT_COLUMNS} FROM settlement_payouts
-        WHERE ($1::text IS NULL OR merchant_id = $1)
+        WHERE mode = $6
+          AND ($1::text IS NULL OR merchant_id = $1)
           AND ($2::text IS NULL OR status = $2)
           AND ($3::timestamptz IS NULL OR (created_at, id) < ($3, $4))
         ORDER BY created_at DESC, id DESC
         LIMIT $5`,
-      [forMerchant ?? q.merchant_id ?? null, q.status ?? null, cursor?.at ?? null, cursor?.id ?? null, q.limit + 1],
+      [forMerchant ?? q.merchant_id ?? null, q.status ?? null, cursor?.at ?? null, cursor?.id ?? null, q.limit + 1, mode],
     );
     const page = rows.slice(0, q.limit);
     const last = page[page.length - 1];
@@ -174,6 +178,7 @@ export class PayoutService {
     if (row.step === 'created') {
       try {
         const hold = await this.ledger.createHold(
+          row.mode,
           { businessRef: row.hold_business_ref, attempt: 1, debitAccount: `merchant:${row.merchant_id}:available`, creditAccount: 'payout:clearing', amountMinor: Number(row.amount_minor), expiresInSeconds: this.config.payoutHoldTtlSeconds },
           `hold-${row.id}`,
         );
@@ -256,12 +261,12 @@ export class PayoutService {
   private async postAndPay(row: PayoutRow): Promise<PayoutRow> {
     if (!row.hold_id) throw new Error('Un pago sin retención no se puede confirmar');
     try {
-      await this.ledger.postHold(row.hold_id, `post-${row.id}`);
+      await this.ledger.postHold(row.mode, row.hold_id, `post-${row.id}`);
     } catch (error) {
       if (error instanceof LedgerRejectedError) {
         // La retención ya no está pendiente. Si se confirmó antes (reintento tras un corte) está bien; si venció o se anuló mientras el
         // banco pagaba, el dinero salió y el saldo volvió: NO se declara pagado ni fallido, se deja para una persona.
-        const hold = await this.ledger.getHold(row.hold_id);
+        const hold = await this.ledger.getHold(row.mode, row.hold_id);
         if (hold?.status !== 'posted') {
           this.logger.error({ payout: row.id, hold: row.hold_id, hold_status: hold?.status ?? 'ausente' }, 'El riel pagó pero la retención del ledger no se pudo confirmar');
           throw new ProblemError('invalid_state_transition', { detail: 'La retención ya no se puede confirmar' });
@@ -278,10 +283,10 @@ export class PayoutService {
   private async voidAndFail(row: PayoutRow, failureCode: string): Promise<PayoutRow> {
     if (row.hold_id) {
       try {
-        await this.ledger.voidHold(row.hold_id, `void-${row.id}`);
+        await this.ledger.voidHold(row.mode, row.hold_id, `void-${row.id}`);
       } catch (error) {
         if (error instanceof LedgerRejectedError) {
-          const hold = await this.ledger.getHold(row.hold_id);
+          const hold = await this.ledger.getHold(row.mode, row.hold_id);
           if (hold?.status === 'posted') {
             this.logger.error({ payout: row.id, hold: row.hold_id }, 'Se pidió anular una retención que ya estaba confirmada');
             throw new ProblemError('invalid_state_transition', { detail: 'La retención ya se confirmó' });
@@ -321,7 +326,7 @@ export class PayoutService {
         [row.id, now],
       );
       if (!updated.rows[0]) return undefined;
-      await emitPayoutPaid(client, { payoutId: row.id, merchantId: row.merchant_id, amountMinor: Number(row.amount_minor), paidAt: now });
+      await emitPayoutPaid(client, { payoutId: row.id, mode: row.mode, merchantId: row.merchant_id, amountMinor: Number(row.amount_minor), paidAt: now });
       return updated.rows[0];
     }).then(async (done) => done ?? (await this.get(row.id)));
   }
@@ -334,7 +339,7 @@ export class PayoutService {
         [row.id, failureCode, now],
       );
       if (!updated.rows[0]) return undefined;
-      await emitPayoutFailed(client, { payoutId: row.id, merchantId: row.merchant_id, amountMinor: Number(row.amount_minor), failureCode, failedAt: now });
+      await emitPayoutFailed(client, { payoutId: row.id, mode: row.mode, merchantId: row.merchant_id, amountMinor: Number(row.amount_minor), failureCode, failedAt: now });
       return updated.rows[0];
     }).then(async (done) => done ?? (await this.get(row.id)));
   }

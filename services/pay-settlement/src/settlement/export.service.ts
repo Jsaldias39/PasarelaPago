@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { ProblemError } from '@pay/problem';
 import { PG_POOL } from '../database.module';
+import type { PayMode } from './mode';
 import { fieldError, exportQuery, parseOrThrow } from './schemas';
 import { LEDGER_PORT, type LedgerPort, type LedgerStatementEntry } from './ports';
 
@@ -29,7 +30,7 @@ export interface AccountingExport {
 const net = (entries: readonly LedgerStatementEntry[], side: 'credit' | 'debit'): number => entries.filter((e) => e.direction === side).reduce((s, e) => s + e.amount_minor, 0);
 
 /**
- * Exportación de asientos de un periodo cerrado para M16 (accounting) — P2.H2.M7, D-21 (una factura por periodo y comercio).
+ * Exportación (de UN modo) de asientos de un periodo cerrado para M16 (accounting) — P2.H2.M7, D-21 (una factura por periodo y comercio).
  *
  * Se arma SOLO con lo que el ledger y este servicio saben: por comercio, cada cobro (bruto = neto + comisión) y cada cobro de abono,
  * comisión programada o contracargo. «Cuadra» quiere decir: la suma de comisiones exportadas es igual al neto real de `platform:fees`
@@ -43,24 +44,24 @@ export class AccountingExportService {
     @Inject(LEDGER_PORT) private readonly ledger: LedgerPort,
   ) {}
 
-  async build(rawQuery: unknown): Promise<AccountingExport> {
+  async build(rawQuery: unknown, mode: PayMode): Promise<AccountingExport> {
     const q = parseOrThrow(exportQuery, rawQuery);
     const from = new Date(q.period_from);
     const to = new Date(q.period_to);
     if (from >= to) throw fieldError('period_to', 'must_be_after_period_from');
     if (to.getTime() > Date.now()) throw new ProblemError('invalid_state_transition', { detail: 'El periodo todavía no cerró' });
-    const open = await this.pool.query(`SELECT 1 FROM settlement_batches WHERE release_before < $2 AND created_at >= $1 AND status <> 'completed' LIMIT 1`, [from, to]);
+    const open = await this.pool.query(`SELECT 1 FROM settlement_batches WHERE mode = $3 AND release_before < $2 AND created_at >= $1 AND status <> 'completed' LIMIT 1`, [from, to, mode]);
     if (open.rowCount) throw new ProblemError('invalid_state_transition', { detail: 'Hay cortes del periodo sin completar' });
 
     const window = { from: from.toISOString(), to: to.toISOString() };
     const merchants = (await this.pool.query<{ merchant_id: string }>('SELECT merchant_id FROM settlement_merchants ORDER BY merchant_id')).rows.map((r) => r.merchant_id);
-    const fees = await this.ledger.listStatement('platform:fees', window);
+    const fees = await this.ledger.listStatement(mode, 'platform:fees', window);
 
     // Qué comercio es dueño de cada referencia: el que recibió el cobro en `pending` o el que pagó el abono/comisión/contracargo.
     const owner = new Map<string, string>();
     const perMerchant = new Map<string, ExportLine[]>();
     for (const merchantId of merchants) {
-      const entries = await this.ledger.listStatement(`merchant:${merchantId}:pending`, window);
+      const entries = await this.ledger.listStatement(mode, `merchant:${merchantId}:pending`, window);
       const lines: ExportLine[] = [];
       const byRef = new Map<string, { charge: number; refund: number }>();
       for (const e of entries) {
@@ -82,8 +83,8 @@ export class AccountingExportService {
     const collections = await this.pool.query<{ merchant_id: string; kind: ExportLine['kind']; ledger_ref: string; amount_minor: string }>(
       `SELECT c.merchant_id, c.kind, k.ledger_ref, k.amount_minor
          FROM settlement_charge_collections k JOIN settlement_charges c ON c.id = k.charge_id
-        WHERE k.status = 'posted' AND k.created_at >= $1 AND k.created_at < $2 ORDER BY k.created_at, k.seq`,
-      [from, to],
+        WHERE c.mode = $3 AND k.status = 'posted' AND k.created_at >= $1 AND k.created_at < $2 ORDER BY k.created_at, k.seq`,
+      [from, to, mode],
     );
     for (const row of collections.rows) {
       const lines = perMerchant.get(row.merchant_id) ?? [];

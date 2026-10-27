@@ -48,6 +48,7 @@ export const SETTLEMENT_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<stri
     updated_at: col('timestamp with time zone'),
   },
   settlement_batches: {
+    mode: col('text'),
     id: col('text'),
     cutoff_date: col('date'),
     release_days: col('integer'),
@@ -70,6 +71,7 @@ export const SETTLEMENT_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<stri
     created_at: col('timestamp with time zone'),
   },
   settlement_charges: {
+    mode: col('text'),
     id: col('text'),
     merchant_id: col('text'),
     kind: col('text'),
@@ -84,6 +86,7 @@ export const SETTLEMENT_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<stri
     collected_at: col('timestamp with time zone', true),
   },
   settlement_exceptions: {
+    mode: col('text'),
     id: col('text'),
     run_id: col('text'),
     connector: col('text'),
@@ -116,10 +119,15 @@ export const SETTLEMENT_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<stri
     merchant_id: col('text'),
     first_seen_at: col('timestamp with time zone'),
     last_activity_at: col('timestamp with time zone'),
+  },
+  settlement_merchant_marks: {
+    mode: col('text'),
+    merchant_id: col('text'),
     watermark_at: col('timestamp with time zone', true),
     residual_minor: col('bigint'),
   },
   settlement_payouts: {
+    mode: col('text'),
     id: col('text'),
     merchant_id: col('text'),
     amount_minor: col('bigint'),
@@ -142,6 +150,7 @@ export const SETTLEMENT_SCHEMA_MAP: Readonly<Record<string, Readonly<Record<stri
     paid_at: col('timestamp with time zone', true),
   },
   settlement_reconciliation_runs: {
+    mode: col('text'),
     id: col('text'),
     connector: col('text'),
     period_from: col('timestamp with time zone'),

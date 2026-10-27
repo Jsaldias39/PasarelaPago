@@ -5,12 +5,14 @@ import { ProblemError } from '@pay/problem';
 import { PG_POOL } from '../database.module';
 import { LedgerRejectedError, LedgerUnavailableError } from './errors';
 import { businessRef, stableId } from './ids';
+import type { PayMode } from './mode';
 import { LEDGER_PORT, type LedgerPort } from './ports';
 import { chargeCreate, parseOrThrow } from './schemas';
 import { inTransaction } from './unit-of-work';
 
 export interface ChargeRow {
   id: string;
+  mode: PayMode;
   merchant_id: string;
   kind: 'monthly_fee' | 'provider_commission' | 'chargeback_debt';
   period_key: string;
@@ -24,9 +26,10 @@ export interface ChargeRow {
   collected_at: Date | null;
 }
 
-const COLUMNS = 'id, merchant_id, kind, period_key, credit_account, ledger_code, amount_minor, collected_minor, status, requested_by, created_at, collected_at';
+const COLUMNS = 'id, mode, merchant_id, kind, period_key, credit_account, ledger_code, amount_minor, collected_minor, status, requested_by, created_at, collected_at';
 
 export interface NewCharge {
+  readonly mode: PayMode;
   readonly merchantId: string;
   readonly kind: ChargeRow['kind'];
   readonly periodKey: string;
@@ -54,11 +57,12 @@ export class NettingService {
     this.idempotency = new IdempotencyStore(pool);
   }
 
-  /** `POST /charges` (PROPUESTA de contrato). Idempotente por `(llamador, Idempotency-Key)` y por `(comercio, tipo, referencia)`. */
-  register(rawBody: unknown, caller: string, idempotencyKey: string) {
-    return this.idempotency.execute({ scope: caller, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/charges', body: rawBody }) }, async () => {
+  /** `POST /charges` (declarado en el contrato desde la ola 2). Idempotente por `(llamador, Idempotency-Key)` y por `(comercio, tipo, referencia)`. */
+  register(rawBody: unknown, caller: string, mode: PayMode, idempotencyKey: string) {
+    return this.idempotency.execute({ scope: `${caller}|${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/charges', body: rawBody }) }, async () => {
       const input = parseOrThrow(chargeCreate, rawBody);
       const charge = await this.open({
+        mode,
         merchantId: input.merchant_id,
         kind: input.kind,
         periodKey: input.reference,
@@ -77,15 +81,15 @@ export class NettingService {
   /** Crea el cobro si no existe (mismo `(comercio, tipo, periodo)` → el mismo). */
   async open(input: NewCharge): Promise<ChargeRow> {
     const now = new Date();
-    const id = stableId('cg', input.merchantId, input.kind, input.periodKey);
+    const id = stableId('cg', input.mode, input.merchantId, input.kind, input.periodKey);
     return inTransaction(this.pool, async (client) => {
       await client.query(
-        `INSERT INTO settlement_charges (id, merchant_id, kind, period_key, credit_account, ledger_code, amount_minor, status, requested_by, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8, $9)
-         ON CONFLICT (merchant_id, kind, period_key) DO NOTHING`,
-        [id, input.merchantId, input.kind, input.periodKey, input.creditAccount, input.kind === 'chargeback_debt' ? 'refund' : 'fee', input.amountMinor, input.requestedBy, now],
+        `INSERT INTO settlement_charges (id, merchant_id, kind, period_key, credit_account, ledger_code, amount_minor, status, requested_by, created_at, mode)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8, $9, $10)
+         ON CONFLICT (mode, merchant_id, kind, period_key) DO NOTHING`,
+        [id, input.merchantId, input.kind, input.periodKey, input.creditAccount, input.kind === 'chargeback_debt' ? 'refund' : 'fee', input.amountMinor, input.requestedBy, now, input.mode],
       );
-      const found = await client.query<ChargeRow>(`SELECT ${COLUMNS} FROM settlement_charges WHERE merchant_id = $1 AND kind = $2 AND period_key = $3`, [input.merchantId, input.kind, input.periodKey]);
+      const found = await client.query<ChargeRow>(`SELECT ${COLUMNS} FROM settlement_charges WHERE mode = $4 AND merchant_id = $1 AND kind = $2 AND period_key = $3`, [input.merchantId, input.kind, input.periodKey, input.mode]);
       return found.rows[0];
     });
   }
@@ -121,7 +125,7 @@ export class NettingService {
       let step = planned.rows[0];
       if (!step) {
         const due = Number(charge.amount_minor) - Number(charge.collected_minor);
-        const balance = await this.ledger.getBalance(`merchant:${charge.merchant_id}:available`);
+        const balance = await this.ledger.getBalance(charge.mode, `merchant:${charge.merchant_id}:available`);
         const free = balance && balance.nature === 'credit' ? balance.balance_minor : 0;
         const amount = Math.min(due, free);
         if (amount < 1) return charge; // sin saldo: queda abierto para el próximo corte
@@ -133,6 +137,7 @@ export class NettingService {
       }
       try {
         await this.ledger.createTransaction(
+          charge.mode,
           {
             businessRef: step.ledger_ref,
             attempt: 1,
@@ -166,8 +171,8 @@ export class NettingService {
   }
 
   /** Cobros abiertos de un comercio, del más viejo al más nuevo (se cobra primero lo más antiguo). */
-  async collectOpenFor(merchantId: string): Promise<{ collectedMinor: number; stillOpen: number }> {
-    const open = await this.pool.query<{ id: string }>(`SELECT id FROM settlement_charges WHERE merchant_id = $1 AND status = 'open' ORDER BY created_at, id`, [merchantId]);
+  async collectOpenFor(mode: PayMode, merchantId: string): Promise<{ collectedMinor: number; stillOpen: number }> {
+    const open = await this.pool.query<{ id: string }>(`SELECT id FROM settlement_charges WHERE mode = $2 AND merchant_id = $1 AND status = 'open' ORDER BY created_at, id`, [merchantId, mode]);
     let collected = 0;
     let stillOpen = 0;
     for (const { id } of open.rows) {
@@ -180,7 +185,7 @@ export class NettingService {
   }
 
   /** Abono mensual del comercio para el mes de `cutoffDate` (`YYYY-MM`), si su tarifario lo tiene. Una sola vez por mes. */
-  async chargeMonthlyFee(merchantId: string, cutoffDate: string): Promise<ChargeRow | null> {
+  async chargeMonthlyFee(mode: PayMode, merchantId: string, cutoffDate: string): Promise<ChargeRow | null> {
     const plan = await this.pool.query<{ monthly_fee_minor: string }>(
       `SELECT monthly_fee_minor FROM settlement_fee_plans
         WHERE merchant_id = $1 AND monthly_fee_minor > 0 AND effective_from <= $2::date + 1 AND (effective_to IS NULL OR effective_to > $2::date)`,
@@ -188,7 +193,7 @@ export class NettingService {
     );
     const fee = plan.rows[0] ? Number(plan.rows[0].monthly_fee_minor) : 0;
     if (fee < 1) return null;
-    return this.open({ merchantId, kind: 'monthly_fee', periodKey: cutoffDate.slice(0, 7), amountMinor: fee, creditAccount: 'platform:fees', requestedBy: 'pay-settlement' });
+    return this.open({ mode, merchantId, kind: 'monthly_fee', periodKey: cutoffDate.slice(0, 7), amountMinor: fee, creditAccount: 'platform:fees', requestedBy: 'pay-settlement' });
   }
 }
 

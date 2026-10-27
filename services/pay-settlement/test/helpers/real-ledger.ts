@@ -21,7 +21,7 @@ export interface RealLedger {
   readonly url: string;
   readonly db: IsolatedDatabase;
   /** POST firmado como `pay-payments` (el llamador del ledger que registra cobros). */
-  post(path: string, body: object, key?: string): Promise<{ status: number; body: unknown }>;
+  post(path: string, body: object, key?: string, mode?: 'test' | 'live'): Promise<{ status: number; body: unknown }>;
   stop(): Promise<void>;
 }
 
@@ -75,8 +75,8 @@ export async function startRealLedger(): Promise<RealLedger> {
   return {
     url: base,
     db,
-    async post(path, body, key = `seed-${Math.random().toString(36).slice(2, 14)}`) {
-      const res = await fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-id': 'pay-payments', 'idempotency-key': key }, body: JSON.stringify(body) });
+    async post(path, body, key = `seed-${Math.random().toString(36).slice(2, 14)}`, mode = 'test') {
+      const res = await fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-id': 'pay-payments', 'x-pay-mode': mode, 'idempotency-key': key }, body: JSON.stringify(body) });
       return { status: res.status, body: await res.json() };
     },
     async stop() {

@@ -129,12 +129,12 @@ describe('corte semanal (P2.H2.M2, REQ-P2-5)', () => {
     const first = await runBatch(BATCH_BODY(CUT_1));
     expect(first.body.released_minor).toBe(6000); // min(vencido 10000, saldo 6000)
     expect(pending(m)).toBe(0);
-    const row = (await ctx.db.pool.query('SELECT residual_minor FROM settlement_merchants WHERE merchant_id = $1', [m])).rows[0];
+    const row = (await ctx.db.pool.query("SELECT residual_minor FROM settlement_merchant_marks WHERE mode = 'test' AND merchant_id = $1", [m])).rows[0];
     expect(row.residual_minor).toBe('4000'); // lo que faltó liberar se arrastra
     // el reembolso de la ventana siguiente compensa exactamente ese arrastre: no se libera nada más
     const second = await runBatch(BATCH_BODY(CUT_2));
     expect(second.body.released_minor).toBe(0);
-    expect((await ctx.db.pool.query('SELECT residual_minor FROM settlement_merchants WHERE merchant_id = $1', [m])).rows[0].residual_minor).toBe('0');
+    expect((await ctx.db.pool.query("SELECT residual_minor FROM settlement_merchant_marks WHERE mode = 'test' AND merchant_id = $1", [m])).rows[0].residual_minor).toBe('0');
   });
 
   it('límite: un comercio sin ventas, un comercio sin nada que liberar y un monto de 1 centavo', async () => {

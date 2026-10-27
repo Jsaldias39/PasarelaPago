@@ -55,13 +55,13 @@ const holdInput = { businessRef: 'po_abcdefghijklmnop:payout', attempt: 1, debit
 describe('HttpLedgerClient contra el contrato del ledger', () => {
   it('correcto: crea, consulta, confirma y anula retenciones; lo que envía cumple el contrato', async () => {
     server.on('POST /holds', { ...(hold('pending') as { kind: 'contract'; status: number; body: object }), status: 201 });
-    expect(await client.createHold(holdInput, 'hold-1234567')).toEqual({ id: 'hd_abcdefghijklmnop', status: 'pending', amount_minor: 9000 });
+    expect(await client.createHold('test', holdInput, 'hold-1234567')).toEqual({ id: 'hd_abcdefghijklmnop', status: 'pending', amount_minor: 9000 });
     server.on('GET /holds/{id}', hold('pending'));
-    expect((await client.getHold('hd_abcdefghijklmnop'))?.status).toBe('pending');
+    expect((await client.getHold('test', 'hd_abcdefghijklmnop'))?.status).toBe('pending');
     server.on('POST /holds/{id}/post', hold('posted'));
-    expect((await client.postHold('hd_abcdefghijklmnop', 'post-1234567')).status).toBe('posted');
+    expect((await client.postHold('test', 'hd_abcdefghijklmnop', 'post-1234567')).status).toBe('posted');
     server.on('POST /holds/{id}/void', hold('voided'));
-    expect((await client.voidHold('hd_abcdefghijklmnop', 'void-1234567')).status).toBe('voided');
+    expect((await client.voidHold('test', 'hd_abcdefghijklmnop', 'void-1234567')).status).toBe('voided');
     const create = server.requests.find((r) => r.path === '/holds');
     expect(contract.validateRequest({ method: 'POST', path: '/holds', body: create?.body })).toEqual([]);
     expect(create?.headers['idempotency-key']).toBe('hold-1234567');
@@ -72,9 +72,9 @@ describe('HttpLedgerClient contra el contrato del ledger', () => {
     const legs = [{ debit_account: 'merchant:mc_abcdefghijk:pending', credit_account: 'merchant:mc_abcdefghijk:available', amount_minor: 100, code: 'release' as const }];
     const tx = { id: 'tx_abcdefghijkl', object: 'transaction', result: 'created', business_ref: 'rl_abcdefghijklmnop:release', attempt: 1, status: 'posted', reject_code: null, currency: 'BOB', legs, created_at: '2026-10-27T10:00:00.000Z' };
     server.on('POST /transactions', { kind: 'contract', status: 201, body: tx });
-    await client.createTransaction({ businessRef: 'rl_abcdefghijklmnop:release', attempt: 1, legs }, 'release-1234567');
+    await client.createTransaction('test', { businessRef: 'rl_abcdefghijklmnop:release', attempt: 1, legs }, 'release-1234567');
     server.on('POST /transactions', { kind: 'contract', status: 200, body: { ...tx, result: 'exists' } });
-    await client.createTransaction({ businessRef: 'rl_abcdefghijklmnop:release', attempt: 1, legs }, 'release-1234567');
+    await client.createTransaction('test', { businessRef: 'rl_abcdefghijklmnop:release', attempt: 1, legs }, 'release-1234567');
     for (const r of server.requests) expect(contract.validateRequest({ method: 'POST', path: '/transactions', body: r.body })).toEqual([]);
   });
 
@@ -85,7 +85,7 @@ describe('HttpLedgerClient contra el contrato del ledger', () => {
       ['409 invalid_state_transition', problem(409, 'invalid_state_transition'), 'invalid_state_transition'],
     ])('%s ⇒ LedgerRejectedError(%s)', async (_n, behavior, code) => {
       server.on('POST /holds', behavior);
-      await expect(client.createHold(holdInput, 'hold-1234567')).rejects.toEqual(expect.objectContaining({ name: 'LedgerRejectedError', code }));
+      await expect(client.createHold('test', holdInput, 'hold-1234567')).rejects.toEqual(expect.objectContaining({ name: 'LedgerRejectedError', code }));
     });
 
     it.each<[string, Behavior]>([
@@ -104,22 +104,22 @@ describe('HttpLedgerClient contra el contrato del ledger', () => {
       ['tiempo agotado', { kind: 'hang' }],
     ])('%s ⇒ LedgerUnavailableError: no se decide nada con eso (el resultado es desconocido)', async (_n, behavior) => {
       server.on('POST /holds', behavior);
-      await expect(client.createHold(holdInput, 'hold-1234567')).rejects.toBeInstanceOf(LedgerUnavailableError);
+      await expect(client.createHold('test', holdInput, 'hold-1234567')).rejects.toBeInstanceOf(LedgerUnavailableError);
       server.on('POST /holds/{id}/void', behavior);
-      await expect(client.voidHold('hd_abcdefghijklmnop', 'void-1234567')).rejects.not.toBeInstanceOf(LedgerRejectedError);
+      await expect(client.voidHold('test', 'hd_abcdefghijklmnop', 'void-1234567')).rejects.not.toBeInstanceOf(LedgerRejectedError);
       server.on('POST /holds/{id}/post', behavior);
-      await expect(client.postHold('hd_abcdefghijklmnop', 'post-1234567')).rejects.not.toBeInstanceOf(LedgerRejectedError);
+      await expect(client.postHold('test', 'hd_abcdefghijklmnop', 'post-1234567')).rejects.not.toBeInstanceOf(LedgerRejectedError);
     });
   });
 
   describe('«no existe» solo lo prueba un 404 problem+json resource_not_found', () => {
     it('saldo, retención y extracto: el 404 del ledger significa «sin movimientos» / «no existe»', async () => {
       server.on('GET /balances', problem(404, 'resource_not_found'));
-      expect(await client.getBalance('merchant:mc_abcdefghijk:available')).toBeUndefined();
+      expect(await client.getBalance('test', 'merchant:mc_abcdefghijk:available')).toBeUndefined();
       server.on('GET /holds/{id}', problem(404, 'resource_not_found'));
-      expect(await client.getHold('hd_abcdefghijklmnop')).toBeUndefined();
+      expect(await client.getHold('test', 'hd_abcdefghijklmnop')).toBeUndefined();
       server.on('GET /statements', problem(404, 'resource_not_found'));
-      expect(await client.listStatement('merchant:mc_abcdefghijk:pending', {})).toEqual([]);
+      expect(await client.listStatement('test', 'merchant:mc_abcdefghijk:pending', {})).toEqual([]);
     });
 
     it.each<[string, Behavior]>([
@@ -128,11 +128,11 @@ describe('HttpLedgerClient contra el contrato del ledger', () => {
       ['404 JSON sin problem+json', { kind: 'raw', status: 404, contentType: 'application/json', body: '{"code":"resource_not_found"}' }],
     ])('%s NO se lee como «saldo 0» ni «sin extracto»: es no disponible', async (_n, behavior) => {
       server.on('GET /balances', behavior);
-      await expect(client.getBalance('merchant:mc_abcdefghijk:available')).rejects.toBeInstanceOf(LedgerUnavailableError);
+      await expect(client.getBalance('test', 'merchant:mc_abcdefghijk:available')).rejects.toBeInstanceOf(LedgerUnavailableError);
       server.on('GET /holds/{id}', behavior);
-      await expect(client.getHold('hd_abcdefghijklmnop')).rejects.toBeInstanceOf(LedgerUnavailableError);
+      await expect(client.getHold('test', 'hd_abcdefghijklmnop')).rejects.toBeInstanceOf(LedgerUnavailableError);
       server.on('GET /statements', behavior);
-      await expect(client.listStatement('merchant:mc_abcdefghijk:pending', {})).rejects.toBeInstanceOf(LedgerUnavailableError);
+      await expect(client.listStatement('test', 'merchant:mc_abcdefghijk:pending', {})).rejects.toBeInstanceOf(LedgerUnavailableError);
     });
   });
 
@@ -140,7 +140,7 @@ describe('HttpLedgerClient contra el contrato del ledger', () => {
     const line = (n: number) => ({ id: `sl_abcdefghij${n.toString().padStart(2, '0')}`, business_ref: 'pi_abcdefghijkl:capture', attempt: 1, leg_index: 0, direction: 'credit', counterparty_account: 'connector:mock:clearing', amount_minor: n, code: 'charge', posted_at: '2026-10-05T10:00:00.000Z' });
     const page = (data: object[], more: boolean): Behavior => ({ kind: 'contract', status: 200, body: { object: 'list', has_more: more, next_cursor: more ? 'cursor-1' : null, data } });
     server.on('GET /statements', page([line(1), line(2)], true), page([line(3)], false));
-    const entries = await client.listStatement('merchant:mc_abcdefghijk:pending', { from: '2026-10-01T00:00:00.000Z', to: '2026-10-12T04:00:00.000Z' });
+    const entries = await client.listStatement('test', 'merchant:mc_abcdefghijk:pending', { from: '2026-10-01T00:00:00.000Z', to: '2026-10-12T04:00:00.000Z' });
     expect(entries.map((e) => e.amount_minor)).toEqual([1, 2, 3]);
     expect(server.requests[0].path).toContain('from=2026-10-01T00%3A00%3A00.000Z');
     expect(server.requests[1].path).toContain('starting_after=cursor-1');
@@ -153,8 +153,8 @@ describe('HttpLedgerClient contra el contrato del ledger', () => {
       body: { object: 'balance', account: 'merchant:mc_abcdefghijk:available', currency: 'BOB', balance_minor: 700, nature: 'credit', pending_debits_minor: 300, pending_credits_minor: 0, as_of: '2026-10-27T10:00:00.000Z', ...extra },
     });
     server.on('GET /balances', balance({}));
-    expect(await client.getBalance('merchant:mc_abcdefghijk:available')).toEqual({ balance_minor: 700, nature: 'credit', pending_debits_minor: 300 });
+    expect(await client.getBalance('test', 'merchant:mc_abcdefghijk:available')).toEqual({ balance_minor: 700, nature: 'credit', pending_debits_minor: 300 });
     server.on('GET /balances', { kind: 'raw', status: 200, contentType: 'application/json', body: JSON.stringify({ balance_minor: 700 }) });
-    await expect(client.getBalance('merchant:mc_abcdefghijk:available')).rejects.toBeInstanceOf(LedgerUnavailableError);
+    await expect(client.getBalance('test', 'merchant:mc_abcdefghijk:available')).rejects.toBeInstanceOf(LedgerUnavailableError);
   });
 });

@@ -47,6 +47,8 @@ export function operatorToken(
   return `${header}.${payload}.${b64(signature)}`;
 }
 
+const withMode = (req: request.Test, mode: string | null): request.Test => (mode === null ? req : req.set('x-pay-mode', mode));
+
 export function testConfig(overrides: Partial<SettlementConfig> = {}): SettlementConfig {
   return {
     ledgerUrl: 'http://ledger.test',
@@ -83,7 +85,8 @@ export interface SettlementTestContext {
   readonly config: SettlementConfig;
   readonly baseUrl: string;
   /** Cliente HTTP con la identidad de servicio ya puesta. */
-  as(service: string): {
+  /** `mode` por defecto `test` (D-28); `null` no manda la cabecera `X-Pay-Mode`, para probar el 403. */
+  as(service: string, mode?: string | null): {
     get(path: string): request.Test;
     post(path: string, body?: object): request.Test;
   };
@@ -145,9 +148,9 @@ export async function createSettlementContext(options: { config?: Partial<Settle
     reconciliation: moduleRef.get(ReconciliationService),
     exports: moduleRef.get(AccountingExportService),
     consumers: moduleRef.get(SettlementConsumers),
-    as: (service) => ({
-      get: (path) => request(baseUrl).get(path).set('x-service-id', service),
-      post: (path, body) => request(baseUrl).post(path).set('x-service-id', service).send(body ?? {}),
+    as: (service, mode = 'test') => ({
+      get: (path) => withMode(request(baseUrl).get(path).set('x-service-id', service), mode),
+      post: (path, body) => withMode(request(baseUrl).post(path).set('x-service-id', service).send(body ?? {}), mode),
     }),
     async events(type) {
       const { rows } = await db.pool.query('SELECT envelope FROM outbox_events WHERE type = $1 ORDER BY created_at, id', [type]);

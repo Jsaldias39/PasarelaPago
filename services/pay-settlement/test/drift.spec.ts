@@ -68,27 +68,32 @@ describe('deriva SQL ↔ base ↔ mapa del código (P2.H2.M1, 97.2)', () => {
   it('las restricciones del esquema rechazan lo que el código nunca debe escribir', async () => {
     const bad = async (sql: string, params: unknown[] = []) => db.pool.query(sql, params).then(() => 'aceptó', (e: { code?: string }) => e.code);
     // payout terminal sin step resolved, o failed sin failure_code, o monto 0
-    const base = `INSERT INTO settlement_payouts (id, merchant_id, amount_minor, currency, rail, simulated, reason, status, step, hold_business_ref, requested_by, period_from, period_to)
-                  VALUES ($1, 'mc_x', $2, 'BOB', 'bank_transfer', false, 'manual', $3, $4, 'r', 'pay-console', now(), now())`;
+    const base = `INSERT INTO settlement_payouts (id, mode, merchant_id, amount_minor, currency, rail, simulated, reason, status, step, hold_business_ref, requested_by, period_from, period_to)
+                  VALUES ($1, 'test', 'mc_x', $2, 'BOB', 'bank_transfer', false, 'manual', $3, $4, 'r', 'pay-console', now(), now())`;
     expect(await bad(base, ['po_a', 0, 'pending', 'created'])).toBe('23514');
     expect(await bad(base, ['po_b', 10, 'paid', 'created'])).toBe('23514');
     expect(await bad(base, ['po_c', 10, 'failed', 'resolved'])).toBe('23514');
     expect(await bad(base, ['po_d', 10, 'pending', 'created'])).toBe('aceptó');
     expect(await bad(base, ['po_d', 10, 'pending', 'created'])).toBe('23505'); // id repetido
     // un cobro cobrado de más
-    expect(await bad(`INSERT INTO settlement_charges (id, merchant_id, kind, period_key, credit_account, ledger_code, amount_minor, collected_minor, status, requested_by) VALUES ('cg_a','mc_x','monthly_fee','2026-10','platform:fees','fee',100,101,'open','x')`)).toBe('23514');
+    expect(await bad(`INSERT INTO settlement_charges (id, mode, merchant_id, kind, period_key, credit_account, ledger_code, amount_minor, collected_minor, status, requested_by) VALUES ('cg_a','test','mc_x','monthly_fee','2026-10','platform:fees','fee',100,101,'open','x')`)).toBe('23514');
     // dos abonos del mismo mes
-    const charge = `INSERT INTO settlement_charges (id, merchant_id, kind, period_key, credit_account, ledger_code, amount_minor, status, requested_by) VALUES ($1,'mc_x','monthly_fee','2026-10','platform:fees','fee',100,'open','x')`;
-    expect(await bad(charge, ['cg_b'])).toBe('aceptó');
-    expect(await bad(charge, ['cg_c'])).toBe('23505');
+    const charge = `INSERT INTO settlement_charges (id, mode, merchant_id, kind, period_key, credit_account, ledger_code, amount_minor, status, requested_by) VALUES ($1,$2,'mc_x','monthly_fee','2026-10','platform:fees','fee',100,'open','x')`;
+    expect(await bad(charge, ['cg_b', 'test'])).toBe('aceptó');
+    expect(await bad(charge, ['cg_c', 'test'])).toBe('23505');
+    // el mismo abono del mismo mes en el OTRO modo es otro cobro (D-28); un modo fuera de test|live no entra
+    expect(await bad(charge, ['cg_d', 'live'])).toBe('aceptó');
+    expect(await bad(charge, ['cg_e', 'prod'])).toBe('23514');
     // dos lotes para el mismo corte
-    const batch = `INSERT INTO settlement_batches (id, cutoff_date, release_days, release_before, period_from, status) VALUES ($1, '2026-10-19', 7, now(), now(), 'running')`;
-    expect(await bad(batch, ['sb_a'])).toBe('aceptó');
-    expect(await bad(batch, ['sb_b'])).toBe('23505');
+    const batch = `INSERT INTO settlement_batches (id, mode, cutoff_date, release_days, release_before, period_from, status) VALUES ($1, $2, '2026-10-19', 7, now(), now(), 'running')`;
+    expect(await bad(batch, ['sb_a', 'test'])).toBe('aceptó');
+    expect(await bad(batch, ['sb_b', 'test'])).toBe('23505');
+    expect(await bad(batch, ['sb_c', 'live'])).toBe('aceptó'); // el mismo lunes en el otro modo es otro corte
+    expect(await bad(batch, ['sb_d', 'prod'])).toBe('23514');
     // una excepción abierta con resolución, o la misma diferencia dos veces
-    const exception = `INSERT INTO settlement_reconciliation_runs (id, connector, period_from, period_to, source, status, requested_by) VALUES ('rr_a','mock',now(),now(),'api','running','x')`;
+    const exception = `INSERT INTO settlement_reconciliation_runs (id, mode, connector, period_from, period_to, source, status, requested_by) VALUES ('rr_a','test','mock',now(),now(),'api','running','x')`;
     await db.pool.query(exception);
-    const ex = `INSERT INTO settlement_exceptions (id, run_id, connector, kind, difference_minor, statement_line_ref, status, resolution, dedupe_key) VALUES ($1,'rr_a','mock','amount_mismatch',1,'l',$2,$3,$4)`;
+    const ex = `INSERT INTO settlement_exceptions (id, mode, run_id, connector, kind, difference_minor, statement_line_ref, status, resolution, dedupe_key) VALUES ($1,'test','rr_a','mock','amount_mismatch',1,'l',$2,$3,$4)`;
     expect(await bad(ex, ['rx_a', 'open', 'dismiss', 'a'.repeat(64)])).toBe('23514');
     expect(await bad(ex, ['rx_b', 'open', null, 'b'.repeat(64)])).toBe('aceptó');
     expect(await bad(ex, ['rx_c', 'open', null, 'b'.repeat(64)])).toBe('23505');

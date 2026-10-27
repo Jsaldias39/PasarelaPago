@@ -33,11 +33,16 @@ describe('payout (P2.H2.M4, REQ-P2-1/2 del lado del pago)', () => {
     expect(ctx.ledger.balanceOf('payout:clearing')).toBe(30_000);
     expect(ctx.connectors.orders).toHaveLength(1);
     expect(ctx.connectors.orders[0].key).toBe(`payout-${res.body.id}`); // la clave del riel es estable por pago
-    // un pago suelto (sin lote) emite paid; payout.created exige lote en el contrato y no se emite (PROPUESTAS.md)
+    // un pago suelto (sin lote) emite created (settlement_batch_id es opcional desde la ola 2) y paid, los dos con el modo de la clave
     const paid = await ctx.events('payout.paid');
     expect(paid).toHaveLength(1);
     expect(validators.get('payout.paid')?.(paid[0])).toEqual([]);
-    expect(await ctx.events('payout.created')).toHaveLength(0);
+    const created = await ctx.events('payout.created');
+    expect(created).toHaveLength(1);
+    expect(validators.get('payout.created')?.(created[0])).toEqual([]);
+    expect(created[0].data).not.toHaveProperty('settlement_batch_id');
+    expect(created[0].data).toMatchObject({ mode: 'test', payout_id: res.body.id, status: 'pending' });
+    expect(paid[0].data).toMatchObject({ mode: 'test' });
     expect((await ctx.as('pay-schedules').get(`/payouts/${res.body.id}`)).body.status).toBe('paid');
   });
 
@@ -111,7 +116,7 @@ describe('payout (P2.H2.M4, REQ-P2-1/2 del lado del pago)', () => {
       expect(available(m)).toBe(9_000);
       const failed = await ctx.events('payout.failed');
       expect(validators.get('payout.failed')?.(failed[0])).toEqual([]);
-      expect((failed[0].data as { failure_code: string }).failure_code).toBe('internal_error');
+      expect((failed[0].data as { failure_code: string }).failure_code).toBe('rail_rejected');
     });
 
     it('AMBIGUO (el banco pagó pero se perdió la respuesta): NO se anula; queda en tránsito con la retención viva y una consulta posterior «pagado» confirma', async () => {

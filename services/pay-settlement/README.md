@@ -38,6 +38,18 @@ Corte semanal, pagos a comercios, cobros netos (abono y comisiones), conciliaci�
 4. **Quién decide sale de la credencial**, nunca del cuerpo. Un rol insuficiente es 403 antes de tocar la idempotencia (el 403 no se guarda).
 5. **El modo B es un doble** y se niega a arrancar con `PAY_MODE=live`.
 
+## Modo `test` / `live` (D-28)
+
+Toda la API interna exige `X-Pay-Mode: test|live` (ausente o distinto ⇒ `403 forbidden`; nunca se cae en `live`). El modo sale **solo** de la cabecera. Los pagos, cortes,
+cobros, corridas de conciliación y excepciones **guardan** su modo (columna `mode`, `CHECK IN ('test','live')`), toda consulta lo **filtra** (pedir un id del otro modo ⇒ `404`) y se
+**propaga**: cada llamada al ledger y a los conectores lleva `X-Pay-Mode` con el modo del registro (un pago retomado por el barrido usa el modo con que nació). Consecuencias:
+
+- El mismo lunes se corta una vez por modo (`UNIQUE (mode, cutoff_date)`); las marcas del corte (`settlement_merchant_marks`) son por `(modo, comercio)`.
+- Una `Idempotency-Key` se guarda por `(llamador, modo)`; los ids estables de pagos y cobros incluyen el modo.
+- El dinero de un modo no se paga ni se cobra desde el otro (el ledger tiene cuentas distintas por modo).
+- `payout.created|paid|failed` llevan `mode`. Los demás eventos no lo llevan (el AsyncAPI no lo declara).
+- `resolve`: `401` si la credencial del operador falta, venció o no verifica; `403` si es válida pero sin el rol (CONTRATOS.md §3, fila 17).
+
 ## Probar
 
 ```bash

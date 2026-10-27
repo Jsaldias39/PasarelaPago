@@ -109,7 +109,7 @@ describe('el relé del outbox publica los eventos propios en PAY_SETTLEMENT', ()
     const client = await db.pool.connect();
     try {
       await client.query('BEGIN');
-      await emitPayoutPaid(client, { payoutId, merchantId: m, amountMinor: 4200, paidAt: new Date() });
+      await emitPayoutPaid(client, { payoutId, mode: 'test', merchantId: m, amountMinor: 4200, paidAt: new Date() });
       await client.query('COMMIT');
     } finally {
       client.release();

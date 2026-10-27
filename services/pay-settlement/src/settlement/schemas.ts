@@ -35,7 +35,7 @@ export const exceptionResolve = z.strictObject({
   note,
 });
 
-/** PROPUESTA de contrato (no está en `internal-settlement-v1.yaml`): cobro a un comercio que se netea contra su saldo. */
+/** Cobro (declarado en `internal-settlement-v1.yaml` desde la ola 2): a un comercio que se netea contra su saldo. */
 export const chargeCreate = z
   .strictObject({
     merchant_id: merchantId,

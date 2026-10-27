@@ -2,8 +2,11 @@ export type Rail = 'bank_transfer' | 'acquirer_settlement';
 export type PayoutStatus = 'pending' | 'in_transit' | 'paid' | 'failed';
 export type PayoutReason = 'weekly_cut' | 'mandate_obligation' | 'mandate_commission' | 'manual';
 
+import type { PayMode } from './mode';
+
 export interface PayoutRow {
   id: string;
+  mode: PayMode;
   merchant_id: string;
   amount_minor: string;
   currency: 'BOB';
@@ -26,7 +29,7 @@ export interface PayoutRow {
 }
 
 export const PAYOUT_COLUMNS =
-  'id, merchant_id, amount_minor, currency, rail, simulated, reason, status, step, hold_id, hold_business_ref, rail_reference, batch_id, requested_by, failure_code, period_from, period_to, created_at, updated_at, paid_at';
+  'id, mode, merchant_id, amount_minor, currency, rail, simulated, reason, status, step, hold_id, hold_business_ref, rail_reference, batch_id, requested_by, failure_code, period_from, period_to, created_at, updated_at, paid_at';
 
 /** `Payout` de `internal-settlement-v1.yaml`. */
 export function payoutDto(row: PayoutRow) {
@@ -64,6 +67,7 @@ export function publicPayoutDto(row: PayoutRow) {
 
 export interface BatchRow {
   id: string;
+  mode: PayMode;
   cutoff_date: string;
   release_days: number;
   release_before: Date;
@@ -78,7 +82,7 @@ export interface BatchRow {
 }
 
 export const BATCH_COLUMNS =
-  "id, to_char(cutoff_date, 'YYYY-MM-DD') AS cutoff_date, release_days, release_before, period_from, status, merchants_count, released_minor, payouts_count, failed_count, created_at, completed_at";
+  "id, mode, to_char(cutoff_date, 'YYYY-MM-DD') AS cutoff_date, release_days, release_before, period_from, status, merchants_count, released_minor, payouts_count, failed_count, created_at, completed_at";
 
 export function batchDto(row: BatchRow) {
   return {
@@ -97,6 +101,7 @@ export function batchDto(row: BatchRow) {
 
 export interface RunRow {
   id: string;
+  mode: PayMode;
   connector: string;
   period_from: Date;
   period_to: Date;
@@ -111,7 +116,7 @@ export interface RunRow {
   completed_at: Date | null;
 }
 
-export const RUN_COLUMNS = 'id, connector, period_from, period_to, source, status, matched_count, exception_count, ignored_count, failure_code, requested_by, created_at, completed_at';
+export const RUN_COLUMNS = 'id, mode, connector, period_from, period_to, source, status, matched_count, exception_count, ignored_count, failure_code, requested_by, created_at, completed_at';
 
 export function runDto(row: RunRow) {
   return {
@@ -131,6 +136,7 @@ export function runDto(row: RunRow) {
 
 export interface ExceptionRow {
   id: string;
+  mode: PayMode;
   run_id: string;
   connector: string;
   kind: 'missing_in_ledger' | 'missing_in_statement' | 'amount_mismatch' | 'duplicate_in_statement' | 'unknown_reference';
@@ -149,7 +155,7 @@ export interface ExceptionRow {
 }
 
 export const EXCEPTION_COLUMNS =
-  'id, run_id, connector, kind, provider_reference, business_ref, statement_amount_minor, ledger_amount_minor, difference_minor, statement_line_ref, merchant_id, payment_intent_id, status, resolved_by, resolution_note, created_at';
+  'id, mode, run_id, connector, kind, provider_reference, business_ref, statement_amount_minor, ledger_amount_minor, difference_minor, statement_line_ref, merchant_id, payment_intent_id, status, resolved_by, resolution_note, created_at';
 
 export function exceptionDto(row: ExceptionRow) {
   return {

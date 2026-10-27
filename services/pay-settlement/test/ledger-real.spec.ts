@@ -26,7 +26,7 @@ async function fund(m: string, amount: number): Promise<void> {
   expect(res.status).toBe(201);
 }
 const balance = async (account: string) => {
-  const res = await fetch(`${ledger.url}/balances?account=${encodeURIComponent(account)}`, { headers: { 'x-service-id': 'pay-settlement' } });
+  const res = await fetch(`${ledger.url}/balances?account=${encodeURIComponent(account)}`, { headers: { 'x-service-id': 'pay-settlement', 'x-pay-mode': 'test' } });
   return res.status === 404 ? 0 : ((await res.json()) as { balance_minor: number }).balance_minor;
 };
 const pay = (m: string, amount: number, idem = key()) => ctx.as('pay-schedules').post('/payouts', { merchant_id: m, amount_minor: amount, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', idem);
@@ -40,7 +40,7 @@ describe('payouts contra el ledger real', () => {
     expect(res.body).toMatchObject({ status: 'paid', amount_minor: 30_000 });
     expect(await balance(`merchant:${m}:available`)).toBe(20_000);
     expect((await balance('payout:clearing')) - before).toBe(30_000);
-    const hold = (await fetch(`${ledger.url}/holds/${res.body.hold_id}`, { headers: { 'x-service-id': 'pay-settlement' } }).then((r) => r.json())) as { status: string; posted_amount_minor?: number };
+    const hold = (await fetch(`${ledger.url}/holds/${res.body.hold_id}`, { headers: { 'x-service-id': 'pay-settlement', 'x-pay-mode': 'test' } }).then((r) => r.json())) as { status: string; posted_amount_minor?: number };
     expect(hold).toMatchObject({ status: 'posted', posted_amount_minor: 30_000 });
   });
 
@@ -83,7 +83,7 @@ describe('payouts contra el ledger real', () => {
     const res = await pay(m, 9_000);
     expect(res.body).toMatchObject({ status: 'failed', failure_code: 'connector_unavailable' });
     expect(await balance(`merchant:${m}:available`)).toBe(9_000);
-    const hold = (await fetch(`${ledger.url}/holds/${res.body.hold_id}`, { headers: { 'x-service-id': 'pay-settlement' } }).then((r) => r.json())) as { status: string; posted_amount_minor?: number };
+    const hold = (await fetch(`${ledger.url}/holds/${res.body.hold_id}`, { headers: { 'x-service-id': 'pay-settlement', 'x-pay-mode': 'test' } }).then((r) => r.json())) as { status: string; posted_amount_minor?: number };
     expect(hold.status).toBe('voided');
   });
 
@@ -95,8 +95,51 @@ describe('payouts contra el ledger real', () => {
     expect(res.body.status).toBe('in_transit');
     expect(await balance(`merchant:${m}:available`)).toBe(0);
     await ctx.payouts.recover();
-    const hold = (await fetch(`${ledger.url}/holds/${res.body.hold_id}`, { headers: { 'x-service-id': 'pay-settlement' } }).then((r) => r.json())) as { status: string; posted_amount_minor?: number };
+    const hold = (await fetch(`${ledger.url}/holds/${res.body.hold_id}`, { headers: { 'x-service-id': 'pay-settlement', 'x-pay-mode': 'test' } }).then((r) => r.json())) as { status: string; posted_amount_minor?: number };
     expect(hold.status).toBe('posted');
+  });
+});
+
+describe('el modo contra el ledger real (D-28)', () => {
+  const liveBalance = async (account: string, mode: 'test' | 'live') => {
+    const res = await fetch(`${ledger.url}/balances?account=${encodeURIComponent(account)}`, { headers: { 'x-service-id': 'pay-settlement', 'x-pay-mode': mode } });
+    return res.status === 404 ? 0 : ((await res.json()) as { balance_minor: number }).balance_minor;
+  };
+
+  it('el dinero cargado en test no se puede pagar en live: el ledger real rechaza por saldo y no mueve nada; en test el mismo pago sale', async () => {
+    const m = merchantId();
+    await fund(m, 20_000); // `fund` carga en modo test
+    const denied = checked(ctx, 'POST', '/payouts', await ctx.as('pay-schedules', 'live').post('/payouts', { merchant_id: m, amount_minor: 1_000, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', key()));
+    expect(denied.status).toBe(422);
+    expect(denied.body.code).toBe('insufficient_funds');
+    expect(ctx.connectors.orders).toHaveLength(0);
+    expect(await liveBalance(`merchant:${m}:available`, 'test')).toBe(20_000);
+    expect(await liveBalance(`merchant:${m}:available`, 'live')).toBe(0);
+    const ok = checked(ctx, 'POST', '/payouts', await pay(m, 1_000));
+    expect(ok.body).toMatchObject({ status: 'paid' });
+    expect(ctx.connectors.orders.map((o) => o.order.mode)).toEqual(['test']);
+    // la retención vive solo en el modo en que se creó
+    const asLive = await fetch(`${ledger.url}/holds/${ok.body.hold_id}`, { headers: { 'x-service-id': 'pay-settlement', 'x-pay-mode': 'live' } });
+    expect(asLive.status).toBe(404);
+  });
+
+  it('el mismo comercio con dinero en los dos modos: cada pago sale de SU saldo en el ledger real', async () => {
+    const m = merchantId();
+    for (const mode of ['test', 'live'] as const) {
+      const res = await ledger.post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs: [{ debit_account: 'connector:mock:clearing', credit_account: `merchant:${m}:available`, amount_minor: mode === 'test' ? 9_000 : 4_000, code: 'charge' }] }, undefined, mode);
+      expect(res.status).toBe(201);
+    }
+    const [t, l] = [
+      checked(ctx, 'POST', '/payouts', await ctx.as('pay-schedules', 'test').post('/payouts', { merchant_id: m, amount_minor: 3_000, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', key())),
+      checked(ctx, 'POST', '/payouts', await ctx.as('pay-schedules', 'live').post('/payouts', { merchant_id: m, amount_minor: 3_000, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', key())),
+    ];
+    expect([t.body.status, l.body.status]).toEqual(['paid', 'paid']);
+    expect(await liveBalance(`merchant:${m}:available`, 'test')).toBe(6_000);
+    expect(await liveBalance(`merchant:${m}:available`, 'live')).toBe(1_000);
+    // y un pago de live que no cabe en SU saldo (aunque test tenga de sobra) se rechaza
+    const tooMuch = await ctx.as('pay-schedules', 'live').post('/payouts', { merchant_id: m, amount_minor: 2_000, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', key());
+    expect(tooMuch.status).toBe(422);
+    expect(await liveBalance(`merchant:${m}:available`, 'live')).toBe(1_000);
   });
 });
 
@@ -110,7 +153,7 @@ describe('cobros netos y conciliación contra el ledger real', () => {
     expect(await balance(`merchant:${m}:available`)).toBe(0);
     expect((await balance('platform:fees')) - before).toBe(700);
     await fund(m, 600);
-    await ctx.netting.collectOpenFor(m);
+    await ctx.netting.collectOpenFor('test', m);
     expect(await balance(`merchant:${m}:available`)).toBe(100);
     expect((await balance('platform:fees')) - before).toBe(1_200);
   });
@@ -153,7 +196,7 @@ describe('cobros netos y conciliación contra el ledger real', () => {
 
   it('el saldo y el extracto de una cuenta que el ledger real nunca vio son «sin movimientos», no un error', async () => {
     const client = new HttpLedgerClient(ledger.url, 5000);
-    expect(await client.getBalance(`merchant:${merchantId()}:available`)).toBeUndefined();
-    expect(await client.listStatement(`merchant:${merchantId()}:pending`, {})).toEqual([]);
+    expect(await client.getBalance('test', `merchant:${merchantId()}:available`)).toBeUndefined();
+    expect(await client.listStatement('test', `merchant:${merchantId()}:pending`, {})).toEqual([]);
   });
 });

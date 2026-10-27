@@ -1,4 +1,5 @@
 import type { Rail } from './dto';
+import type { PayMode } from './mode';
 
 /** Pata de un asiento del ledger. */
 export interface LedgerLeg {
@@ -32,23 +33,24 @@ export interface LedgerStatementEntry {
 
 /**
  * Lo que pay-settlement necesita de pay-ledger (`contracts/openapi/internal-ledger-v1.yaml`). Es el contrato contra el que se
- * escriben los dobles de las pruebas. Todas las operaciones de escritura son idempotentes por `(business_ref, attempt)` en el ledger.
+ * escriben los dobles de las pruebas. Toda llamada lleva el modo (`X-Pay-Mode`, D-28): el ledger separa por modo cuentas, asientos y retenciones. Todas las operaciones de escritura son idempotentes por `(business_ref, attempt)` en el ledger.
  *
  * @throws LedgerRejectedError cuando el ledger rechaza por una razón de negocio; LedgerUnavailableError cuando no se sabe qué pasó.
  */
 export interface LedgerPort {
-  createTransaction(input: { businessRef: string; attempt: number; legs: readonly LedgerLeg[] }, idempotencyKey: string): Promise<void>;
+  createTransaction(mode: PayMode, input: { businessRef: string; attempt: number; legs: readonly LedgerLeg[] }, idempotencyKey: string): Promise<void>;
   createHold(
+    mode: PayMode,
     input: { businessRef: string; attempt: number; debitAccount: string; creditAccount: string; amountMinor: number; expiresInSeconds: number },
     idempotencyKey: string,
   ): Promise<LedgerHold>;
-  getHold(holdId: string): Promise<LedgerHold | undefined>;
-  postHold(holdId: string, idempotencyKey: string): Promise<LedgerHold>;
-  voidHold(holdId: string, idempotencyKey: string): Promise<LedgerHold>;
-  /** `undefined` si el ledger todavía no conoce la cuenta (nunca tuvo movimientos): equivale a saldo 0. */
-  getBalance(account: string): Promise<LedgerBalance | undefined>;
+  getHold(mode: PayMode, holdId: string): Promise<LedgerHold | undefined>;
+  postHold(mode: PayMode, holdId: string, idempotencyKey: string): Promise<LedgerHold>;
+  voidHold(mode: PayMode, holdId: string, idempotencyKey: string): Promise<LedgerHold>;
+  /** `undefined` si el ledger todavía no conoce la cuenta EN ESE MODO (nunca tuvo movimientos): equivale a saldo 0. */
+  getBalance(mode: PayMode, account: string): Promise<LedgerBalance | undefined>;
   /** Todas las líneas de la cuenta en `[from, to)`, de la más nueva a la más vieja; recorre las páginas. */
-  listStatement(account: string, window: { from?: string; to?: string }): Promise<LedgerStatementEntry[]>;
+  listStatement(mode: PayMode, account: string, window: { from?: string; to?: string }): Promise<LedgerStatementEntry[]>;
 }
 export const LEDGER_PORT = Symbol('LEDGER_PORT');
 
@@ -61,6 +63,8 @@ export type RailOutcome =
 
 export interface PayoutOrder {
   readonly payoutId: string;
+  /** Modo del pago (D-28): viaja al conector en `X-Pay-Mode`. */
+  readonly mode: PayMode;
   /** `business_ref` de la transferencia (`po_x:payout`) y `attempt`: juntos son la idempotencia y la referencia de consulta del conector. */
   readonly businessRef: string;
   readonly attempt: number;

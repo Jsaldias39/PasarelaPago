@@ -273,8 +273,8 @@ describe('identidad de servicio: matriz negativa por ruta (regla 80.2.3)', () =>
 });
 
 describe('contrato: el servicio implementa TODO lo que le toca', () => {
-  it('cada operación de payment_intents de public-v1.yaml tiene su ruta (y no sobra ninguna)', () => {
-    const ops = normalizeOps(publicContract.operations().filter((op) => op.includes(' /payment_intents')));
+  it('cada operación de payment_intents y refunds de public-v1.yaml tiene su ruta (y no sobra ninguna)', () => {
+    const ops = normalizeOps(publicContract.operations().filter((op) => op.includes(' /payment_intents') || op.includes(' /refunds')));
     expect(routesOf(PaymentsController as never)).toEqual(ops);
   });
 

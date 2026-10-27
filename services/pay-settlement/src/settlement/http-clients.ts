@@ -1,4 +1,5 @@
 import { serviceHeaders } from '@pay/service-auth';
+import type { PayMode } from './mode';
 import { LedgerRejectedError, LedgerUnavailableError, RailAmbiguousError, RailUnavailableError, StatementUnavailableError } from './errors';
 import type {
   ConnectorsPort,
@@ -64,8 +65,8 @@ export class HttpLedgerClient implements LedgerPort {
     private readonly timeoutMs: number,
   ) {}
 
-  private async call(method: 'GET' | 'POST', path: string, options: { body?: unknown; key?: string } = {}): Promise<Reply> {
-    const headers: Record<string, string> = { ...serviceHeaders(SELF, { 'idempotency-key': options.key }), accept: 'application/json' };
+  private async call(mode: PayMode, method: 'GET' | 'POST', path: string, options: { body?: unknown; key?: string } = {}): Promise<Reply> {
+    const headers: Record<string, string> = { ...serviceHeaders(SELF, { 'idempotency-key': options.key, 'x-pay-mode': mode }), accept: 'application/json' };
     if (options.body !== undefined) headers['content-type'] = 'application/json';
     const reply = await send(
       `${this.baseUrl}${path}`,
@@ -87,8 +88,8 @@ export class HttpLedgerClient implements LedgerPort {
     throw new LedgerUnavailableError(`respuesta inesperada del ledger (${reply.status})`);
   }
 
-  async createTransaction(input: { businessRef: string; attempt: number; legs: readonly LedgerLeg[] }, idempotencyKey: string): Promise<void> {
-    const reply = await this.call('POST', '/transactions', {
+  async createTransaction(mode: PayMode, input: { businessRef: string; attempt: number; legs: readonly LedgerLeg[] }, idempotencyKey: string): Promise<void> {
+    const reply = await this.call(mode, 'POST', '/transactions', {
       key: idempotencyKey,
       body: { business_ref: input.businessRef, attempt: input.attempt, currency: 'BOB', legs: input.legs },
     });
@@ -96,10 +97,11 @@ export class HttpLedgerClient implements LedgerPort {
   }
 
   async createHold(
+    mode: PayMode,
     input: { businessRef: string; attempt: number; debitAccount: string; creditAccount: string; amountMinor: number; expiresInSeconds: number },
     idempotencyKey: string,
   ): Promise<LedgerHold> {
-    const reply = await this.call('POST', '/holds', {
+    const reply = await this.call(mode, 'POST', '/holds', {
       key: idempotencyKey,
       body: {
         business_ref: input.businessRef,
@@ -115,27 +117,27 @@ export class HttpLedgerClient implements LedgerPort {
     return holdOf(reply);
   }
 
-  async getHold(holdId: string): Promise<LedgerHold | undefined> {
-    const reply = await this.call('GET', `/holds/${encodeURIComponent(holdId)}`);
+  async getHold(mode: PayMode, holdId: string): Promise<LedgerHold | undefined> {
+    const reply = await this.call(mode, 'GET', `/holds/${encodeURIComponent(holdId)}`);
     if (isNotFound(reply)) return undefined;
     if (reply.status !== 200) this.reject(reply);
     return holdOf(reply);
   }
 
-  async postHold(holdId: string, idempotencyKey: string): Promise<LedgerHold> {
-    const reply = await this.call('POST', `/holds/${encodeURIComponent(holdId)}/post`, { key: idempotencyKey, body: {} });
+  async postHold(mode: PayMode, holdId: string, idempotencyKey: string): Promise<LedgerHold> {
+    const reply = await this.call(mode, 'POST', `/holds/${encodeURIComponent(holdId)}/post`, { key: idempotencyKey, body: {} });
     if (reply.status !== 200) this.reject(reply);
     return holdOf(reply);
   }
 
-  async voidHold(holdId: string, idempotencyKey: string): Promise<LedgerHold> {
-    const reply = await this.call('POST', `/holds/${encodeURIComponent(holdId)}/void`, { key: idempotencyKey, body: {} });
+  async voidHold(mode: PayMode, holdId: string, idempotencyKey: string): Promise<LedgerHold> {
+    const reply = await this.call(mode, 'POST', `/holds/${encodeURIComponent(holdId)}/void`, { key: idempotencyKey, body: {} });
     if (reply.status !== 200) this.reject(reply);
     return holdOf(reply);
   }
 
-  async getBalance(account: string): Promise<LedgerBalance | undefined> {
-    const reply = await this.call('GET', `/balances?account=${encodeURIComponent(account)}`);
+  async getBalance(mode: PayMode, account: string): Promise<LedgerBalance | undefined> {
+    const reply = await this.call(mode, 'GET', `/balances?account=${encodeURIComponent(account)}`);
     if (isNotFound(reply)) return undefined;
     if (reply.status !== 200) this.reject(reply);
     const body = reply.json as Partial<LedgerBalance> | null;
@@ -143,7 +145,7 @@ export class HttpLedgerClient implements LedgerPort {
     return { balance_minor: body.balance_minor, nature: body.nature, pending_debits_minor: body.pending_debits_minor ?? 0 };
   }
 
-  async listStatement(account: string, window: { from?: string; to?: string }): Promise<LedgerStatementEntry[]> {
+  async listStatement(mode: PayMode, account: string, window: { from?: string; to?: string }): Promise<LedgerStatementEntry[]> {
     const entries: LedgerStatementEntry[] = [];
     let cursor: string | undefined;
     for (;;) {
@@ -151,7 +153,7 @@ export class HttpLedgerClient implements LedgerPort {
       if (window.from) query.set('from', window.from);
       if (window.to) query.set('to', window.to);
       if (cursor) query.set('starting_after', cursor);
-      const reply = await this.call('GET', `/statements?${query.toString()}`);
+      const reply = await this.call(mode, 'GET', `/statements?${query.toString()}`);
       if (isNotFound(reply)) return entries;
       if (reply.status !== 200) this.reject(reply);
       const page = reply.json as { data?: LedgerStatementEntry[]; has_more?: boolean; next_cursor?: string | null } | null;
@@ -216,7 +218,7 @@ export class HttpConnectorsClient implements ConnectorsPort {
       `${this.baseUrl}/transfers`,
       {
         method: 'POST',
-        headers: { ...serviceHeaders(SELF, { 'idempotency-key': idempotencyKey }), 'content-type': 'application/json', accept: 'application/json' },
+        headers: { ...serviceHeaders(SELF, { 'idempotency-key': idempotencyKey, 'x-pay-mode': order.mode }), 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({
           business_ref: order.businessRef,
           attempt: order.attempt,
@@ -233,7 +235,7 @@ export class HttpConnectorsClient implements ConnectorsPort {
   }
 
   async queryTransfer(order: PayoutOrder): Promise<RailOutcome> {
-    const reply = await send(`${this.baseUrl}/transfers/${order.businessRef}:${order.attempt}`, { method: 'GET', headers: { ...serviceHeaders(SELF), accept: 'application/json' } }, this.timeoutMs);
+    const reply = await send(`${this.baseUrl}/transfers/${order.businessRef}:${order.attempt}`, { method: 'GET', headers: { ...serviceHeaders(SELF, { 'x-pay-mode': order.mode }), accept: 'application/json' } }, this.timeoutMs);
     return transferOutcome(reply, 'query');
   }
 }

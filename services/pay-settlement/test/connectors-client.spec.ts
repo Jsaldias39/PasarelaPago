@@ -23,7 +23,7 @@ afterEach(async () => {
   expect(violations).toEqual([]);
 });
 
-const order: PayoutOrder = { payoutId: 'po_abcdefghijklmnop', businessRef: 'po_abcdefghijklmnop:payout', attempt: 1, merchantId: 'mc_abcdefghijk', amountMinor: 9000, currency: 'BOB' };
+const order: PayoutOrder = { payoutId: 'po_abcdefghijklmnop', mode: 'test', businessRef: 'po_abcdefghijklmnop:payout', attempt: 1, merchantId: 'mc_abcdefghijk', amountMinor: 9000, currency: 'BOB' };
 const REF = 'po_abcdefghijklmnop:payout:1';
 
 const html502: Behavior = { kind: 'raw', status: 502, contentType: 'text/html', body: '<html><body><h1>502 Bad Gateway</h1>nginx</body></html>' };

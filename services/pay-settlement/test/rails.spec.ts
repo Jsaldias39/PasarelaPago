@@ -3,7 +3,7 @@ import type { ConnectorsPort, PayoutOrder } from '../src/settlement/ports';
 import { AcquirerSettlementRail, BankTransferRail } from '../src/settlement/rails';
 import { FakeConnectors } from './helpers/fakes';
 
-const order = (over: Partial<PayoutOrder> = {}): PayoutOrder => ({ payoutId: 'po_abcdefghijklmnop', businessRef: 'po_abcdefghijklmnop:payout', attempt: 1, merchantId: 'mc_abcdefghijk', amountMinor: 5000, currency: 'BOB', ...over });
+const order = (over: Partial<PayoutOrder> = {}): PayoutOrder => ({ payoutId: 'po_abcdefghijklmnop', mode: 'test', businessRef: 'po_abcdefghijklmnop:payout', attempt: 1, merchantId: 'mc_abcdefghijk', amountMinor: 5000, currency: 'BOB', ...over });
 
 describe('AcquirerSettlementRail — [DOBLE] declarado del modo B (D-02, P2.H2.M3/M8)', () => {
   const rail = new AcquirerSettlementRail();

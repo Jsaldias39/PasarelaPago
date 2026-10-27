@@ -9,6 +9,7 @@ import { NettingService } from './netting.service';
 import { PayoutService } from './payout.service';
 import { OPERATOR_VERIFIER, type OperatorVerifier } from './ports';
 import { ReconciliationService } from './reconciliation.service';
+import { requirePayMode } from './mode';
 import { merchantId, requireIdempotencyKey } from './schemas';
 import { SETTLEMENT_CONFIG, type SettlementConfig } from './settlement.config';
 
@@ -54,8 +55,15 @@ export class SettlementController {
 
   @Post('payouts')
   @AllowedServices(...PAYOUT_WRITERS)
-  async createPayout(@Body() body: unknown, @Headers('x-service-id') caller: string, @Headers('idempotency-key') key: string | undefined, @Res({ passthrough: true }) res: Response) {
-    return send(res, await this.payouts.create(body, caller, requireIdempotencyKey(key)));
+  async createPayout(
+    @Body() body: unknown,
+    @Headers('x-service-id') caller: string,
+    @Headers('x-pay-mode') payMode: string | undefined,
+    @Headers('idempotency-key') key: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const mode = requirePayMode(payMode);
+    return send(res, await this.payouts.create(body, caller, mode, requireIdempotencyKey(key)));
   }
 
   /**
@@ -64,59 +72,74 @@ export class SettlementController {
    */
   @Get('payouts')
   @AllowedServices(...PAYOUT_READERS)
-  async listPayouts(@Query() query: unknown, @Headers('x-service-id') caller: string, @Headers('x-merchant-id') merchant: string | undefined) {
+  async listPayouts(@Query() query: unknown, @Headers('x-service-id') caller: string, @Headers('x-pay-mode') payMode: string | undefined, @Headers('x-merchant-id') merchant: string | undefined) {
+    const mode = requirePayMode(payMode);
     if (caller === 'pay-edge') {
       const parsed = merchantId.safeParse(merchant);
       if (!parsed.success) throw new ProblemError('unauthorized');
       // Un comercio no filtra por otro: `merchant_id` en la consulta pública no existe y se rechaza como cualquier campo desconocido.
-      const result = await this.payouts.list(query, parsed.data);
+      const result = await this.payouts.list(query, mode, parsed.data);
       return page(result.rows, result.has_more, result.next_cursor, publicPayoutDto);
     }
-    const result = await this.payouts.list(query);
+    const result = await this.payouts.list(query, mode);
     return page(result.rows, result.has_more, result.next_cursor, payoutDto);
   }
 
   @Get('payouts/:id')
   @AllowedServices('pay-schedules', 'pay-console')
-  async getPayout(@Param('id') id: string) {
-    return payoutDto(await this.payouts.get(id));
+  async getPayout(@Param('id') id: string, @Headers('x-pay-mode') payMode: string | undefined) {
+    return payoutDto(await this.payouts.get(id, requirePayMode(payMode)));
   }
 
   @Post('batches')
   @AllowedServices(...OPERATIONS)
-  async runBatch(@Body() body: unknown, @Headers('x-service-id') caller: string, @Headers('idempotency-key') key: string | undefined, @Res({ passthrough: true }) res: Response) {
-    return send(res, await this.batches.run(body, caller, requireIdempotencyKey(key)));
+  async runBatch(
+    @Body() body: unknown,
+    @Headers('x-service-id') caller: string,
+    @Headers('x-pay-mode') payMode: string | undefined,
+    @Headers('idempotency-key') key: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const mode = requirePayMode(payMode);
+    return send(res, await this.batches.run(body, caller, mode, requireIdempotencyKey(key)));
   }
 
   @Get('batches')
   @AllowedServices(...OPERATIONS)
-  async listBatches(@Query() query: unknown) {
-    const result = await this.batches.list(query);
+  async listBatches(@Query() query: unknown, @Headers('x-pay-mode') payMode: string | undefined) {
+    const result = await this.batches.list(query, requirePayMode(payMode));
     return page(result.rows, result.has_more, result.next_cursor, batchDto);
   }
 
   @Post('reconciliation_runs')
   @AllowedServices(...OPERATIONS)
-  async createRun(@Body() body: unknown, @Headers('x-service-id') caller: string, @Headers('idempotency-key') key: string | undefined, @Res({ passthrough: true }) res: Response) {
-    return send(res, await this.reconciliation.createRun(body, caller, requireIdempotencyKey(key)));
+  async createRun(
+    @Body() body: unknown,
+    @Headers('x-service-id') caller: string,
+    @Headers('x-pay-mode') payMode: string | undefined,
+    @Headers('idempotency-key') key: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const mode = requirePayMode(payMode);
+    return send(res, await this.reconciliation.createRun(body, caller, mode, requireIdempotencyKey(key)));
   }
 
   @Get('reconciliation_runs/:id')
   @AllowedServices(...OPERATIONS)
-  async getRun(@Param('id') id: string) {
-    return runDto(await this.reconciliation.getRun(id));
+  async getRun(@Param('id') id: string, @Headers('x-pay-mode') payMode: string | undefined) {
+    return runDto(await this.reconciliation.getRun(id, requirePayMode(payMode)));
   }
 
   @Get('reconciliation_exceptions')
   @AllowedServices(...OPERATIONS)
-  async listExceptions(@Query() query: unknown) {
-    const result = await this.reconciliation.listExceptions(query);
+  async listExceptions(@Query() query: unknown, @Headers('x-pay-mode') payMode: string | undefined) {
+    const result = await this.reconciliation.listExceptions(query, requirePayMode(payMode));
     return page(result.rows, result.has_more, result.next_cursor, exceptionDto);
   }
 
   /**
-   * Quién decide sale de la credencial del operador, nunca del cuerpo. Una credencial ausente, vencida o mal firmada es 403 (el contrato no
-   * declara 401 para esta ruta) y no dice por qué.
+   * Quién decide sale de la credencial del operador, nunca del cuerpo. Una credencial ausente, vencida o que no verifica es `401` (y no dice
+   * por qué); una credencial válida sin el rol que la decisión exige es `403` (CONTRATOS.md §3, fila 17). La credencial se revisa primero.
    */
   @Post('reconciliation_exceptions/:id/resolve')
   @HttpCode(200)
@@ -126,26 +149,35 @@ export class SettlementController {
     @Body() body: unknown,
     @Headers('x-service-id') caller: string,
     @Headers('authorization') authorization: string | undefined,
+    @Headers('x-pay-mode') payMode: string | undefined,
     @Headers('idempotency-key') key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
     const operator = await this.operators.verify(authorization);
-    if (!operator) throw new ProblemError('forbidden');
-    return send(res, await this.reconciliation.resolve(id, body, operator, caller, requireIdempotencyKey(key)));
+    if (!operator) throw new ProblemError('unauthorized');
+    const mode = requirePayMode(payMode);
+    return send(res, await this.reconciliation.resolve(id, body, operator, caller, mode, requireIdempotencyKey(key)));
   }
 
-  /** PROPUESTA de contrato (PROPUESTAS.md): cobro a un comercio que se netea contra su saldo (7.8, contracargos). */
+  /** Cobro a un comercio que se netea contra su saldo (7.8, contracargos); ya declarado en el contrato (ola 2). */
   @Post('charges')
   @AllowedServices(...CHARGE_WRITERS)
-  async createCharge(@Body() body: unknown, @Headers('x-service-id') caller: string, @Headers('idempotency-key') key: string | undefined, @Res({ passthrough: true }) res: Response) {
-    return send(res, await this.netting.register(body, caller, requireIdempotencyKey(key)));
+  async createCharge(
+    @Body() body: unknown,
+    @Headers('x-service-id') caller: string,
+    @Headers('x-pay-mode') payMode: string | undefined,
+    @Headers('idempotency-key') key: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const mode = requirePayMode(payMode);
+    return send(res, await this.netting.register(body, caller, mode, requireIdempotencyKey(key)));
   }
 
-  /** PROPUESTA de contrato (PROPUESTAS.md): exportación de asientos de un periodo cerrado para M16. */
+  /** Exportación de asientos de un periodo cerrado para M16; ya declarada en el contrato (ola 2). */
   @Get('exports/accounting')
   @AllowedServices(...OPERATIONS)
-  async exportAccounting(@Query() query: unknown, @Res({ passthrough: true }) res: Response) {
-    const doc = await this.exports.build(query);
+  async exportAccounting(@Query() query: unknown, @Headers('x-pay-mode') payMode: string | undefined, @Res({ passthrough: true }) res: Response) {
+    const doc = await this.exports.build(query, requirePayMode(payMode));
     if ((query as { format?: string }).format === 'csv') {
       res.type('text/csv');
       return exportToCsv(doc);

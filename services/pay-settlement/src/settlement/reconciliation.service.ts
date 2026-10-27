@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { IdempotencyStore, hashRequest } from '@pay/idempotency';
 import { ProblemError } from '@pay/problem';
@@ -6,6 +7,7 @@ import { PG_POOL } from '../database.module';
 import { type ExceptionRow, EXCEPTION_COLUMNS, type RunRow, RUN_COLUMNS, exceptionDto, runDto } from './dto';
 import { LedgerUnavailableError, StatementMalformedError, StatementUnavailableError } from './errors';
 import { randomId } from './ids';
+import type { PayMode } from './mode';
 import { PayoutService } from './payout.service';
 import { CONNECTORS_PORT, type ConnectorsPort, LEDGER_PORT, type LedgerPort, type OperatorIdentity } from './ports';
 import { type PayoutFact, reconcile } from './reconcile';
@@ -48,8 +50,8 @@ export class ReconciliationService implements OnApplicationShutdown {
   }
 
   /** `POST /reconciliation_runs` → 202. La corrida sigue en segundo plano; se consulta por su id. */
-  createRun(rawBody: unknown, caller: string, idempotencyKey: string) {
-    return this.idempotency.execute({ scope: caller, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/reconciliation_runs', body: rawBody }) }, async () => {
+  createRun(rawBody: unknown, caller: string, mode: PayMode, idempotencyKey: string) {
+    return this.idempotency.execute({ scope: `${caller}|${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: '/reconciliation_runs', body: rawBody }) }, async () => {
       const input = parseOrThrow(runCreate, rawBody);
       const from = new Date(input.period_from);
       const to = new Date(input.period_to);
@@ -57,9 +59,9 @@ export class ReconciliationService implements OnApplicationShutdown {
       if (to.getTime() - from.getTime() > MAX_RUN_DAYS * 86_400_000) throw fieldError('period_to', 'period_too_long');
       const id = randomId('rr');
       const inserted = await this.pool.query<RunRow>(
-        `INSERT INTO settlement_reconciliation_runs (id, connector, period_from, period_to, source, status, requested_by, created_at)
-         VALUES ($1, $2, $3, $4, $5, 'running', $6, $7) RETURNING ${RUN_COLUMNS}`,
-        [id, input.connector, from, to, this.config.statementFormats[input.connector] === 'camt053' ? 'camt053' : this.config.statementFormats[input.connector] === 'csv' ? 'csv' : 'api', caller, new Date()],
+        `INSERT INTO settlement_reconciliation_runs (id, connector, period_from, period_to, source, status, requested_by, created_at, mode)
+         VALUES ($1, $2, $3, $4, $5, 'running', $6, $7, $8) RETURNING ${RUN_COLUMNS}`,
+        [id, input.connector, from, to, this.config.statementFormats[input.connector] === 'camt053' ? 'camt053' : this.config.statementFormats[input.connector] === 'csv' ? 'csv' : 'api', caller, new Date(), mode],
       );
       this.start(id);
       return { status: 202, body: runDto(inserted.rows[0]) };
@@ -73,10 +75,11 @@ export class ReconciliationService implements OnApplicationShutdown {
     this.inflight.add(job);
   }
 
-  async getRun(rawId: string): Promise<RunRow> {
+  /** `mode` solo lo pasa quien atiende una petición: una corrida del otro modo no existe para ella (404). El proceso interno lee sin modo. */
+  async getRun(rawId: string, mode?: PayMode): Promise<RunRow> {
     const id = runId.safeParse(rawId);
     if (!id.success) throw new ProblemError('resource_not_found');
-    const found = await this.pool.query<RunRow>(`SELECT ${RUN_COLUMNS} FROM settlement_reconciliation_runs WHERE id = $1`, [id.data]);
+    const found = await this.pool.query<RunRow>(`SELECT ${RUN_COLUMNS} FROM settlement_reconciliation_runs WHERE id = $1 AND ($2::text IS NULL OR mode = $2)`, [id.data, mode ?? null]);
     if (!found.rows[0]) throw new ProblemError('resource_not_found');
     return found.rows[0];
   }
@@ -101,8 +104,8 @@ export class ReconciliationService implements OnApplicationShutdown {
     try {
       const document = await this.connectors.getStatement({ connector: run.connector, from: run.period_from.toISOString(), to: run.period_to.toISOString(), format: this.config.statementFormats[run.connector] ?? 'json' });
       const statement = parseStatement(document);
-      const ledger = await this.ledger.listStatement(clearing, { from: run.period_from.toISOString(), to: run.period_to.toISOString() });
-      const payouts = await this.payoutFacts(statement.map((l) => l.our_reference));
+      const ledger = await this.ledger.listStatement(run.mode, clearing, { from: run.period_from.toISOString(), to: run.period_to.toISOString() });
+      const payouts = await this.payoutFacts(run.mode, statement.map((l) => l.our_reference));
       result = reconcile({ connector: run.connector, period: { from: run.period_from, to: run.period_to }, statement, ledger, payouts });
     } catch (error) {
       // Un extracto ilegible o un conector caído NO deja asientos a medias: la corrida falla entera y se reporta.
@@ -122,10 +125,10 @@ export class ReconciliationService implements OnApplicationShutdown {
       for (const draft of result.exceptions) {
         const exceptionId = randomId('rx');
         const inserted = await client.query(
-          `INSERT INTO settlement_exceptions (id, run_id, connector, kind, provider_reference, business_ref, statement_amount_minor, ledger_amount_minor, difference_minor, statement_line_ref, merchant_id, payment_intent_id, status, dedupe_key, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'open', $13, $14)
+          `INSERT INTO settlement_exceptions (id, run_id, connector, kind, provider_reference, business_ref, statement_amount_minor, ledger_amount_minor, difference_minor, statement_line_ref, merchant_id, payment_intent_id, status, dedupe_key, created_at, mode)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'open', $13, $14, $15)
            ON CONFLICT (dedupe_key) DO NOTHING RETURNING 1`,
-          [exceptionId, id, run.connector, draft.kind, draft.providerReference, draft.businessRef, draft.statementAmountMinor, draft.ledgerAmountMinor, draft.differenceMinor, draft.statementLineRef, draft.merchantId, draft.paymentIntentId, draft.dedupeKey, now],
+          [exceptionId, id, run.connector, draft.kind, draft.providerReference, draft.businessRef, draft.statementAmountMinor, draft.ledgerAmountMinor, draft.differenceMinor, draft.statementLineRef, draft.merchantId, draft.paymentIntentId, createHash('sha256').update(`${run.mode}|${draft.dedupeKey}`).digest('hex'), now, run.mode],
         );
         // Solo una diferencia NUEVA avisa: repetir la corrida sobre el mismo periodo no reabre ni vuelve a notificar lo ya conocido.
         if (inserted.rows.length === 1) {
@@ -149,10 +152,10 @@ export class ReconciliationService implements OnApplicationShutdown {
     }
   }
 
-  private async payoutFacts(references: (string | null)[]): Promise<Map<string, PayoutFact>> {
+  private async payoutFacts(mode: PayMode, references: (string | null)[]): Promise<Map<string, PayoutFact>> {
     const ids = [...new Set(references.map((r) => /^(po_[a-z0-9]{10,40})(?::payout)?$/.exec(r ?? '')?.[1]).filter((v): v is string => Boolean(v)))];
     if (ids.length === 0) return new Map();
-    const found = await this.pool.query<{ id: string; amount_minor: string; status: PayoutFact['status'] }>('SELECT id, amount_minor, status FROM settlement_payouts WHERE id = ANY($1::text[])', [ids]);
+    const found = await this.pool.query<{ id: string; amount_minor: string; status: PayoutFact['status'] }>('SELECT id, amount_minor, status FROM settlement_payouts WHERE mode = $2 AND id = ANY($1::text[])', [ids, mode]);
     return new Map(found.rows.map((r) => [r.id, { amountMinor: Number(r.amount_minor), status: r.status }]));
   }
 
@@ -177,14 +180,14 @@ export class ReconciliationService implements OnApplicationShutdown {
     }
   }
 
-  async listExceptions(rawQuery: unknown) {
+  async listExceptions(rawQuery: unknown, mode: PayMode) {
     const q = parseOrThrow(exceptionListQuery, rawQuery);
     const cursor = q.starting_after ? decodeCursor(q.starting_after) : null;
     const { rows } = await this.pool.query<ExceptionRow>(
       `SELECT ${EXCEPTION_COLUMNS} FROM settlement_exceptions
-        WHERE ($1::text IS NULL OR status = $1) AND ($2::timestamptz IS NULL OR (created_at, id) < ($2, $3))
+        WHERE mode = $5 AND ($1::text IS NULL OR status = $1) AND ($2::timestamptz IS NULL OR (created_at, id) < ($2, $3))
         ORDER BY created_at DESC, id DESC LIMIT $4`,
-      [q.status ?? null, cursor?.at ?? null, cursor?.id ?? null, q.limit + 1],
+      [q.status ?? null, cursor?.at ?? null, cursor?.id ?? null, q.limit + 1, mode],
     );
     const page = rows.slice(0, q.limit);
     const last = page[page.length - 1];
@@ -203,16 +206,16 @@ export class ReconciliationService implements OnApplicationShutdown {
    *
    * @throws ProblemError `forbidden` si el rol no alcanza para esa decisión (se decide antes de la idempotencia, para no guardar el 403).
    */
-  async resolve(rawId: string, rawBody: unknown, operator: OperatorIdentity, caller: string, idempotencyKey: string) {
+  async resolve(rawId: string, rawBody: unknown, operator: OperatorIdentity, caller: string, mode: PayMode, idempotencyKey: string) {
     const id = exceptionId.safeParse(rawId);
     if (!id.success) throw new ProblemError('resource_not_found');
     const input = parseOrThrow(exceptionResolve, rawBody);
     if (!ReconciliationService.authorize(operator, input.resolution)) throw new ProblemError('forbidden');
     return this.idempotency.execute(
-      { scope: `${caller}:${operator.sub}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/reconciliation_exceptions/${id.data}/resolve`, body: input }) },
+      { scope: `${caller}:${operator.sub}:${mode}`, key: idempotencyKey, requestHash: hashRequest({ method: 'POST', path: `/reconciliation_exceptions/${id.data}/resolve`, body: input }) },
       async () => {
         const row = await inTransaction(this.pool, async (client) => {
-          const found = await client.query<ExceptionRow & { difference_minor: string }>(`SELECT ${EXCEPTION_COLUMNS} FROM settlement_exceptions WHERE id = $1 FOR UPDATE`, [id.data]);
+          const found = await client.query<ExceptionRow & { difference_minor: string }>(`SELECT ${EXCEPTION_COLUMNS} FROM settlement_exceptions WHERE id = $1 AND mode = $2 FOR UPDATE`, [id.data, mode]);
           const current = found.rows[0];
           if (!current) throw new ProblemError('resource_not_found');
           if (current.status !== 'open') throw new ProblemError('invalid_state_transition', { detail: 'La excepción ya está cerrada' });

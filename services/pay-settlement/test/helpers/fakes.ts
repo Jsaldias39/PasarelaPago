@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { PayMode } from '../../src/settlement/mode';
 import { LedgerRejectedError, LedgerUnavailableError, RailAmbiguousError, RailUnavailableError } from '../../src/settlement/errors';
 import type {
   ConnectorsPort,
@@ -46,20 +47,47 @@ interface StoredHold extends LedgerHold {
 const LIMITED = /^(merchant:mc_[a-z0-9]+:(pending|available)|user:.+:wallet|schedule:md_[a-z0-9]+:reserve)$/;
 const DEBT = /^merchant:mc_[a-z0-9]+:debt$/;
 
-export class FakeLedger implements LedgerPort {
+/** Todo lo que el ledger guarda de UN modo: el real separa por modo cuentas, asientos y retenciones (D-28). */
+class ModeState {
   readonly net = new Map<string, number>();
   readonly pendingDebits = new Map<string, number>();
   readonly entries: (LedgerStatementEntry & { account: string })[] = [];
-  readonly calls: { op: string; args: unknown }[] = [];
-  private readonly txs = new Map<string, StoredTx[]>();
-  private readonly holds = new Map<string, StoredHold>();
-  private readonly replays = new Map<string, LedgerHold>();
+  readonly txs = new Map<string, StoredTx[]>();
+  readonly holds = new Map<string, StoredHold>();
+  readonly replays = new Map<string, LedgerHold>();
+}
+
+export class FakeLedger implements LedgerPort {
+  private readonly states = new Map<PayMode, ModeState>();
+  /** Cada llamada con su modo: las pruebas de modo comprueban que TODA llamada lo lleva. */
+  readonly calls: { op: string; args: unknown; mode: PayMode }[] = [];
   private readonly failures: Failure[] = [];
   now: () => Date = () => new Date();
   private rejectOnce = false;
 
-  count(op: string): number {
-    return this.calls.filter((c) => c.op === op).length;
+  /** Estado de un modo (se crea al primer uso). */
+  state(mode: PayMode): ModeState {
+    let state = this.states.get(mode);
+    if (!state) {
+      state = new ModeState();
+      this.states.set(mode, state);
+    }
+    return state;
+  }
+
+  // Las pruebas de siempre (anteriores a D-28) viven en `test`: estos accesos son los de ese modo.
+  get net(): Map<string, number> {
+    return this.state('test').net;
+  }
+  get pendingDebits(): Map<string, number> {
+    return this.state('test').pendingDebits;
+  }
+  get entries(): (LedgerStatementEntry & { account: string })[] {
+    return this.state('test').entries;
+  }
+
+  count(op: string, mode?: PayMode): number {
+    return this.calls.filter((c) => c.op === op && (mode === undefined || c.mode === mode)).length;
   }
 
   /** El ledger rechaza de verdad el próximo asiento por saldo (queda en su historial: el reintento exige `attempt + 1`). */
@@ -78,8 +106,8 @@ export class FakeLedger implements LedgerPort {
     return f;
   }
 
-  private async guarded<T>(op: string, args: unknown, run: () => T): Promise<T> {
-    this.calls.push({ op, args });
+  private async guarded<T>(op: string, mode: PayMode, args: unknown, run: () => T): Promise<T> {
+    this.calls.push({ op, args, mode });
     const failure = this.take(op);
     if (failure && !failure.applyFirst) throw failure.error;
     const result = run();
@@ -87,26 +115,28 @@ export class FakeLedger implements LedgerPort {
     return result;
   }
 
-  balanceOf(account: string): number {
-    return (this.net.get(account) ?? 0) - (this.pendingDebits.get(account) ?? 0);
+  balanceOf(account: string, mode: PayMode = 'test'): number {
+    const state = this.state(mode);
+    return (state.net.get(account) ?? 0) - (state.pendingDebits.get(account) ?? 0);
   }
 
-  private move(debit: string, credit: string, amount: number, businessRef: string, code: string, at: Date, hold = false): void {
-    if (!hold) this.net.set(debit, (this.net.get(debit) ?? 0) - amount);
-    this.net.set(credit, (this.net.get(credit) ?? 0) + amount);
-    this.entries.push({ account: debit, business_ref: businessRef, direction: 'debit', counterparty_account: credit, amount_minor: amount, code, posted_at: at.toISOString() });
-    this.entries.push({ account: credit, business_ref: businessRef, direction: 'credit', counterparty_account: debit, amount_minor: amount, code, posted_at: at.toISOString() });
+  private move(state: ModeState, debit: string, credit: string, amount: number, businessRef: string, code: string, at: Date, hold = false): void {
+    if (!hold) state.net.set(debit, (state.net.get(debit) ?? 0) - amount);
+    state.net.set(credit, (state.net.get(credit) ?? 0) + amount);
+    state.entries.push({ account: debit, business_ref: businessRef, direction: 'debit', counterparty_account: credit, amount_minor: amount, code, posted_at: at.toISOString() });
+    state.entries.push({ account: credit, business_ref: businessRef, direction: 'credit', counterparty_account: debit, amount_minor: amount, code, posted_at: at.toISOString() });
   }
 
   /** Carga historia (un cobro ya asentado) sin pasar por el contrato: cuenta el dinero de entrada en el conector. */
-  seedCharge(input: { merchant: string; net: number; fee: number; at: Date; ref: string; connector?: string }): void {
+  seedCharge(input: { merchant: string; net: number; fee: number; at: Date; ref: string; connector?: string; mode?: PayMode }): void {
+    const state = this.state(input.mode ?? 'test');
     const clearing = `connector:${input.connector ?? 'mock'}:clearing`;
-    this.move(clearing, `merchant:${input.merchant}:pending`, input.net, input.ref, 'charge', input.at);
-    if (input.fee > 0) this.move(clearing, 'platform:fees', input.fee, input.ref, 'fee', input.at);
+    this.move(state, clearing, `merchant:${input.merchant}:pending`, input.net, input.ref, 'charge', input.at);
+    if (input.fee > 0) this.move(state, clearing, 'platform:fees', input.fee, input.ref, 'fee', input.at);
   }
 
-  seedMovement(input: { debit: string; credit: string; amount: number; at: Date; ref: string; code: string }): void {
-    this.move(input.debit, input.credit, input.amount, input.ref, input.code, input.at);
+  seedMovement(input: { debit: string; credit: string; amount: number; at: Date; ref: string; code: string; mode?: PayMode }): void {
+    this.move(this.state(input.mode ?? 'test'), input.debit, input.credit, input.amount, input.ref, input.code, input.at);
   }
 
   private decide(history: StoredTx[], attempt: number, hash: string): 'new' | StoredTx {
@@ -121,11 +151,12 @@ export class FakeLedger implements LedgerPort {
     return 'new';
   }
 
-  createTransaction(input: { businessRef: string; attempt: number; legs: readonly LedgerLeg[] }): Promise<void> {
-    return this.guarded('createTransaction', input, () => {
+  createTransaction(mode: PayMode, input: { businessRef: string; attempt: number; legs: readonly LedgerLeg[] }): Promise<void> {
+    return this.guarded('createTransaction', mode, input, () => {
+      const state = this.state(mode);
       if (input.legs.length === 0 || input.legs.some((l) => !Number.isInteger(l.amount_minor) || l.amount_minor < 1)) throw new LedgerRejectedError('validation_failed');
       const hash = createHash('sha256').update(JSON.stringify(input.legs)).digest('hex');
-      const history = this.txs.get(input.businessRef) ?? [];
+      const history = state.txs.get(input.businessRef) ?? [];
       const verdict = this.decide(history, input.attempt, hash);
       if (verdict !== 'new') {
         if (verdict.status === 'rejected') throw new LedgerRejectedError('insufficient_funds');
@@ -134,7 +165,7 @@ export class FakeLedger implements LedgerPort {
       if (this.rejectOnce) {
         this.rejectOnce = false;
         history.push({ attempt: input.attempt, status: 'rejected', hash });
-        this.txs.set(input.businessRef, history);
+        state.txs.set(input.businessRef, history);
         throw new LedgerRejectedError('insufficient_funds');
       }
       // Todo o nada: se simula el saldo con las patas aplicadas en orden.
@@ -143,36 +174,37 @@ export class FakeLedger implements LedgerPort {
         probe.set(leg.debit_account, (probe.get(leg.debit_account) ?? 0) - leg.amount_minor);
         probe.set(leg.credit_account, (probe.get(leg.credit_account) ?? 0) + leg.amount_minor);
       }
-      const short = [...probe].some(([account, delta]) => (LIMITED.test(account) && this.balanceOf(account) + delta < 0) || (DEBT.test(account) && this.balanceOf(account) + delta > 0));
+      const short = [...probe].some(([account, delta]) => (LIMITED.test(account) && this.balanceOf(account, mode) + delta < 0) || (DEBT.test(account) && this.balanceOf(account, mode) + delta > 0));
       if (short) {
         history.push({ attempt: input.attempt, status: 'rejected', hash });
-        this.txs.set(input.businessRef, history);
+        state.txs.set(input.businessRef, history);
         throw new LedgerRejectedError('insufficient_funds');
       }
       const at = this.now();
-      for (const leg of input.legs) this.move(leg.debit_account, leg.credit_account, leg.amount_minor, input.businessRef, leg.code, at);
+      for (const leg of input.legs) this.move(state, leg.debit_account, leg.credit_account, leg.amount_minor, input.businessRef, leg.code, at);
       history.push({ attempt: input.attempt, status: 'posted', hash });
-      this.txs.set(input.businessRef, history);
+      state.txs.set(input.businessRef, history);
     });
   }
 
-  createHold(input: { businessRef: string; attempt: number; debitAccount: string; creditAccount: string; amountMinor: number; expiresInSeconds: number }): Promise<LedgerHold> {
-    return this.guarded('createHold', input, () => {
+  createHold(mode: PayMode, input: { businessRef: string; attempt: number; debitAccount: string; creditAccount: string; amountMinor: number; expiresInSeconds: number }): Promise<LedgerHold> {
+    return this.guarded('createHold', mode, input, () => {
+      const state = this.state(mode);
       const hash = createHash('sha256').update(JSON.stringify([input.debitAccount, input.creditAccount, input.amountMinor])).digest('hex');
       const key = `hold:${input.businessRef}`;
-      const history = this.txs.get(key) ?? [];
+      const history = state.txs.get(key) ?? [];
       const verdict = this.decide(history, input.attempt, hash);
-      const id = `hd_${createHash('sha256').update(`${input.businessRef}|${input.attempt}`).digest('hex').slice(0, 20)}`;
+      const id = `hd_${createHash('sha256').update(`${mode}|${input.businessRef}|${input.attempt}`).digest('hex').slice(0, 20)}`;
       if (verdict !== 'new') {
         if (verdict.status === 'rejected') throw new LedgerRejectedError('insufficient_funds');
-        return this.view(this.holds.get(id) as StoredHold);
+        return this.view(state, state.holds.get(id) as StoredHold);
       }
-      if (LIMITED.test(input.debitAccount) && this.balanceOf(input.debitAccount) < input.amountMinor) {
+      if (LIMITED.test(input.debitAccount) && this.balanceOf(input.debitAccount, mode) < input.amountMinor) {
         history.push({ attempt: input.attempt, status: 'rejected', hash });
-        this.txs.set(key, history);
+        state.txs.set(key, history);
         throw new LedgerRejectedError('insufficient_funds');
       }
-      this.pendingDebits.set(input.debitAccount, (this.pendingDebits.get(input.debitAccount) ?? 0) + input.amountMinor);
+      state.pendingDebits.set(input.debitAccount, (state.pendingDebits.get(input.debitAccount) ?? 0) + input.amountMinor);
       const hold: StoredHold = {
         id,
         status: 'pending',
@@ -183,72 +215,75 @@ export class FakeLedger implements LedgerPort {
         credit: input.creditAccount,
         expiresAt: new Date(this.now().getTime() + input.expiresInSeconds * 1000),
       };
-      this.holds.set(id, hold);
+      state.holds.set(id, hold);
       history.push({ attempt: input.attempt, status: 'posted', hash });
-      this.txs.set(key, history);
-      return this.view(hold);
+      state.txs.set(key, history);
+      return this.view(state, hold);
     });
   }
 
-  private view(hold: StoredHold): LedgerHold {
-    if (hold.status === 'pending' && hold.expiresAt <= this.now()) this.expire(hold);
+  private view(state: ModeState, hold: StoredHold): LedgerHold {
+    if (hold.status === 'pending' && hold.expiresAt <= this.now()) this.expire(state, hold);
     return { id: hold.id, status: hold.status, amount_minor: hold.amount_minor };
   }
 
-  private expire(hold: StoredHold): void {
+  private expire(state: ModeState, hold: StoredHold): void {
     (hold as { status: string }).status = 'expired';
-    this.pendingDebits.set(hold.debit, (this.pendingDebits.get(hold.debit) ?? 0) - hold.amount_minor);
+    state.pendingDebits.set(hold.debit, (state.pendingDebits.get(hold.debit) ?? 0) - hold.amount_minor);
   }
 
-  async getHold(holdId: string): Promise<LedgerHold | undefined> {
-    this.calls.push({ op: 'getHold', args: holdId });
-    const hold = this.holds.get(holdId);
-    return hold ? this.view(hold) : undefined;
+  async getHold(mode: PayMode, holdId: string): Promise<LedgerHold | undefined> {
+    this.calls.push({ op: 'getHold', args: holdId, mode });
+    const state = this.state(mode);
+    const hold = state.holds.get(holdId);
+    return hold ? this.view(state, hold) : undefined;
   }
 
-  private resolve(op: 'postHold' | 'voidHold', holdId: string, key: string): Promise<LedgerHold> {
-    return this.guarded(op, holdId, () => {
-      const replay = this.replays.get(`${op}:${key}`);
+  private resolve(op: 'postHold' | 'voidHold', mode: PayMode, holdId: string, key: string): Promise<LedgerHold> {
+    return this.guarded(op, mode, holdId, () => {
+      const state = this.state(mode);
+      const replay = state.replays.get(`${op}:${key}`);
       if (replay) return replay;
-      const hold = this.holds.get(holdId);
+      const hold = state.holds.get(holdId);
       if (!hold) throw new LedgerRejectedError('validation_failed', 'no existe');
-      const current = this.view(hold);
+      const current = this.view(state, hold);
       if (current.status !== 'pending') throw new LedgerRejectedError('invalid_state_transition', `La retención ya está ${current.status}`);
-      this.pendingDebits.set(hold.debit, (this.pendingDebits.get(hold.debit) ?? 0) - hold.amount_minor);
+      state.pendingDebits.set(hold.debit, (state.pendingDebits.get(hold.debit) ?? 0) - hold.amount_minor);
       if (op === 'postHold') {
-        this.move(hold.debit, hold.credit, hold.amount_minor, hold.businessRef, 'payout', this.now());
+        this.move(state, hold.debit, hold.credit, hold.amount_minor, hold.businessRef, 'payout', this.now());
         (hold as { status: string }).status = 'posted';
       } else {
         (hold as { status: string }).status = 'voided';
       }
-      const result = this.view(hold);
-      this.replays.set(`${op}:${key}`, result);
+      const result = this.view(state, hold);
+      state.replays.set(`${op}:${key}`, result);
       return result;
     });
   }
 
-  postHold(holdId: string, idempotencyKey: string): Promise<LedgerHold> {
-    return this.resolve('postHold', holdId, idempotencyKey);
+  postHold(mode: PayMode, holdId: string, idempotencyKey: string): Promise<LedgerHold> {
+    return this.resolve('postHold', mode, holdId, idempotencyKey);
   }
 
-  voidHold(holdId: string, idempotencyKey: string): Promise<LedgerHold> {
-    return this.resolve('voidHold', holdId, idempotencyKey);
+  voidHold(mode: PayMode, holdId: string, idempotencyKey: string): Promise<LedgerHold> {
+    return this.resolve('voidHold', mode, holdId, idempotencyKey);
   }
 
-  async getBalance(account: string): Promise<LedgerBalance | undefined> {
-    this.calls.push({ op: 'getBalance', args: account });
+  async getBalance(mode: PayMode, account: string): Promise<LedgerBalance | undefined> {
+    this.calls.push({ op: 'getBalance', args: account, mode });
     const failure = this.take('getBalance');
     if (failure) throw failure.error;
-    if (!this.net.has(account) && !this.pendingDebits.has(account)) return undefined;
-    const value = this.balanceOf(account);
-    return { balance_minor: Math.abs(value), nature: value >= 0 ? 'credit' : 'debit', pending_debits_minor: this.pendingDebits.get(account) ?? 0 };
+    const state = this.state(mode);
+    if (!state.net.has(account) && !state.pendingDebits.has(account)) return undefined;
+    const value = this.balanceOf(account, mode);
+    return { balance_minor: Math.abs(value), nature: value >= 0 ? 'credit' : 'debit', pending_debits_minor: state.pendingDebits.get(account) ?? 0 };
   }
 
-  async listStatement(account: string, window: { from?: string; to?: string }): Promise<LedgerStatementEntry[]> {
-    this.calls.push({ op: 'listStatement', args: { account, ...window } });
+  async listStatement(mode: PayMode, account: string, window: { from?: string; to?: string }): Promise<LedgerStatementEntry[]> {
+    this.calls.push({ op: 'listStatement', args: { account, ...window }, mode });
     const failure = this.take('listStatement');
     if (failure) throw failure.error;
-    return this.entries
+    return this.state(mode).entries
       .filter((e) => e.account === account)
       .filter((e) => (!window.from || e.posted_at >= window.from) && (!window.to || e.posted_at < window.to))
       .sort((a, b) => b.posted_at.localeCompare(a.posted_at))

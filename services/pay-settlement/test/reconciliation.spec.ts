@@ -67,7 +67,7 @@ describe('conciliación (P2.H2.M6, REQ-P2-6)', () => {
     const events = await ctx.events('reconciliation.exception.opened');
     expect(events).toHaveLength(1);
     expect(validators.get('reconciliation.exception.opened')?.(events[0])).toEqual([]);
-    expect(events[0]).toMatchObject({ merchantid: m, subject: ex.id, data: { kind: 'amount_mismatch', difference_minor: -50, connector: 'simulator', currency: 'BOB' } });
+    expect(events[0]).toMatchObject({ merchantid: m, subject: ex.id, data: { kind: 'amount_mismatch', difference_minor: -50, connector: 'mock', currency: 'BOB' } });
   });
 
   it('detecta las cinco clases de diferencia en una misma corrida', async () => {
@@ -226,7 +226,7 @@ describe('conciliación (P2.H2.M6, REQ-P2-6)', () => {
     charge(m, 100, 0);
     statement();
     const created = await ctx.db.pool.query(
-      `INSERT INTO settlement_reconciliation_runs (id, connector, period_from, period_to, source, status, requested_by, created_at) VALUES ('rr_abcdefghijklmnop', 'mock', $1, $2, 'api', 'running', 'pay-console', now() - interval '1 hour') RETURNING id`,
+      `INSERT INTO settlement_reconciliation_runs (id, mode, connector, period_from, period_to, source, status, requested_by, created_at) VALUES ('rr_abcdefghijklmnop', 'test', 'mock', $1, $2, 'api', 'running', 'pay-console', now() - interval '1 hour') RETURNING id`,
       [FROM, TO],
     );
     expect(created.rows).toHaveLength(1);

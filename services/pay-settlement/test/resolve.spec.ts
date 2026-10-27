@@ -66,7 +66,7 @@ describe('resolver una excepción (REQ-P2-6: lo decide una persona)', () => {
     expect(await audit()).toEqual([]);
   });
 
-  describe('sin credencial válida: 403 sin decir por qué, y nada cambia', () => {
+  describe('sin credencial válida: 401 sin decir por qué, y nada cambia (CONTRATOS.md §3 fila 17: 401 la credencial, 403 el rol)', () => {
     it.each([
       ['sin Authorization', () => undefined],
       ['token vencido', () => `Bearer ${operatorToken(['settlement_admin'], { claims: { exp: Math.floor(Date.now() / 1000) - 3600 } })}`],
@@ -78,8 +78,8 @@ describe('resolver una excepción (REQ-P2-6: lo decide una persona)', () => {
     ])('%s', async (_n, make) => {
       const id = await openException();
       const res = checked(ctx, 'POST', `/reconciliation_exceptions/${id}/resolve`, await resolve(id, DISMISS, make()));
-      expect(res.status).toBe(403);
-      expect(res.body.code).toBe('forbidden');
+      expect(res.status).toBe(401);
+      expect(res.body.code).toBe('unauthorized');
       expect(JSON.stringify(res.body)).not.toMatch(/token|expir|firma|signature|audience/i);
       expect((await ctx.as('pay-console').get('/reconciliation_exceptions?status=open')).body.data).toHaveLength(1);
       expect(await audit()).toEqual([]);
