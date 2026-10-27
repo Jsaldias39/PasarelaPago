@@ -8,12 +8,10 @@ import { startStack, stopStack, type Stack } from '../stack.ts';
  * E1 — alta de comercio → clave sk_test_ → primer cobro QR → callback del conector mock → captured → ledger.
  * Bs 100,00 con 2,5 % + Bs 0,50: 97,00 en merchant:X:pending y 3,00 en platform:fees; débitos = créditos.
  *
- * Hoy vive en e2e/pending (`yarn e2e:pending`, fuera de la suite por defecto) y pasa a e2e/flows con `git mv e2e/pending/*.e2e.ts e2e/flows/`
- * (mismas rutas relativas, sin otro cambio) cuando se resuelva lo que lo bloquea: D-29/D-30 en P3 y P5. Con el stack de sandbox, pay-payments no
- * manda el nombre del comercio a pay-risk y pay-risk contesta `review` (`screening_not_provided`), que pay-payments trata como `deny`:
- * el intento termina `failed/risk_denied`. Ver docs/trabajo/ola-2/P1/ARNES.md § Pendientes.
- * Lo que sí está probado hoy, por separado y contra los servicios reales: el tramo del ledger (flows/ledger-capture.e2e.ts) y el del
- * conector (flows/connector-callbacks.e2e.ts). El alta del comercio es la siembra [DOBLE] de pay-merchants (no hay API de operador).
+ * Pasa con los 11 servicios reales (D-29/D-30/D-33): el alta es por la API real de pay-merchants (credencial de operador sintética), el cobro por la
+ * API pública de pay-edge con `payer_name`, el cribado de comercio y pagador lo hace pay-risk con Watchman real, el callback lo firma el simulador `mock`
+ * y entrega pay-connectors, pay-payments asienta en pay-ledger (TigerBeetle real) y cierra el intento. Los nombres sintéticos no puntúan en Watchman
+ * (flows/synthetic-names.e2e.ts). Único doble del recorrido: la PRIMERA clave `sk_test_` se pide con la identidad de pay-edge (ver onboardMerchant).
  */
 const GROSS = 10_000;
 const FEE = 300;

@@ -110,14 +110,18 @@ describe('cobro QR de punta a punta contra el pay-mockbank real (E1)', () => {
 
   it('03 duplicado ×3 y 04 fuera de orden: los callbacks reales se absorben sin duplicar el evento ni retroceder el estado', async () => {
     const dup = await charge(t, { amount_minor: 10003 });
-    expect(await waitStatus(t, dup.body.id, 'succeeded')).toBe(true);
     const ooo = await charge(t, { amount_minor: 10004 });
+    expect(await waitStatus(t, dup.body.id, 'succeeded')).toBe(true);
     expect(await waitStatus(t, ooo.body.id, 'succeeded')).toBe(true);
-    await until(async () => ((await callbackRows(t, dup.body.id)).length === 3 && (await callbackRows(t, ooo.body.id)).length === 2 ? true : undefined), 20_000);
-    expect((await callbackRows(t, dup.body.id)).map((r) => r.result).sort()).toEqual(['applied', 'duplicate', 'duplicate']);
-    expect((await callbackRows(t, ooo.body.id)).map((r) => r.status)).toContain('captured');
-    expect(await statusOf(t, ooo.body.id)).toBe('succeeded'); // `authorized` tardío NO la baja
-    expect((await events(t)).filter((e) => (e.envelope.data as { charge_id?: string }).charge_id === dup.body.id)).toHaveLength(1);
+    // El banco entregó (y este servicio aceptó con 2xx) TODAS sus entregas: 3 + 2.
+    const allDelivered = await until(async () => ((await bank.db.pool.query('SELECT count(*)::int AS n FROM mb_callbacks WHERE delivered_at IS NOT NULL')).rows[0].n === 5 ? true : undefined), 20_000);
+    expect(allDelivered).toBe(true);
+    // Las tres copias comparten id de evento: aquí queda UNA fila aplicada; la entrega tardía de `authorized` queda registrada como obsoleta y NO baja el estado.
+    expect(await callbackRows(t, dup.body.id)).toEqual([{ status: 'captured', result: 'applied', observed_via: 'callback' }]);
+    expect((await callbackRows(t, ooo.body.id)).map((r) => [r.status, r.result])).toEqual(expect.arrayContaining([['captured', 'applied']]));
+    expect(await statusOf(t, ooo.body.id)).toBe('succeeded');
+    const mine = (await events(t)).filter((e) => (e.envelope.data as { connector_transaction_id?: string }).connector_transaction_id === dup.body.id);
+    expect(mine).toHaveLength(1);
   });
 
   it('05 callback perdido: el banco real no avisa nunca y el poller (consulta de estado por HTTP) lo cobra', async () => {
@@ -131,17 +135,20 @@ describe('cobro QR de punta a punta contra el pay-mockbank real (E1)', () => {
     expect(await callbackRows(t, created.body.id)).toEqual([{ status: 'captured', result: 'applied', observed_via: 'status_inquiry' }]);
   });
 
-  it('01 rechazado: failed con card_declined sin callbacks; 08 nunca pagado: el poller lo da por vencido al llegar expires_at', async () => {
+  it('01 rechazado: failed con card_declined sin callbacks; 08 nunca pagado: el poller lo da por vencido cuando el BANCO ve vencido el cobro', async () => {
     const declined = await charge(t, { amount_minor: 10001 });
     expect(declined.body.status).toBe('failed');
     expect(declined.body.failure_code).toBe('card_declined');
-    const never = await charge(t, { amount_minor: 10008, expires_at: new Date(t.clock.now().getTime() + 120_000).toISOString() });
+    expect((await bank.db.pool.query('SELECT count(*)::int AS n FROM mb_callbacks')).rows[0].n).toBe(0);
+    // El banco usa la hora real: el cobro vence 1,5 s después de creado.
+    const never = await charge(t, { amount_minor: 10008, expires_at: new Date(Date.now() + 1500).toISOString() });
     t.clock.advance(1001);
     await t.app.get(PollerService).tick();
     expect(await statusOf(t, never.body.id)).toBe('requires_action');
+    await new Promise((resolve) => setTimeout(resolve, 1600));
     t.clock.advance(120_000);
-    await until(async () => ((await t.app.get(PollerService).tick()).changed > 0 ? true : undefined), 5000);
-    expect(await statusOf(t, never.body.id)).toBe('failed');
+    expect(await until(async () => ((await t.app.get(PollerService).tick()).changed > 0 ? true : undefined), 5000)).toBe(true);
+    expect((await t.db.pool.query('SELECT provider_status FROM connector_charges WHERE id = $1', [never.body.id])).rows[0].provider_status).toBe('expired');
   });
 
   it('07 timeout ambiguo: el cobro SE CREÓ en el banco; el reintento con la MISMA referencia no crea otro y el cobro termina cobrado', async () => {
@@ -283,7 +290,7 @@ describe('transferencia bancaria del pagador (E8) contra el banco real', () => {
     expect(await reconcile()).toMatchObject({ lines: 1, matched: 1, captured: 1, exceptions: 0 });
     expect(await statusOf(t, created.body.id)).toBe('succeeded');
     expect(await reconcile()).toMatchObject({ captured: 0 }); // idempotente
-    const evs = (await events(t)).filter((e) => (e.envelope.data as { charge_id?: string }).charge_id === created.body.id);
+    const evs = (await events(t)).filter((e) => (e.envelope.data as { connector_transaction_id?: string }).connector_transaction_id === created.body.id);
     expect(evs).toHaveLength(1);
     const statement = await get(t.app, `/statements?connector=bank_transfer&from=${new Date(Date.now() - 3_600_000).toISOString()}&to=${new Date(Date.now() + 3_600_000).toISOString()}`, asSettlement);
     expect(statement.body.data).toEqual([expect.objectContaining({ our_reference: reference, charge_id: created.body.id, amount_minor: 20000, payment_intent_id: expect.stringMatching(/^pi_/) })]);
@@ -301,5 +308,53 @@ describe('transferencia bancaria del pagador (E8) contra el banco real', () => {
     // Un cobro por QR NO ensucia el extracto de transferencias (cuentas separadas).
     await charge(t, { amount_minor: 10000 });
     expect(await reconcile()).toMatchObject({ lines: 2 });
+  });
+});
+
+describe('E1 completo SIN intervención manual: pay-qr real → pay-mockbank real (pagador simulado) → callback firmado', () => {
+  let t: TestApp;
+  let bank: Bank;
+  let qrBase = '';
+
+  beforeAll(async () => {
+    buildService('pay-qr');
+    const qrDb = await createIsolatedDatabase([join(REPO, 'services/pay-qr/sql/001_qr_codes.sql'), join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql')]);
+    databases.push(qrDb);
+    const qrPort = await freePort();
+    qrBase = `http://127.0.0.1:${qrPort}`;
+    const qr = startService({ ...dbEnv, PGOPTIONS: `-c search_path=${qrDb.schema}`, PORT: String(qrPort), PAY_MODE: 'sandbox', QR_ACCOUNT_GUID: 'e2e.sandbox.guid' }, 'pay-qr');
+    processes.push(qr);
+    const ready = await until(async () => ((await fetch(`${qrBase}/health/ready`, { headers: { connection: 'close' } })).status === 200 ? true : undefined), 60_000, qr.exited);
+    if (!ready) throw new Error(`pay-qr no llegó a estar listo:\n${qr.output()}`);
+    ({ t, bank } = await pair({ payerMode: 'manual', qrUrl: qrBase }));
+  }, 180_000);
+
+  const pay = (payload: string) => request(bank.base).post('/sandbox/payer/pay').set(asAdmin).send({ qr_payload: payload });
+
+  it('correcto: el cobro nace con un QR REAL de pay-qr; mientras nadie paga sigue abierto; el pagador simulado lo decodifica con pay-qr y lo paga; el callback firmado lo cobra', async () => {
+    const created = await charge(t, { amount_minor: 10000 });
+    expect(created.status).toBe(201);
+    const payload = created.body.next_action.payload as string;
+    expect(payload).toMatch(/^000201.*6304[0-9A-F]{4}$/);
+    expect((await fetch(`${qrBase}/qr/decode`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-id': 'pay-connectors', 'x-pay-mode': 'test', connection: 'close' }, body: JSON.stringify({ payload }) }).then((r) => r.json())).crc_valid).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(await statusOf(t, created.body.id)).toBe('requires_action'); // modo manual: el banco no paga solo
+    expect((await bank.db.pool.query('SELECT count(*)::int AS n FROM mb_callbacks')).rows[0].n).toBe(0);
+    const paid = await pay(payload);
+    expect(paid.status).toBe(200);
+    expect(paid.body).toMatchObject({ status: 'captured', amount_minor: 10000, already_paid: false });
+    expect(await waitStatus(t, created.body.id, 'succeeded')).toBe(true);
+    expect(await callbackRows(t, created.body.id)).toEqual([{ status: 'captured', result: 'applied', observed_via: 'callback' }]);
+    expect((await pay(payload)).body.already_paid).toBe(true); // pagar otra vez no cobra dos veces
+    expect(await callbackRows(t, created.body.id)).toHaveLength(1);
+  });
+
+  it('inválido: un QR con el CRC alterado, o uno que este banco nunca vio, no se paga y el cobro sigue abierto', async () => {
+    const created = await charge(t, { amount_minor: 10000 });
+    const payload = created.body.next_action.payload as string;
+    const tampered = `${payload.slice(0, -4)}${payload.endsWith('0000') ? '1111' : '0000'}`;
+    expect((await pay(tampered)).status).toBe(422);
+    expect((await pay('000201010212260400000062070503ZZZ63041234')).status).toBeGreaterThanOrEqual(400);
+    expect(await statusOf(t, created.body.id)).toBe('requires_action');
   });
 });

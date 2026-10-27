@@ -95,3 +95,14 @@
 | O2.P2.H6.M2 | `e2e/pending/e8.e2e.ts` (transferencia confirmada por el extracto) | ídem | ídem | HECHO |
 | O2.P2.H6.M3 | Ayudantes nuevos `e2e/lib/p2-bank.ts` y `p2-settlement.ts` | ídem; sin tocar archivos de P1 | `git status` | HECHO |
 | O2.P2.H6.M4 | `FLUJOS-E4-E8.md` + confirmación por escrito de qué parte de «E4 en verde» depende del stack y de Q-11 | documento escrito | lectura | HECHO |
+
+## H7 — Cruce de la conciliación por `payment_intent_id` (tanda 4b)
+**CA:** Dada una línea de extracto con `payment_intent_id`, cuando settlement concilia, entonces cruza con el `business_ref` `pi_…:capture` del ledger (aunque su `our_reference` sea `ch_…`); sin el campo cae al respaldo `our_reference`; con un `pi_` inexistente, de otro modo o que contradice otra referencia, abre excepción y nunca asume; una diferencia produce una sola excepción `amount_mismatch`.
+**DoD:** `yarn typecheck`, `yarn build`, `yarn eslint`/`yarn lint`, `yarn contracts:lint`, `yarn e2e:typecheck`, `yarn test` de pay-settlement ×2 con TigerBeetle real (`--maxWorkers=2`), pruebas nombradas en `evidencia/4b-test-payment-intent.txt`.
+**Estado:** HECHO (peldaño `TESTED`; E4/E8 no se ejecutaron)
+
+| ID | Microtarea | CA | DoD | Estado |
+|---|---|---|---|---|
+| O2.P2.H7.M1 | `StatementLine.payment_intent_id` en puertos, parsers JSON/CSV (camt.053 no lo lleva) y `reconcile.ts` (clave preferida + respaldo) | cruza por `pi_…:capture`; sin campo, respaldo | `4b-test-payment-intent.txt` (27 pruebas) | HECHO |
+| O2.P2.H7.M2 | Pruebas en tres niveles (correcto/límite/inválido) en `reconcile`, `statement-parsers`, `reconciliation`, `connectors-client` | pasan | `4b-test-settlement-run1/run2.txt` (526/526 ×2) | HECHO |
+| O2.P2.H7.M3 | `e2e/pending/e4` y `e8` apuntan al campo nuevo; `FLUJOS-E4-E8.md`, `PROPUESTAS.md` (15–19) y tabla del carril (M6a/M6b) | compila y lint | `4b-gates.txt` | HECHO |

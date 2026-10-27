@@ -1,15 +1,1 @@
-== qr: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/75_pay_qr/ddl.sql, sha256 5d3dca9053e78740)
-Test Suites: 4 passed, 4 total
-Tests:       93 passed, 93 total
-== vault: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/79_pay_vault/ddl.sql, sha256 24218c4629a5a953)
-Test Suites: 6 passed, 6 total
-Tests:       68 passed, 68 total
-== risk: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/76_pay_risk/ddl.sql, sha256 f7b75f62ec82546c)
-FAIL test/latency.spec.ts (60.19 s)
-  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas
-  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › concurrencia moderada (4 clientes en paralelo), ≥ 400 llamadas — INFORMATIVA: el Watchman (monohilo por búsqueda) es el cuello de botella
-FAIL test/env-example.spec.ts
-  ● .env.example de pay-risk (consistencia con el arnés y con los demás servicios) › el PORT es el del plan y no se repite en ningún otro servicio
-  ● .env.example de pay-risk (consistencia con el arnés y con los demás servicios) › WATCHMAN_URL apunta al puerto que publica el Compose local (54084 → 8084)
-Test Suites: 2 failed, 10 passed, 12 total
-Tests:       4 failed, 185 passed, 189 total
+# IGNORE='startup|env-example' salvo indicación: startup.* compila y arranca el servicio (sin cadena de build en la copia mínima); env-example.* lee los .env.example de OTROS servicios (no copiados). Ambas son ENVIRONMENT de la copia, no del SQL.
