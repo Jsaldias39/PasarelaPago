@@ -25,7 +25,11 @@
     "e2e:smoke": "node --no-warnings e2e/cli.ts smoke",
     "e2e": "jest --config e2e/jest.config.cjs --runInBand",
     "e2e:typecheck": "tsc -p e2e/tsconfig.json",
-    "e2e:pending": "jest --config e2e/jest.pending.config.cjs --runInBand --passWithNoTests"
+    "e2e:pending": "jest --config e2e/jest.pending.config.cjs --runInBand --passWithNoTests",
+    "seed:sandbox": "node --no-warnings e2e/seed-sandbox.ts",
+    "test:parity": "node --no-warnings e2e/parity.ts",
+    "load": "node --no-warnings e2e/load/run.ts",
+    "sandbox:secrets": "node platform/scripts/sandbox-secrets.mjs"
   },
   "devDependencies": {
     "@asyncapi/parser": "^3.6.6",

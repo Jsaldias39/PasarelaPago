@@ -146,8 +146,8 @@ export async function onboardMerchant(stack: OnboardingTarget, options: SeedOpti
   };
 
   const created = await must('crear comercio', backoffice('POST', '/merchants', {
-    idempotencyKey: `e2e-merchant-${randomBytes(8).toString('hex')}`,
-    json: { display_name: options.label ?? 'COMERCIO E2E (SINTÉTICO)', legal_name: options.legalName ?? SYNTHETIC_LEGAL_NAME, legal_type: 'srl', tax_id: `E2E${randomBytes(5).toString('hex')}` },
+    idempotencyKey: options.idempotencyPrefix ? `${options.idempotencyPrefix}-merchant` : `e2e-merchant-${randomBytes(8).toString('hex')}`,
+    json: { display_name: options.label ?? 'COMERCIO E2E (SINTÉTICO)', legal_name: options.legalName ?? SYNTHETIC_LEGAL_NAME, legal_type: 'srl', tax_id: options.taxId ?? `E2E${randomBytes(5).toString('hex')}` },
   }));
   const merchantId = created.id as string;
   for (const kind of KYC_KINDS) {
@@ -164,8 +164,8 @@ export async function onboardMerchant(stack: OnboardingTarget, options: SeedOpti
   await must('publicar tarifario', backoffice('POST', `/merchants/${merchantId}/fee_schedules`, { json: { monthly_fee_minor: 0, channels: FEE_CHANNELS } }));
   await must('activar comercio', backoffice('POST', `/merchants/${merchantId}/activate`));
 
-  const key = await stack.callAs('pay-edge', 'pay-merchants', 'POST', '/api_keys', { merchantId, payMode: 'test', headers: { 'idempotency-key': `e2e-first-key-${randomBytes(8).toString('hex')}` }, json: { mode: 'test', label: 'e2e' } });
-  if (key.status !== 201) throw new Error(`Alta de comercio: «primera clave» respondió ${key.status}: ${JSON.stringify(key.json).slice(0, 300)}`);
+  const key = await stack.callAs('pay-edge', 'pay-merchants', 'POST', '/api_keys', { merchantId, payMode: 'test', headers: { 'idempotency-key': options.idempotencyPrefix ? `${options.idempotencyPrefix}-first-key` : `e2e-first-key-${randomBytes(8).toString('hex')}` }, json: { mode: 'test', label: 'e2e' } });
+  if (key.status !== 201 && key.status !== 200) throw new Error(`Alta de comercio: «primera clave» respondió ${key.status}: ${JSON.stringify(key.json).slice(0, 300)}`);
   const body = key.json as { id: string; secret: string };
   return { merchantId, keyId: body.id, token: body.secret };
 }
