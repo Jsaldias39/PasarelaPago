@@ -173,14 +173,14 @@ Motivo: es de la ola 4 y exige `pay-mockbank` con los flujos E1–E8. La parte d
 `docker build -f services/<svc>/Dockerfile --build-arg HUB=p5gate.local -t p5gate-<svc>:local .` (sin registro: nada se publica; `HUB=p5gate.local` es `node:22-alpine` + la CA del proxy de ESTE entorno, para que `yarn install` valide TLS sin desactivarlo; el Dockerfile de producción no depende de eso). Al terminar se borran las imágenes y la base de build.
 
 ```
-pay-merchants  exit=0  imagen 990931855 B  usuario=node  cmd=[node dist/main.js]  expose=3107
-pay-risk       exit=0  imagen 990672403 B  usuario=node  cmd=[node dist/main.js]  expose=3108
-pay-schedules  exit=0  imagen 990754718 B  usuario=node  cmd=[node dist/main.js]  expose=3109
+pay-merchants  exit=0  imagen 991090286 B  usuario=node  cmd=[node dist/main.js]  expose=3107
+pay-risk       exit=0  imagen 990832468 B  usuario=node  cmd=[node dist/main.js]  expose=3108
+pay-schedules  exit=0  imagen 990915999 B  usuario=node  cmd=[node dist/main.js]  expose=3109
 docker run (sin variables) ⇒ Error: Falta la variable de entorno PAY_MODE (sandbox | live)  · exit=1   (los tres)
 uid=1000(node)  (los tres)        sin imágenes p5gate restantes
 ```
 
-Salida completa: [`dockerfile.txt`](evidencia/dockerfile.txt) (+ los `.log` de cada build). Una primera pasada falló por `ENOSPC` (disco compartido al 93 %): ENVIRONMENT, se liberó la caché de build sin uso y se repitió.
+Salida completa: [`3d-dockerfile.txt`](evidencia/3d-dockerfile.txt) (+ los `.log` de cada build en `dockerfile.txt.*.log`), pasada final con `guardPool`. Dos pasadas anteriores fallaron por `ENOSPC` (disco compartido lleno; la de 3d dejó a `pay-schedules` en `exit=102`, conservada como [`dockerfile.txt`](evidencia/dockerfile.txt) hasta ser sobrescrita por la final): ENVIRONMENT; se liberó la caché de build sin uso y se repitió. Al terminar: 0 imágenes `p5gate*`, 0 contenedores, 0 bases `p5*` en Postgres.
 **GAP (peso de la imagen):** ~990 MB por servicio, porque la imagen final copia todo `/repo` con `node_modules` de todos los workspaces y las devDependencies. Mejora propuesta (no hecha): `yarn workspaces focus --production <svc>` en la etapa final. Dueño: P1 (plantilla).
 **GAP (P1):** los 8 `Dockerfile` restantes y `platform/templates/*/Dockerfile` tienen los dos defectos del hallazgo 1 (`-A … --from` inválido y contexto recortado).
 
