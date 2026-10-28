@@ -213,8 +213,9 @@ transferencias contra el extracto del banco simulado.
 
 - Svix real (el motor de entrega es el propio, declarado DOBLE de Svix).
 - Dinero real, cuenta recaudadora, conector bancario real (modo B es un doble; T-03).
-- Cobro exitoso de punta a punta (hallazgo 2; E1/E2 escritos, en `e2e/pending/`) y las rutas de `schedules → payments` (hallazgo 4).
-- El onboarding real del comercio (hallazgo 1).
+- Las rutas de `schedules → payments` (hallazgo 4) y la emisión de la primera clave `sk_test_` por un camino de operador (hallazgo 1: único paso doble del alta).
+- E4, E5 y E8 (carril P2/P4) no se re-corrieron en la tanda 2h; el depósito del pagador en `pay-mockbank` para `bank_transfer` (hallazgo 12).
+- E1/E2 bajo carga sostenida: no son deterministas en una máquina saturada (§ Estado de E1 y E2); la corrida 8 de la repetición final no se ejecutó por disco lleno.
 - Aislamiento de red del `pay-vault` (P1.H4.M3, ola 3).
 - Carga/concurrencia: el arnés corre con 1 worker.
 - Cross-browser / visual: no aplica.
