@@ -111,6 +111,8 @@ describe('conexión PRESTADA cortada a mitad de una transacción', () => {
     // [FIXTURE de la prueba, en el esquema aislado] La escritura del comercio tarda 5 s: da tiempo a cortar justo ahí, con la transacción abierta.
     await admin.query(`CREATE OR REPLACE FUNCTION test_slow_merchant() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(5); RETURN NEW; END $$`);
     await admin.query('CREATE TRIGGER test_slow_merchant BEFORE INSERT ON merchants FOR EACH ROW EXECUTE FUNCTION test_slow_merchant()');
+    const events = async (): Promise<number> => (await admin.query(`SELECT count(*)::int AS n FROM outbox_events WHERE type = 'merchant.created'`)).rows[0].n;
+    const eventsBefore = await events();
     const { taxId, request } = creation('pool-mid-tx-0001-padding');
     const pending = post(request);
     const victim = await until(async () => (await mine()).find((b) => b.state === 'active' && /INSERT INTO merchants/.test(b.query)), 15_000);
@@ -119,18 +121,18 @@ describe('conexión PRESTADA cortada a mitad de una transacción', () => {
     const response = await pending;
     expect(response.status).toBeGreaterThanOrEqual(500);
     expect(response.headers.get('content-type')).toMatch(/problem\+json/);
-    expect(JSON.stringify(await response.json())).not.toMatch(/not_found|merchants|terminat|SELECT|INSERT/i);
+    expect(JSON.stringify(await response.json())).not.toMatch(/not_found|terminat|SELECT|INSERT|tax_id|legal_name/i);
     expect(alive()).toBe(true);
     // Postgres deshizo la transacción: ni comercio ni evento a medias.
     expect((await admin.query('SELECT count(*)::int AS n FROM merchants WHERE tax_id = $1', [taxId])).rows[0].n).toBe(0);
-    expect((await admin.query(`SELECT count(*)::int AS n FROM outbox_events WHERE type = 'merchant.created'`)).rows[0].n).toBe(0);
+    expect(await events()).toBe(eventsBefore);
     await admin.query('DROP TRIGGER test_slow_merchant ON merchants');
     // Reintento con la MISMA clave: converge en un solo comercio y un solo evento.
     let retry = await post(request);
     if (retry.status === 409) retry = (await until(async () => ((await post(request)).status === 201 ? await post(request) : undefined), 30_000)) ?? retry;
     expect([200, 201]).toContain(retry.status);
     expect((await admin.query('SELECT count(*)::int AS n FROM merchants WHERE tax_id = $1', [taxId])).rows[0].n).toBe(1);
-    expect((await admin.query(`SELECT count(*)::int AS n FROM outbox_events WHERE type = 'merchant.created'`)).rows[0].n).toBe(1);
+    expect(await events()).toBe(eventsBefore + 1);
     expect(alive()).toBe(true);
   }, 90_000);
 

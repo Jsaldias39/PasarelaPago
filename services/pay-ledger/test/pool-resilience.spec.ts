@@ -229,6 +229,7 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
   it('@pay/outbox (inbox): cortar dentro de `processOnce` ⇒ ni el efecto ni la marca del evento quedan; el reintento lo procesa una vez y la tercera entrega es duplicado', async () => {
     const eventId = `ev_${rand()}`;
     const id = `ef_${rand()}`;
+    const before = await effects();
     await expect(
       processOnce(db.pool, 'prueba-corte', eventId, async (client) => {
         const pid = await pidOf(client);
@@ -236,10 +237,9 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
         await cutAndTouch(client, pid);
       }),
     ).rejects.toThrow();
-    expect(await effects()).toBe(1 - 1 + (await effects())); // referencia: se compara contra el antes/después de abajo
+    expect(await effects()).toBe(before); // el efecto de la transacción cortada no quedó
     const marked = async () => Number((await db.pool.query("SELECT count(*)::int AS n FROM inbox_events WHERE consumer = 'prueba-corte' AND event_id = $1", [eventId])).rows[0].n);
     expect(await marked()).toBe(0);
-    const before = await effects();
     expect(await processOnce(db.pool, 'prueba-corte', eventId, async (client) => void (await effect(client, id)))).toBe('processed');
     expect(await effects()).toBe(before + 1);
     expect(await processOnce(db.pool, 'prueba-corte', eventId, async () => undefined)).toBe('duplicate');
@@ -247,6 +247,7 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
   });
 
   it('@pay/outbox (relé): cortar con la transacción del relé abierta y el evento ya «publicado» ⇒ `drainOnce` falla, NADA queda marcado como publicado, y el siguiente ciclo lo entrega otra vez (al menos una vez; mismo id para deduplicar)', async () => {
+    await db.pool.query("DELETE FROM outbox_events WHERE aggregate_type = 'prueba-corte'"); // solo los eventos de ESTA prueba esperan al relé
     const ids = [`ob_${rand()}`, `ob_${rand()}`, `ob_${rand()}`];
     for (const id of ids) await effect(db.pool, id);
     let relayPid = 0;

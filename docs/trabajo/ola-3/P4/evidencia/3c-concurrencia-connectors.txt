@@ -2,3 +2,13 @@
 $ (cd services/pay-connectors && yarn test --maxWorkers=2 --verbose test/send-lock.spec.ts test/charges.spec.ts test/transfers.spec.ts -t simultáne|corrida|candado|withSendLock|conexiones)
 (las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
 
+(node:24764) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24765) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Test Suites: 3 passed, 3 total
+Tests:       84 skipped, 58 passed, 142 total
+Snapshots:   0 total
+Time:        15.272 s, estimated 18 s
+Ran all test suites matching test/send-lock.spec.ts|test/charges.spec.ts|test/transfers.spec.ts with tests matching "simultáne|corrida|candado|withSendLock|conexiones".
+exit=0
