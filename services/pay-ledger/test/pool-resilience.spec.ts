@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { Controller, Get, Inject, Logger, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { MikroORM } from '@mikro-orm/core';
+import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { Client, type Pool } from 'pg';
 import { IdempotencyStore } from '@pay/idempotency';
@@ -178,7 +179,7 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
   const rand = () => Math.random().toString(36).slice(2, 12);
   const effects = async () => Number((await db.pool.query("SELECT count(*)::int AS n FROM outbox_events WHERE aggregate_type = 'prueba-corte'")).rows[0].n);
   const effect = (client: { query: Pool['query'] } | { query: (t: string, p?: unknown[]) => Promise<unknown> }, id: string) =>
-    client.query(`INSERT INTO outbox_events (id, aggregate_type, aggregate_id, type, subject, envelope) VALUES ($1::text, 'prueba-corte', $1::text, 'prueba.corte', 'prueba.corte', jsonb_build_object('id', $1::text))`, [id]);
+    client.query(`INSERT INTO outbox_events (id, aggregate_type, aggregate_id, type, subject, envelope) VALUES ($1::uuid, 'prueba-corte', $1::text, 'prueba.corte', 'prueba.corte', jsonb_build_object('id', $1::text))`, [id]);
   /** Corta el backend y sigue consultando por esa conexión hasta que falle: el corte cae «en medio» de la transacción. */
   const cutAndTouch = async (client: { query: (t: string, p?: unknown[]) => Promise<unknown> }, pid: number) => {
     await killer.query('SELECT pg_terminate_backend($1)', [pid]);
@@ -203,7 +204,7 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
   it('@pay/idempotency: cortar DENTRO de `atomic` ⇒ el proceso sigue, la operación falla, el efecto NO queda, y reintentar con la misma clave lo aplica UNA sola vez', async () => {
     const store = new IdempotencyStore(db.pool);
     const request = { scope: 'prueba:corte', key: `k-${rand()}`, requestHash: 'h1' };
-    const id = `ef_${rand()}`;
+    const id = randomUUID();
     const operation = (cut: boolean) => async (ctx: { atomic: <R>(point: string, work: (c: { query: (t: string, p?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> }) => Promise<R>) => Promise<R> }) => {
       await ctx.atomic('efecto-aplicado', async (client) => {
         const pid = await pidOf(client);
@@ -227,8 +228,8 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
   });
 
   it('@pay/outbox (inbox): cortar dentro de `processOnce` ⇒ ni el efecto ni la marca del evento quedan; el reintento lo procesa una vez y la tercera entrega es duplicado', async () => {
-    const eventId = `ev_${rand()}`;
-    const id = `ef_${rand()}`;
+    const eventId = randomUUID();
+    const id = randomUUID();
     const before = await effects();
     await expect(
       processOnce(db.pool, 'prueba-corte', eventId, async (client) => {
@@ -248,7 +249,7 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
 
   it('@pay/outbox (relé): cortar con la transacción del relé abierta y el evento ya «publicado» ⇒ `drainOnce` falla, NADA queda marcado como publicado, y el siguiente ciclo lo entrega otra vez (al menos una vez; mismo id para deduplicar)', async () => {
     await db.pool.query("DELETE FROM outbox_events WHERE aggregate_type = 'prueba-corte'"); // solo los eventos de ESTA prueba esperan al relé
-    const ids = [`ob_${rand()}`, `ob_${rand()}`, `ob_${rand()}`];
+    const ids: string[] = [randomUUID(), randomUUID(), randomUUID()];
     for (const id of ids) await effect(db.pool, id);
     let relayPid = 0;
     const delivered: string[] = [];
