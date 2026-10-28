@@ -14,9 +14,9 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { checkInfra, deleteServiceStreams, makeReceiverCertificate, resetDatabase, ROOT, startPrivateTigerBeetle } from './lib/infra.ts';
 import { freePorts, isOurProcess, type Managed, spawnNode, tailLog, terminate, waitFor } from './lib/process.ts';
-import { DEFAULT_INFRA, DEPENDS_ON, envFor, generateSecrets, type EnvContext, type Infra, type RunSecrets, SERVICES, type ServiceName } from './lib/services.ts';
+import { ALL_SERVICES, DEFAULT_INFRA, DEPENDS_ON, envFor, generateSecrets, type EnvContext, type Infra, type RunSecrets, SERVICES, type ServiceName } from './lib/services.ts';
 
-export { SERVICES, type ServiceName } from './lib/services.ts';
+export { ALL_SERVICES, OPTIONAL_SERVICES, SERVICES, type ServiceName } from './lib/services.ts';
 
 export const RUN_DIR = join(ROOT, 'e2e/.run');
 const STATE_FILE = join(RUN_DIR, 'state.json');
@@ -71,8 +71,13 @@ export interface Stack {
 }
 
 export interface StartOptions {
-  /** Servicios a levantar; por defecto los 11. */
+  /** Servicios a levantar; por defecto los 11 (más `pay-mockbank` si se pide `mockbank`). */
   readonly only?: readonly ServiceName[];
+  /**
+   * Capa sandbox completa (D-26, propuesta #8 de P4): además de los 11, lanza `pay-mockbank` (servicio 12, banco simulado) y le da a `pay-connectors`
+   * `MOCKBANK_URL`, así el conector `mock` y la cuenta de transferencias hablan con el banco por HTTP. Por defecto `false`: E1/E2 y el resto no lo necesitan.
+   */
+  readonly mockbank?: boolean;
   /** `true` (por defecto): un servicio que falla se anota y se sigue. `false`: se lanza al primer fallo. */
   readonly tolerateFailures?: boolean;
   /** Tope de espera de la readiness de cada servicio. */
@@ -105,7 +110,9 @@ function request(stackUrl: string, method: string, path: string, options: CallOp
 
 export async function startStack(options: StartOptions = {}): Promise<Stack> {
   const infra = options.infra ?? DEFAULT_INFRA;
-  const names = (options.only ?? SERVICES).filter((n) => SERVICES.includes(n));
+  const names = (options.only ?? (options.mockbank ? ALL_SERVICES : SERVICES)).filter((n) => ALL_SERVICES.includes(n));
+  const withMockbank = names.includes('pay-mockbank');
+  if (options.mockbank && !withMockbank) throw new Error('mockbank: true es incompatible con un `only` que no incluye pay-mockbank');
   const tolerate = options.tolerateFailures ?? true;
   const readyTimeoutMs = options.readyTimeoutMs ?? 90_000;
 
@@ -116,17 +123,17 @@ export async function startStack(options: StartOptions = {}): Promise<Stack> {
   const runId = `e2e${Date.now().toString(36)}`;
   const runDir = join(RUN_DIR, runId);
   mkdirSync(runDir, { recursive: true });
-  const ports = await freePorts(SERVICES.length + 2);
-  const portOf = Object.fromEntries(SERVICES.map((n, i) => [n, ports[i]])) as Record<ServiceName, number>;
-  const receiver = { port: ports[SERVICES.length], ...makeReceiverCertificate(runDir) };
+  const ports = await freePorts(ALL_SERVICES.length + 2);
+  const portOf = Object.fromEntries(ALL_SERVICES.map((n, i) => [n, ports[i]])) as Record<ServiceName, number>;
+  const receiver = { port: ports[ALL_SERVICES.length], ...makeReceiverCertificate(runDir) };
   const secrets = generateSecrets();
   const kycDir = join(runDir, 'kyc');
   mkdirSync(kycDir, { recursive: true });
-  const tbPort = ports[SERVICES.length + 1];
-  const ctx: EnvContext = { runId, ports: portOf, infra: { ...infra, tigerbeetleAddress: `127.0.0.1:${tbPort}` }, secrets, receiverPort: receiver.port, receiverCaFile: receiver.certFile, kycDir, ...(options.webhookRetryScheduleMs ? { webhookRetryScheduleMs: options.webhookRetryScheduleMs } : {}) };
+  const tbPort = ports[ALL_SERVICES.length + 1];
+  const ctx: EnvContext = { runId, ports: portOf, infra: { ...infra, tigerbeetleAddress: `127.0.0.1:${tbPort}` }, secrets, receiverPort: receiver.port, receiverCaFile: receiver.certFile, kycDir, ...(withMockbank ? { mockbank: true } : {}), ...(options.webhookRetryScheduleMs ? { webhookRetryScheduleMs: options.webhookRetryScheduleMs } : {}) };
 
   const services = {} as Record<ServiceName, ServiceStatus>;
-  for (const name of SERVICES) {
+  for (const name of ALL_SERVICES) {
     services[name] = { name, port: portOf[name], url: `http://127.0.0.1:${portOf[name]}`, pid: undefined, started: false, healthy: false, error: names.includes(name) ? undefined : 'no pedido', logTail: undefined, logFile: join(runDir, `${name}.log`), startupMs: undefined };
   }
   const processes = new Map<ServiceName, Managed>();
@@ -225,7 +232,7 @@ export async function stopStack(stack: Stack, options: { keepLogs?: boolean } = 
   // Primero el borde y los que llaman; al final los que reciben.
   const order = [...stack.processes.keys()].reverse();
   await Promise.all(order.map(async (name) => (terminated[name] = await terminate(stack.processes.get(name)!))));
-  const names = SERVICES.filter((n) => stack.services[n].error !== 'no pedido');
+  const names = ALL_SERVICES.filter((n) => stack.services[n].error !== 'no pedido');
   await Promise.all(names.map((n) => resetDatabase(stack.infra, n, false)));
   const streamsDeleted = await deleteServiceStreams(stack.infra);
   let tigerbeetleStopped = false;
@@ -261,7 +268,7 @@ export async function cleanupLeftovers(infra: Infra = DEFAULT_INFRA): Promise<{ 
   const deadline = Date.now() + 10_000;
   while (killed.some((pid) => isOurProcess(pid, 'services/')) && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 100));
   for (const pid of killed) if (isOurProcess(pid, 'services/')) process.kill(pid, 'SIGKILL');
-  await Promise.all(SERVICES.map((n) => resetDatabase(infra, n, false)));
+  await Promise.all(ALL_SERVICES.map((n) => resetDatabase(infra, n, false)));
   await deleteServiceStreams(infra);
   if (state.tigerbeetlePid && isOurProcess(state.tigerbeetlePid, 'pasarelapago')) {
     process.kill(state.tigerbeetlePid, 'SIGTERM');

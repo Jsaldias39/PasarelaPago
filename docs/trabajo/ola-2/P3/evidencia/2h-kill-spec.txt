@@ -1,0 +1,34 @@
+# test/ola2.tanda2g.kill.spec.ts (tras esperar por condición el conflicto de reembolso) · 2h (2026-10-28T00:01:30Z)
+(node:14232) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+2026-10-28T00:03:28.105Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-2550dc5e',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfMGQ0MmVmODJjODM3M2JkMzZmZTExYWE4GiRlZTRjN2E4MC00N2YzLTRhOTEtYjE4MC05ZDNlYTY3MWEwYzkgJygBMgE2Qg5jb21wbGV0ZUludGVudEoJCAQQxILAARgB',
+  activityId: '6',
+  activityType: 'completeIntent',
+  workflowId: 'payment-pi_0d42ef82c8373bd36fe11aa8',
+  workflowRunId: 'ee4c7a80-47f3-4a91-b180-9d3ea671a0c9',
+  workflowType: 'PaymentWorkflow',
+  error: Error: el worker murió después del commit
+      at Object.tx (/home/user/pasarelapago/services/pay-payments/test/ola2.tanda2g.kill.spec.ts:220:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at settle (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:63:15)
+      at completeIntent (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:287:19)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24,
+  durationMs: 10
+}
+Test Suites: 1 passed, 1 total
+Tests:       12 passed, 12 total
+Snapshots:   0 total
+Time:        202.461 s, estimated 214 s
+Ran all test suites matching test/ola2.tanda2g.kill.spec.ts.
+exit: 0

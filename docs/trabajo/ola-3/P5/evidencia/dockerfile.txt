@@ -1,0 +1,22 @@
+### base de build: node:22-alpine + la CA del proxy de este entorno (NODE_EXTRA_CA_CERTS); el Dockerfile de producción no cambia (HUB=p5gate.local)
+### docker build -f services/pay-merchants/Dockerfile --build-arg HUB=p5gate.local -t p5gate-pay-merchants:local .
+inicio 2026-10-28T00:09:09Z
+exit=0
+#10 [stage-1 4/4] WORKDIR /repo/services/pay-merchants
+#10 DONE 0.3s
+
+#11 exporting to image
+#11 exporting layers
+#11 exporting layers 20.6s done
+#11 exporting manifest sha256:ca013c91d7788db205bdc06c4c3ea4723d1ac794e68d2b02fa047af3d433134f
+#11 exporting manifest sha256:ca013c91d7788db205bdc06c4c3ea4723d1ac794e68d2b02fa047af3d433134f 0.0s done
+#11 exporting config sha256:12e9c724c7e5306ce390f06e4c541f12a78f62d07a8ec70bf24e7000d339f226 0.0s done
+#11 exporting attestation manifest sha256:9dc6cc0b4bc13c306fb8cb1578c96ec1bc13a92548be25c67562d0c84d744fd3 0.0s done
+#11 exporting manifest list sha256:7335ee6f7f45443834a044daac4ef9c94fd9c06142ea58af77f9a3ad7f2416f4 done
+#11 naming to docker.io/library/p5gate-pay-merchants:local done
+#11 unpacking to docker.io/library/p5gate-pay-merchants:local
+#11 unpacking to docker.io/library/p5gate-pay-merchants:local 8.0s done
+#11 DONE 28.8s
+imagen sha256:7335ee6f7f45443834a044daac4ef9c94fd9c06142ea58af77f9a3ad7f2416f4 tamaño 990841995 usuario=node cmd=[node dist/main.js] expose=map[3107/tcp:map[]]
+### docker build -f services/pay-risk/Dockerfile --build-arg HUB=p5gate.local -t p5gate-pay-risk:local .
+inicio 2026-10-28T00:10:56Z

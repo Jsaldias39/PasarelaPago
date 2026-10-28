@@ -14,7 +14,14 @@ export const SERVICES = [
   'pay-schedules',
   'pay-edge',
 ] as const;
-export type ServiceName = (typeof SERVICES)[number];
+/**
+ * Servicios OPCIONALES de la capa sandbox (D-26): no forman parte de los 11 de producto ni de las pruebas por defecto.
+ * `pay-mockbank` (P4, servicio 12) es el banco simulado; se pide con `startStack({ mockbank: true })` o `yarn e2e:up --mockbank`.
+ */
+export const OPTIONAL_SERVICES = ['pay-mockbank'] as const;
+export type ServiceName = (typeof SERVICES)[number] | (typeof OPTIONAL_SERVICES)[number];
+/** Todos los servicios que el arnés sabe lanzar (los 11 y los opcionales): para inventariar bases, puertos y estado. */
+export const ALL_SERVICES: readonly ServiceName[] = [...SERVICES, ...OPTIONAL_SERVICES];
 
 /** Quién tiene que estar sano antes de arrancar a quién (el arranque no depende de que el otro responda, pero el orden sí ayuda). */
 export const DEPENDS_ON: Record<ServiceName, readonly ServiceName[]> = {
@@ -24,7 +31,9 @@ export const DEPENDS_ON: Record<ServiceName, readonly ServiceName[]> = {
   'pay-vault': [],
   'pay-merchants': [],
   'pay-webhooks': [],
-  'pay-connectors': ['pay-qr'],
+  // `pay-mockbank` solo cuenta cuando se pidió (el arranque filtra por los servicios pedidos).
+  'pay-mockbank': ['pay-qr'],
+  'pay-connectors': ['pay-qr', 'pay-mockbank'],
   'pay-payments': ['pay-risk', 'pay-connectors', 'pay-ledger', 'pay-vault'],
   'pay-settlement': ['pay-ledger', 'pay-connectors'],
   'pay-schedules': ['pay-ledger'],
@@ -87,6 +96,8 @@ export interface EnvContext {
   readonly kycDir: string;
   /** Escalera de reintentos de webhooks (ms); por defecto la de producción. */
   readonly webhookRetryScheduleMs?: string;
+  /** `true` si el stack incluye `pay-mockbank`: entonces `pay-connectors` recibe `MOCKBANK_URL` y deja de usar su banco en memoria. */
+  readonly mockbank?: boolean;
 }
 
 const url = (ctx: EnvContext, name: ServiceName) => `http://127.0.0.1:${ctx.ports[name]}`;
@@ -151,6 +162,17 @@ export function envFor(ctx: EnvContext, name: ServiceName): Record<string, strin
         BANK_TRANSFER_BANK_NAME: 'BANCO SIMULADO (SANDBOX)',
         BANK_TRANSFER_ACCOUNT_HOLDER: 'ALOVIDA PAY (SANDBOX)',
         BANK_TRANSFER_ACCOUNT_NUMBER: 'SANDBOX-0000-0001',
+        // Capa sandbox completa (propuesta #8 de P4): con `MOCKBANK_URL` el «banco» del conector `mock` es el servicio pay-mockbank.
+        ...(ctx.mockbank ? { MOCKBANK_URL: url(ctx, 'pay-mockbank') } : {}),
+      };
+    case 'pay-mockbank':
+      return {
+        ...base,
+        // Mismo secreto sintético que verifica pay-connectors en PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET; los callbacks vuelven a /callbacks/mock.
+        MOCKBANK_WEBHOOK_SECRET: secrets.connectorMockWebhookSecret,
+        MOCKBANK_CALLBACK_URL: `${url(ctx, 'pay-connectors')}/callbacks/mock`,
+        MOCKBANK_DELIVERY_INTERVAL_MS: '500',
+        PAY_QR_URL: url(ctx, 'pay-qr'),
       };
     case 'pay-payments':
       return {

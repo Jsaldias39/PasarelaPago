@@ -240,20 +240,41 @@ export class BankService {
 
   async refund(input: { reference: string; chargeReference: string; amountMinor: bigint }): Promise<{ bankReference: string; status: 'captured' | 'failed'; failureCode?: string }> {
     await this.assertUp();
-    const charge = await this.requireCharge(input.chargeReference);
-    const previous = (await this.pool.query('SELECT bank_reference FROM mb_refunds WHERE reference = $1', [input.reference])).rows[0] as { bank_reference: string } | undefined;
-    if (previous) return { bankReference: previous.bank_reference, status: 'captured' };
-    const now = this.clock.now();
-    if (this.statusOf(charge, now) !== 'captured') throw new BankProblem(409, 'invalid_state');
-    const refunded = BigInt((await this.pool.query('SELECT COALESCE(sum(amount_minor), 0)::text AS total FROM mb_refunds WHERE charge_reference = $1', [charge.reference])).rows[0].total as string);
-    if (refunded + input.amountMinor > BigInt(charge.amount_minor)) {
-      // Rechazo explícito del banco: no se reembolsó nada y no se guarda la referencia.
-      return { bankReference: await this.nextBankReference('SIM-R'), status: 'failed', failureCode: 'validation_failed' };
+    // Se serializa por cobro con el candado de su fila: dos reembolsos DISTINTOS a la vez no pueden pasarse del importe cobrado (como un banco real).
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const locked = (await client.query('SELECT * FROM mb_charges WHERE reference = $1 FOR UPDATE', [input.chargeReference])).rows[0] as ChargeRow | undefined;
+      if (!locked) {
+        await client.query('ROLLBACK');
+        throw new BankProblem(404, 'charge_not_found');
+      }
+      const previous = (await client.query('SELECT bank_reference FROM mb_refunds WHERE reference = $1', [input.reference])).rows[0] as { bank_reference: string } | undefined;
+      if (previous) {
+        await client.query('COMMIT');
+        return { bankReference: previous.bank_reference, status: 'captured' };
+      }
+      const now = this.clock.now();
+      if (this.statusOf(locked, now) !== 'captured') {
+        await client.query('ROLLBACK');
+        throw new BankProblem(409, 'invalid_state');
+      }
+      const refunded = BigInt((await client.query('SELECT COALESCE(sum(amount_minor), 0)::text AS total FROM mb_refunds WHERE charge_reference = $1', [locked.reference])).rows[0].total as string);
+      const bankReference = await this.nextBankReference('SIM-R');
+      if (refunded + input.amountMinor > BigInt(locked.amount_minor)) {
+        // Rechazo explícito del banco: no se reembolsó nada y no se guarda la referencia.
+        await client.query('COMMIT');
+        return { bankReference, status: 'failed', failureCode: 'validation_failed' };
+      }
+      await client.query('INSERT INTO mb_refunds (reference, charge_reference, bank_reference, amount_minor, created_at) VALUES ($1, $2, $3, $4, $5)', [input.reference, locked.reference, bankReference, input.amountMinor.toString(), now]);
+      await client.query('COMMIT');
+      return { bankReference, status: 'captured' };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
     }
-    const bankReference = await this.nextBankReference('SIM-R');
-    await this.pool.query('INSERT INTO mb_refunds (reference, charge_reference, bank_reference, amount_minor, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (reference) DO NOTHING', [input.reference, charge.reference, bankReference, input.amountMinor.toString(), now]);
-    const stored = (await this.pool.query('SELECT bank_reference FROM mb_refunds WHERE reference = $1', [input.reference])).rows[0] as { bank_reference: string };
-    return { bankReference: stored.bank_reference, status: 'captured' };
   }
 
   async getRefund(reference: string): Promise<{ bankReference: string; status: 'captured' }> {
@@ -320,11 +341,13 @@ export class BankService {
     if (scenario === 'down') throw new BankProblem(503, 'bank_unavailable');
     const declined = scenario === 'declined';
     const bankReference = await this.nextBankReference('SIM-C');
-    await this.pool.query(
-      'INSERT INTO mb_card_auths (reference, bank_reference, amount_minor, status, scenario, failure_code, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (reference) DO NOTHING',
+    const inserted = await this.pool.query(
+      'INSERT INTO mb_card_auths (reference, bank_reference, amount_minor, status, scenario, failure_code, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (reference) DO NOTHING RETURNING *',
       [input.reference, bankReference, input.amountMinor.toString(), declined ? 'declined' : 'authorized', scenario, declined ? 'card_declined' : null, this.clock.now()],
     );
-    const row = (await this.findCard(input.reference)) as CardRow;
+    // Carrera: otro pedido con la misma referencia ganó la inserción. Este devuelve SU autorización, sin declararse creador.
+    if (inserted.rowCount === 0) return { view: cardView((await this.findCard(input.reference)) as CardRow), created: false };
+    const row = inserted.rows[0] as CardRow;
     if (scenario === 'ambiguous_timeout') throw new BankSocketCut('hang');
     return { view: cardView(row), created: true };
   }
@@ -338,7 +361,12 @@ export class BankService {
     if (amount <= 0n || amount > BigInt(row.amount_minor)) throw new BankProblem(409, 'invalid_state', 'monto a capturar fuera de la autorización');
     const now = this.clock.now();
     const updated = await this.pool.query("UPDATE mb_card_auths SET status = 'captured', captured_minor = $2 WHERE reference = $1 AND status = 'authorized' RETURNING *", [reference, amount.toString()]);
-    if (updated.rowCount === 0) return cardView(await this.requireCard(reference));
+    if (updated.rowCount === 0) {
+      // Carrera: otra operación cambió el estado entre la lectura y la escritura. Si ya está capturada es la misma operación (idempotente); si no, es un conflicto.
+      const current = await this.requireCard(reference);
+      if (current.status === 'captured') return cardView(current);
+      throw new BankProblem(409, 'invalid_state', `la autorización está ${current.status}`);
+    }
     await this.schedule(this.pool, reference, 0, 'captured', now, amount, now);
     return cardView(updated.rows[0] as CardRow);
   }
@@ -350,7 +378,11 @@ export class BankService {
     if (row.status !== 'authorized') throw new BankProblem(409, 'invalid_state', `la autorización está ${row.status}`);
     const now = this.clock.now();
     const updated = await this.pool.query("UPDATE mb_card_auths SET status = 'voided' WHERE reference = $1 AND status = 'authorized' RETURNING *", [reference]);
-    if (updated.rowCount === 0) return cardView(await this.requireCard(reference));
+    if (updated.rowCount === 0) {
+      const current = await this.requireCard(reference);
+      if (current.status === 'voided') return cardView(current);
+      throw new BankProblem(409, 'invalid_state', `la autorización está ${current.status}`);
+    }
     await this.schedule(this.pool, reference, 0, 'canceled', now, BigInt(row.amount_minor), now);
     return cardView(updated.rows[0] as CardRow);
   }

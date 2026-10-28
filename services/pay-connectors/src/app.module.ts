@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Module } from '@nestjs/common';
+import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'nestjs-pino';
@@ -10,6 +10,7 @@ import { DatabaseModule } from './database.module';
 import { EventsModule } from './events.module';
 import { HealthController } from './health.controller';
 import { ProblemFilter } from './problem.filter';
+import { SandboxHeaderMiddleware } from './sandbox-header.middleware';
 import { ConnectorsModule } from './connectors.module';
 import { ServiceIdentityGuard } from '@pay/service-auth';
 
@@ -46,4 +47,9 @@ const config = loadConfig();
     { provide: APP_GUARD, useClass: ServiceIdentityGuard },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  /** D-26: en sandbox toda respuesta (también la salud y los errores) lleva `X-Pay-Mode: sandbox`; en live, ninguna. */
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(SandboxHeaderMiddleware).forRoutes('*');
+  }
+}

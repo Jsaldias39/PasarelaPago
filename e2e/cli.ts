@@ -1,16 +1,17 @@
 /**
  * Comandos del arnés e2e:
  *   yarn e2e:up      levanta el stack y lo deja corriendo hasta Ctrl+C (o SIGTERM), que lo apaga y limpia
+ *                    (`--mockbank` agrega pay-mockbank, el banco simulado de la capa sandbox, y se lo conecta a pay-connectors)
  *   yarn e2e:down    limpia los restos de un stack cuyo proceso de control murió
  *   yarn e2e:boot    levanta, imprime qué servicio arrancó y cuál no, y apaga
  *   yarn e2e:smoke   levanta, corre el humo (salud + llamadas internas + borde), apaga; sale con 1 si algo falla
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { cleanupLeftovers, RUN_DIR, SERVICES, startStack, stopStack, type Stack } from './stack.ts';
+import { ALL_SERVICES, cleanupLeftovers, RUN_DIR, SERVICES, startStack, stopStack, type Stack } from './stack.ts';
 import { renderSmoke, runSmoke } from './lib/smoke.ts';
 
 function table(stack: Stack): string {
-  const rows = SERVICES.map((n) => {
+  const rows = ALL_SERVICES.filter((n) => stack.services[n].error !== 'no pedido').map((n) => {
     const s = stack.services[n];
     return `${n.padEnd(15)} ${String(s.port).padEnd(6)} ${String(s.pid ?? '-').padEnd(8)} ${s.healthy ? 'SANO' : s.started ? 'VIVO-NO-SANO' : 'NO ARRANCA'}${s.startupMs ? ` (${s.startupMs} ms)` : ''}${s.error ? `  ← ${s.error}` : ''}`;
   });
@@ -33,11 +34,12 @@ async function main(): Promise<number> {
     return 0;
   }
   if (!['up', 'boot', 'smoke'].includes(command)) {
-    process.stderr.write('uso: node e2e/cli.ts up|down|boot|smoke|envprobe\n');
+    process.stderr.write('uso: node e2e/cli.ts up|down|boot|smoke|envprobe [--mockbank]\n');
     return 2;
   }
 
-  const stack = await startStack();
+  const mockbank = process.argv.includes('--mockbank');
+  const stack = await startStack({ mockbank });
   let exitCode = 0;
   try {
     process.stdout.write(`${table(stack)}\n`);
@@ -54,7 +56,7 @@ async function main(): Promise<number> {
       writeFileSync(`${stack.runDir}/smoke.json`, JSON.stringify(report, null, 2));
       exitCode = report.failures > 0 ? 1 : 0;
     } else {
-      exitCode = SERVICES.every((n) => stack.services[n].healthy) ? 0 : 1;
+      exitCode = (mockbank ? ALL_SERVICES : SERVICES).every((n) => stack.services[n].healthy) ? 0 : 1;
     }
   } finally {
     const stop = await stopStack(stack);

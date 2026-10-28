@@ -1,0 +1,47 @@
+$ python3 salud-db/check_ddl_sources.py   # CON SQL/pay/ (estado actual)
+
+══ Fuentes de DDL en conflicto con SQL/ (16) ══
+  [XX] `mantra-core-health-api/database/SQL` está desfasada respecto de `SQL`: faltan 86 (pay/70_pay_connectors/01_schema.sql, pay/70_pay_connectors/02_tables.sql, pay/70_pay_connectors/03_fk_intra.sql…), sobran 9 (24_pharmacy/05_constraints.sql, patches/2026-10-26_v4252_chart_note_entries.sql, patches/2026-10-26_v4252_pharmacies_primary_practice_site.sql…), difieren 15 (02_common/02_tables.sql, 02_common/04_indexes.sql, 08_clinical/02_tables.sql…). Es la copia que se despliega: así llevaría al servidor un esquema que el modelo ya cambió. Ejecutar `yarn db:vendor` en `mantra-core-health-api/`.
+  [XX] `mantra-core-health-api/tools/terminology-import/symptoms/proposal/concept_relationship_evidence.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/contracts/packages/idempotency/sql/001_idempotency_keys.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/contracts/packages/outbox/sql/001_outbox_inbox.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-connectors/sql/001_connectors.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-mockbank/sql/001_mockbank.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-settlement/sql/001_settlement.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-schedules/sql/001_schedules.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-ledger/sql/001_ledger.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-qr/sql/001_qr_codes.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-webhooks/sql/001_webhooks.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-risk/sql/001_risk.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-edge/sql/001_edge.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-vault/sql/001_vault.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-payments/sql/001_payments.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-merchants/sql/001_merchants.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+
+El esquema se declara en los `.puml` y se materializa en `SQL/` con gen_ddl.py.
+Ver `Mantra Core Health Context/docs/architecture/ddl-sources.md`.
+exit=1
+
+$ python3 salud-db/check_ddl_sources.py   # control: SIN SQL/pay/ (SQL/pay apartado un instante y repuesto)
+
+══ Fuentes de DDL en conflicto con SQL/ (16) ══
+  [XX] `mantra-core-health-api/database/SQL` está desfasada respecto de `SQL`: sobran 9 (24_pharmacy/05_constraints.sql, patches/2026-10-26_v4252_chart_note_entries.sql, patches/2026-10-26_v4252_pharmacies_primary_practice_site.sql…), difieren 15 (02_common/02_tables.sql, 02_common/04_indexes.sql, 08_clinical/02_tables.sql…). Es la copia que se despliega: así llevaría al servidor un esquema que el modelo ya cambió. Ejecutar `yarn db:vendor` en `mantra-core-health-api/`.
+  [XX] `mantra-core-health-api/tools/terminology-import/symptoms/proposal/concept_relationship_evidence.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/contracts/packages/idempotency/sql/001_idempotency_keys.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/contracts/packages/outbox/sql/001_outbox_inbox.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-connectors/sql/001_connectors.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-mockbank/sql/001_mockbank.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-settlement/sql/001_settlement.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-schedules/sql/001_schedules.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-ledger/sql/001_ledger.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-qr/sql/001_qr_codes.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-webhooks/sql/001_webhooks.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-risk/sql/001_risk.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-edge/sql/001_edge.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-vault/sql/001_vault.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-payments/sql/001_payments.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+  [XX] `pasarelapago/services/pay-merchants/sql/001_merchants.sql` declara CREATE TABLE fuera de `SQL/` y `NoSQL/` — si la tabla es del modelo va en su `.puml`; si no se deriva de los `.puml`, en `SQL/patches/`.
+
+El esquema se declara en los `.puml` y se materializa en `SQL/` con gen_ddl.py.
+Ver `Mantra Core Health Context/docs/architecture/ddl-sources.md`.
+exit=1
