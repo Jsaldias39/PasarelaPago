@@ -13,6 +13,10 @@ export type RiskMode =
   | { inProgressFirst: number }
   /** TODA llamada recibe `409 idempotency_request_in_progress` (la evaluación nunca termina). */
   | 'in_progress'
+  /** Como pay-risk con Watchman caído: `201 review / screening_unavailable / screened:false`, que NO se congela bajo la clave (un reintento vuelve a cribar). Las primeras `screeningUnavailableFirst` llamadas; después evalúa normal. */
+  | { screeningUnavailableFirst: number }
+  /** TODA llamada recibe `201 review / screening_unavailable / screened:false`. */
+  | 'screening_unavailable'
   /** TODA llamada recibe un 4xx declarado que NO es una decisión (`422 validation_failed`): un error de integración nuestro. */
   | 'rejects';
 
@@ -67,6 +71,10 @@ export class RiskDouble {
     if (this.mode === 'down') return problem('risk_unavailable', 503);
     if (this.mode === 'hang') return { status: 200, hang: true };
     if (this.mode === 'in_progress') return problem('idempotency_request_in_progress', 409);
+    if (this.mode === 'screening_unavailable' || (typeof this.mode === 'object' && 'screeningUnavailableFirst' in this.mode && this.calls <= this.mode.screeningUnavailableFirst)) {
+      const unscreened = { id: idOf('ra', `${String(req.headers['idempotency-key'] ?? '')}:${this.calls}`), object: 'risk_assessment', payment_intent_id: (req.body as AssessmentBody).payment_intent_id, decision: 'review', reason_code: 'screening_unavailable', rule_version: 1, screened: false, created_at: new Date().toISOString() };
+      return { status: 201, body: unscreened }; // NO se guarda en `seen`: no queda congelada bajo la clave
+    }
     if (this.mode === 'rejects') return problem('validation_failed', 422);
     if (typeof this.mode === 'object' && 'hangFirst' in this.mode && this.calls <= this.mode.hangFirst) return { status: 200, hang: true };
     if (typeof this.mode === 'object' && 'hangFirst' in this.mode && this.mode.then === 'down') return problem('risk_unavailable', 503);
@@ -83,7 +91,7 @@ export class RiskDouble {
     let reason: string;
     let screened = false;
     if (this.mode === 'deny') [decision, reason] = ['deny', 'amount_over_limit'];
-    else if (this.mode === 'review') [decision, reason] = ['review', 'sanctions_possible_match'];
+    else if (this.mode === 'review') [decision, reason, screened] = ['review', 'sanctions_possible_match', true];
     else {
       const listed = (name: string | undefined) => name !== undefined && this.sanctions.has(normalize(name));
       const screening = body.screening;

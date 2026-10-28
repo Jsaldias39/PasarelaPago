@@ -28,8 +28,24 @@ const isRejection = (error: unknown): boolean => error instanceof Error && error
  * (CLAUDE.md regla 11): se reintenta con la MISMA clave, sin crear otra evaluación. No es un rechazo definitivo.
  */
 const isRiskInFlight = (error: unknown): boolean =>
+  (error instanceof Error && error.name === 'RiskScreeningUnavailable') ||
   (isRejection(error) && (error as { status?: number; code?: string }).status === 409 && (error as { code?: string }).code === 'idempotency_request_in_progress') ||
   (isUpstreamError(error) && (error as { kind?: string }).kind === 'timeout');
+
+/**
+ * `201 review` con `screened:false` y `reason_code: screening_unavailable`: pay-risk no pudo cribar (Watchman caído o lento). El contrato (`POST /assessments`)
+ * dice que esa evaluación NO queda congelada bajo la `Idempotency-Key` y que un reintento con la MISMA clave vuelve a cribar: es AMBIGUO, no una denegación
+ * (regla 11). Son definitivas solo las evaluaciones con `screened:true`, `screening_not_provided` y los `review` de negocio que no dependen del cribado.
+ */
+const DEFINITIVE_UNSCREENED_REVIEWS: ReadonlySet<string> = new Set(['screening_not_provided', 'payer_unidentified', 'outside_allowed_hours']);
+class RiskScreeningUnavailable extends Error {
+  constructor() {
+    super('pay-risk no pudo cribar (screening_unavailable)');
+    this.name = 'RiskScreeningUnavailable';
+  }
+}
+const isScreeningUnavailable = (assessment: { decision: string; screened: boolean; reason_code: string }): boolean =>
+  assessment.decision === 'review' && assessment.screened === false && !DEFINITIVE_UNSCREENED_REVIEWS.has(assessment.reason_code);
 
 /** Intento actual de la actividad (1 en el primero). Fuera de Temporal (pruebas directas) no hay contexto: se cuenta como el último. */
 function attemptOfActivity(): number {
@@ -173,12 +189,14 @@ export function createActivities(deps: Deps) {
           merchantId: intent.merchantId, paymentIntentId: intent.id, amountMinor: intent.amountMinor, currency: intent.currency, method: intent.method,
           ...(merchantName || payerName ? { screening: { ...(merchantName ? { merchantName } : {}), ...(payerName ? { payerName } : {}) } } : {}),
         });
-        // D4/D-30: `review` se trata como `deny` hasta que exista cola de revisión manual.
+        // El cribado no se pudo completar: ni «sí» ni «no». Se reintenta con la misma clave (ver `RiskScreeningUnavailable`); agotada la política, fail-closed.
+        if (isScreeningUnavailable(assessment)) throw new RiskScreeningUnavailable();
+        // D4/D-30: `review` (con el cribado hecho, o por una razón de negocio) se trata como `deny` hasta que exista cola de revisión manual.
         if (assessment.decision !== 'allow') return await denyByRisk(intentId);
         return { proceed: true };
       } catch (error) {
         // Política (P3.H2.M2, regla 11): sin decisión de riesgo no se cobra. Pero «sin decisión» tiene tres causas distintas:
-        //  · EN VUELO (409 en curso, o timeout del cliente): se reintenta con la MISMA clave (Temporal, con backoff) hasta que riesgo responda con su
+        //  · EN VUELO (409 en curso, timeout del cliente, o `review/screening_unavailable` con `screened:false`): se reintenta con la MISMA clave (Temporal, con backoff) hasta que riesgo responda con su
         //    decisión. Si se agota la política de la actividad el intento se cierra SIEMPRE `failed/risk_unavailable` (fail-closed, sin cargo, con constancia
         //    para una persona), sea cual sea el monto y la configuración: esa evaluación sigue viva y puede volver como `deny`. NUNCA queda en `processing`.
         //  · RESPUESTA FUERA DE LA DECISIÓN (cualquier 4xx declarado que no es `deny`/`review` en una respuesta válida): es un error de integración nuestro;

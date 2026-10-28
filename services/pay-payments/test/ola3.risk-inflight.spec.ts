@@ -64,6 +64,17 @@ describe('correcto · la evaluación de riesgo está EN VUELO: se reintenta con 
     expect(await terminalEvents(id)).toEqual(['payment_intent.succeeded']);
   });
 
+  it('cribado no disponible (`201 review/screening_unavailable`, `screened:false`) dos veces y luego `allow` ⇒ NO es `risk_denied`: se reintenta con la MISMA clave y el cobro avanza UNA vez', async () => {
+    stack.risk.mode = { screeningUnavailableFirst: 2 };
+    const id = await create();
+    await settledAs(id, 'requires_action');
+    const calls = riskCalls(id);
+    expect(calls).toHaveLength(3);
+    expect([...new Set(calls.map((c) => c.headers['idempotency-key']))]).toEqual([`${id}:risk`]);
+    expect(stack.connectors.chargeCreations.get(id)).toBe(1);
+    expect(await escalations(id)).toEqual([]);
+  });
+
   it('timeout del cliente y luego `allow` ⇒ el intento avanza (un timeout no es un rechazo)', async () => {
     stack.risk.mode = { hangFirst: 3 };
     const id = await create();
@@ -86,6 +97,18 @@ describe('límite · la decisión nunca llega: terminal VISIBLE (failed/risk_una
     expect(stack.ledger.postedCount(`${id}:capture`)).toBe(0);
     expect(await terminalEvents(id)).toEqual(['payment_intent.failed']);
     expect(await escalations(id)).toEqual(['risk_unresolved']);
+  });
+
+  it('cribado no disponible PERSISTENTE ⇒ se agotan los intentos con la misma clave y el intento queda failed/risk_unavailable (NO risk_denied), sin cargo, con constancia `risk_unresolved`', async () => {
+    stack.risk.mode = 'screening_unavailable';
+    const id = await create();
+    await settledAs(id, 'failed');
+    expect(riskCalls(id)).toHaveLength(ATTEMPTS);
+    expect(((await stack.service.getIntent(MC, 'test', id)) as { last_error: { code: string } }).last_error.code).toBe('risk_unavailable');
+    expect(stack.connectors.chargeFor(id)).toBeUndefined();
+    expect(stack.ledger.postedCount(`${id}:capture`)).toBe(0);
+    expect(await escalations(id)).toEqual(['risk_unresolved']);
+    expect(await terminalEvents(id)).toEqual(['payment_intent.failed']);
   });
 
   it('timeouts persistentes ⇒ mismo desenlace: failed/risk_unavailable, sin cargo, y el workflow TERMINÓ (no queda vivo ni en processing)', async () => {
@@ -119,6 +142,28 @@ describe('inválido · lo que NO es una decisión de riesgo no se confunde con �
       expect(riskCalls(id)).toHaveLength(1);
       expect(((await stack.service.getIntent(MC, 'test', id)) as { last_error: { code: string } }).last_error.code).toBe('risk_denied');
       expect(await escalations(id)).toEqual([]);
+    }
+  });
+
+  it('`review` con el cribado HECHO (`screened:true`, `sanctions_possible_match`) es definitivo: risk_denied, UNA llamada, sin reintentos', async () => {
+    stack.risk.mode = 'review';
+    const id = await create();
+    await settledAs(id, 'failed');
+    expect(riskCalls(id)).toHaveLength(1);
+    expect(((await stack.service.getIntent(MC, 'test', id)) as { last_error: { code: string } }).last_error.code).toBe('risk_denied');
+    expect(await escalations(id)).toEqual([]);
+  });
+
+  it('`review/screening_not_provided` (sin razón social) también es definitivo aunque `screened` sea false: risk_denied, sin reintentos', async () => {
+    stack.risk.reset();
+    await stack.db.pool.query('UPDATE merchant_replica SET legal_name = NULL WHERE merchant_id = $1', [MC]);
+    try {
+      const id = await create();
+      await settledAs(id, 'failed');
+      expect(riskCalls(id)).toHaveLength(1);
+      expect(((await stack.service.getIntent(MC, 'test', id)) as { last_error: { code: string } }).last_error.code).toBe('risk_denied');
+    } finally {
+      await stack.db.pool.query("UPDATE merchant_replica SET legal_name = 'Comercio de Prueba S.R.L.' WHERE merchant_id = $1", [MC]);
     }
   });
 
@@ -158,6 +203,14 @@ describe('franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, 
 
   it('límite · 409 «en curso» persistente hasta agotar ⇒ failed/risk_unavailable, SIN cargo, con constancia, aunque el monto esté bajo el umbral', async () => {
     lenient.risk.mode = 'in_progress';
+    const id = await make();
+    await lenientStatus(id, 'failed');
+    expect(lenient.connectors.chargeFor(id)).toBeUndefined();
+    expect(await lenientEscalations(id)).toEqual(['risk_unresolved']);
+  });
+
+  it('límite · cribado no disponible (`review/screening_unavailable`) persistente ⇒ failed/risk_unavailable, SIN cargo, con constancia, aunque el monto esté bajo el umbral', async () => {
+    lenient.risk.mode = 'screening_unavailable';
     const id = await make();
     await lenientStatus(id, 'failed');
     expect(lenient.connectors.chargeFor(id)).toBeUndefined();
