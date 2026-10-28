@@ -130,3 +130,71 @@ describe('inválido · lo que NO es una decisión de riesgo no se confunde con �
     expect(stack.connectors.chargeFor(id)).toBeUndefined();
   });
 });
+
+/**
+ * Revisión de seguridad (3e): la franquicia «bajo el umbral pasa» (RISK_ALLOW_BELOW_THRESHOLD, apagada por defecto) solo vale para una INDISPONIBILIDAD pura
+ * (5xx, red, breaker abierto), nunca para una evaluación EN VUELO agotada (puede volver como `deny`) ni para un 4xx de integración.
+ * Se prueba con la política ENCENDIDA y un umbral alto (el cobro de 10000 está muy por debajo).
+ */
+describe('franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000): solo la indisponibilidad pura pasa', () => {
+  let lenient: Stack;
+  beforeAll(async () => {
+    lenient = await startStack({ env: { ACTIVITY_MAX_ATTEMPTS: String(ATTEMPTS), RISK_ALLOW_BELOW_THRESHOLD: 'true', RISK_FAIL_CLOSED_THRESHOLD_MINOR: '1000000' } });
+    await seedMerchant(lenient, MC);
+  });
+  afterAll(async () => lenient.stop());
+  afterEach(() => lenient.risk.reset());
+
+  const make = async (): Promise<string> => (await lenient.service.createIntent(MC, 'test', key(), QR)).body.id as string;
+  const lenientStatus = (id: string, ...statuses: string[]) => waitFor(async () => ((await statusOf(lenient, id)) && statuses.includes((await statusOf(lenient, id)) as string) ? ((await statusOf(lenient, id)) as string) : undefined), 60_000, `${id} → ${statuses.join('|')}`);
+  const lenientEscalations = async (id: string) => (await lenient.db.pool.query('SELECT kind FROM intent_contradictions WHERE payment_intent_id = $1 ORDER BY id', [id])).rows.map((r: { kind: string }) => r.kind);
+
+  it('correcto (comportamiento previo, documentado) · riesgo caído con un 5xx puro ⇒ el cobro bajo el umbral PASA: requires_action y un cargo', async () => {
+    lenient.risk.mode = 'down';
+    const id = await make();
+    await lenientStatus(id, 'requires_action');
+    expect(lenient.connectors.chargeCreations.get(id)).toBe(1);
+  });
+
+  it('límite · 409 «en curso» persistente hasta agotar ⇒ failed/risk_unavailable, SIN cargo, con constancia, aunque el monto esté bajo el umbral', async () => {
+    lenient.risk.mode = 'in_progress';
+    const id = await make();
+    await lenientStatus(id, 'failed');
+    expect(lenient.connectors.chargeFor(id)).toBeUndefined();
+    expect(await lenientEscalations(id)).toEqual(['risk_unresolved']);
+  });
+
+  it('límite · timeout persistente hasta agotar ⇒ failed/risk_unavailable, SIN cargo, con constancia', async () => {
+    lenient.risk.mode = 'hang';
+    const id = await make();
+    await lenientStatus(id, 'failed');
+    expect(lenient.connectors.chargeFor(id)).toBeUndefined();
+    expect(await lenientEscalations(id)).toEqual(['risk_unresolved']);
+  });
+
+  it('límite · un timeout y DESPUÉS un 5xx puro: la evaluación pudo quedar viva ⇒ NO pasa por la franquicia: failed/risk_unavailable, sin cargo, con constancia', async () => {
+    lenient.risk.mode = { hangFirst: 2, then: 'down' };
+    const id = await make();
+    await lenientStatus(id, 'failed');
+    expect(lenient.connectors.chargeFor(id)).toBeUndefined();
+    expect(await lenientEscalations(id)).toEqual(['risk_unresolved']);
+  });
+
+  it('inválido · un 4xx de integración (422) ⇒ failed/risk_unavailable, SIN cargo, con constancia (no es una indisponibilidad)', async () => {
+    lenient.risk.mode = 'rejects';
+    const id = await make();
+    await lenientStatus(id, 'failed');
+    expect(lenient.connectors.chargeFor(id)).toBeUndefined();
+    expect(await lenientEscalations(id)).toEqual(['risk_integration_error']);
+  });
+
+  it('con una decisión válida la franquicia no interviene: `deny` ⇒ risk_denied y `allow` ⇒ avanza', async () => {
+    lenient.risk.mode = 'deny';
+    const denied = await make();
+    await lenientStatus(denied, 'failed');
+    expect(((await lenient.service.getIntent(MC, 'test', denied)) as { last_error: { code: string } }).last_error.code).toBe('risk_denied');
+    lenient.risk.reset();
+    const allowed = await make();
+    await lenientStatus(allowed, 'requires_action');
+  });
+});

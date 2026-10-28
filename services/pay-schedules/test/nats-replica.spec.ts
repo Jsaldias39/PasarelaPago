@@ -1,8 +1,9 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import $RefParser from '@apidevtools/json-schema-ref-parser';
-import { connect, headers, type NatsConnection } from 'nats';
+import { AckPolicy, connect, headers, type NatsConnection } from 'nats';
 import { ensureStream } from '@pay/outbox';
 import { MerchantReplicaConsumer } from '../src/replica/replica.consumer';
+import { loadScheduleSettings } from '../src/settings';
 import { createTestContext, EVENTS, type TestContext } from './support/app';
 import { newMerchant, rows } from './support/http';
 
@@ -138,5 +139,15 @@ describe('consumidor NATS de merchant.* (réplica del estado de comercios)', () 
     const info = await eventually(() => jsm.consumers.info(STREAM, DURABLE), (i) => i.num_pending === 0 && i.num_ack_pending === 0, 'sin pendientes');
     expect(info.config.durable_name).toBe(DURABLE);
     expect(info.config.filter_subjects).toEqual([`${PREFIX}.merchant.activated`, `${PREFIX}.merchant.suspended`, `${PREFIX}.merchant.closed`]);
+  });
+
+  it('el nombre durable POR DEFECTO lo acepta JetStream (correcto) y uno con punto lo rechaza (inválido): lo que rompió el primer E5 real', async () => {
+    const jsm = await nats.jetstreamManager();
+    const base = { PAY_MODE: 'sandbox', LEDGER_URL: 'http://ledger:3000', RETRY_DELAYS_SECONDS: '60' };
+    const byDefault = loadScheduleSettings(base).merchantsDurable;
+    await jsm.consumers.add(STREAM, { durable_name: byDefault, ack_policy: AckPolicy.Explicit, filter_subjects: [`${PREFIX}.merchant.activated`] });
+    expect((await jsm.consumers.info(STREAM, byDefault)).config.durable_name).toBe(byDefault);
+    await jsm.consumers.delete(STREAM, byDefault);
+    await expect(jsm.consumers.add(STREAM, { durable_name: 'pay-schedules.merchant-replica', ack_policy: AckPolicy.Explicit })).rejects.toThrow(/durable name cannot contain '\.'/);
   });
 });

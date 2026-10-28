@@ -12,12 +12,11 @@ import { startStack, stopStack, type Stack } from '../stack.ts';
  * El pagador transfiere al banco con la referencia única de la instrucción; el banco NO avisa: el cobro pasa a `succeeded` cuando el conector encuentra en
  * el extracto un crédito con esa referencia y el importe exacto. Después, la conciliación de settlement cruza esa misma línea contra el asiento del ledger.
  *
- * Vive en e2e/pending por TRES cosas que hoy no existen (docs/trabajo/ola-2/P2/FLUJOS-E4-E8.md § «Qué depende del stack»):
- *  1. el depósito del pagador en el banco simulado: lo trae `pay-mockbank` (P4.H4.M3, en construcción); `payerTransfersToBank` falla diciendo por qué;
- *  2. los cobros de `pay-payments` terminan `failed/risk_denied` en el arnés (D-29/D-30, ver ARNES.md § Pendientes);
- *  3. que `fetchStatement` de pay-connectors (P4) emita `payment_intent_id` en la línea: settlement cruza por ese campo (`pi_…` ⇒ `pi_…:capture`) y usa `our_reference` solo de respaldo.
- * Importes: constantes nombradas en `e2e/lib/p2-bank.ts` (los de pay-mockbank, cuando existan, se cambian ahí).
- */
+ * Estuvo en e2e/pending por tres faltantes que ya no lo son: el depósito del pagador (lo trae `pay-mockbank`: `POST /sandbox/payer/transfer-in`, ver `payerTransfersToBank`
+ * en `lib/p2-bank.ts`), el camino de cobro de `pay-payments` (el cobro se crea por el borde y se confirma por el extracto, no por riesgo) y que `fetchStatement` de
+ * pay-connectors (P4) emita `payment_intent_id` en la línea (settlement cruza por ese campo; `our_reference` solo de respaldo).
+ * Se levanta `pay-mockbank` (`mockbank: true`) y el conector concilia su extracto cada segundo (`RECONCILE_INTERVAL_MS`; por defecto son 5 min y el banco NO avisa).
+ * Importes: constantes nombradas en `e2e/lib/p2-bank.ts`. */
 const CONNECTOR = 'bank_transfer';
 
 describe('E8 — transferencia bancaria confirmada por la línea del extracto', () => {

@@ -32,6 +32,13 @@ describe('configuración de pay-schedules: la política de reintentos y el libro
     for (const bad of ['0', '-1', '1.5', 'x', '99999999999999999']) expect(() => loadScheduleSettings({ ...BASE, MANDATE_MAX_AMOUNT_MINOR: bad })).toThrow(/MANDATE_MAX_AMOUNT_MINOR/);
   });
 
+  it('el durable de la réplica de comercios es un nombre válido de JetStream (sin punto, comodín ni espacio) y un valor inválido no arranca', () => {
+    const valid = /^[^.*>\s/\\]+$/;
+    expect(loadScheduleSettings(BASE).merchantsDurable).toMatch(valid); // el valor por defecto con punto lo rechazó el NATS real
+    expect(loadScheduleSettings({ ...BASE, MERCHANTS_DURABLE: 'p5t-abc_1' }).merchantsDurable).toBe('p5t-abc_1');
+    for (const bad of ['pay.schedules', 'a*', 'a>', 'con espacio', 'a/b', 'a\\b']) expect(() => loadScheduleSettings({ ...BASE, MERCHANTS_DURABLE: bad })).toThrow(/MERCHANTS_DURABLE/);
+  });
+
   it('la URL del libro mayor debe ser http(s); los tiempos tienen rango', () => {
     expect(() => loadScheduleSettings({ ...BASE, LEDGER_URL: 'ledger:3000' })).toThrow(/LEDGER_URL/);
     for (const [name, bad] of [['LEDGER_TIMEOUT_MS', '0'], ['HOLD_EXPIRES_SECONDS', '59'], ['LEASE_SECONDS', '0'], ['RUN_INTERVAL_SECONDS', 'x']]) expect(() => loadScheduleSettings({ ...BASE, [name]: bad })).toThrow(name);

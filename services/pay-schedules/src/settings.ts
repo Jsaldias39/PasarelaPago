@@ -65,6 +65,9 @@ export function loadScheduleSettings(env: NodeJS.ProcessEnv = process.env): Sche
   if (platformMerchantId !== undefined && !/^mc_[a-z0-9]{10,40}$/.test(platformMerchantId)) throw new Error('PLATFORM_MERCHANT_ID no tiene la forma de un id de comercio');
   const cap = env.MANDATE_MAX_AMOUNT_MINOR;
   if (cap !== undefined && cap !== '' && (!/^[1-9]\d{0,15}$/.test(cap) || !Number.isSafeInteger(Number(cap)))) throw new Error(`MANDATE_MAX_AMOUNT_MINOR debe ser un entero positivo seguro: ${cap}`);
+  // JetStream rechaza un durable con punto, comodín o espacio: se valida al arrancar y no en un bucle de reintentos silencioso.
+  const merchantsDurable = env.MERCHANTS_DURABLE || 'pay-schedules-merchant-replica';
+  if (!/^[^.*>\s/\\]+$/.test(merchantsDurable)) throw new Error('MERCHANTS_DURABLE no es un nombre válido de consumidor de JetStream (sin punto, comodín, espacio ni barra)');
   return {
     payMode,
     ledgerUrl,
@@ -77,7 +80,7 @@ export function loadScheduleSettings(env: NodeJS.ProcessEnv = process.env): Sche
     ...(cap !== undefined && cap !== '' && { mandateMaxAmountMinor: Number(cap) }),
     backgroundJobsEnabled: env.DISABLE_BACKGROUND_JOBS !== '1',
     merchantsStream: env.MERCHANTS_STREAM || 'PAY_MERCHANTS',
-    merchantsDurable: env.MERCHANTS_DURABLE || 'pay-schedules.merchant-replica',
+    merchantsDurable,
     merchantsSubjectPrefix: env.MERCHANTS_SUBJECT_PREFIX || 'pay-merchants',
   };
 }

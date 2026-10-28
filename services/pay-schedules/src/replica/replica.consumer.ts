@@ -10,6 +10,12 @@ import { applyMerchantEvent, parseMerchantEvent } from './merchant-replica';
 const RETRY_MS = 2_000;
 const NAK_DELAY_MS = 2_000;
 
+/** Mensaje del servidor NATS (nombres de stream/consumidor y la causa, nunca datos de personas), recortado para el registro. */
+function describeNatsError(error: unknown): string {
+  const message = (error as { message?: unknown } | null)?.message;
+  return typeof message === 'string' ? message.slice(0, 200) : 'sin mensaje';
+}
+
 /**
  * Consumidor durable de JetStream de `merchant.activated|suspended|closed`. Entrega al menos una vez; `processOnce` (inbox) hace
  * que cada evento tenga un solo efecto. Un evento mal formado se descarta con `term`; un fallo de base hace `nak` con demora.
@@ -52,7 +58,7 @@ export class MerchantReplicaConsumer implements OnModuleInit, OnApplicationShutd
       try {
         await this.consume();
       } catch (error) {
-        this.logger.warn({ err: (error as { name?: string } | null)?.name ?? 'desconocido' }, 'La réplica de comercios no pudo consumir; se reintenta');
+        this.logger.warn({ err: (error as { name?: string } | null)?.name ?? 'desconocido', detail: describeNatsError(error) }, 'La réplica de comercios no pudo consumir; se reintenta');
       }
       if (!this.stopped) await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
     }

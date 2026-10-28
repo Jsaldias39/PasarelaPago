@@ -7,10 +7,9 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
-import { IdempotencyStore } from '@pay/idempotency';
+import { IdempotencyStore, guardPool } from '@pay/idempotency';
 import { OutboxRelay, processOnce, type CloudEvent, type EventPublisher } from '@pay/outbox';
 import { TEST_DATABASE_URL } from '@pay/testing';
-import { guardPool } from '../src/pool-guard';
 import { DatabaseModule, PG_POOL } from '../src/database.module';
 import { ServiceConfigModule } from '../src/config.module';
 import { inTransaction } from '../src/settlement/unit-of-work';
@@ -58,7 +57,7 @@ beforeAll(async () => {
   url = await app.getUrl();
   pool = moduleRef.get<Pool>(PG_POOL);
   orm = moduleRef.get(MikroORM);
-  admin = guardPool(new Pool({ connectionString: dbUrl, max: 1 }), 'PgAdmin');
+  admin = guardPool(new Pool({ connectionString: dbUrl, max: 1 }));
 });
 afterAll(async () => {
   await admin.end();
@@ -182,9 +181,9 @@ describe('el pool de la aplicación sobrevive a que Postgres corte conexiones', 
  */
 async function guardedIsolatedDatabase(ddlFile: string): Promise<{ pool: Pool; drop: () => Promise<void> }> {
   const schema = `t_${randomBytes(6).toString('hex')}`;
-  const auxiliary = guardPool(new Pool({ connectionString: TEST_DATABASE_URL, max: 1 }), 'PgIsolatedAdmin');
+  const auxiliary = guardPool(new Pool({ connectionString: TEST_DATABASE_URL, max: 1 }));
   await auxiliary.query(`CREATE SCHEMA ${schema}`);
-  const isolated = guardPool(new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${schema}`, max: 6 }), 'PgIsolated');
+  const isolated = guardPool(new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${schema}`, max: 6 }));
   await isolated.query(readFileSync(ddlFile, 'utf8'));
   return {
     pool: isolated,
@@ -215,7 +214,7 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
 
   beforeAll(async () => {
     db = await guardedIsolatedDatabase(resolve(process.cwd(), 'sql/ddl.sql'));
-    killer = guardPool(new Pool({ connectionString: TEST_DATABASE_URL, max: 1 }), 'PgKiller');
+    killer = guardPool(new Pool({ connectionString: TEST_DATABASE_URL, max: 1 }));
   });
   afterAll(async () => {
     await killer.end();

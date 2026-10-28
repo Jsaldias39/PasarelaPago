@@ -15,10 +15,9 @@ import { startStack, stopStack, type Stack } from '../stack.ts';
  * real del ledger —liberar un cobro fresco a T+7— se cubre con el doble de pruebas del servicio (`pay-settlement/test/batch.spec.ts`) y acá se afirma lo
  * contrario: que el corte NO libera lo que todavía no venció. El dinero ya liberado entra como [DOBLE] (un asiento directo a `available`).
  *
- * Vive en e2e/pending porque la conciliación de punta a punta NO puede pasar hoy: ver docs/trabajo/ola-2/P2/FLUJOS-E4-E8.md § «Qué depende del stack»
- * (la referencia del extracto del conector es `ch_…` y la clave de cruce de settlement es el `business_ref` del ledger, `pi_…:capture`).
- * Los tramos del corte y del pago NO dependen de eso y deberían pasar hoy.
- */
+ * Estuvo en e2e/pending hasta que P4 emitió `payment_intent_id` en la línea del extracto del conector (la clave de cruce de settlement es `${payment_intent_id}:capture`;
+ * docs/trabajo/ola-2/P2/FLUJOS-E4-E8.md § «Qué depende del stack»). Con eso pasa de punta a punta contra el simulador `mock` (sandbox): cierra P2.H2.M6a.
+ * Contra el banco REAL no se afirma nada (M6b: Q-11/T-03). */
 /**
  * El dinero ya disponible entra desde la compensación de OTRO conector: la conciliación del conector `mock` solo lee `connector:mock:clearing`, y un asiento
  * sin línea en el extracto del simulador sería una excepción `missing_in_statement` que no pertenece a lo que E4 mide.

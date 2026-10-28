@@ -1,0 +1,25 @@
+(node:14680) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/settings.spec.ts
+  ● configuración de pay-schedules: la política de reintentos y el libro mayor NO tienen valor por defecto › el durable de la réplica de comercios es un nombre válido de JetStream (sin punto, comodín ni espacio) y un valor inválido no arranca
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /^[^.*>\s/\\]+$/
+    Received string:  "pay-schedules.merchant-replica"
+
+      35 |   it('el durable de la réplica de comercios es un nombre válido de JetStream (sin punto, comodín ni espacio) y un valor inválido no arranca', () => {
+      36 |     const valid = /^[^.*>\s/\\]+$/;
+    > 37 |     expect(loadScheduleSettings(BASE).merchantsDurable).toMatch(valid); // el valor por defecto con punto lo rechazó el NATS real
+         |                                                         ^
+      38 |     expect(loadScheduleSettings({ ...BASE, MERCHANTS_DURABLE: 'p5t-abc_1' }).merchantsDurable).toBe('p5t-abc_1');
+      39 |     for (const bad of ['pay.schedules', 'a*', 'a>', 'con espacio', 'a/b', 'a\\b']) expect(() => loadScheduleSettings({ ...BASE, MERCHANTS_DURABLE: bad })).toThrow(/MERCHANTS_DURABLE/);
+      40 |   });
+
+      at Object.toMatch (test/settings.spec.ts:37:57)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 16 passed, 17 total
+Snapshots:   0 total
+Time:        0.264 s, estimated 1 s
+Ran all test suites matching test/settings.spec.ts.
