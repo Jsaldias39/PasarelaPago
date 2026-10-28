@@ -13,4 +13,4 @@ timeout 120 node .yarn/releases/yarn-4.14.1.cjs install --immutable --mode=skip-
 echo "== B) con el package.json de los OTROS servicios copiado también"
 for d in "$ROOT"/services/*/; do n=$(basename "$d"); mkdir -p "services/$n"; cp "$d/package.json" "services/$n/"; done
 timeout 25 node .yarn/releases/yarn-4.14.1.cjs install --immutable --mode=skip-build 2>&1 | grep -E "YN0028|Resolution step|Fetch step|YN0000: ·" | head -4
-echo "(en B la resolución pasa y empieza la descarga; se corta a los 25 s: lo que se demuestra es que YN0028 desaparece)"
+echo "(en B desaparece YN0028: la resolución pasa y la instalación llega a \"Done\" desde el anfitrión; dentro de un contenedor la descarga igual falla por el TLS del entorno)"

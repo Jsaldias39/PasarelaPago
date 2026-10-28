@@ -85,16 +85,15 @@ ya no afirma que siga pendiente y afirma lo que importa (sin callback, un solo e
 
 ## Hallazgos (no corregidos en carpetas ajenas)
 
-1. **`pay-merchants` no puede dar de alta al primer comercio** — P5 / identidad del operador.
-   El autenticador de operador es `DenyAllOperatorAuthenticator` y no hay configuración que lo cambie. El arnés lo
-   resuelve con una **siembra sandbox declarada como DOBLE del onboarding**: inserta comercio, KYC, contrato, tarifa
-   y `api_keys` en `pay_merchants` y publica los eventos `merchant.created`, `merchant.activated`,
-   `fee_schedule.published` y `api_key.created` por el outbox real; el relay de merchants los envía y la réplica del
-   borde aprende la llave. Lo que falta verificar contra lo real: el alta por la API de operador, cuando exista.
-2. **Los pagos siempre se deniegan** — P3 + P5. `pay-payments` no envía el bloque de *screening* y trata `review`
-   como `deny`; `pay-risk` responde `review` con `screening_not_provided`. Con el arnés, toda intención llega a
-   `denied`. El flujo E6 no necesita pagos exitosos (los eventos de intento denegado también se entregan), pero el
-   flujo feliz de cobro no es ejercitable hasta que P3 y P5 acuerden el contrato (¿quién arma el *screening*?).
+1. **Alta del primer comercio** — **resuelto en lo esencial (2h)**; queda un paso doble. `pay-merchants` ya tiene su autenticador de operador (JWT RS256 con
+   `OPERATOR_TOKEN_*`) y el arnés da de alta por la API real del back-office (`lib/seed.ts`, `onboardMerchant`; `flows/onboarding.e2e.ts`): crea el comercio, sube los 6
+   documentos de KYC, aprueba, publica/acepta contrato, publica tarifario y activa; los eventos (con `legal_name`, D-33) salen del propio servicio por outbox, validados
+   contra el AsyncAPI. La siembra directa en la base quedó como respaldo declarado (`seedMerchant(stack, { mode: 'sql' })`, DOBLE). **Único paso doble:** la PRIMERA
+   clave `sk_test_` se pide a `POST /api_keys` de `pay-merchants` con la identidad de `pay-edge` y el `X-Merchant-Id` del comercio, porque el borde exige una clave para llegar a esa
+   ruta y no hay otro camino para la primera. Pregunta abierta para P5 + P1: ¿quién emite la primera clave de un comercio recién activado (el back-office con su propia ruta)?
+2. **Los pagos se denegaban siempre** — **resuelto (2h)**. P3 manda el nombre del comercio y el del pagador (`payer_name`, D-29) y P5 publica `legal_name`; con nombres sintéticos que
+   no puntúan en Watchman (`flows/synthetic-names.e2e.ts` lo comprueba contra el Watchman real) el intento llega a `succeeded` (E1/E2). Persisten dos defectos de producto que
+   aparecen cuando la evaluación de riesgo tarda más que su presupuesto: ver hallazgos 9 y 10.
 3. **Apagado de `pay-payments`** — P3. Al recibir SIGTERM registra `IllegalStateError: Not running` (worker de
    Temporal que se apaga dos veces). No afecta el cierre del proceso, sí ensucia el log.
 4. **`pay-schedules` no tiene cliente de `pay-payments`** — P5/P3. El plan de llamadas del contrato lo declara;
@@ -116,6 +115,26 @@ ya no afirma que siga pendiente y afirma lo que importa (sin callback, un solo e
 7. **`.env.example` inconsistentes** — P3/P5: valores por defecto de URL distintos entre `payments` y `schedules`,
    y `VAULT_URL` ausente en el de `payments`. El arnés no depende de ellos (construye el entorno desde cero).
 8. **Reintentos benignos de arranque** en `schedules` y `webhooks` mientras la base/NATS terminan de estar listos.
+
+9. **Un 409 `idempotency_request_in_progress` de `pay-risk` mata el intento** — PRODUCT_BUG de **P3** (`pay-payments`). `services/pay-payments/src/temporal/activities.ts:170`
+   (`assessRisk`): `if (isRejection(error)) throw ApplicationFailure.nonRetryable('… RiskRejected')`. La llamada a `pay-risk` tiene `RISK_TIMEOUT_MS=300` (`src/config.ts:138`) y
+   `HttpClient` reintenta una vez con la MISMA clave (`<pi>:risk`, `src/clients/risk.client.ts`). Si la primera evaluación sigue viva en `pay-risk`, el reintento recibe `409 idempotency_request_in_progress`
+   (`contracts/packages/idempotency/src/index.ts:133`), que es «todavía no sé», y `pay-payments` lo toma como rechazo definitivo: el workflow termina `Workflow failed`
+   y el intento queda **`processing` para siempre** (ni `failed` ni `succeeded`; el comercio nunca recibe un evento). Contradice `CLAUDE.md` regla 11 (un resultado ambiguo no es un fallo: se
+   reintenta con la misma clave). Visto de verdad en E1 (`pay-payments.log`: `Activity failed … 409 idempotency_request_in_progress`, `Workflow failed`; intento `pi_1a72d49b631fe6c9e1824b6b` en
+   `processing` 60 s, `evidencia/2h-e1-e2-tests.txt`). **Reproductor determinista:** `e2e/pending/risk-timeout.e2e.ts` (`RISK_TIMEOUT_MS=40`; `yarn e2e:pending`) — falla HOY dejando intentos en
+   `processing` (`evidencia/2h-risk-timeout-reproductor-run1.txt`, `…-log.txt`). Arreglo propuesto: tratar 409 `idempotency_request_in_progress` como reintentable (con la misma clave) y que un workflow que
+   muere deje el intento en un estado terminal con razón (hoy queda huérfano). **El arnés NO lo corrige** (carpeta de otro carril); solo evita que lo dispare la latencia del entorno (ver § Estado de E1 y E2).
+10. **Una latencia de Watchman convierte a un comercio limpio en `risk_denied` de forma permanente** — PRODUCT_BUG de diseño de **P5** (`pay-risk`) combinado con D-30. `services/pay-risk/src/screening/watchman.screener.ts:45`
+    cribra con `AbortSignal.timeout(200)` (tope configurable 250); un `TimeoutError` marca la parte como `unavailable` (`src/rules/engine.ts:72` → `screening_unavailable`, que está en `REVIEW_CODES`, línea 45), D-30 trata
+    `review` como `deny`, y la decisión queda guardada bajo la clave de idempotencia (la repetición devuelve lo mismo). Resultado: un intento de un comercio SIN coincidencias termina `failed/risk_denied`
+    por una lentitud pasajera de Watchman, sin posibilidad de reintentar. Mismo criterio de la regla 11 (una indisponibilidad del cribado es ambigua, no una condena). Visto en E1/E2 con la máquina cargada
+    (`evidencia/2h-e1-e2-repeat.txt`; en `pay-risk.log`: `Watchman no pudo cribar` / `TimeoutError`). Opciones para P5/P3: no persistir como decisión un `screening_unavailable` (devolver 503 reintentable) o definir la cola de revisión de D-30.
+11. **Ruido `Evento descartado … campo inválido: refund_id` en `pay-payments`** — observación para **P3/P4**. En el log de un stack recién creado (sin ningún reembolso) `pay-payments` descarta decenas de eventos
+    `kind: refund` sin `refund_id` válido (`src/events/handlers.ts:29,57`). No afecta a E1/E2, pero indica que llegan eventos al bus compartido desde fuera del stack (otras pruebas en la misma NATS) o que
+    algún productor emite `refund_id: null` (ver `contracts/asyncapi/connectors.yaml`, `refund_id` opcional). El arnés borra los streams `PAY_*` al empezar pero no puede aislar un NATS compartido.
+12. **`p2-bank.ts` (P2) todavía no usa `pay-mockbank`** — P2. `payerTransfersToBank` sigue lanzando. Con esta tanda E8 puede pedir `startStack({ mockbank: true })` y depositar con
+    `POST {pay-mockbank}/sandbox/payer/transfer-in` (ver § Capa sandbox).
 
 ## Cambios que esta tanda hizo en `pay-webhooks` (servicio de P1)
 
@@ -144,30 +163,51 @@ una clave que llegue DESPUÉS del cierre tampoco sirve. El comportamiento anteri
 Pruebas en tres niveles — correcto / límite / inválido: `services/pay-edge/test/replica.spec.ts` § D-32 (NATS, Postgres y Redis reales, 14 casos) y
 `e2e/flows/key-lifecycle.e2e.ts` (6 casos con procesos reales; la acción del operador es un [DOBLE] que hace lo mismo que `MerchantsService`). Tiempos medidos: ver `evidencia/`.
 
+## Estado de E1 y E2 (tanda 2h)
+
+**E1 y E2 están en la suite por defecto (`e2e/flows/e1.e2e.ts`, `e2e/flows/e2.e2e.ts`) y pasan con los 11 servicios reales** — sin debilitar aserciones (comparado con la versión de `e2e/pending/` de la tanda 2d:
+solo se AGREGARON comprobaciones: el nombre del pagador no vuelve en ninguna respuesta ni en lo que sale al comercio, `ledger_transfer_id`/`fee_minor`/`net_minor` del evento entregado, y un control negativo
+con una razón social de las listas OFAC que debe terminar `failed/risk_denied` sin asientos). Alta por la API real; cobro por la API pública con `payer_name`; cribado con Watchman real; callback del conector
+`mock`; `pay-payments` asienta en `pay-ledger` (TigerBeetle real): 97,00 en `merchant:X:pending`, 3,00 en `platform:fees`, débitos = créditos = 100,00, `GET /v1/balance` con `pending_minor = 9700`, y un
+`payment_intent.succeeded` al comercio (validado además contra el AsyncAPI en E6).
+
+- Suite completa `yarn e2e`: **14 suites, 80 pruebas en verde** (`evidencia/2h-e2e-full-run2.txt`, `2h-e2e-full-run4.txt`; la corrida 1, `2h-e2e-full-run1.txt`, fue 13 suites / 76 pruebas antes de agregar la capa sandbox).
+  Nombres de las pruebas de E1/E2 con su resultado: `evidencia/2h-e1-e2-tests.txt`.
+- **Honestidad sobre la estabilidad: E1/E2 NO son deterministas en esta máquina.** Corrí solo E1+E2 varias veces seguidas con la máquina compartida cargada (load average 10 a 18 en 4 núcleos, con jest/tsc de otros agentes):
+  sin ajustes fallaron 3 de 5 corridas (`evidencia/2h-e1-e2-repeat.txt`); con el calentamiento fallaron 3 de 6 (`…-repeat-conwarmup.txt`); con el calentamiento + los ajustes de entorno de abajo pasaron
+  **7 de 8** y la octava no llegó a ejecutarse por disco lleno (`ENOSPC`, ENVIRONMENT; `evidencia/2h-e1-e2-repeat-final.txt`). Los dos modos de fallo observados son los hallazgos 9 (`processing` para siempre) y 10
+  (`risk_denied` de un comercio limpio); ambos arrancan en una evaluación de riesgo lenta. Clasificación: **ENVIRONMENT** el disparador (CPU compartida; Watchman p50 30 a 100 ms y p90 65 a 383 ms,
+  `evidencia/2h-watchman-latencia.txt`; primera evaluación en frío 280 a 312 ms, `evidencia/2h-risk-primera-evaluacion.txt`) y **PRODUCT_BUG de P3 y P5** el efecto permanente. No se reintentan pruebas, no se
+  suben los tiempos de espera de las pruebas ni se debilita ninguna aserción.
+- **Qué hace el arnés para reducir el disparador (declarado, y NO arregla los defectos):**
+  1. Calentamiento por condición del camino de riesgo (`lib/warmup.ts`, ver arriba).
+  2. `SCREENING_TIMEOUT_MS=250` en `pay-risk` (el tope que admite su configuración; por defecto 200).
+  3. `RISK_TIMEOUT_MS=2000` en `pay-payments` (por defecto 300): evita el reintento con `409` mientras la primera evaluación sigue viva. Es un ajuste de entorno, como los `POLLER_*` de P4; el
+     reproductor `e2e/pending/risk-timeout.e2e.ts` lo vuelve a poner en 40 ms y muestra que el defecto de producto sigue ahí.
+  4. Rechazo claro (`ENTORNO: no hay espacio…`) si hay menos de 1,8 GiB libres, y borrado del archivo de datos de un `format` interrumpido.
+- Qué falta para que sean deterministas: que P3 haga reintentable el 409 y deje terminal al intento cuando el workflow muere (hallazgo 9), y que P5 no persista un `screening_unavailable` como veredicto (hallazgo 10); o una máquina
+  que no se comparta con otras suites.
+
+## Capa sandbox con `pay-mockbank` (propuesta #8 de P4, 2h)
+
+`startStack({ mockbank: true })` o `yarn e2e:up|boot|smoke -- --mockbank` lanzan `pay-mockbank` (puerto libre, base `pay_mockbank` con su DDL, `PAY_MODE=sandbox`, secreto sintético compartido con `pay-connectors`,
+callbacks a `…/callbacks/mock`, `PAY_QR_URL`) **antes** que `pay-connectors`, y le dan a este `MOCKBANK_URL`: el conector `mock` y la cuenta de transferencias hablan con el banco por HTTP en vez de usar su banco en memoria.
+Por defecto NO se lanza (E1/E2 y el resto corren con el banco en memoria). `flows/sandbox-mockbank.e2e.ts` (4 pruebas, correcto/límite/inválido): el banco arranca sano y TODA respuesta suya lleva
+`X-Pay-Mode: sandbox` (también el 403); identidad ajena y modo `live` o ausente ⇒ 403; un cobro de Bs 100,00 termina `succeeded` con 97,00/3,00 en el ledger real y una línea de crédito en el extracto de `collections`;
+el escenario `…01` (rechazado) termina `failed/payment_declined` sin asientos y el `…03` (duplicado) deja UN asiento y UNA línea. Arranque medido: 1384 ms (`evidencia/2h-boot-mockbank.txt`).
+**Dobles declarados:** `pay-mockbank` es un banco simulado (Q-01, Q-11 siguen abiertas) y no se presenta como el banco real. No cubierto: el depósito del pagador para `bank_transfer` (E8; ver hallazgo 12) y la conciliación de
+transferencias contra el extracto del banco simulado.
+
 ## Pendientes (`yarn e2e:pending`, fuera de la suite por defecto)
 
 | Archivo | Qué prueba | Qué lo bloquea hoy | Quién | Se pasa a `flows/` cuando |
 |---|---|---|---|---|
-| `e2e/pending/e1.e2e.ts` | E1: alta (siembra [DOBLE]) → `sk_test_` → cobro QR de Bs 100 → callback del conector `mock` → `succeeded` → ledger con 97,00 en `merchant:X:pending` y 3,00 en `platform:fees`, débitos = créditos, `GET /v1/balance` y un `payment_intent.succeeded` al comercio | D-29/D-30: el intento termina `failed` con `risk_denied` (medido: `last_error.code = risk_denied`); `pay-payments` no manda el nombre del comercio a `pay-risk` y `pay-risk` contesta `review` (`screening_not_provided`) | P3 + P5 (2c) | el intento llega a `succeeded` |
-| `e2e/pending/e2.e2e.ts` | E2 por la API pública: callback duplicado (…03), fuera de orden (…04) y perdido que resuelve la consulta de estado (…05, `STATUS_INQUIRY_MS=1000`): un solo `succeeded`, un solo asiento | el mismo `risk_denied` | P3 + P5 (2c) | ídem |
+| `e2e/pending/risk-timeout.e2e.ts` | REPRODUCTOR del hallazgo 9: cuatro cobros con `RISK_TIMEOUT_MS=40`; esperado `succeeded` | Falla HOY: el intento queda `processing` (409 tratado como rechazo definitivo) | P3 (con P5) | `assessRisk` reintente el 409 con la misma clave |
+| `e2e/pending/e4.e2e.ts` | E4 corte semanal → payout → conciliación → excepción | Carril P2/P4 (no tocado en esta tanda; no re-corrido) | P2 + P4 | Ver `docs/trabajo/ola-2/P2/FLUJOS-E4-E8.md` |
+| `e2e/pending/e5.e2e.ts`, `e2e/pending/e8.e2e.ts` | E5 y E8 (transferencia bancaria por extracto) | Carril P2/P4; E8 necesita `p2-bank.ts` sobre `pay-mockbank` (hallazgo 12) | P2 + P4 | Ídem |
 
-**Mover E1/E2 a la suite por defecto (un solo cambio mecánico, sin editar contenido):**
-
-```bash
-git mv e2e/pending/e1.e2e.ts e2e/flows/e1.e2e.ts
-git mv e2e/pending/e2.e2e.ts e2e/flows/e2.e2e.ts      # o: git mv e2e/pending/*.e2e.ts e2e/flows/
-```
-
-Las rutas relativas (`../lib/…`, `../stack.ts`) son iguales en `pending/` y en `flows/`, y `e2e/tsconfig.json` ya tipa las dos carpetas. `yarn e2e` recoge `flows/**/*.e2e.ts` sin tocar nada.
-`yarn e2e:pending` ya corre con `--passWithNoTests`: con la carpeta vacía termina en 0 («No tests found, exiting with code 0», comprobado). Comprobado también copiando un archivo a `flows/` (jest lo lista y `tsc` pasa).
-Los encabezados de ambos archivos dicen cuándo y cómo moverlos; después del `git mv` se puede borrar ese párrafo si se quiere.
-Condición para moverlos: que el intento llegue a `succeeded` (P3: nombre del comercio en el cribado y `payer_name`; P5: `legal_name` en los eventos y `screening_not_provided`). Correr `yarn e2e:pending` antes de mover.
-
-Lo que ya está probado hoy, contra los servicios REALES, de los mismos flujos (dentro de la suite por defecto):
-`flows/ledger-capture.e2e.ts` (el asiento exacto que manda `recordLedger`: 97,00/3,00, partida doble, idempotencia, `insufficient_funds`, 403 por identidad/modo/matriz) y
-`flows/connector-callbacks.e2e.ts` (…00, …03, …04, …05 y callback sin firma, hasta el evento del bus, un solo evento por cobro). Lo que NO está probado es el tramo del medio
-(`pay-payments` consume el evento, asienta en el ledger y cierra el intento) porque hoy el riesgo lo deniega antes.
-Una suposición sin verificar en E1/E2: que el intento exponga `succeeded_at` y que `GET /v1/balance` muestre `pending_minor = net_minor` (están en el contrato público; no se vieron correr).
+`yarn e2e:pending` corre con `--passWithNoTests`. E1 y E2 ya NO están acá: se movieron a `flows/` y pasan (§ Estado de E1 y E2). Una suposición que quedó verificada: el intento expone `succeeded_at` y `GET /v1/balance` muestra
+`pending_minor = net_minor` (E1 lo afirma y pasa).
 
 ## No cubierto
 
