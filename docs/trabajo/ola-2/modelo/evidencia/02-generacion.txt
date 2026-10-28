@@ -10,7 +10,8 @@ $ python3 salud-db/gen_ddl_pay.py
 [78/pay_settlement] 16 tablas · 7 FK intra · 0 FK diferidas · 0 inferidas · 13 índices · 1 saltadas
 [79/pay_vault] 4 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 4 índices · 1 saltadas
 [80/pay_webhooks] 6 tablas · 3 FK intra · 0 FK diferidas · 0 inferidas · 4 índices · 1 saltadas
-→ 11 bases en SQL/pay
+[81/pay_lib] 3 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 3 índices · 1 saltadas
+→ 12 bases en SQL/pay
 exit=0
 
 $ python3 salud-db/gen_ddl_pay.py --check
@@ -25,5 +26,6 @@ $ python3 salud-db/gen_ddl_pay.py --check
 [78/pay_settlement] 16 tablas · 7 FK intra · 0 FK diferidas · 0 inferidas · 13 índices · 1 saltadas
 [79/pay_vault] 4 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 4 índices · 1 saltadas
 [80/pay_webhooks] 6 tablas · 3 FK intra · 0 FK diferidas · 0 inferidas · 4 índices · 1 saltadas
+[81/pay_lib] 3 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 3 índices · 1 saltadas
 SQL/pay/ coincide con los .puml
 exit=0

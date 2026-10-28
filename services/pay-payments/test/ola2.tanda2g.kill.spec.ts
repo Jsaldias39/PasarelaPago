@@ -327,6 +327,8 @@ describe('señales duplicadas y reordenadas (el workflow las recibe juntas, con 
     expect(holdOf(refundId)?.status).toBe('posted');
     expect(stack.ledger.balance(`merchant:${MC}:available`)).toBe(18800);
     expect((await terminalEvents(refundId)).filter((t) => t.startsWith('refund.'))).toEqual(['refund.succeeded']);
+    // El workflow escala el conflicto DESPUÉS de confirmar la retención y de dejar el reembolso `succeeded`: se espera por condición, no por tiempo.
+    await waitFor(async () => ((await contradictionKinds(intent)).some((c) => c.kind === 'refund_status_conflict') ? true : undefined), 20_000, 'conflicto de reembolso escalado');
     expect((await contradictionKinds(intent)).map((c) => c.kind)).toContain('refund_status_conflict');
     row('señales (reembolso)', 'succeeded, succeeded y failed contradictorio en la misma ráfaga', 'succeeded; retención confirmada 1 vez; saldo 20000 → 18800; eventos terminales: refund.succeeded; conflicto escalado (refund_status_conflict)');
     await b.kill();
