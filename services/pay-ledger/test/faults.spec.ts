@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -28,8 +28,11 @@ const portOpen = (): Promise<boolean> =>
 let dir: string;
 let tb: ChildProcess | undefined;
 const startTb = async () => {
-  tb = spawn(BINARY, ['start', `--addresses=127.0.0.1:${PORT}`, join(dir, '0_0.tigerbeetle')], { stdio: 'ignore' });
-  expect(await waitFor(portOpen, 20_000, 200)).toBe(true);
+  const log = join(dir, `tb-${Date.now()}.log`);
+  tb = spawn(BINARY, ['start', `--addresses=127.0.0.1:${PORT}`, join(dir, '0_0.tigerbeetle')], { stdio: ['ignore', openSync(log, 'a'), openSync(log, 'a')] });
+  const opened = await waitFor(portOpen, 40_000, 200);
+  if (!opened) process.stderr.write(`TigerBeetle de la prueba no abrió el puerto ${PORT}:\n${readFileSync(log, 'utf8').slice(-1500)}\n`);
+  expect(opened).toBe(true);
 };
 const killTb = async () => {
   const proc = tb;

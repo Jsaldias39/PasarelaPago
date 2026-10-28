@@ -12,3 +12,23 @@ FAIL test/latency.spec.ts (59.473 s)
 Test Suites: 1 failed, 15 passed, 16 total
 Tests:       3 failed, 225 passed, 228 total
 ### corrida 2 pay-merchants
+Test Suites: 19 passed, 19 total
+Tests:       209 passed, 209 total
+### corrida 2 pay-schedules
+Test Suites: 14 passed, 14 total
+Tests:       200 passed, 200 total
+### corrida 2 pay-risk
+FAIL test/contract-conformance.spec.ts (23.47 s)
+  ● conformidad con internal-risk-v1.yaml › un pedido con TODOS los campos del esquema `AssessmentCreate` vigente (merchant_name, merchant_entity_type, name y entity_type) cumple el contrato y se acepta; la respuesta trae todos los campos de `Assessment`
+FAIL test/latency.spec.ts (74.474 s)
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 1 búsqueda en Watchman (solo el comercio: pagador invitado sin nombre): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › concurrencia moderada (4 clientes en paralelo), ≥ 400 llamadas — INFORMATIVA: el Watchman (monohilo por búsqueda) es el cuello de botella
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › el servicio SIN Watchman (cribado instantáneo [DOBLE]) aporta una fracción del presupuesto: p99 propio, ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › cada llamada medida dejó su rastro, con su duración interna registrada
+FAIL test/watchman.spec.ts (20.405 s)
+  ● cribado de sanciones contra moov Watchman REAL (v2-static, listas de 2019 SOLO sandbox) — P5.H2.M3 › correcto: una entrada pública de la lista (Hizballah) es `match` con su lista y su id; no se inventa ningún dato
+  ● cribado de sanciones contra moov Watchman REAL (v2-static, listas de 2019 SOLO sandbox) — P5.H2.M3 › correcto: un nombre sintético que no figura en la lista es `clear`
+Test Suites: 3 failed, 13 passed, 16 total
+Tests:       8 failed, 220 passed, 228 total
+DONE
