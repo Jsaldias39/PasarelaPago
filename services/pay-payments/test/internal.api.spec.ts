@@ -74,6 +74,22 @@ describe('internal-payments-v1 · cobro por mandato (pay-schedules)', () => {
     expect(rows.rows[0].n).toBe(1);
   });
 
+  it('el mismo mandato y periodo pedido a la vez por dos pagadores distintos: UN solo intento, ninguna respuesta 5xx (carrera contra el índice único del mandato)', async () => {
+    stack.ledger.setBalance(`merchant:${MC}:available`, 100000);
+    stack.ledger.setBalance(`merchant:${MC2}:available`, 100000);
+    const source = { kind: 'mandate', id: `md_${RUN}000009`, period: '2027-02' };
+    for (let round = 0; round < 5; round += 1) {
+      const roundSource = { ...source, period: `2027-0${round + 1}` };
+      const results = await Promise.all([
+        ...Array.from({ length: 4 }, () => post(body({ source: roundSource }), key())),
+        ...Array.from({ length: 4 }, () => post(body({ source: roundSource, payer_merchant_id: MC2, beneficiary_merchant_id: MC }), key())),
+      ]);
+      expect(results.filter((r) => r.status >= 500).map((r) => ({ status: r.status, code: r.body.code }))).toEqual([]);
+      const rows = await stack.db.pool.query(`SELECT count(*)::int AS n FROM payment_intents WHERE source ->> 'id' = $1 AND source ->> 'period' = $2`, [roundSource.id, roundSource.period]);
+      expect(rows.rows[0].n).toBe(1);
+    }
+  });
+
   it('sin saldo: 422 insufficient_funds y el intento queda failed con su evento; el saldo no cambia', async () => {
     stack.ledger.setBalance(`merchant:${MC}:available`, 100);
     const response = await post(body({ source: { kind: 'mandate', id: `md_${RUN}000003`, period: '2026-10' } }));

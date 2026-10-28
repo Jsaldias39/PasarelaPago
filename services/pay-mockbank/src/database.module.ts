@@ -1,5 +1,6 @@
 import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { Pool } from 'pg';
+import { guardPool } from './pool-guard';
 import { SERVICE_CONFIG, type ServiceConfig } from './config';
 
 /**
@@ -14,8 +15,8 @@ export const PG_POOL = Symbol('PG_POOL');
     {
       provide: PG_POOL,
       inject: [SERVICE_CONFIG],
-      useFactory: (config: ServiceConfig) =>
-        new Pool({
+      useFactory: (config: ServiceConfig) => {
+        const pool = new Pool({
           host: config.db.host,
           port: config.db.port,
           user: config.db.user,
@@ -23,7 +24,9 @@ export const PG_POOL = Symbol('PG_POOL');
           database: config.db.name,
           max: 10,
           application_name: 'pay-mockbank',
-        }),
+        });
+        return guardPool(pool, 'PgPool');
+      },
     },
   ],
   exports: [PG_POOL],

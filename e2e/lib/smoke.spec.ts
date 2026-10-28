@@ -35,3 +35,16 @@ describe('operaciones de los contratos', () => {
     expect(fill(op)).toMatch(/^\/webhook_endpoints\/we_a{10}$/);
   });
 });
+
+describe('el validador del contrato público que usa el humo detecta incumplimientos (control negativo del instrumento)', () => {
+  const load = async () => (await import('@pay/testing')).loadContract(`${process.cwd()}/contracts/openapi/public-v1.yaml`);
+
+  it('una respuesta que el contrato declara pasa; una forma ajena, un estado no declarado y una operación inexistente fallan', async () => {
+    const contract = await load();
+    const problem = { type: 'urn:alovida:pay:problem:validation_failed', title: 'La petición no es válida', status: 422, code: 'validation_failed' };
+    expect(contract.validateResponse({ method: 'POST', path: '/payment_intents', status: 422, body: problem })).toEqual([]);
+    expect(contract.validateResponse({ method: 'POST', path: '/payment_intents', status: 422, body: { esto: 'no es un problem+json' } }).length).toBeGreaterThan(0);
+    expect(contract.validateResponse({ method: 'POST', path: '/payment_intents', status: 418, body: problem }).length).toBeGreaterThan(0);
+    expect(contract.validateResponse({ method: 'GET', path: '/no_existe', status: 200, body: {} }).length).toBeGreaterThan(0);
+  });
+});

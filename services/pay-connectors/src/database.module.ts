@@ -2,6 +2,7 @@ import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/comm
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { defineConfig } from '@mikro-orm/postgresql';
 import { Pool } from 'pg';
+import { guardPool } from './pool-guard';
 import { SERVICE_CONFIG, loadConfig, type ServiceConfig } from './config';
 
 /** Pool de `pg` que usan las librerías @pay/* (idempotencia, outbox, inbox). El ORM tiene el suyo. */
@@ -34,8 +35,8 @@ const config = loadConfig();
     {
       provide: PG_POOL,
       inject: [SERVICE_CONFIG],
-      useFactory: (config: ServiceConfig) =>
-        new Pool({
+      useFactory: (config: ServiceConfig) => {
+        const pool = new Pool({
           host: config.db.host,
           port: config.db.port,
           user: config.db.user,
@@ -43,7 +44,9 @@ const config = loadConfig();
           database: config.db.name,
           max: 10,
           application_name: 'pay-connectors',
-        }),
+        });
+        return guardPool(pool, 'PgPool');
+      },
     },
   ],
   exports: [PG_POOL],

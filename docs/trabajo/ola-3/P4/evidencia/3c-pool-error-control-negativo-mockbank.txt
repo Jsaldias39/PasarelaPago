@@ -1,0 +1,17 @@
+# CONTROL NEGATIVO (mutación): guardPool sin manejadores en pay-mockbank -> el proceso real muere cuando Postgres corta una conexión
+# pay-mockbank/test/pool-error.spec.ts con guardPool reemplazado por un no-op; luego restaurado
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › correcto: una conexión ociosa cortada con pg_terminate_backend NO mata el proceso y el servicio sigue operando
+    TypeError: fetch failed
+        connect ECONNREFUSED 127.0.0.1:43899
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › límite: se cortan TODAS las conexiones ociosas a la vez; las siguientes peticiones, incluso concurrentes, se atienden
+    TypeError: fetch failed
+        connect ECONNREFUSED 127.0.0.1:43899
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › límite: corte a MITAD de una consulta de lectura: error del contrato (5xx problem+json, nunca «no existe»), el cobro no se toca y el proceso sigue vivo
+    TypeError: fetch failed
+        connect ECONNREFUSED 127.0.0.1:43899
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › límite: corte a MITAD de una transacción (cliente PRESTADO, el reembolso): error del contrato, proceso vivo, nada a medias, y reintentar con la MISMA referencia converge en UN
+    TypeError: fetch failed
+        connect ECONNREFUSED 127.0.0.1:43899
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › inválido: ni el mensaje del error de Postgres, ni el SQL, ni la cadena de conexión llegan al registro del proceso; sí queda el nombre del error (control positivo)
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 5 total

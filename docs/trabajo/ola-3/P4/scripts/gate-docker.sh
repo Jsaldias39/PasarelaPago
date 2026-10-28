@@ -17,6 +17,8 @@ declare -A ENVS=(
 bad=0
 cd "$ROOT" || exit 1
 echo "docker $(docker version --format '{{.Server.Version}}') · imagen base: ${HUB}/library/node:22-alpine"
+disk() { echo "   disco (df -h /): $(df -h / | awk 'NR==2 {print "usado "$3" de "$2", libre "$4" ("$5")"}')"; }
+echo "antes de empezar:"; disk
 for svc in pay-connectors pay-qr pay-mockbank; do
   echo
   echo "══ ${svc} ══"
@@ -45,6 +47,10 @@ for svc in pay-connectors pay-qr pay-mockbank; do
   else
     echo "FALLA no se pudo construir la imagen de ejecución"; bad=$((bad+1))
   fi
+  # Higiene del disco compartido: tras CADA construcción se borran las imágenes propias y la caché del constructor.
+  docker image rm -f "p4gate-${svc}:prod" "p4gate-runtime-${svc}:run" >/dev/null 2>&1
+  docker builder prune -f >/dev/null 2>&1
+  echo "limpieza de ${svc}: imágenes p4gate-* restantes = $(docker images --format '{{.Repository}}' | grep -c '^p4gate-'), caché del constructor purgada"; disk
 done
 echo
 echo "causa del GAP de la construcción real (comprobación independiente): ¿alcanza el registro desde un contenedor?"
@@ -55,5 +61,6 @@ docker images --format '{{.Repository}}:{{.Tag}}' | grep '^p4gate-' | xargs -r d
 echo "  imágenes p4gate-* restantes: $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -c '^p4gate-')"
 docker builder prune -f >/dev/null 2>&1
 echo "  contenedores p4gate en ejecución: $(docker ps --format '{{.Image}}' | grep -c '^p4gate-')"
+echo "  al terminar:"; disk
 echo
 echo "RESULTADO: construcciones reales con GAP: ${bad} (ver causa arriba); el escenario de ejecución de la imagen se comprueba aparte."

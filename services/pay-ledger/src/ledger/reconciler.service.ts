@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { TransferFlags, type Transfer } from 'tigerbeetle-node';
 import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database.module';
+import { watchClient } from '../pg-client';
 import { holdGroupId, toHex128, txGroupId } from './ids';
 import { LEDGER_CONFIG, type LedgerConfig } from './ledger.config';
 import { KEY_MODE_OF, type PayMode } from './mode';
@@ -55,6 +56,11 @@ export interface ReconciliationReport {
   readonly matched: number;
   readonly orphans: readonly OrphanGroup[];
   readonly resolutionAhead: readonly ResolutionAhead[];
+  /**
+   * Retenciones aplicadas en TigerBeetle y no registradas en Postgres que YA VENCIERON sin que nadie las resolviera: TigerBeetle devolvió el monto solo
+   * (`timeout`), así que no hay dinero retenido ni nada que adoptar. Se cuentan, no se alertan (si no, el aviso duraría toda la ventana).
+   */
+  readonly expiredHolds: number;
   /** `skipped`: por qué no corrió. `failed`: qué falló (solo el nombre y el mensaje; nunca datos de personas). */
   readonly detail?: string;
 }
@@ -130,7 +136,7 @@ export class ReconcilerService {
     const startedAt = new Date();
     const trigger = options.trigger ?? 'manual';
     const finish = (status: ReconciliationStatus, rest: Partial<ReconciliationReport> = {}): ReconciliationReport => {
-      const report: ReconciliationReport = { status, trigger, mode, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString(), scanned: 0, groups: 0, matched: 0, orphans: [], resolutionAhead: [], ...rest };
+      const report: ReconciliationReport = { status, trigger, mode, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString(), scanned: 0, groups: 0, matched: 0, orphans: [], resolutionAhead: [], expiredHolds: 0, ...rest };
       this.record(report);
       return report;
     };
@@ -147,9 +153,11 @@ export class ReconcilerService {
 
   private async run(mode: PayMode, startedAt: Date, options: ReconcileOptions, finish: (s: ReconciliationStatus, r?: Partial<ReconciliationReport>) => ReconciliationReport): Promise<ReconciliationReport> {
     let client: PoolClient | undefined;
+    let watch: ReturnType<typeof watchClient> | undefined;
     let locked = false;
     try {
       client = await this.pool.connect();
+      watch = watchClient(client);
       const lock = await client.query<{ got: boolean }>(`SELECT pg_try_advisory_lock(hashtext('ledger:reconciler:' || current_schema() || ':' || $1)) AS got`, [mode]);
       locked = lock.rows[0].got;
       if (!locked) return finish('skipped', { detail: 'otra réplica está reconciliando' });
@@ -179,7 +187,9 @@ export class ReconcilerService {
 
       // 3. Lo que falta, con los nombres de cuenta que Postgres conozca.
       const accountNames = await this.accountNames(client, mode, unmatched.flatMap((key) => (groups.get(key) as Transfer[]).flatMap((t) => [t.debit_account_id, t.credit_account_id])));
-      const orphans = unmatched.map((key) => this.orphan(mode, key, groups.get(key) as Transfer[], accountNames)).sort((a, b) => a.groupId.localeCompare(b.groupId));
+      const nowNs = BigInt(now.getTime()) * 1_000_000n;
+      const lapsed = unmatched.filter((key) => this.lapsedHold(groups.get(key) as Transfer[], nowNs));
+      const orphans = unmatched.filter((key) => !lapsed.includes(key)).map((key) => this.orphan(mode, key, groups.get(key) as Transfer[], accountNames)).sort((a, b) => a.groupId.localeCompare(b.groupId));
       const resolutionAhead: ResolutionAhead[] = [];
       for (const [key, list] of groups) {
         const row = known.get(key);
@@ -194,8 +204,9 @@ export class ReconcilerService {
       return finish(orphans.length + resolutionAhead.length === 0 ? 'ok' : 'diverged', {
         scanned: transfers.length,
         groups: groups.size,
-        matched: groups.size - orphans.length,
+        matched: groups.size - orphans.length - lapsed.length,
         orphans,
+        expiredHolds: lapsed.length,
         resolutionAhead,
       });
     } catch (error) {
@@ -205,7 +216,7 @@ export class ReconcilerService {
     } finally {
       if (client) {
         if (locked) await client.query(`SELECT pg_advisory_unlock(hashtext('ledger:reconciler:' || current_schema() || ':' || $1))`, [mode]).catch(() => undefined);
-        client.release();
+        watch?.release();
       }
     }
   }
@@ -227,6 +238,11 @@ export class ReconcilerService {
     if (hex.length === 0) return new Map();
     const rows = await client.query<{ tb_id: string; account: string }>('SELECT tb_id, account FROM ledger_accounts WHERE mode = $1 AND tb_id = ANY($2)', [mode, hex]);
     return new Map(rows.rows.map((r) => [r.tb_id, r.account]));
+  }
+
+  /** ¿Es solo una retención pendiente (sin post/void) cuyo plazo ya pasó? TigerBeetle la venció sola: el monto volvió a la cuenta de origen. */
+  private lapsedHold(list: readonly Transfer[], nowNs: bigint): boolean {
+    return list.every((t) => (t.flags & TransferFlags.pending) !== 0 && t.timeout > 0 && t.timestamp + BigInt(t.timeout) * 1_000_000_000n <= nowNs);
   }
 
   private orphan(mode: PayMode, groupId: string, list: readonly Transfer[], names: ReadonlyMap<string, string>): OrphanGroup {

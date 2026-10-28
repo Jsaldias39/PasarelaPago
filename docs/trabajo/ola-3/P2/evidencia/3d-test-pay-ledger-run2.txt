@@ -1,0 +1,1576 @@
+(node:5667) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5665) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:32 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'1000'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'c871b0402ee665ac6ea87128692e1abe'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'7a1176b818a4dcda028c868d2b24f48b'[39m,
+          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
+          creditAccount: [32m'merchant:mc_07db35062ad8k3m9:pending'[39m,
+          amountMinor: [32m'970'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:32.818Z'[39m
+        },
+        {
+          transferId: [32m'c1616fd7f1f29eea38cc221c64c56ff4'[39m,
+          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
+          creditAccount: [32m'platform:fees'[39m,
+          amountMinor: [32m'30'[39m,
+          code: [32m'fee'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:32.818Z'[39m
+        }
+      ],
+      totalMinor: [32m'1000'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:32 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'150'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'7361e35c6a501bd568b2010022e5cf3a'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'45103c065590efc9b1583e07ce37ced2'[39m,
+          debitAccount: [32m'merchant:mc_d07c675b7df4k3m9:pending'[39m,
+          creditAccount: [32m'connector:mercantil_qr:clearing'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:32.960Z'[39m
+        },
+        {
+          transferId: [32m'010396639f7ee0dbcffbe4abcf29b2fe'[39m,
+          debitAccount: [32m'tb:f743dc707dcc5ff097e4ae09d8338258'[39m,
+          creditAccount: [32m'connector:mercantil_qr:clearing'[39m,
+          amountMinor: [32m'50'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:32.960Z'[39m
+        }
+      ],
+      totalMinor: [32m'150'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:33 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'400'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'11aeeaf458cf026676f88d9b657c6def'[39m,
+      kind: [32m'hold'[39m,
+      legs: [
+        {
+          transferId: [32m'1afddef7c9c216bb594a4a8d1b1a332f'[39m,
+          debitAccount: [32m'merchant:mc_0808d72fafcfk3m9:available'[39m,
+          creditAccount: [32m'payout:clearing'[39m,
+          amountMinor: [32m'400'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'pending'[39m,
+          appliedAt: [32m'2026-10-28T01:29:33.065Z'[39m
+        }
+      ],
+      totalMinor: [32m'400'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:33 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'300'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'4afb1a727211543cbff5dbaa6070dfca'[39m,
+      kind: [32m'hold'[39m,
+      legs: [
+        {
+          transferId: [32m'a8c7ea48b11ced35c937400798011696'[39m,
+          debitAccount: [32m'merchant:mc_e50b91890187k3m9:available'[39m,
+          creditAccount: [32m'payout:clearing'[39m,
+          amountMinor: [32m'300'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'pending'[39m,
+          appliedAt: [32m'2026-10-28T01:29:33.183Z'[39m
+        }
+      ],
+      totalMinor: [32m'300'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:34 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:34 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m0[39m,
+    orphan_amount_minor: [32m'0'[39m,
+    resolution_ahead: [33m1[39m
+  },
+  orphans: [],
+  resolutionAhead: [
+    {
+      mode: [32m'test'[39m,
+      holdId: [32m'hd_nwimfgixzukabgnk54q7'[39m,
+      action: [32m'post'[39m,
+      transferId: [32m'669ba4fdf2d1bf94c2710941ae2bda85'[39m,
+      amountMinor: [32m'400'[39m
+    }
+  ]
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:34 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:34 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'5'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'6b0d2a6ed841933b8def703730a8adea'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'43fce757f3a2a96dc56921bd4a23bf83'[39m,
+          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
+          creditAccount: [32m'merchant:mc_e67fbbe59bdfk3m9:pending'[39m,
+          amountMinor: [32m'5'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:34.854Z'[39m
+        }
+      ],
+      totalMinor: [32m'5'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:35 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'live'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'42'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'live'[39m,
+      groupId: [32m'73d3c0a9c0414a4f2cf73599262c8fff'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'1012e23bdbe907f274e6f40498edd49d'[39m,
+          debitAccount: [32m'tb:dbf03a8176c17658fc61c5ac681c5906'[39m,
+          creditAccount: [32m'tb:1fab73d9564e44aa991f2c73a74fcafc'[39m,
+          amountMinor: [32m'42'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:35.663Z'[39m
+        }
+      ],
+      totalMinor: [32m'42'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:35 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:35 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'33'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'ee89a724c887ef8877ffa6a01e74485f'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'bc73bfcfe80c59789b2669a3cbf6871b'[39m,
+          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
+          creditAccount: [32m'merchant:mc_079a259770e0k3m9:pending'[39m,
+          amountMinor: [32m'33'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:35.735Z'[39m
+        }
+      ],
+      totalMinor: [32m'33'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:35 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'33'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'ee89a724c887ef8877ffa6a01e74485f'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'bc73bfcfe80c59789b2669a3cbf6871b'[39m,
+          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
+          creditAccount: [32m'merchant:mc_079a259770e0k3m9:pending'[39m,
+          amountMinor: [32m'33'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:35.735Z'[39m
+        }
+      ],
+      totalMinor: [32m'33'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:35 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'33'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'ee89a724c887ef8877ffa6a01e74485f'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'bc73bfcfe80c59789b2669a3cbf6871b'[39m,
+          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
+          creditAccount: [32m'merchant:mc_079a259770e0k3m9:pending'[39m,
+          amountMinor: [32m'33'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:35.735Z'[39m
+        }
+      ],
+      totalMinor: [32m'33'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:35 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:35 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'8'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'd69d3bb50d353194f948e53e7fdeaec8'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'd5dedb59bb556ce7b8f97e88a12ed2b4'[39m,
+          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
+          creditAccount: [32m'merchant:mc_1bc63aedce3fk3m9:pending'[39m,
+          amountMinor: [32m'8'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:35.872Z'[39m
+        }
+      ],
+      totalMinor: [32m'8'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:36 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'live'[39m,
+  trigger: [32m'manual'[39m,
+  metric: {
+    orphan_groups: [33m1[39m,
+    orphan_amount_minor: [32m'42'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'live'[39m,
+      groupId: [32m'73d3c0a9c0414a4f2cf73599262c8fff'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'1012e23bdbe907f274e6f40498edd49d'[39m,
+          debitAccount: [32m'tb:dbf03a8176c17658fc61c5ac681c5906'[39m,
+          creditAccount: [32m'tb:1fab73d9564e44aa991f2c73a74fcafc'[39m,
+          amountMinor: [32m'42'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:29:35.663Z'[39m
+        }
+      ],
+      totalMinor: [32m'42'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:50 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'42P01'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:50 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'42P01'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:50 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(4) {
+  event: [32m'ledger.reconciliation.failed'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'startup'[39m,
+  detail: [32m'error: relation "ledger_transactions" does not exist'[39m
+}
+No se pudo reconciliar TigerBeetle con Postgres: no se concluyó nada de este recorrido
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:50 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'42P01'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:51 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'42P01'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:51 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(4) {
+  event: [32m'ledger.reconciliation.failed'[39m,
+  mode: [32m'live'[39m,
+  trigger: [32m'startup'[39m,
+  detail: [32m'error: relation "ledger_transactions" does not exist'[39m
+}
+No se pudo reconciliar TigerBeetle con Postgres: no se concluyó nada de este recorrido
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:51 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'42P01'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:51 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(4) {
+  event: [32m'ledger.reconciliation.failed'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'startup'[39m,
+  detail: [32m'TypeError: this.tb.scanMarkedTransfers is not a function'[39m
+}
+No se pudo reconciliar TigerBeetle con Postgres: no se concluyó nada de este recorrido
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:53 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'42P01'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:54 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'42P01'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:29:55 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'42P01'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:30:00 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'42P01'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:30:01 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:30:03 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'42P01'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:30:08 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'startup'[39m,
+  metric: {
+    orphan_groups: [33m147[39m,
+    orphan_amount_minor: [32m'281343'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'000792c93f7b04faca31ff5b84ec126e'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'063617cb3c0009864926bda6b29ab98e'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:1b01f0664df270d124bd7b560334cbe8'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:42.025Z'[39m
+        }
+      ],
+      totalMinor: [32m'100'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'004973ce8a1e83ce90755fec6c3877d5'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'0b092788472bf36eddf63add4d248ad7'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:8b600075ee7ce103643f6daf08555730'[39m,
+          amountMinor: [32m'500'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:43.147Z'[39m
+        }
+      ],
+      totalMinor: [32m'500'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'01075433890d82eeee842dfc09483375'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'a7f684a2a105525e0183a0f755ea845b'[39m,
+          debitAccount: [32m'tb:a0297d71c763645d57d3102651e630b8'[39m,
+          creditAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          amountMinor: [32m'8000'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:41.713Z'[39m
+        }
+      ],
+      totalMinor: [32m'8000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'080a7ecb6df3285052f0da539f9fbd08'[39m,
+      kind: [32m'hold'[39m,
+      legs: [
+        {
+          transferId: [32m'c748989fa2d1fc009ed4b3e687fbed44'[39m,
+          debitAccount: [32m'tb:3781e97619cada98aeddf48d7c5aadad'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'pending'[39m,
+          appliedAt: [32m'2026-10-28T01:26:54.255Z'[39m
+        },
+        {
+          transferId: [32m'aeb0d0de4f2de3e742d13aed6766420d'[39m,
+          debitAccount: [32m'tb:3781e97619cada98aeddf48d7c5aadad'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'void'[39m,
+          appliedAt: [32m'2026-10-28T01:26:54.265Z'[39m
+        }
+      ],
+      totalMinor: [32m'100'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'089ce48ec9b7648ccc7c3a176412c1f1'[39m,
+      kind: [32m'hold'[39m,
+      legs: [
+        {
+          transferId: [32m'b76374dc0930d0361fc4b3651ca68e82'[39m,
+          debitAccount: [32m'tb:3781e97619cada98aeddf48d7c5aadad'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'pending'[39m,
+          appliedAt: [32m'2026-10-28T01:26:54.225Z'[39m
+        },
+        {
+          transferId: [32m'1ce79221ff5838054ffb47730a2b14bb'[39m,
+          debitAccount: [32m'tb:3781e97619cada98aeddf48d7c5aadad'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'void'[39m,
+          appliedAt: [32m'2026-10-28T01:26:54.244Z'[39m
+        }
+      ],
+      totalMinor: [32m'100'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'09287f34d5cb5436a7ceca04c93d9ebb'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'37767f79583222c3e0c5c1bec87b7250'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:60f9b5b30d64d6276d480c6c7fb58b42'[39m,
+          amountMinor: [32m'970'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:44.311Z'[39m
+        },
+        {
+          transferId: [32m'53184202bedd65e5cb0c878bb21e432f'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:41bda7c00ea9b23771a88b4483d5463e'[39m,
+          amountMinor: [32m'30'[39m,
+          code: [32m'fee'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:44.311Z'[39m
+        }
+      ],
+      totalMinor: [32m'1000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0c057a49c826b635cf926313395bbb36'[39m,
+      kind: [32m'hold'[39m,
+      legs: [
+        {
+          transferId: [32m'5f6d20ad3dd37011ed2ffa5e6f33e68c'[39m,
+          debitAccount: [32m'tb:db62c0341b24c72034f2fbbd71730007'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'1000'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'pending'[39m,
+          appliedAt: [32m'2026-10-28T01:26:53.860Z'[39m
+        },
+        {
+          transferId: [32m'd85e91686f15772f0feff8d568cf6dbe'[39m,
+          debitAccount: [32m'tb:db62c0341b24c72034f2fbbd71730007'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'1000'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'void'[39m,
+          appliedAt: [32m'2026-10-28T01:26:53.892Z'[39m
+        }
+      ],
+      totalMinor: [32m'1000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0c0a77bba3bbee47c4fea55fd9279b01'[39m,
+      kind: [32m'hold'[39m,
+      legs: [
+        {
+          transferId: [32m'344267c43b82e7c7f2943e26f9d1a1df'[39m,
+          debitAccount: [32m'tb:3632017d336a97cfc9d294b336b183a8'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'2000'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'pending'[39m,
+          appliedAt: [32m'2026-10-28T01:26:56.604Z'[39m
+        },
+        {
+          transferId: [32m'35b4590e7688a1fd40c1bdd02e169b65'[39m,
+          debitAccount: [32m'tb:3632017d336a97cfc9d294b336b183a8'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'2000'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'void'[39m,
+          appliedAt: [32m'2026-10-28T01:26:56.619Z'[39m
+        }
+      ],
+      totalMinor: [32m'2000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0d46ca758180ecf52985a5be073d636d'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'f0ac61c5b5d3396df4b402308398fc88'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:7baa790de543f644b0084b7ae7b81caf'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:45.403Z'[39m
+        }
+      ],
+      totalMinor: [32m'100'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0e7d382ea680f050ab696b34d5d91ca1'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'4cf9c405c745827fd2d41bc1483f6af3'[39m,
+          debitAccount: [32m'tb:d95f163b932bfe161a7e877e1ac9a230'[39m,
+          creditAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          amountMinor: [32m'30'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:42.542Z'[39m
+        }
+      ],
+      totalMinor: [32m'30'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0eedbee685a9d715233df27d1b5ce4ca'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'a8abd2b9dbcf3a27e3c52ac44ade89ff'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:6f03fbd431f62706b71893f9f53e4d0c'[39m,
+          amountMinor: [32m'970'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:44.407Z'[39m
+        },
+        {
+          transferId: [32m'5723c3112c2bd8d349ee425606542ca7'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:41bda7c00ea9b23771a88b4483d5463e'[39m,
+          amountMinor: [32m'30'[39m,
+          code: [32m'fee'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:44.407Z'[39m
+        }
+      ],
+      totalMinor: [32m'1000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0f42ead4f616166bea2b059fbeccc508'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'242c41896a6275e820a8ea9dd8a6e7b1'[39m,
+          debitAccount: [32m'tb:f1d0dabcccc36fc9b204002f53d041f0'[39m,
+          creditAccount: [32m'tb:9abfe147a0c2f70d3eb42ecb4685e682'[39m,
+          amountMinor: [32m'5000'[39m,
+          code: [32m'release'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:41.068Z'[39m
+        }
+      ],
+      totalMinor: [32m'5000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0ff292e19c7d46f6534e8718382945a4'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'44640d29618884d3b70aa0ac16bf5ae8'[39m,
+          debitAccount: [32m'tb:ae19153c68560296c84e134e39e2950f'[39m,
+          creditAccount: [32m'tb:a403af7a44f7a84d3437e98ed4627aee'[39m,
+          amountMinor: [32m'7000'[39m,
+          code: [32m'release'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:40.825Z'[39m
+        }
+      ],
+      totalMinor: [32m'7000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'114cd9a3188642664de052255b317667'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'9bcb7578f4271c3a9c951fb7ade182b5'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:847e56770cae1c765da3328e0717f99c'[39m,
+          amountMinor: [32m'5000'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:43.605Z'[39m
+        }
+      ],
+      totalMinor: [32m'5000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'116740b30f8a9f57bf53a2068de0b897'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'11e476818f4bc60071754e162dbeb1de'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:4a1ed57d0ba3d6595b296dc8f2aa73bd'[39m,
+          amountMinor: [32m'10000'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:56.274Z'[39m
+        }
+      ],
+      totalMinor: [32m'10000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'12f61126edfde2e30d85766c6f9efcfe'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'78e4afc3851ba46a4579ee4a4f5c7174'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:26d99e8f1bedc1575168048bdb8c779f'[39m,
+          amountMinor: [32m'2500'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:57.225Z'[39m
+        }
+      ],
+      totalMinor: [32m'2500'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'14fc7a24a4b7be6b74e020a40f58d55b'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'2a904ecd1d7a86d7f744dc478129c616'[39m,
+          debitAccount: [32m'tb:a403af7a44f7a84d3437e98ed4627aee'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'7000'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:40.849Z'[39m
+        }
+      ],
+      totalMinor: [32m'7000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'183341bcd347b36d6766e66ec1162c1d'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'0161594efbdfb5c85c89a10b575df6a5'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:95c0ce6ecf3f0adcfbdbb87c3eb48f97'[39m,
+          amountMinor: [32m'1'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:43.787Z'[39m
+        }
+      ],
+      totalMinor: [32m'1'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'1d6a5df25e3fdb7e7f5741000a509d31'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'488c95aa5fde561c994fd0d5779bb2a8'[39m,
+          debitAccount: [32m'tb:d95f163b932bfe161a7e877e1ac9a230'[39m,
+          creditAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          amountMinor: [32m'10'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:42.585Z'[39m
+        },
+        {
+          transferId: [32m'420ddacb65618a22b55108827f23f297'[39m,
+          debitAccount: [32m'tb:f0a2ca6c0974c7d06532428ecd144100'[39m,
+          creditAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          amountMinor: [32m'20'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:42.585Z'[39m
+        }
+      ],
+      totalMinor: [32m'30'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'1f0beb5b907e91b71215126f23b74eb0'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'89f1ab705ddd6687d47f4689568ab019'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:582b788b5a96f9971a6f409423c40896'[39m,
+          amountMinor: [32m'500'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:43.096Z'[39m
+        }
+      ],
+      totalMinor: [32m'500'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 161506690185401199976831354363711275646: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 5667  - [39m10/28/2026, 1:30:19 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+{"level":30,"time":1793151019703,"pid":5665,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":2,"msg":"request completed"}
+[31m[Nest] 5665  - [39m10/28/2026, 1:30:19 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'8845ed0e-4b0d-4080-958f-d785fdc99a6b'[39m
+}
+Error no controlado
+{"level":30,"time":1793151019713,"pid":5665,"hostname":"vm","req":{"id":"8845ed0e-4b0d-4080-958f-d785fdc99a6b","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":2,"msg":"request errored"}
+{"level":30,"time":1793151019718,"pid":5665,"hostname":"vm","req":{"id":"837d7dbb-f884-4090-8515-bc62e9071707","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+[31m[Nest] 5665  - [39m10/28/2026, 1:30:19 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+  event: [32m'ledger.reconciliation.diverged'[39m,
+  mode: [32m'test'[39m,
+  trigger: [32m'startup'[39m,
+  metric: {
+    orphan_groups: [33m251[39m,
+    orphan_amount_minor: [32m'444580'[39m,
+    resolution_ahead: [33m0[39m
+  },
+  orphans: [
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'000792c93f7b04faca31ff5b84ec126e'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'063617cb3c0009864926bda6b29ab98e'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:1b01f0664df270d124bd7b560334cbe8'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:42.025Z'[39m
+        }
+      ],
+      totalMinor: [32m'100'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'004973ce8a1e83ce90755fec6c3877d5'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'0b092788472bf36eddf63add4d248ad7'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:8b600075ee7ce103643f6daf08555730'[39m,
+          amountMinor: [32m'500'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:43.147Z'[39m
+        }
+      ],
+      totalMinor: [32m'500'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'00ef754fabc85c79a865f65138b974c5'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'35d16bd4eb67ec7d963290e5b77453c5'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:41bda7c00ea9b23771a88b4483d5463e'[39m,
+          amountMinor: [32m'1'[39m,
+          code: [32m'fee'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:16.270Z'[39m
+        }
+      ],
+      totalMinor: [32m'1'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'01075433890d82eeee842dfc09483375'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'a7f684a2a105525e0183a0f755ea845b'[39m,
+          debitAccount: [32m'tb:a0297d71c763645d57d3102651e630b8'[39m,
+          creditAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          amountMinor: [32m'8000'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:41.713Z'[39m
+        }
+      ],
+      totalMinor: [32m'8000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'01d0eae6389cb5168247022e3929bbb8'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'3e20565b431e4f2caeed8385effd5a08'[39m,
+          debitAccount: [32m'tb:8d638758eb6af10d8d79e968b163a41d'[39m,
+          creditAccount: [32m'tb:b2eeeef7f5da75dc28e4adecf7bffe0b'[39m,
+          amountMinor: [32m'2000'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:15.071Z'[39m
+        }
+      ],
+      totalMinor: [32m'2000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'027f214028d099126b3d62a51bfd93d7'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'138d4f8fbda078b48bd6037bb86f7933'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:c523e291d475718f6040af972cc2e9b9'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:12.208Z'[39m
+        }
+      ],
+      totalMinor: [32m'100'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'03a8aec7785a9b56f6bc6633ad03b271'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'e18fef45541f1cb8aa282dee4413532b'[39m,
+          debitAccount: [32m'tb:a2898ef719bd5edc70a5013d8626e760'[39m,
+          creditAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          amountMinor: [32m'30'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:12.948Z'[39m
+        }
+      ],
+      totalMinor: [32m'30'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0479dd9a5618c59bab497620ce764591'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'0f2d6f0bb678a5f379de75e90f01197b'[39m,
+          debitAccount: [32m'tb:aa510ef0e7c84b5cd4a0c1d0c018e022'[39m,
+          creditAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:12.654Z'[39m
+        }
+      ],
+      totalMinor: [32m'100'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'06981093e702dcaee7c2ea5e2ed017f8'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'794445d79059e0f7791b0ba0dee834af'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:f86ed576fdf8b17e2a30f6ca607ae6d0'[39m,
+          amountMinor: [32m'970'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:16.637Z'[39m
+        },
+        {
+          transferId: [32m'1158130a02038ed08438b751d61b80d9'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:41bda7c00ea9b23771a88b4483d5463e'[39m,
+          amountMinor: [32m'30'[39m,
+          code: [32m'fee'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:16.637Z'[39m
+        }
+      ],
+      totalMinor: [32m'1000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'07bc5130f25075ce8024bd7f14277735'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'da3312cfcf93d8ca5ecbf8e1d789f436'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:2654c793387f990087ad1cc959599b71'[39m,
+          amountMinor: [32m'970'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:16.452Z'[39m
+        },
+        {
+          transferId: [32m'7cb607a184a7b3e9de2db51e4ca77739'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:41bda7c00ea9b23771a88b4483d5463e'[39m,
+          amountMinor: [32m'30'[39m,
+          code: [32m'fee'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:16.452Z'[39m
+        }
+      ],
+      totalMinor: [32m'1000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'080a7ecb6df3285052f0da539f9fbd08'[39m,
+      kind: [32m'hold'[39m,
+      legs: [
+        {
+          transferId: [32m'c748989fa2d1fc009ed4b3e687fbed44'[39m,
+          debitAccount: [32m'tb:3781e97619cada98aeddf48d7c5aadad'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'pending'[39m,
+          appliedAt: [32m'2026-10-28T01:26:54.255Z'[39m
+        },
+        {
+          transferId: [32m'aeb0d0de4f2de3e742d13aed6766420d'[39m,
+          debitAccount: [32m'tb:3781e97619cada98aeddf48d7c5aadad'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'void'[39m,
+          appliedAt: [32m'2026-10-28T01:26:54.265Z'[39m
+        }
+      ],
+      totalMinor: [32m'100'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'089ce48ec9b7648ccc7c3a176412c1f1'[39m,
+      kind: [32m'hold'[39m,
+      legs: [
+        {
+          transferId: [32m'b76374dc0930d0361fc4b3651ca68e82'[39m,
+          debitAccount: [32m'tb:3781e97619cada98aeddf48d7c5aadad'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'pending'[39m,
+          appliedAt: [32m'2026-10-28T01:26:54.225Z'[39m
+        },
+        {
+          transferId: [32m'1ce79221ff5838054ffb47730a2b14bb'[39m,
+          debitAccount: [32m'tb:3781e97619cada98aeddf48d7c5aadad'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'void'[39m,
+          appliedAt: [32m'2026-10-28T01:26:54.244Z'[39m
+        }
+      ],
+      totalMinor: [32m'100'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'09287f34d5cb5436a7ceca04c93d9ebb'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'37767f79583222c3e0c5c1bec87b7250'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:60f9b5b30d64d6276d480c6c7fb58b42'[39m,
+          amountMinor: [32m'970'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:44.311Z'[39m
+        },
+        {
+          transferId: [32m'53184202bedd65e5cb0c878bb21e432f'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:41bda7c00ea9b23771a88b4483d5463e'[39m,
+          amountMinor: [32m'30'[39m,
+          code: [32m'fee'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:44.311Z'[39m
+        }
+      ],
+      totalMinor: [32m'1000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0bdfded81f9264ad4b6669de66b4abd8'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'0a5b00454b1836fba620ea5f1a897e08'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:dd910bd8ff7c3b9aeff612ca2b9758cc'[39m,
+          amountMinor: [32m'9700'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:09.088Z'[39m
+        },
+        {
+          transferId: [32m'f219db0cf824b06f39ab07afaf1c31e5'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:41bda7c00ea9b23771a88b4483d5463e'[39m,
+          amountMinor: [32m'300'[39m,
+          code: [32m'fee'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:09.088Z'[39m
+        }
+      ],
+      totalMinor: [32m'10000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0c057a49c826b635cf926313395bbb36'[39m,
+      kind: [32m'hold'[39m,
+      legs: [
+        {
+          transferId: [32m'5f6d20ad3dd37011ed2ffa5e6f33e68c'[39m,
+          debitAccount: [32m'tb:db62c0341b24c72034f2fbbd71730007'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'1000'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'pending'[39m,
+          appliedAt: [32m'2026-10-28T01:26:53.860Z'[39m
+        },
+        {
+          transferId: [32m'd85e91686f15772f0feff8d568cf6dbe'[39m,
+          debitAccount: [32m'tb:db62c0341b24c72034f2fbbd71730007'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'1000'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'void'[39m,
+          appliedAt: [32m'2026-10-28T01:26:53.892Z'[39m
+        }
+      ],
+      totalMinor: [32m'1000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0c0a77bba3bbee47c4fea55fd9279b01'[39m,
+      kind: [32m'hold'[39m,
+      legs: [
+        {
+          transferId: [32m'344267c43b82e7c7f2943e26f9d1a1df'[39m,
+          debitAccount: [32m'tb:3632017d336a97cfc9d294b336b183a8'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'2000'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'pending'[39m,
+          appliedAt: [32m'2026-10-28T01:26:56.604Z'[39m
+        },
+        {
+          transferId: [32m'35b4590e7688a1fd40c1bdd02e169b65'[39m,
+          debitAccount: [32m'tb:3632017d336a97cfc9d294b336b183a8'[39m,
+          creditAccount: [32m'tb:77de9192475d51e39ceee4cf0f647514'[39m,
+          amountMinor: [32m'2000'[39m,
+          code: [32m'payout'[39m,
+          step: [32m'void'[39m,
+          appliedAt: [32m'2026-10-28T01:26:56.619Z'[39m
+        }
+      ],
+      totalMinor: [32m'2000'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0d46ca758180ecf52985a5be073d636d'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'f0ac61c5b5d3396df4b402308398fc88'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:7baa790de543f644b0084b7ae7b81caf'[39m,
+          amountMinor: [32m'100'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:45.403Z'[39m
+        }
+      ],
+      totalMinor: [32m'100'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0d46dc23253c0c7ad7094f8f5944e461'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'845dc33678a2799dffb71fe8e99e0fbf'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:77041b5845bd39301c7f38d492434bf6'[39m,
+          amountMinor: [32m'500'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:28:14.024Z'[39m
+        }
+      ],
+      totalMinor: [32m'500'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0e7d382ea680f050ab696b34d5d91ca1'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'4cf9c405c745827fd2d41bc1483f6af3'[39m,
+          debitAccount: [32m'tb:d95f163b932bfe161a7e877e1ac9a230'[39m,
+          creditAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          amountMinor: [32m'30'[39m,
+          code: [32m'adjustment'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:42.542Z'[39m
+        }
+      ],
+      totalMinor: [32m'30'[39m,
+      recoverable: [33mfalse[39m
+    },
+    {
+      mode: [32m'test'[39m,
+      groupId: [32m'0eedbee685a9d715233df27d1b5ce4ca'[39m,
+      kind: [32m'transaction'[39m,
+      legs: [
+        {
+          transferId: [32m'a8abd2b9dbcf3a27e3c52ac44ade89ff'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:6f03fbd431f62706b71893f9f53e4d0c'[39m,
+          amountMinor: [32m'970'[39m,
+          code: [32m'charge'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:44.407Z'[39m
+        },
+        {
+          transferId: [32m'5723c3112c2bd8d349ee425606542ca7'[39m,
+          debitAccount: [32m'tb:ee1355cb4db6ef5b921f72da48594e6d'[39m,
+          creditAccount: [32m'tb:41bda7c00ea9b23771a88b4483d5463e'[39m,
+          amountMinor: [32m'30'[39m,
+          code: [32m'fee'[39m,
+          step: [32m'plain'[39m,
+          appliedAt: [32m'2026-10-28T01:26:44.407Z'[39m
+        }
+      ],
+      totalMinor: [32m'1000'[39m,
+      recoverable: [33mfalse[39m
+    }
+  ],
+  resolutionAhead: []
+}
+TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 151511367827911784391987858571026866193: on_connect: error to=0 error.ConnectionRefused
+A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
+
+Test Suites: 20 passed, 20 total
+Tests:       295 passed, 295 total
+Snapshots:   0 total
+Time:        71.897 s
+Ran all test suites.
+Test results written to: ../../../../../tmp/claude-0/-home-user/e2a1ca80-8ad4-54a7-8e83-0b9ce0655bff/scratchpad/3d-pay-ledger-run2.json
+rc=0

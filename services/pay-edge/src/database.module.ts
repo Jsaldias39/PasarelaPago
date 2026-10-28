@@ -1,4 +1,4 @@
-import { type DynamicModule, Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
+import { type DynamicModule, Global, Inject, Logger, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { Pool } from 'pg';
 import type { ServiceConfig } from './config';
 
@@ -19,8 +19,8 @@ export class DatabaseModule implements OnApplicationShutdown {
       providers: [
         {
           provide: PG_POOL,
-          useFactory: () =>
-            new Pool({
+          useFactory: () => {
+            const pool = new Pool({
               host: config.db.host,
               port: config.db.port,
               user: config.db.user,
@@ -30,7 +30,13 @@ export class DatabaseModule implements OnApplicationShutdown {
               application_name: 'pay-edge',
               // Esquema opcional (aislamiento en pruebas); validado en config.ts, nunca texto libre.
               ...(config.db.schema ? { options: `-c search_path=${config.db.schema}` } : {}),
-            }),
+            });
+            // Si Postgres corta una conexión ociosa (reinicio, failover, pg_terminate_backend) el pool emite `error`; sin manejador Node lo trata como
+            // excepción no capturada y el proceso muere. El pool descarta esa conexión y abre otra en la siguiente consulta. Solo el NOMBRE del error al
+            // log: el mensaje de `pg` puede traer el host, el usuario o el texto de una consulta.
+            pool.on('error', (error) => new Logger('PgPool').warn({ err: error.name }, 'Conexión ociosa cortada por Postgres; el pool la repone'));
+            return pool;
+          },
         },
       ],
       exports: [PG_POOL],

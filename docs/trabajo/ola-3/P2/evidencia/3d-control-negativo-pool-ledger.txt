@@ -1,0 +1,19 @@
+## Control negativo A: sin manejador en el pool (se comenta pool.on("error"))
+  ● el pool de la aplicación sobrevive a que Postgres corte conexiones › control negativo: un `Pool` SIN manejador mata el proceso cuando le cortan una conexión ociosa; el del servicio sí tiene
+  ● el pool de la aplicación sobrevive a que Postgres corte conexiones › correcto: se corta UNA conexión ociosa, el proceso sigue y el pool repone la conexión
+    Unhandled error. (error: terminating connection due to administrator command
+  ● el pool de la aplicación sobrevive a que Postgres corte conexiones › correcto: se corta UNA conexión ociosa, el proceso sigue y el pool repone la conexión
+  ● el pool de la aplicación sobrevive a que Postgres corte conexiones › límite: se cortan TODAS las ociosas a la vez (y la del ORM) y todo sigue funcionando
+    Unhandled error. (error: terminating connection due to administrator command
+  ● el pool de la aplicación sobrevive a que Postgres corte conexiones › límite: se cortan TODAS las ociosas a la vez (y la del ORM) y todo sigue funcionando
+    Unhandled error. (error: terminating connection due to administrator command
+  ● el pool de la aplicación sobrevive a que Postgres corte conexiones › límite: se cortan TODAS las ociosas a la vez (y la del ORM) y todo sigue funcionando
+    Unhandled error. (error: terminating connection due to administrator command
+  ● el pool de la aplicación sobrevive a que Postgres corte conexiones › límite: se cortan TODAS las ociosas a la vez (y la del ORM) y todo sigue funcionando
+    Unhandled error. (error: terminating connection due to administrator command
+
+## Control negativo B: sin vigilar la conexión prestada (watchClient no escucha errores)
+  ● el pool de la aplicación sobrevive a que Postgres corte conexiones › límite: se cortan TODAS las ociosas a la vez (y la del ORM) y todo sigue funcionando
+    Unhandled error. (error: terminating connection due to administrator command
+  ● el pool de la aplicación sobrevive a que Postgres corte conexiones › límite: se cortan TODAS las ociosas a la vez (y la del ORM) y todo sigue funcionando
+Tests:       1 failed, 5 passed, 6 total

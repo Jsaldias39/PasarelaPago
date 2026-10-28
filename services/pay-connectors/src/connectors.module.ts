@@ -9,6 +9,7 @@ import { CallbacksService } from './core/callbacks.service';
 import { ChargesService } from './core/charges.service';
 import { HealthService } from './core/health.service';
 import { ModeGate } from './core/pay-mode';
+import { guardPool } from './pool-guard';
 import { MockPumpService, SIMULATED_BANK } from './core/mock-pump.service';
 import { PollerService } from './core/poller.service';
 import { ProviderGateway } from './core/provider-gateway';
@@ -45,8 +46,8 @@ const unconfiguredQr: QrPort = {
     {
       provide: LOCK_POOL,
       inject: [SERVICE_CONFIG],
-      useFactory: (config: ServiceConfig) =>
-        new Pool({
+      useFactory: (config: ServiceConfig) => {
+        const pool = new Pool({
           host: config.db.host,
           port: config.db.port,
           user: config.db.user,
@@ -55,7 +56,9 @@ const unconfiguredQr: QrPort = {
           max: config.lockPool.max,
           connectionTimeoutMillis: config.lockPool.waitMs,
           application_name: 'pay-connectors-locks',
-        }),
+        });
+        return guardPool(pool, 'PgLockPool');
+      },
     },
     { provide: SECRETS, useFactory: (): SecretProvider => new EnvSecretProvider() },
     { provide: QR_PORT, inject: [SERVICE_CONFIG], useFactory: (config: ServiceConfig): QrPort => (config.qrUrl ? new HttpQrClient(config.qrUrl) : unconfiguredQr) },

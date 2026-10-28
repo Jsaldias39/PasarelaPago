@@ -1,5 +1,6 @@
 import { Controller, Delete, Get, HttpCode, Param, Post, Query, Req, Res, Body } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { containsCardNumber } from '@pay/idempotency';
 import { ProblemError } from '@pay/problem';
 import { AllowedServices } from '@pay/service-auth';
 import { EndpointService } from './endpoint.service';
@@ -27,6 +28,8 @@ export class EndpointController {
     const value = req.headers['idempotency-key'];
     if (value === undefined) throw new ProblemError('idempotency_key_required');
     if (typeof value !== 'string' || !IDEMPOTENCY_KEY.test(value)) throw new ProblemError('validation_failed', { errors: [{ field: 'idempotency-key', code: 'invalid_format' }] });
+    // Se guarda EN CLARO en `idempotency_keys`: una clave con forma de PAN se rechaza antes (la librería también lo hace; acá se evita llegar a ella).
+    if (containsCardNumber(value)) throw new ProblemError('validation_failed', { errors: [{ field: 'idempotency-key', code: 'card_number_detected', message: 'La Idempotency-Key no puede parecerse a un número de tarjeta' }] });
     return value;
   }
 

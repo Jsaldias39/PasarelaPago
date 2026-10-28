@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
+import { loadContract } from '@pay/testing';
 import { SERVICES, type ServiceName, type Stack } from '../stack.ts';
 import { ROOT } from './infra.ts';
 import { seedMerchant, waitForEdgeToKnow } from './seed.ts';
 
-export type Verdict = 'OK' | 'FALLA_IDENTIDAD' | 'FALLA_5XX' | 'RUTA_AUSENTE' | 'INALCANZABLE' | 'CONTROL_NEGATIVO_ROTO';
+export type Verdict = 'OK' | 'FALLA_IDENTIDAD' | 'FALLA_5XX' | 'RUTA_AUSENTE' | 'INALCANZABLE' | 'CONTROL_NEGATIVO_ROTO' | 'CONTRATO_ROTO';
 
 export interface SmokeCase {
   readonly group: 'salud' | 'interna' | 'borde' | 'control';
@@ -158,11 +159,21 @@ export async function runSmoke(stack: Stack): Promise<SmokeReport> {
     if (!known.ok) {
       cases.push({ group: 'borde', from: 'cliente', to: 'pay-edge', method: 'GET', path: '/v1/merchants/me', status: 401, code: 'unauthorized', verdict: 'FALLA_IDENTIDAD', note: `el borde nunca reconoció la clave sembrada (${known.reason}): falla la cadena pay-merchants → NATS → réplica de pay-edge` });
     } else {
+      const publicContract = await loadContract(join(ROOT, 'contracts/openapi/public-v1.yaml'));
       for (const op of loadOperations('public-v1.yaml')) {
         const path = fill(op);
         const res = await stack.call('pay-edge', op.method, `/v1${path}`, { headers: { authorization: `Bearer ${merchant.token}`, 'idempotency-key': `e2e-smoke-${Math.random().toString(36).slice(2, 12)}` }, ...(['POST', 'PUT', 'PATCH'].includes(op.method) ? { json: {} } : {}) }).catch(() => undefined);
         const status = res?.status ?? 0;
-        const { verdict, note } = classify(status, op);
+        let { verdict, note } = classify(status, op);
+        // Test de consumidor GENERADO desde el OpenAPI público: cada operación del contrato se invoca contra el borde REAL y su respuesta (estado y cuerpo)
+        // se valida contra lo que el contrato promete para esa operación. Un estado o una forma que el contrato no declara es un incumplimiento.
+        if (verdict === 'OK' && res) {
+          const errors = publicContract.validateResponse({ method: op.method, path, status, body: res.json ?? (res.text === '' ? undefined : res.text) });
+          if (errors.length > 0) {
+            verdict = 'CONTRATO_ROTO';
+            note = errors.slice(0, 3).join('; ');
+          }
+        }
         cases.push({ group: 'borde', from: 'cliente(sk_test_)', to: 'pay-edge', method: op.method, path: op.path, status, code: codeOf(res?.json), verdict, ...(note ? { note } : {}) });
       }
     }

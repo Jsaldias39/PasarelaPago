@@ -1,0 +1,62 @@
+# CONTROL NEGATIVO (mutación): guardPool sin manejadores -> el proceso real muere cuando Postgres corta una conexión
+# pay-connectors/test/pool-error.spec.ts, guardPool reemplazado por un no-op; luego restaurado
+(node:20444) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/pool-error.spec.ts (20.99 s)
+  ● conexión ociosa cortada por Postgres: el proceso sobrevive y el pool se repone › correcto: una conexión ociosa cortada con pg_terminate_backend NO mata el proceso y el servicio sigue operando
+
+    TypeError: fetch failed
+
+      67 |     await gone([victim.pid]);
+      68 |     expect(alive()).toBe(true);
+    > 69 |     expect((await fetch(`${base}/health/ready`, { headers: { connection: 'close' } })).status).toBe(200);
+         |             ^
+      70 |     expect((await createCharge('pool-ok-0002-padding')).status).toBe(201);
+      71 |     // El pool repuso la conexión: hay backends del proceso y ninguno es el cortado.
+      72 |     const after = await mine();
+
+      at Object.<anonymous> (test/pool-error.spec.ts:69:13)
+
+    Cause:
+        connect ECONNREFUSED 127.0.0.1:38717
+
+  ● conexión ociosa cortada por Postgres: el proceso sobrevive y el pool se repone › correcto: el pool de CANDADOS (LOCK_POOL) también sobrevive al corte y se repone en el siguiente cobro
+
+    TypeError: fetch failed
+
+      76 |
+      77 |   it('correcto: el pool de CANDADOS (LOCK_POOL) también sobrevive al corte y se repone en el siguiente cobro', async () => {
+    > 78 |     expect((await createCharge('pool-lock-0001-padding')).status).toBe(201);
+         |             ^
+      79 |     const locks = await idle('pay-connectors-locks');
+      80 |     expect(locks.length).toBeGreaterThan(0);
+      81 |     await terminate(admin, locks.map((b) => b.pid));
+
+      at Object.<anonymous> (test/pool-error.spec.ts:78:13)
+
+    Cause:
+        connect ECONNREFUSED 127.0.0.1:38717
+
+  ● conexión ociosa cortada por Postgres: el proceso sobrevive y el pool se repone › límite: se cortan TODAS las conexiones ociosas de todos los pools a la vez; las siguientes peticiones, incluso concurrentes, se atienden
+
+    TypeError: fetch failed
+
+      88 |
+      89 |   it('límite: se cortan TODAS las conexiones ociosas de todos los pools a la vez; las siguientes peticiones, incluso concurrentes, se atienden', async () => {
+    > 90 |     await Promise.all([createCharge('pool-all-0001-padding'), createCharge('pool-all-0002-padding'), createCharge('pool-all-0003-padding')]);
+         |     ^
+      91 |     const all = await idle();
+      92 |     expect(all.length).toBeGreaterThan(1);
+      93 |     await terminate(admin, all.map((b) => b.pid));
+
+          at async Promise.all (index 0)
+      at Object.<anonymous> (test/pool-error.spec.ts:90:5)
+
+    Cause:
+        connect ECONNREFUSED 127.0.0.1:38717
+
+  ● conexión ociosa cortada por Postgres: el proceso sobrevive y el pool se repone › límite: corte a MITAD de una consulta de lectura: la petición falla con error del contrato (5xx problem+json, nunca «no existe»), el cobro no se toca y el proceso sigue vivo
+
+    TypeError: fetch failed
+
+      101 |

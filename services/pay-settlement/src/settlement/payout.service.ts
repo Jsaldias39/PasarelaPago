@@ -12,6 +12,7 @@ import { emitPayoutCreated, emitPayoutFailed, emitPayoutPaid } from './settlemen
 import { SETTLEMENT_CONFIG, type SettlementConfig } from './settlement.config';
 import { decodeCursor, encodeCursor, fieldError, parseOrThrow, payoutCreate, payoutId, payoutListQuery, publicPayoutListQuery } from './schemas';
 import { inTransaction } from './unit-of-work';
+import { watchClient } from '../pg-client';
 
 export type RailMap = Readonly<Record<Rail, PayoutRail>>;
 
@@ -160,16 +161,17 @@ export class PayoutService {
    */
   async advance(id: string): Promise<PayoutRow> {
     const lock = await this.pool.connect();
+    const watch = watchClient(lock);
     try {
       const got = await lock.query<{ locked: boolean }>('SELECT pg_try_advisory_lock(hashtext($1)) AS locked', [`payout:${id}`]);
       if (!got.rows[0].locked) return await this.get(id);
       try {
         return await this.drive(id);
       } finally {
-        await lock.query('SELECT pg_advisory_unlock(hashtext($1))', [`payout:${id}`]);
+        await lock.query('SELECT pg_advisory_unlock(hashtext($1))', [`payout:${id}`]).catch(() => undefined); // si la conexión murió, el candado de sesión murió con ella
       }
     } finally {
-      lock.release();
+      watch.release();
     }
   }
 

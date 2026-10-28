@@ -1,0 +1,6 @@
+# ROJO (antes del arreglo): test/intents.insert.race.spec.ts contra INSERT ... ON CONFLICT (id) DO NOTHING · 3c (2026-10-28T01:24:51Z)
+# Clasificación (regla 80.4): PRODUCT_BUG. unique_violation 23505 contra payment_intents_mandate_period_uidx cuando varias transacciones insertan a la vez el mismo intento.
+     28     +   "error:23505",
+      1 Tests:       2 failed, 1 passed, 3 total
+      1   ● insert concurrente del MISMO intento por mandato (3c) › límite · mismo mandato y periodo con OTRO id (otro pagador): no se inserta una segunda fila y tampoco es un error 500 (la base conserva una sola)
+      1   ● insert concurrente del MISMO intento por mandato (3c) › correcto · 12 inserciones simultáneas del mismo intento: UNA inserta, el resto «ya existe», ningún error (repetido 60 rondas)

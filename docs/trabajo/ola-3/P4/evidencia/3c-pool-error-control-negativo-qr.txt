@@ -1,0 +1,18 @@
+# CONTROL NEGATIVO (mutación): guardPool sin manejadores en pay-qr -> el proceso real muere cuando Postgres corta una conexión
+# pay-qr/test/pool-error.spec.ts con guardPool reemplazado por un no-op; luego restaurado
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › correcto: una conexión ociosa cortada con pg_terminate_backend NO mata el proceso y el servicio sigue operando
+    TypeError: fetch failed
+        connect ECONNREFUSED 127.0.0.1:35989
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › límite: se cortan TODAS las conexiones ociosas a la vez; las siguientes peticiones, incluso concurrentes, se atienden
+    TypeError: fetch failed
+        connect ECONNREFUSED 127.0.0.1:35989
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › límite: corte a MITAD de una consulta de lectura: error del contrato (5xx problem+json, nunca «no existe»), el QR no se toca y el proceso sigue vivo
+    TypeError: fetch failed
+        connect ECONNREFUSED 127.0.0.1:35989
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › límite: corte a MITAD de una transacción de escritura (cliente PRESTADO, no ocioso): error del contrato, proceso vivo, y reintentar con la MISMA clave converge en UN solo QR
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › límite: corte a MITAD de una transacción de escritura (cliente PRESTADO, no ocioso): error del contrato, proceso vivo, y reintentar con la MISMA clave converge en UN solo QR
+    TypeError: fetch failed
+        connect ECONNREFUSED 127.0.0.1:35989
+  ● conexión cortada por Postgres: el proceso sobrevive y el pool se repone › inválido: ni el mensaje del error de Postgres, ni el SQL, ni la cadena de conexión llegan al registro del proceso; sí queda el nombre del error (control positivo)
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 5 total

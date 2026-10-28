@@ -1,0 +1,8 @@
+# Escenario de internal.api.spec (10 POST concurrentes, mismo mandato/periodo) ×100 con 8 procesos quemando CPU (nproc=4, load=2.60 3.00 6.50) · CÓDIGO ANTERIOR (ON CONFLICT (id)) · 3c (2026-10-28T01:25:40Z)
+      1       53 |     process.stderr.write(`REPRO-RESUMEN rondas=100 fallidas=${failedRounds} estados=${JSON.stringify(tally)}\n`);
+      2   code: [32m'23505'[39m,
+      1   ● REPRO 100× › 100 rondas
+      2 Error no controlado
+      1 REPRO-RESUMEN rondas=100 fallidas=2 estados={"200":255,"201":743,"500":2}
+      1 Tests:       1 failed, 1 total
+exit: 0

@@ -96,13 +96,18 @@ function map(r: Record<string, unknown>): IntentRow {
 
 /** Acceso a `payment_intents`. Toda consulta por comercio filtra por `merchant_id` (BOLA, P3.H1.M6). */
 export const intentsRepo = {
-  /** Inserta el intento; si el id ya existe (reintento tras una caída) no hace nada. */
+  /**
+   * Inserta el intento; si ya existe no hace nada (reintento tras una caída, o la misma petición dos veces a la vez).
+   * `ON CONFLICT DO NOTHING` SIN objetivo, a propósito: la tabla tiene dos índices únicos que el mismo intento puede violar (la clave primaria `id`
+   * y `payment_intents_mandate_period_uidx`) y `ON CONFLICT (id)` solo arbitra el primero: dos inserciones simultáneas lanzaban `23505` (500) por el
+   * segundo. Hallado por la falla intermitente de `internal.api.spec` (tanda 3c, `test/intents.insert.race.spec.ts`).
+   */
   async insert(db: Db, intent: NewIntent): Promise<{ inserted: boolean }> {
     const result = await db.query(
       `INSERT INTO payment_intents (id, merchant_id, mode, amount_minor, method, status, fee_minor, net_minor, description, metadata, expires_at,
                                     card_token, wallet_user_ref, source, kind, beneficiary_merchant_id, payer_name)
        VALUES ($1, $2, $15, $3, $4, 'processing', $5, $6, $7, $8::jsonb, $9, $10, $11, $12::jsonb, $13, $14, $16)
-       ON CONFLICT (id) DO NOTHING`,
+       ON CONFLICT DO NOTHING`,
       [
         intent.id, intent.merchantId, intent.amountMinor, intent.method, intent.feeMinor, intent.netMinor, intent.description ?? null,
         JSON.stringify(intent.metadata), intent.expiresAt, intent.cardToken ?? null, intent.walletUserRef ?? null,

@@ -14,6 +14,7 @@ import { batchCreate, decodeCursor, encodeCursor, fieldError, listQuery, parseOr
 import { emitBatchClosed } from './settlement-events';
 import { SETTLEMENT_CONFIG, type SettlementConfig } from './settlement.config';
 import { inTransaction } from './unit-of-work';
+import { watchClient } from '../pg-client';
 
 interface ItemRow {
   batch_id: string;
@@ -103,16 +104,17 @@ export class BatchService {
   /** Procesa los comercios pendientes del lote. Un candado de asesoría evita dos procesadores a la vez; repetirlo retoma lo que falta. */
   async process(batchId: string): Promise<BatchRow> {
     const lock = await this.pool.connect();
+    const watch = watchClient(lock);
     try {
       const got = await lock.query<{ locked: boolean }>('SELECT pg_try_advisory_lock(hashtext($1)) AS locked', [`batch-run:${batchId}`]);
       if (!got.rows[0].locked) return await this.getBatch(batchId);
       try {
         return await this.processLocked(batchId);
       } finally {
-        await lock.query('SELECT pg_advisory_unlock(hashtext($1))', [`batch-run:${batchId}`]);
+        await lock.query('SELECT pg_advisory_unlock(hashtext($1))', [`batch-run:${batchId}`]).catch(() => undefined); // si la conexión murió, el candado de sesión murió con ella
       }
     } finally {
-      lock.release();
+      watch.release();
     }
   }
 

@@ -165,16 +165,23 @@ export class PaymentsService {
         await this.assertMerchantMayCharge(input.payerMerchantId);
         const expiresAt = new Date(this.deps.now().getTime() + 3600_000);
         // Sin comisión sobre pagos programados hasta que el acuerdo comercial lo defina (x-open-question del contrato): D-P3-7.
-        await context.atomic('created', async (db) => {
-          const { inserted } = await intentsRepo.insert(db, {
+        const inserted = await context.atomic('created', async (db) => {
+          const result = await intentsRepo.insert(db, {
             id, merchantId: input.payerMerchantId, mode, amountMinor: input.amountMinor, method: 'wallet', feeMinor: 0, netMinor: input.amountMinor, description: input.description,
             metadata: {}, expiresAt, source: input.source, kind: input.kind, beneficiaryMerchantId: input.beneficiaryMerchantId,
           });
-          if (inserted) {
+          if (result.inserted) {
             const row = await intentsRepo.byId(db, id);
             if (row) await emitIntentEvent(db, 'payment_intent.created', row);
           }
+          return result.inserted;
         });
+        // Carrera: otra petición del MISMO mandato y periodo ganó con otro id (otro pagador). No hay fila con nuestro id: se devuelve la ganadora, como en la repetición secuencial.
+        if (!inserted && !(await intentsRepo.byId(this.deps.pool, id))) {
+          const winner = await intentsRepo.byMandatePeriod(this.deps.pool, input.source.id, input.source.period);
+          if (!winner || winner.mode !== mode) throw new ProblemError('resource_not_found');
+          return { status: 200, body: toInternalIntent(await this.waitForAction(winner.id)) };
+        }
       }
       await this.orchestrator.startPayment(id);
       const row = await this.waitForAction(id);

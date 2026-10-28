@@ -1,0 +1,22 @@
+# CONTROL NEGATIVO (rojo esperado): dist/pg-pool.js SIN el manejador 'error' · pay-payments · 3c (2026-10-28T01:20:30Z)
+FAIL test/pg-pool.error.spec.ts
+  ● 3c · el servicio real (dist/main.js, DatabaseModule + ORM): cortar sus conexiones ociosas no lo tumba › se cortan TODAS las conexiones ociosas de la aplicación: el proceso sigue vivo y /health/ready vuelve a responder 200 con una conexión repuesta
+
+    expect(received).toBeNull()
+
+    Received: 1
+
+      289 |       expect(cut).toBeGreaterThanOrEqual(1);
+      290 |       await sleep(1500);
+    > 291 |       expect(child.exitCode).toBeNull();
+          |                              ^
+      292 |       expect(child.signalCode).toBeNull();
+      293 |       await until(async () => ((await ready()) === 200 ? true : undefined), 15_000, 'la API lista otra vez');
+      294 |       expect(await Promise.race([exited, sleep(300).then(() => 'sigue vivo')])).toBe('sigue vivo');
+
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 8 skipped, 9 total
+Snapshots:   0 total
+Time:        3.155 s, estimated 9 s
+Ran all test suites matching test/pg-pool.error.spec.ts with tests matching "servicio real".

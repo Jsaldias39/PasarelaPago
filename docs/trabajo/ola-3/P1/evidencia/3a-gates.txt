@@ -1,0 +1,57 @@
+## idempotency typecheck  (cd contracts/packages/idempotency && yarn typecheck)
+exit=0
+## idempotency build  (cd contracts/packages/idempotency && yarn build)
+exit=0
+## idempotency test  (cd contracts/packages/idempotency && yarn test --maxWorkers=2)
+Test Suites: 2 passed, 2 total
+Tests:       30 passed, 30 total
+Time:        1.583 s, estimated 2 s
+exit=0
+## pay-edge typecheck  (cd services/pay-edge && yarn typecheck)
+exit=0
+## pay-edge build  (cd services/pay-edge && yarn build)
+exit=0
+## pay-edge test run 1  (cd services/pay-edge && yarn test --maxWorkers=2)
+  err: [32m'Error'[39m,
+Error no controlado
+Test Suites: 15 passed, 15 total
+Tests:       403 passed, 403 total
+Time:        17.74 s
+exit=0
+## pay-edge test run 2  (cd services/pay-edge && yarn test --maxWorkers=2)
+  err: [32m'Error'[39m,
+Error no controlado
+Test Suites: 15 passed, 15 total
+Tests:       403 passed, 403 total
+Time:        17.137 s, estimated 18 s
+exit=0
+## pay-webhooks typecheck  (cd services/pay-webhooks && yarn typecheck)
+exit=0
+## pay-webhooks build  (cd services/pay-webhooks && yarn build)
+exit=0
+## pay-webhooks test run 1  (cd services/pay-webhooks && yarn test --maxWorkers=2)
+Test Suites: 13 passed, 13 total
+Tests:       409 passed, 409 total
+Time:        9.059 s, estimated 12 s
+exit=0
+## pay-webhooks test run 2  (cd services/pay-webhooks && yarn test --maxWorkers=2)
+Test Suites: 13 passed, 13 total
+Tests:       409 passed, 409 total
+Time:        11.9 s
+exit=0
+## e2e:typecheck  (cd . && yarn e2e:typecheck)
+exit=0
+## yarn lint (raíz)  (cd . && yarn lint)
+  15:22  error  Irregular whitespace not allowed  no-irregular-whitespace
+  15:26  error  Irregular whitespace not allowed  no-irregular-whitespace
+  16:27  error  Irregular whitespace not allowed  no-irregular-whitespace
+   7:10  error  'eventsOf' is defined but never used           @typescript-eslint/no-unused-vars
+   7:60  error  'statusOf' is defined but never used           @typescript-eslint/no-unused-vars
+   7:70  error  'waitFor' is defined but never used            @typescript-eslint/no-unused-vars
+  11:5   error  'contract' is assigned a value but never used  @typescript-eslint/no-unused-vars
+✖ 7 problems (7 errors, 0 warnings)
+exit=1
+## contracts:lint  (cd . && yarn contracts:lint)
+exit=0
+## contracts:events  (cd . && yarn contracts:events)
+exit=0
