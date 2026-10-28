@@ -3,12 +3,13 @@ import { spawnSync } from 'node:child_process';
 import { Controller, Get, Inject, Logger, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { MikroORM } from '@mikro-orm/core';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Pool } from 'pg';
 import { IdempotencyStore } from '@pay/idempotency';
 import { OutboxRelay, processOnce, type CloudEvent, type EventPublisher } from '@pay/outbox';
-import { TEST_DATABASE_URL, createIsolatedDatabase, type IsolatedDatabase } from '@pay/testing';
+import { TEST_DATABASE_URL } from '@pay/testing';
 import { guardPool } from '../src/pool-guard';
 import { DatabaseModule, PG_POOL } from '../src/database.module';
 import { ServiceConfigModule } from '../src/config.module';
@@ -174,8 +175,29 @@ describe('el pool de la aplicación sobrevive a que Postgres corte conexiones', 
  * Se prueban con el pool envuelto EXACTAMENTE como el de producción (`guardPool`) sobre un esquema desechable con el DDL del modelo. Regla 11: un corte en
  * medio de una operación es AMBIGUO, no un fallo definitivo: nunca queda un efecto a medias, y reintentar con la misma clave converge sin duplicar.
  */
+/**
+ * Esquema desechable con el DDL del modelo, como `createIsolatedDatabase` de `@pay/testing`, pero con TODOS sus pools envueltos en `guardPool`: el de la librería
+ * deja un pool auxiliar sin manejador abierto toda la suite, y en un Postgres compartido otra suite que corte conexiones (por base o por rol) lo tumba con un
+ * `Unhandled error` que hace fallar ESTA suite aunque lo que se prueba esté bien.
+ */
+async function guardedIsolatedDatabase(ddlFile: string): Promise<{ pool: Pool; drop: () => Promise<void> }> {
+  const schema = `t_${randomBytes(6).toString('hex')}`;
+  const auxiliary = guardPool(new Pool({ connectionString: TEST_DATABASE_URL, max: 1 }), 'PgIsolatedAdmin');
+  await auxiliary.query(`CREATE SCHEMA ${schema}`);
+  const isolated = guardPool(new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${schema}`, max: 6 }), 'PgIsolated');
+  await isolated.query(readFileSync(ddlFile, 'utf8'));
+  return {
+    pool: isolated,
+    drop: async () => {
+      await isolated.end();
+      await auxiliary.query(`DROP SCHEMA ${schema} CASCADE`);
+      await auxiliary.end();
+    },
+  };
+}
+
 describe('las librerías que prestan conexión: corte con pg_terminate_backend EN MEDIO de una transacción', () => {
-  let db: IsolatedDatabase;
+  let db: Awaited<ReturnType<typeof guardedIsolatedDatabase>>;
   let killer: Pool;
   const rand = () => Math.random().toString(36).slice(2, 12);
   const effects = async () => Number((await db.pool.query("SELECT count(*)::int AS n FROM outbox_events WHERE aggregate_type = 'prueba-corte'")).rows[0].n);
@@ -192,8 +214,7 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
   const pidOf = async (client: { query: (t: string, p?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> }) => (await client.query('SELECT pg_backend_pid() AS pid')).rows[0].pid as number;
 
   beforeAll(async () => {
-    db = await createIsolatedDatabase([resolve(process.cwd(), 'sql/ddl.sql')]);
-    guardPool(db.pool, 'PgPool');
+    db = await guardedIsolatedDatabase(resolve(process.cwd(), 'sql/ddl.sql'));
     killer = guardPool(new Pool({ connectionString: TEST_DATABASE_URL, max: 1 }), 'PgKiller');
   });
   afterAll(async () => {

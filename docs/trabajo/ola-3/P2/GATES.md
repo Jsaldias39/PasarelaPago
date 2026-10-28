@@ -22,11 +22,11 @@
 | 8 | PCI | **PASS** (clasificación provisoria de settlement) | `pci-alcance.md` líneas 33–34 |
 | 9 | Deriva de esquema | **PASS** | `drift.spec` ×2 contra el `ddl.sql` del modelo |
 | 10 | Observabilidad (Jaeger) | **NO APLICA AÚN** | |
-| 11 | Fallos | **PASS** (residual declarado: propuesta 27) | `SIGKILL` a TigerBeetle; reconciliador de recuperación TigerBeetle → Postgres; cortes de conexión de Postgres (pool, idempotencia, outbox) |
+| 11 | Fallos | **PASS** (residual declarado: propuesta 27; la parte de cortes de Postgres, ver la fila `+`) | `SIGKILL` a TigerBeetle; reconciliador de recuperación TigerBeetle → Postgres; cortes de conexión de Postgres (pool, idempotencia, outbox) |
 | 12 | Carga (T-01) | **NO APLICA AÚN** | |
 | 13 | Sandbox (ola 4) | **NO APLICA AÚN** | |
 | + | Dockerfile (docker build de producción) | **PASS** tras corregir 2 defectos; arranque del ledger **BLOQUEADO** (ENVIRONMENT) | imágenes construidas, probadas y borradas |
-| + | Cortes de conexión de Postgres (3d) | **PASS** | `guardPool` + `pg_terminate_backend` en pool, clientes prestados, `@pay/idempotency` y `@pay/outbox` |
+| + | Cortes de conexión de Postgres (3d) | **PASS aislado** (10/10 ×3 por servicio); **en corrida completa, pendiente de re-ejecutar** | `guardPool` + `pg_terminate_backend` en pool, clientes prestados, `@pay/idempotency` y `@pay/outbox` |
 | + | Inmutabilidad de registros de dinero (3c) | **GAP** propuesto, no implementado | propuesta 20 |
 
 ---
@@ -48,10 +48,12 @@ Suites completas con TigerBeetle real, `--maxWorkers=2`:
 
 | Servicio | Corrida | Suites | Pruebas | Salida |
 |---|---|---|---|---|
-| pay-ledger | 1 | 19/19 | **299/299** | `evidencia/3d-test-pay-ledger-run1.txt` |
-| pay-ledger | 2 | 19/19 | **299/299** | `evidencia/3d-test-pay-ledger-run2.txt` |
-| pay-settlement | 1 | 29/29 | **570/570** | `evidencia/3d-test-pay-settlement-run1.txt` |
-| pay-settlement | 2 | 29/29 | **570/570** | `evidencia/3d-test-pay-settlement-run2.txt` |
+| pay-ledger | 1 | 19/20 (`pool-resilience` no corrió, ver abajo) | **299/299** | `evidencia/3d-test-pay-ledger-run1.txt` |
+| pay-ledger | 2 | 19/20 (ídem) | **299/299** | `evidencia/3d-test-pay-ledger-run2.txt` |
+| pay-settlement | 1 | 28/29 (ídem) | **570/570** | `evidencia/3d-test-pay-settlement-run1.txt` |
+| pay-settlement | 2 | **no se corrió**: el coordinador pidió dejar la máquina quieta | — | — |
+
+**Honestidad sobre estas corridas.** Las 299 + 299 + 570 pruebas que corrieron pasaron, pero en cada corrida **una suite no llegó a ejecutarse** (`rc=1`): `test/pool-resilience.spec.ts` terminó con `Test suite failed to run — Unhandled error (Connection terminated unexpectedly)`. Causa (clasificación ENVIRONMENT, con evidencia en el seguimiento de la pila: un `error` de un pool sin manejador): en esta máquina otros carriles corrían a la vez sus propias pruebas de `pg_terminate_backend` contra el mismo Postgres, y cortaron la conexión ociosa del pool auxiliar que `createIsolatedDatabase` de `@pay/testing` deja abierto sin `guardPool` durante toda la suite. La misma suite pasa **10/10 sola, 3 veces por servicio** (`evidencia/3d-control-negativo-pool-*.txt` incluye la corrida «restaurado»). **Corrección escrita pero NO re-ejecutada** (quedé liberada antes): la suite ahora arma su propio esquema desechable con todos sus pools envueltos (`guardedIsolatedDatabase`). Hasta re-correr ×2 por servicio, el peldaño de este gate en corrida completa es `WRITTEN`, y la suite `reconciler.spec` (13/13) y `pool-resilience` (10/10) sí están `TESTED` por separado. Las corridas previas descartadas están en `evidencia/3d-descartada-*`.
 
 (Serie 3d, posterior al reconciliador y a `guardPool`; la serie 3c —276/276 ×2 y 560/560 ×2, `evidencia/3c-test-*`— quedó como antecedente.) Comando de cada corrida: `cd services/<svc> && TB_ADDRESS=127.0.0.1:54310 NATS_URL=nats://127.0.0.1:54250 PAY_TEST_NATS_URL=nats://127.0.0.1:54250 yarn test --maxWorkers=2` (TigerBeetle y NATS **propios**, ver «Entorno»; Postgres del Compose). Lista de las pruebas nuevas con su resultado: [`evidencia/3c-pruebas-nuevas.md`](./evidencia/3c-pruebas-nuevas.md).
 
@@ -227,7 +229,7 @@ Resultado: **ambos builds `rc=0`** (imagen de 991 MB cada una; incluye `devDepen
 
 **GAP (P1):** no existe `.dockerignore` en la raíz: el contexto completo pesa ~2 GB; por eso el build se hizo con un contexto armado con exactamente lo que el Dockerfile copia. Propuesta 21.
 
-## + · Cortes de conexión de Postgres (pool y clientes prestados) — PASS
+## + · Cortes de conexión de Postgres (pool y clientes prestados) — PASS aislado; corrida completa pendiente
 
 Defecto transversal (P5, P4): un `pg.Pool` sin manejador de `error` tira el proceso cuando Postgres corta una conexión. `pool.on('error')` **solo** cubre las ociosas; si el corte llega con la conexión **prestada** (`pool.connect()` en una transacción, un candado de asesoría, el relé del outbox) el cliente emite `error` sin escucha y el proceso muere igual. Corrección en `pay-ledger` y `pay-settlement`: `src/pool-guard.ts` (idéntico al de `pay-connectors`; `guardPool` registra el manejador del pool **y** `pool.on('connect', c => c.on('error', …))`) envolviendo el único `Pool` propio de cada servicio (`database.module.ts`); el pool del ORM (knex) se prueba aparte. Además, `inTransaction` ya no deja que un `ROLLBACK` fallido tape el error real, y los `pg_advisory_unlock` de settlement no tapan el resultado si la conexión murió.
 
@@ -271,7 +273,7 @@ La máquina de pruebas estaba **saturada** durante esta ola: carga 10–17, 8+ p
 
 Las salidas de esas corridas se conservan: `evidencia/3a-test-*` (primeras corridas, con TigerBeetle compartido) y `evidencia/3c-descartada-*`. **No hay `skip`, no se subió ningún timeout y no se agregó ningún reintento.** Queda sin cubrir: nada más allá de lo anotado como GAP o `NO APLICA AÚN`.
 
-**Tanda 3d.** Una primera serie de settlement dio 14 fallos por `No space left on device` al crear esquemas de prueba (ENVIRONMENT: el disco compartido se llenó por builds de otros carriles; `evidencia/3d-descartada-settlement-run1-disco-lleno.txt`) y una segunda falló una sola prueba mía porque P1 cambió `@pay/idempotency` mientras corría (de «rechazar» a «enmascarar» la clave con forma de PAN; la prueba se adaptó a lo que la librería hace hoy, `3d-descartada-settlement-run2-…`). La serie 3d de arriba se corrió completa después, con TigerBeetle y NATS propios. Quedó **detenido** el TigerBeetle compartido (`:54300`) y se bajó el NATS propio.
+**Tanda 3d.** Una primera serie de settlement dio 14 fallos por `No space left on device` al crear esquemas de prueba (ENVIRONMENT: el disco compartido se llenó por builds de otros carriles; `evidencia/3d-descartada-settlement-run1-disco-lleno.txt`); una segunda falló una sola prueba mía porque P1 cambió `@pay/idempotency` mientras corría (de «rechazar» a «enmascarar» la clave con forma de PAN; la prueba se adaptó a lo que la librería hace hoy: `3d-descartada-settlement-run2-…`); y una tercera serie completó todas las pruebas pero dejó sin ejecutar la suite `pool-resilience` por cortes de otras suites (arriba; `3d-descartada-*-suite-pool-…`). La serie final (tabla de la sección 1) se interrumpió a pedido del coordinador tras la corrida 1 de settlement. Quedaron **detenidos** el TigerBeetle compartido (`:54300`), el TigerBeetle y el NATS propios de esta tanda; verificado por `/proc` y por conexión rechazada en `:54310`.
 
 ## No cubierto (consolidado)
 
