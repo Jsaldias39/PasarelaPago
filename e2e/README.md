@@ -6,13 +6,14 @@ TigerBeetle privado, en `PAY_MODE=sandbox` con el conector `mock`. Matriz, halla
 
 ```bash
 yarn e2e:up | e2e:down | e2e:boot | e2e:smoke
-yarn e2e            # jest (humo, degradado, E6, D-32, ledger, callbacks, guardia de modo, unitarias del arnés), 1 worker
-yarn e2e:pending    # E1/E2 de punta a punta: escritos, fuera de la suite por defecto hasta que P3/P5 cierren D-29/D-30
+yarn e2e            # jest, 1 worker: humo, degradado, E1, E2, E4, E5, E6, E8, D-32, ledger, callbacks, guardia de modo, capa sandbox (pay-mockbank), candado y unitarias del arnés
+yarn e2e:pending    # solo lo que hoy no puede pasar: e2e/pending/risk-timeout.e2e.ts, el reproductor del hallazgo 9 de ARNES.md (falla a propósito)
 yarn e2e:typecheck
 ```
 
 - Requiere la infra de Compose arriba y los `dist/` construidos.
-- Un solo stack a la vez (`e2e/.run/state.json`). `e2e:down` limpia uno huérfano (por PID verificado).
+- Un solo stack a la vez: candado atómico `e2e/.run/stack.lock` (lib/lock.ts; con un stack vivo el segundo falla con «stack en uso por runId X pid Y»). `e2e:down` limpia uno huérfano (por PID verificado) y tampoco toca un stack vivo.
+- `startStack({ mockbank: true })` suma `pay-mockbank` (capa sandbox); `RECONCILE_INTERVAL_MS` del conector NO se acelera por defecto: el flujo que lo necesita (E8) lo fija con `envOverrides` (ARNES.md § Tanda 4a).
 - Sin datos reales: los secretos se generan sintéticos en cada corrida; nada se commitea (`e2e/.run/` ignorado).
 - Se espera siempre por condición (`/health/ready`, sondeos), nunca por tiempo fijo.
 - API: `startStack(opts)` / `stopStack(stack)` en `stack.ts`; `stack.call(name, method, path)` y

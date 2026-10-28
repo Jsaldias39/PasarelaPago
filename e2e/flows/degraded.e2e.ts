@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { startStack, stopStack } from '../stack.ts';
+import { StackBusyError, startStack, stopStack } from '../stack.ts';
 
 /** El arnés mismo: un servicio que no arranca se informa con su motivo y su log, sin tumbar al resto; y todo se limpia. */
 describe('arnés — arranques degradados', () => {
@@ -32,12 +32,19 @@ describe('arnés — arranques degradados', () => {
     }
   });
 
-  it('un segundo stack mientras hay uno registrado se rechaza (un solo stack a la vez)', async () => {
+  it('un segundo stack mientras hay uno vivo se rechaza con el candado (un solo stack a la vez) y dice QUIÉN lo tiene: su runId y su pid', async () => {
     const first = await startStack({ only: ['pay-qr'] });
     try {
-      await expect(startStack({ only: ['pay-qr'] })).rejects.toThrow(/Ya hay un stack registrado/);
+      const error = await startStack({ only: ['pay-qr'] }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(StackBusyError);
+      expect((error as StackBusyError).holder).toMatchObject({ runId: first.runId, pid: process.pid });
+      expect((error as StackBusyError).message).toMatch(new RegExp(`^stack en uso por runId ${first.runId} pid ${process.pid} desde \\d{2}:\\d{2}`));
+      // El perdedor no tocó nada: el primero sigue sano y con su candado.
+      expect(first.lock.info.runId).toBe(first.runId);
+      expect((await first.call('pay-qr', 'GET', '/health/ready')).status).toBe(200);
     } finally {
       await stopStack(first, { keepLogs: true });
     }
+    expect(existsSync(first.lock.path)).toBe(false); // y al apagar, el candado queda libre
   });
 });
