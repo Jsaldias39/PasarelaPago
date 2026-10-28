@@ -1,0 +1,20 @@
+# Procedencia del ddl.sql vendorizado (tanda 3b)
+fecha: 2026-10-28T00:27:28Z
+modelo: /home/user/mantra-core-health-model, rama claude/adoring-allen-ly7r6f, HEAD 753338a
+pay-merchants: sha256 vendorizado 94a82895684020cf · sha256 en el commit 753338a 46b8911fae4a3cd4 · DIFIERE del commit: es el árbol de trabajo (sin commit) del modelo en ese momento
+pay-risk: sha256 vendorizado f7b75f62ec82546c · sha256 en el commit 753338a f7b75f62ec82546c · IDÉNTICO al commit
+pay-schedules: sha256 vendorizado 1d8683c9f9d98cf2 · sha256 en el commit 753338a 1d8683c9f9d98cf2 · IDÉNTICO al commit
+
+diferencia de pay-merchants respecto del commit 753338a (solo se agregan triggers BEFORE TRUNCATE sobre contract_versions y fee_schedule_channels):
+310a311,315
+> -- TRUNCATE: no pasa por los triggers de fila, así que cada tabla inmutable necesita el suyo (revisión de seguridad 2026-10-28: faltaba en
+> -- contract_versions y fee_schedule_channels; el SQL de referencia solo lo tenía en contract_acceptances y fee_schedule_versions).
+> DROP TRIGGER IF EXISTS "contract_versions_no_truncate" ON "contract_versions";
+> CREATE TRIGGER contract_versions_no_truncate BEFORE TRUNCATE ON contract_versions FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();
+> 
+315a321,323
+> 
+> DROP TRIGGER IF EXISTS "fee_schedule_channels_no_truncate" ON "fee_schedule_channels";
+> CREATE TRIGGER fee_schedule_channels_no_truncate BEFORE TRUNCATE ON fee_schedule_channels FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();
+
+El modelo sigue cambiando (coordinador, 2026-10-28): se re-vendoriza con 'node scripts/p5-vendor-model-sql.mjs' cuando avise que quedó estable; el 001_*.sql de referencia NO se borra hasta entonces.

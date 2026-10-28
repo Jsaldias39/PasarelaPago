@@ -13,7 +13,7 @@ const q = (sql: string, params: unknown[] = []) => t.db.pool.query(sql, params);
 const insertCharge = (id: string) =>
   q(
     `INSERT INTO connector_charges (id, caller, idempotency_key, payment_intent_id, merchant_id, pay_mode, connector, connector_mode, method, amount_minor, currency, routing_version, expires_at, next_poll_at)
-     VALUES ($1, 'pay-payments', $1, 'pi_abcdefghij1', 'mc_abcdefghij', 'test', 'mock', 'sandbox', 'qr', 100, 'BOB', 1, now() + interval '1 hour', now())`,
+     VALUES ($1, 'pay-payments', $1, 'pi_' || substr($1, 4), 'mc_abcdefghij', 'test', 'mock', 'sandbox', 'qr', 100, 'BOB', 1, now() + interval '1 hour', now())`,
     [id],
   );
 
