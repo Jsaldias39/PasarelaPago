@@ -1,0 +1,31 @@
+# 3c-concurrencia-connectors
+$ (cd services/pay-connectors && yarn test --maxWorkers=2 --verbose test/send-lock.spec.ts test/charges.spec.ts test/transfers.spec.ts -t simultáne|corrida|candado|withSendLock|conexiones)
+(las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
+
+(node:30778) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:30779) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/charges.spec.ts (7.09 s)
+  ● POST /charges/{id}/refunds › corrida 5: 5 reembolsos simultáneos de Bs 30 sobre Bs 100 ⇒ exactamente 3 prosperan
+
+    error: deadlock detected
+
+       98 |       // El orden respeta las FK (hijos primero).
+       99 |       for (const table of ['bank_transfer_references', 'connector_refunds', 'connector_callback_events', 'connector_api_attempts', 'connector_charges', 'connector_transfers', 'connector_health', 'connector_callback_endpoints', 'statement_exceptions', 'idempotency_keys', 'outbox_events', 'inbox_events']) {
+    > 100 |         await db.pool.query(`DELETE FROM ${table}`);
+          |         ^
+      101 |       }
+      102 |       clock.set(new Date());
+      103 |       qr.issued.length = 0;
+
+      at ../../node_modules/pg-pool/index.js:45:11
+      at Object.reset (test/support/app.ts:100:9)
+      at Object.<anonymous> (test/charges.spec.ts:24:3)
+
+Test Suites: 1 failed, 2 passed, 3 total
+Tests:       1 failed, 84 skipped, 57 passed, 142 total
+Snapshots:   0 total
+Time:        12.481 s, estimated 19 s
+Ran all test suites matching test/send-lock.spec.ts|test/charges.spec.ts|test/transfers.spec.ts with tests matching "simultáne|corrida|candado|withSendLock|conexiones".
+exit=1

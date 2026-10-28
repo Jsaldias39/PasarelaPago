@@ -7,7 +7,6 @@ import { LoggerModule } from 'nestjs-pino';
 import { loadConfig } from './config';
 import { ServiceConfigModule } from './config.module';
 import { DatabaseModule } from './database.module';
-import { EventsModule } from './events.module';
 import { HealthController } from './health.controller';
 import { ProblemFilter } from './problem.filter';
 import { logSink } from './logging.sink';
@@ -38,7 +37,6 @@ const config = loadConfig();
     ServiceConfigModule,
     TerminusModule,
     DatabaseModule,
-    EventsModule,
     RiskModule,
   ],
   controllers: [HealthController],

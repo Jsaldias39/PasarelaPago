@@ -3,7 +3,7 @@ export interface ServiceConfig {
   readonly port: number;
   readonly logLevel: string;
   readonly db: { readonly host: string; readonly port: number; readonly name: string; readonly user: string; readonly password: string };
-  /** Opcional: sin NATS el servicio arranca pero el relé del outbox no publica y `/health/ready` lo informa. */
+  /** Sin uso hoy: pay-risk no publica ni consume eventos (no hay riesgo en el AsyncAPI) y su base, la del modelo, no tiene outbox. */
   readonly natsUrl?: string;
   /** Despliegue (D-26): `sandbox` o `live`. Explícito y SIN valor por defecto; bajo `live` el servicio se niega a arrancar con cualquier doble. */
   readonly payMode: PayMode;
