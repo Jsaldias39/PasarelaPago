@@ -185,16 +185,16 @@ export function createActivities(deps: Deps) {
         //    mismo cierre SIEMPRE fail-closed y con constancia. Solo una `decision` válida es un «sí» o un «no» de negocio.
         //  · NO DISPONIBLE (5xx, red, breaker abierto): única causa a la que aplica la franquicia «bajo el umbral pasa» (RISK_ALLOW_BELOW_THRESHOLD,
         //    por defecto apagada), porque ahí no hay ninguna evaluación en vuelo que pueda llegar a decir «no».
-        const inFlight = isRiskInFlight(error);
         const attempt = attemptOfActivity();
+        // Si una vuelta ANTERIOR de esta actividad ya mandó la evaluación (attempt > 1), cualquier indisponibilidad ahora (el breaker abierto por los propios
+        // timeouts, un 5xx, la red) NO borra que haya una evaluación viva con esta clave: se trata igual que «en vuelo» (se reintenta con la misma clave).
+        const earlierAttemptSent = attempt > 1 && attempt !== Number.MAX_SAFE_INTEGER && isUpstreamError(error);
+        const inFlight = isRiskInFlight(error) || earlierAttemptSent;
         if (inFlight && attempt < config.policy.activity.maxAttempts) {
           throw ApplicationFailure.retryable('pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave', 'RiskInFlight');
         }
-        // Si una vuelta ANTERIOR de esta actividad ya mandó la evaluación (attempt > 1), una indisponibilidad ahora (por ejemplo el breaker abierto por los
-        // propios timeouts) NO borra que haya una evaluación viva: se trata igual que «en vuelo agotado».
-        const earlierAttemptSent = attempt > 1 && attempt !== Number.MAX_SAFE_INTEGER && isUpstreamError(error);
         const integrationError = !inFlight && isRejection(error);
-        if (inFlight || earlierAttemptSent || integrationError) {
+        if (inFlight || integrationError) {
           const kind = integrationError ? 'risk_integration_error' : 'risk_unresolved';
           await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'ambiguous', sourceEventId: `ambiguous:${kind}`, kind, reason: 'risk_without_decision_fail_closed' }));
           await settle(intentId, 'failed', { failureCode: 'risk_unavailable' });

@@ -198,3 +198,22 @@ describe('franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, 
     await lenientStatus(allowed, 'requires_action');
   });
 });
+
+describe('el breaker abierto por los PROPIOS timeouts no cierra el cobro antes de tiempo (circuit_open tras un intento que ya mandó la evaluación)', () => {
+  let breaker: Stack;
+  beforeAll(async () => {
+    breaker = await startStack({ env: { ACTIVITY_MAX_ATTEMPTS: '8', ACTIVITY_INITIAL_MS: '200', ACTIVITY_MAX_MS: '600', CIRCUIT_FAILURE_THRESHOLD: '2', CIRCUIT_RESET_MS: '600' } });
+    await seedMerchant(breaker, MC);
+  });
+  afterAll(async () => breaker.stop());
+
+  it('límite · la primera evaluación tarda 1,6 s con un breaker de 2 fallas: el breaker se abre, la actividad lo reintenta con la MISMA clave y el cobro avanza cuando riesgo responde (un solo cargo)', async () => {
+    breaker.risk.mode = { firstSlowMs: 1600 };
+    const id = (await breaker.service.createIntent(MC, 'test', key(), QR)).body.id as string;
+    await waitFor(async () => ((await statusOf(breaker, id)) === 'requires_action' ? true : undefined), 60_000, 'requires_action');
+    expect(breaker.connectors.chargeCreations.get(id)).toBe(1);
+    const calls = breaker.risk.server.calls.filter((c) => (c.body as { payment_intent_id?: string }).payment_intent_id === id);
+    expect([...new Set(calls.map((c) => c.headers['idempotency-key']))]).toEqual([`${id}:risk`]);
+    expect((await breaker.db.pool.query('SELECT kind FROM intent_contradictions WHERE payment_intent_id = $1', [id])).rowCount).toBe(0);
+  });
+});
