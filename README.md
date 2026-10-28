@@ -4,7 +4,7 @@ Plataforma de pagos de ALOVIDA en **microservicios backend**: 11 servicios NestJ
 propia base de datos, imagen y despliegue, que solo se hablan por contratos (HTTP con OpenAPI o
 eventos sobre NATS JetStream con AsyncAPI).
 
-> **Estado:** ola 3 cerrada en esta máquina. **AVANCE: 84 / 109 microtareas (77,1 %)**: los 12 servicios, el stack de pruebas E2E y el arnés de carga existen; el detalle y lo bloqueado están en [`docs/plan/PLAN-MAESTRO.md`](docs/plan/PLAN-MAESTRO.md).
+> **Estado:** ola 3 cerrada en esta máquina. **AVANCE: 86 / 109 microtareas (78,9 %)**: los 12 servicios, el stack de pruebas E2E y el arnés de carga existen; el detalle y lo bloqueado están en [`docs/plan/PLAN-MAESTRO.md`](docs/plan/PLAN-MAESTRO.md).
 > Empezá por [`docs/plan/PLAN-MAESTRO.md`](docs/plan/PLAN-MAESTRO.md).
 
 ## Qué resuelve
