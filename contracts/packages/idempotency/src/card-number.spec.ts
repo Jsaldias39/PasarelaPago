@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { createIsolatedDatabase, type IsolatedDatabase } from '@pay/testing';
 import { ProblemError } from '@pay/problem';
-import { containsCardNumber } from './card-number';
+import { containsCardNumber, safeIdempotencyKey } from './card-number';
 import { hashRequest, IdempotencyStore } from './index';
 
 /** Números de PRUEBA públicos de las marcas (pasan Luhn); ninguno es de una tarjeta real. */
@@ -113,7 +113,7 @@ describe('containsCardNumber — nivel INVÁLIDO: entradas hostiles no revientan
   });
 });
 
-describe('IdempotencyStore: una Idempotency-Key con forma de PAN no entra a idempotency_keys', () => {
+describe('safeIdempotencyKey e IdempotencyStore: una Idempotency-Key con forma de PAN nunca se guarda en claro', () => {
   let db: IsolatedDatabase;
   beforeAll(async () => {
     db = await createIsolatedDatabase([join(__dirname, '../sql/001_idempotency_keys.sql')]);
@@ -121,29 +121,49 @@ describe('IdempotencyStore: una Idempotency-Key con forma de PAN no entra a idem
   afterAll(async () => db.drop());
 
   const store = () => new IdempotencyStore(db.pool);
-  const rows = async () => Number((await db.pool.query('SELECT count(*)::int AS n FROM idempotency_keys')).rows[0].n);
+  const keys = async () => (await db.pool.query('SELECT key FROM idempotency_keys ORDER BY key')).rows.map((r) => r.key as string);
 
-  it('INVÁLIDO: se rechaza con 422 validation_failed/card_number_detected, el manejador NO corre, no se guarda NADA y el error no repite el valor', async () => {
-    let ran = false;
+  it('CORRECTO: una clave legítima se guarda tal cual y se repite igual', () => {
+    expect(safeIdempotencyKey('3f2b8f0e-5a1c-4d7e-9b21-0c6a7e4d8f10')).toBe('3f2b8f0e-5a1c-4d7e-9b21-0c6a7e4d8f10');
+    expect(safeIdempotencyKey('pi_1a72d49b631fe6c9e1824b6b:risk')).toBe('pi_1a72d49b631fe6c9e1824b6b:risk');
+  });
+
+  it('LÍMITE: con forma de PAN se reemplaza por masked-<sha256>; es determinista, distinta por clave y no deja ni un dígito del PAN', () => {
     for (const key of [`pedido-${VISA}`, groups(VISA, '+'), groups(VISA, ':'), `99${VISA}77`, inScript(VISA, 0x0660)]) {
-      const attempt = store().execute({ scope: 'merchant_A', key, requestHash: hash }, async () => {
-        ran = true;
-        return { status: 201, body: { ok: true } };
-      });
-      const error = await attempt.catch((e: unknown) => e);
-      expect(error).toBeInstanceOf(ProblemError);
-      expect(error).toMatchObject({ code: 'validation_failed', status: 422 });
-      expect(JSON.stringify((error as ProblemError).toProblem())).not.toContain('4111');
-      expect((error as ProblemError).message).not.toContain('4111');
+      const masked = safeIdempotencyKey(key);
+      expect(masked).toMatch(/^masked-[0-9a-f]{64}$/);
+      expect(safeIdempotencyKey(key)).toBe(masked);
+      expect(masked).not.toContain('4111');
     }
-    expect(ran).toBe(false);
-    expect(await rows()).toBe(0);
+    expect(safeIdempotencyKey(`a-${VISA}`)).not.toBe(safeIdempotencyKey(`b-${VISA}`));
+  });
+
+  it('LÍMITE: en el almacén la ejecución es UNA sola, la repetición con la MISMA clave devuelve la respuesta guardada y en la tabla no hay ningún PAN', async () => {
+    let runs = 0;
+    const handler = async () => {
+      runs += 1;
+      return { status: 201, body: { ok: true } };
+    };
+    const request = { scope: 'merchant_A', key: `pedido-${VISA}`, requestHash: hash };
+    const first = await store().execute(request, handler);
+    const second = await store().execute(request, handler);
+    expect({ runs, first: first.replayed, second: second.replayed, status: second.status }).toEqual({ runs: 1, first: false, second: true, status: 201 });
+    expect(await keys()).toHaveLength(1);
+    expect((await keys())[0]).toMatch(/^masked-[0-9a-f]{64}$/);
+    expect((await db.pool.query("SELECT 1 FROM idempotency_keys WHERE key LIKE '%4111%' OR key LIKE '%pedido%'")).rows).toHaveLength(0);
+  });
+
+  it('INVÁLIDO: la misma clave con OTRO pedido sigue dando idempotency_key_reused (el enmascarado no la vuelve reutilizable)', async () => {
+    const other = hashRequest({ method: 'POST', path: '/v1/payment_intents', body: { amount_minor: 99 } });
+    const error = await store().execute({ scope: 'merchant_A', key: `pedido-${VISA}`, requestHash: other }, async () => ({ status: 201, body: {} })).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ProblemError);
+    expect(error).toMatchObject({ code: 'idempotency_key_reused' });
   });
 
   it('CORRECTO: una clave legítima sigue funcionando y se guarda tal cual', async () => {
     const key = '3f2b8f0e-5a1c-4d7e-9b21-0c6a7e4d8f10';
     const result = await store().execute({ scope: 'merchant_A', key, requestHash: hash }, async () => ({ status: 201, body: { ok: true } }));
     expect(result).toMatchObject({ status: 201, replayed: false });
-    expect((await db.pool.query('SELECT key FROM idempotency_keys')).rows).toEqual([{ key }]);
+    expect(await keys()).toContain(key);
   });
 });

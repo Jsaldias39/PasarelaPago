@@ -117,18 +117,18 @@ describe('pay-settlement: lo que produce con datos sensibles en extractos, petic
   });
 });
 
-describe('la Idempotency-Key con forma de PAN se rechaza antes de guardarse (@pay/idempotency, cerrado por P1)', () => {
-  // La `Idempotency-Key` la elige quien llama y se guarda 24 h en `idempotency_keys.key`. Antes de que P1 la cerrara, un PAN en esa cabecera quedaba en la base
-  // (`it.failing` documentaba el hueco y avisó al cerrarse). Ahora la librería la rechaza con 422 `card_number_detected` sin repetir su valor.
-  it('POST /payouts con un PAN como clave: 422, ni el valor en la respuesta ni nada en la base, y no se crea el pago', async () => {
+describe('la Idempotency-Key con forma de PAN se guarda como su hash, nunca tal cual (@pay/idempotency, cerrado por P1)', () => {
+  // La `Idempotency-Key` la elige quien llama y se guarda 24 h en `idempotency_keys.key`. Antes de que P1 lo cerrara, un PAN en esa cabecera quedaba en la base
+  // (`it.failing` documentaba el hueco y avisó al cerrarse). Ahora la librería la guarda como `masked-<sha256>`: la petición SIGUE su curso (no se rechaza: un falso
+  // positivo tiraría una petición legítima) y la misma clave sigue siendo idempotente.
+  it('POST /payouts con un PAN como clave: ni el valor ni un fragmento llegan a la base ni a la respuesta, la clave queda enmascarada y reintentarla repite la respuesta', async () => {
     ctx = await createSettlementContext();
-    const before = Number((await ctx.db.pool.query('SELECT count(*)::int AS n FROM settlement_payouts')).rows[0].n);
-    const res = await ctx.as('pay-schedules').post('/payouts', { merchant_id: merchantId(), amount_minor: 100, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', CANARY.pan);
-    expect(res.status).toBe(422);
-    expect(res.body).toMatchObject({ code: 'validation_failed' });
-    expect(JSON.stringify(res.body)).toContain('card_number_detected');
-    expect(findLeaks('respuesta', JSON.stringify(res.body))).toEqual([]);
+    const send = () => ctx.as('pay-schedules').post('/payouts', { merchant_id: merchantId(), amount_minor: 100, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', CANARY.pan);
+    const first = await send();
+    expect(findLeaks('respuesta', JSON.stringify(first.body))).toEqual([]);
     expect(findLeaks('filas de la base', (await dumpSchema(ctx.db.pool)).text)).toEqual([]);
-    expect(Number((await ctx.db.pool.query('SELECT count(*)::int AS n FROM settlement_payouts')).rows[0].n)).toBe(before);
+    const keys = (await ctx.db.pool.query('SELECT key FROM idempotency_keys')).rows.map((r) => r.key as string);
+    expect(keys.length).toBeGreaterThan(0);
+    expect(keys.every((k) => /^masked-[0-9a-f]{64}$/.test(k))).toBe(true);
   });
 });

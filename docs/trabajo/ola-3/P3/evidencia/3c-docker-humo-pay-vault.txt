@@ -3,3 +3,16 @@ Unable to find image 'pay-vault-gate:p3' locally
 docker: Error response from daemon: pull access denied for pay-vault-gate, repository does not exist or may require 'docker login'
 
 Run 'docker run --help' for more information
+$ curl /health/live
+
+$ curl /health/ready
+
+$ docker exec p3-smoke-vault id
+Error response from daemon: No such container: p3-smoke-vault
+$ docker exec ... ls /repo/services
+Error response from daemon: No such container: p3-smoke-vault
+$ docker logs (últimas 6 líneas)
+Error response from daemon: No such container: p3-smoke-vault
+Error response from daemon: No such container: p3-smoke-vault
+Error response from daemon: No such container: p3-smoke-vault
+(contenedor detenido y borrado)

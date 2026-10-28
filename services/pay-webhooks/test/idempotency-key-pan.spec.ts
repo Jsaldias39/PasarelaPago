@@ -1,8 +1,8 @@
 import { newKey, newMerchantId, startWebhooks, type WebhooksHarness } from './harness';
 
 /**
- * La `Idempotency-Key` se guarda EN CLARO en `idempotency_keys`: una con forma de número de tarjeta se rechaza ANTES de tocar la base (regla del repo: el PAN
- * no existe en ningún lado). Tres niveles. Los números son los de PRUEBA públicos de las marcas.
+ * La `Idempotency-Key` se guarda EN CLARO en `idempotency_keys`: una con forma de número de tarjeta se guarda como su hash (`masked-<sha256>`), nunca tal cual
+ * (regla del repo: el PAN no existe en ningún lado). NO se rechaza (falsos positivos con claves hexadecimales). Tres niveles. Números de PRUEBA públicos.
  */
 const GOOD = { url: 'https://hooks.comercio.example/pay', enabled_events: ['payment_intent.succeeded'] };
 
@@ -25,14 +25,17 @@ describe('pay-webhooks: Idempotency-Key con forma de PAN', () => {
     ['con guiones', '4111-1111-1111-1111'],
     ['con prefijo', 'orden-4111111111111111'],
     ['Amex', '378282246310005'],
-  ])('LÍMITE — %s: 422 validation_failed/card_number_detected, NO se crea el endpoint, NO se guarda la clave y la respuesta no repite el valor', async (_name, key) => {
-    const before = Number((await h.db.pool.query('SELECT count(*)::int AS n FROM webhook_endpoints')).rows[0].n);
-    const res = await h.as(newMerchantId()).post('/webhook_endpoints').set('Idempotency-Key', key).send(GOOD);
-    expect(res.status).toBe(422);
-    expect(res.body).toMatchObject({ code: 'validation_failed', errors: [{ field: 'idempotency-key', code: 'card_number_detected' }] });
-    expect(JSON.stringify(res.body)).not.toContain(key);
-    expect(JSON.stringify(res.body)).not.toContain(key.replace(/\D/g, ''));
-    expect(Number((await h.db.pool.query('SELECT count(*)::int AS n FROM webhook_endpoints')).rows[0].n)).toBe(before);
+    ['con separadores raros', '4111+1111:1111;1111'],
+  ])('LÍMITE — %s: el endpoint se crea, la clave se guarda como masked-<sha256> y la repetición con la MISMA clave devuelve el MISMO endpoint (sin duplicar)', async (_name, key) => {
+    const merchant = newMerchantId();
+    const first = await h.as(merchant).post('/webhook_endpoints').set('Idempotency-Key', key).send(GOOD);
+    const second = await h.as(merchant).post('/webhook_endpoints').set('Idempotency-Key', key).send(GOOD);
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(second.body.id).toBe(first.body.id);
+    const stored = (await h.db.pool.query('SELECT key FROM idempotency_keys WHERE key LIKE \'masked-%\'')).rows.map((r) => r.key as string);
+    expect(stored.length).toBeGreaterThan(0);
+    expect(JSON.stringify(first.body)).not.toContain(key.replace(/\D/g, ''));
     expect((await h.db.pool.query("SELECT 1 FROM idempotency_keys WHERE key ~ '4111|378282246310005'")).rows).toHaveLength(0);
   });
 

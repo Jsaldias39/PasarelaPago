@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { parseApiKey, verifyApiKey } from '@pay/api-key';
-import { containsCardNumber } from '@pay/idempotency';
+import { safeIdempotencyKey } from '@pay/idempotency';
 import { serviceHeaders } from '@pay/service-auth';
 import { SERVICE_CONFIG, type ServiceConfig } from '../config';
 import { EdgeProblemError, fail } from '../edge-problem';
@@ -178,11 +178,9 @@ export class EdgePipeline {
     if (typeof value !== 'string' || !IDEMPOTENCY_KEY.test(value)) {
       throw fail('validation_failed', { errors: [{ field: 'idempotency-key', code: 'invalid_format', message: 'De 8 a 255 caracteres ASCII imprimibles' }] });
     }
-    // La clave se guarda EN CLARO aguas abajo (`idempotency_keys`) y viaja en cabeceras: una con forma de PAN no se reenvía (ni se repite en la respuesta).
-    if (containsCardNumber(value)) {
-      throw fail('validation_failed', { errors: [{ field: 'idempotency-key', code: 'card_number_detected', message: 'La Idempotency-Key no puede parecerse a un número de tarjeta' }] });
-    }
-    return value;
+    // La clave se guarda EN CLARO aguas abajo (`idempotency_keys`) y viaja en cabeceras entre servicios: una con forma de PAN se reenvía como su hash
+    // (`masked-<sha256>`), nunca tal cual. No se rechaza: ver `safeIdempotencyKey` (falsos positivos con identificadores hexadecimales).
+    return safeIdempotencyKey(value);
   }
 
   /** Continúa la traza del cliente si trae una válida (mismo trace id, span nuevo); si no, abre una. */
