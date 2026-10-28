@@ -13,6 +13,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkInfra, deleteServiceStreams, makeReceiverCertificate, resetDatabase, ROOT, startPrivateTigerBeetle } from './lib/infra.ts';
+import { warmUp, type WarmUpReport } from './lib/warmup.ts';
 import { freePorts, isOurProcess, type Managed, spawnNode, tailLog, terminate, waitFor } from './lib/process.ts';
 import { ALL_SERVICES, DEFAULT_INFRA, DEPENDS_ON, envFor, generateSecrets, type EnvContext, type Infra, type RunSecrets, SERVICES, type ServiceName } from './lib/services.ts';
 
@@ -63,6 +64,8 @@ export interface Stack {
   readonly receiver: { readonly port: number; readonly certFile: string; readonly keyFile: string };
   /** TigerBeetle propio de la corrida (archivo y puerto propios); `undefined` si no se pidió `pay-ledger`. */
   readonly tigerbeetle: Managed | undefined;
+  /** Qué hizo el calentamiento del arranque (`undefined` si se desactivó). */
+  warmedUp: WarmUpReport | undefined;
   url(name: ServiceName): string;
   /** Llamada HTTP a un servicio (sin identidad de servicio: la pone quien llama). */
   call(name: ServiceName, method: string, path: string, options?: CallOptions): Promise<HttpResult>;
@@ -78,6 +81,8 @@ export interface StartOptions {
    * `MOCKBANK_URL`, así el conector `mock` y la cuenta de transferencias hablan con el banco por HTTP. Por defecto `false`: E1/E2 y el resto no lo necesitan.
    */
   readonly mockbank?: boolean;
+  /** Calienta el camino de riesgo al terminar el arranque (por defecto `true`; ver lib/warmup.ts). `false` en las pruebas que miden el arranque en frío. */
+  readonly warmUp?: boolean;
   /** `true` (por defecto): un servicio que falla se anota y se sigue. `false`: se lanza al primer fallo. */
   readonly tolerateFailures?: boolean;
   /** Tope de espera de la readiness de cada servicio. */
@@ -152,6 +157,7 @@ export async function startStack(options: StartOptions = {}): Promise<Stack> {
     processes,
     receiver,
     tigerbeetle: tb?.managed,
+    warmedUp: undefined,
     url: (name) => services[name].url,
     call: (name, method, path, opts) => request(services[name].url, method, path, opts),
     callAs: (from, name, method, path, opts = {}) => {
@@ -215,6 +221,7 @@ export async function startStack(options: StartOptions = {}): Promise<Stack> {
       }
     }
   }
+  if (options.warmUp !== false) stack.warmedUp = await warmUp(stack);
   return stack;
 }
 

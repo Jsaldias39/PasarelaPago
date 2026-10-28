@@ -22,11 +22,8 @@ try {
 }
 
 const root = process.cwd(); // las pruebas corren desde services/pay-payments (Jest ESM no tiene __dirname)
-export const SQL_FILES = [
-  path.join(root, 'sql/001_payments.sql'),
-  path.join(root, '../../contracts/packages/idempotency/sql/001_idempotency_keys.sql'),
-  path.join(root, '../../contracts/packages/outbox/sql/001_outbox_inbox.sql'),
-];
+// DDL generado por el modelo (D-18), vendorizado con `scripts/vendor-model-sql.sh`; ya trae las tablas de outbox, inbox e idempotencia.
+export const SQL_FILES = [path.join(root, 'sql/ddl.sql')];
 export const WORKFLOWS_PATH = path.join(root, 'src/temporal/workflows.ts');
 
 export const MC = 'mc_merchant00001';

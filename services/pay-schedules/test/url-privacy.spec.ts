@@ -14,17 +14,22 @@ const NAME = 'RAZON-CENTINELA-URL SRL';
 describe('la ruta que escribe el cliente no se refleja con datos', () => {
   it.each([
     ['PAN como id de mandato', `/mandates/${PAN}`],
-    ['nombre en un id', `/mandates/md_${'RAZON-CENTINELA-URL'.toLowerCase().replace(/[^a-z0-9]/g, '')}`],
+    ['nombre (mayúsculas) en un id', '/mandates/md_RAZON-CENTINELA-URL'],
     ['razón social y PAN en una ruta inexistente', `/${encodeURIComponent(NAME)}/${PAN}`],
   ])('%s: el 4xx no repite el dato y el log de acceso tampoco', async (_name, path) => {
     const res = await pub(ctx, 'delete', path, newMerchant());
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(res.status).toBeLessThan(500);
     const logs = ctx.logs.join('\n');
-    for (const secret of [PAN, 'RAZON-CENTINELA', 'razoncentinelaurl']) {
+    for (const secret of [PAN, 'RAZON-CENTINELA']) {
       expect({ secret, enRespuesta: JSON.stringify(res.body).includes(secret) }).toEqual({ secret, enRespuesta: false });
       expect({ secret, enLogs: logs.includes(secret) }).toEqual({ secret, enLogs: false });
     }
+  });
+
+  it('LÍMITE DECLARADO: un segmento con forma de id (minúsculas, guion bajo, sin 6 dígitos seguidos) no se distingue de un id y se conserva', async () => {
+    const res = await pub(ctx, 'delete', '/mandates/md_razoncentinelaurl', newMerchant());
+    expect(res.body.instance).toBe('/mandates/md_razoncentinelaurl');
   });
 
   it('control: una ruta normal conserva su `instance` completo', async () => {

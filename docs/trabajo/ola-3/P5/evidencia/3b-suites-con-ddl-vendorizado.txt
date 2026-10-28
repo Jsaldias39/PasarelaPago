@@ -26,3 +26,23 @@ FAIL test/assessments.spec.ts (69.927 s)
 Test Suites: 3 failed, 13 passed, 16 total
 Tests:       12 failed, 215 passed, 227 total
 ### corrida 2 pay-merchants
+Test Suites: 18 passed, 18 total
+Tests:       206 passed, 206 total
+### corrida 2 pay-schedules
+FAIL test/url-privacy.spec.ts
+  ● la ruta que escribe el cliente no se refleja con datos › nombre en un id: el 4xx no repite el dato y el log de acceso tampoco
+  ● la ruta que escribe el cliente no se refleja con datos › razón social y PAN en una ruta inexistente: el 4xx no repite el dato y el log de acceso tampoco
+Test Suites: 1 failed, 13 passed, 14 total
+Tests:       2 failed, 197 passed, 199 total
+### corrida 2 pay-risk
+FAIL test/url-privacy.spec.ts
+  ● la ruta que escribe el cliente no se refleja con datos › nombre en un id: el 4xx no repite el dato y el log de acceso tampoco
+  ● la ruta que escribe el cliente no se refleja con datos › nombre y PAN en una ruta inexistente: el 4xx no repite el dato y el log de acceso tampoco
+FAIL test/latency.spec.ts (64.035 s)
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › concurrencia moderada (4 clientes en paralelo), ≥ 400 llamadas — INFORMATIVA: el Watchman (monohilo por búsqueda) es el cuello de botella
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › el servicio SIN Watchman (cribado instantáneo [DOBLE]) aporta una fracción del presupuesto: p99 propio, ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › cada llamada medida dejó su rastro, con su duración interna registrada
+Test Suites: 2 failed, 14 passed, 16 total
+Tests:       6 failed, 221 passed, 227 total
+DONE

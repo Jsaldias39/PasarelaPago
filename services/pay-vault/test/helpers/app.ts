@@ -12,7 +12,8 @@ import { VaultController } from '../../src/vault/vault.controller';
 import { VaultService } from '../../src/vault/vault.service';
 
 const root = process.cwd();
-export const SQL_FILES = [path.join(root, 'sql/001_vault.sql'), path.join(root, '../../contracts/packages/idempotency/sql/001_idempotency_keys.sql')];
+// DDL generado por el modelo (D-18), vendorizado con `scripts/vendor-model-sql.sh`; ya trae la tabla de idempotencia.
+export const SQL_FILES = [path.join(root, 'sql/ddl.sql')];
 
 export const MC = 'mc_merchant00001';
 export const MC2 = 'mc_merchant00002';

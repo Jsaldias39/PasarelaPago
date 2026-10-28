@@ -105,3 +105,79 @@ existe aún (U-5). Un cambio posterior = editar el `.puml`, regenerar, vendoriza
 **No cubierto:** las specs que arrancan servicios con `yarn build` o necesitan servicios externos (`startup.*`, `env-example.*`,
 `pay-mockbank` real, Watchman real) no corren en la copia mínima; son ENVIRONMENT/EXTERNAL y no dependen del SQL. Las entidades
 del ORM no existen. Ninguna base real (`pay_<svc>`) fue tocada.
+
+## 7. Endurecimiento 2026-10-28 (revisión de seguridad) — qué cambió en el SQL y qué deben saber los servicios
+
+Los tres huecos eran fieles al SQL de referencia; al ser ahora el modelo la fuente única, se corrigieron en los `.puml`
+(`pay-modules/diagram_70/72/73_*.puml`) y se regeneró `SQL/pay/` (`gen_ddl_pay.py --check` en verde). Diferencias con el SQL de
+referencia, **todas aditivas** (`solo en referencia: []` en `evidencia/10b`): los otros 9 módulos siguen idénticos.
+
+### 7.1 Auditoría de tablas inmutables / append-only (los 12 módulos)
+
+| Módulo | Tabla | Guardián de fila | TRUNCATE antes | TRUNCATE ahora |
+|---|---|---|---|---|
+| pay_merchants | `contract_versions` | `BEFORE UPDATE OR DELETE` | **faltaba** | `contract_versions_no_truncate` |
+| pay_merchants | `contract_acceptances` | ídem | sí | sin cambio |
+| pay_merchants | `fee_schedule_versions` | ídem | sí | sin cambio |
+| pay_merchants | `fee_schedule_channels` | ídem | **faltaba** | `fee_schedule_channels_no_truncate` |
+| pay_risk | `risk_rule_sets` | ídem | sí | sin cambio |
+| pay_risk | `risk_assessments` | ídem | sí | sin cambio |
+| pay_connectors | `connector_transfers` | monotonía `BEFORE UPDATE` | **faltaba** | `connector_transfers_no_truncate` |
+| pay_connectors | `connector_refunds` | monotonía `BEFORE UPDATE` | **faltaba** | `connector_refunds_no_truncate` |
+| pay_connectors | `connector_charges` | **no tenía** | **faltaba** | `connector_charges_monotone_trg` + `connector_charges_no_truncate` |
+
+Matiz honesto: `TRUNCATE` a secas sobre una tabla con FK entrante lo frena Postgres (0A000) antes que el trigger, y en
+`contract_versions` el hijo `contract_acceptances` ya la protegía por `CASCADE`; el hueco real eran las tablas hoja
+(`fee_schedule_channels`, `connector_transfers`, `connector_refunds`) y `TRUNCATE connector_charges CASCADE`. El trigger de
+TRUNCATE dispara también para el dueño de la tabla (el rol de la aplicación) y para el superusuario.
+
+**Tablas que dicen ser de solo-agregar y NO tienen ningún guardián (no se tocaron; decisión de sus dueños, porque agregar un
+trigger de fila cambia el comportamiento):** `settlement_audit` («Solo se agrega»), `reveal_audit` (pay-vault), `ledger_transactions`,
+`ledger_legs`, `ledger_statement_lines`, `ledger_rejections` (pay-ledger), `connector_callback_events`, `connector_api_attempts`,
+`webhook_delivery_attempts`. Propuesta: `forbid_mutation` en UPDATE/DELETE/TRUNCATE para las de auditoría pura (`settlement_audit`,
+`reveal_audit`, `ledger_rejections`, `ledger_legs`, `ledger_statement_lines`), cada una con su prueba de tres niveles.
+
+### 7.2 `ledger_holds` → `ledger_accounts` (pay-ledger)
+
+Dos FK compuestas nuevas, `ledger_holds_debit_account_fkey` y `ledger_holds_credit_account_fkey`: `(mode, debit_account|credit_account)
+→ ledger_accounts (mode, account)`. **Son compatibles con el servicio:** `hold.service.ts#createHold` llama a
+`AccountRegistry.register(client, mode, [debit, credit])` dentro de la misma transacción y antes de los dos `INSERT INTO ledger_holds`
+(el `pending` y el `rejected`); `register` inserta las filas de `ledger_accounts` con `ON CONFLICT DO NOTHING`. Ningún otro código
+escribe en `ledger_holds` (`grep` en `src/`, `test/`, `e2e/`). Cambio de código: **ninguno**. Evidencia: `holds.spec` y la suite completa
+del ledger (10g) y la de settlement con ledger real (10l) pasan; prueba nueva `holds-accounts-fk.spec.ts`.
+
+### 7.3 `connector_charges` (pay-connectors)
+
+- Trigger `connector_charges_monotone_trg` (`BEFORE UPDATE`): rechaza `NEW.send_claims < OLD.send_claims` (`check_violation`).
+  **La tabla no tiene `may_have_reached_provider`** (su equivalente es `ambiguous`), así que esa mitad del pedido no aplica.
+- **`ambiguous` true → false NO se restringe**, a propósito (queda escrito en el `.puml`): lo bajan `apply.ts` (`ambiguous = false`
+  al aplicar un estado confirmado por el proveedor, por callback o consulta autoritativa) y `charges.service.ts:159` (`Unavailable`
+  cuando nadie reclamó después, `WHERE send_claims = mine`). Hacerlo monótono dejaría todo cobro ambiguo así para siempre.
+- Función nueva `forbid_mutation()` en pay_connectors (la misma de merchants y risk) para los tres `*_no_truncate`.
+
+### 7.4 Cambios exactos para los servicios
+
+| Dónde | Cambio |
+|---|---|
+| Todos los vendorizados | Re-vendorizar `ddl.sql` de `merchants` (73), `connectors` (70) y `ledger` (72) desde el modelo. **merchants/risk/schedules ya tienen un `sql/ddl.sql` copiado por P5: el de merchants ya coincide con el modelo actual; connectors y ledger todavía no están copiados.** |
+| `services/pay-connectors/test/support/app.ts:100-102` (`reset()`) | `TRUNCATE connector_charges, connector_transfers, connector_refunds, … CASCADE` **ahora falla** (`la tabla connector_charges es inmutable (TRUNCATE)`; `evidencia/10e`: 330 fallos). Cambiarlo por `DELETE FROM` en orden de FK: `bank_transfer_references`, `connector_refunds`, `connector_callback_events`, `connector_api_attempts`, `connector_charges`, `connector_transfers`, `connector_health`, `connector_callback_endpoints`, `statement_exceptions`, `idempotency_keys`, `outbox_events`, `inbox_events` (probado en la copia: 484/484, `evidencia/10j`). `DELETE` no está prohibido en esas tablas. |
+| `services/pay-connectors/test/callbacks.spec.ts:276,285` | `TRUNCATE connector_callback_endpoints`: sin cambio (esa tabla no tiene guardián). |
+| Pruebas nuevas (propuestas, en `evidencia/herramientas/nuevas-pruebas/`) | `connectors-money-guards.spec.ts` → `services/pay-connectors/test/`; `merchants-truncate.spec.ts` → `services/pay-merchants/test/`; `holds-accounts-fk.spec.ts` → `services/pay-ledger/test/`. Las tres fallan contra el SQL de referencia en los casos inválidos/límite corregidos (`evidencia/10k`) y pasan contra el generado. |
+| Producción / bases con datos | `ddl.sql` agrega las FK de `ledger_holds`: en una base poblada, `ADD CONSTRAINT` valida las filas existentes; verificar antes con `SELECT … FROM ledger_holds h LEFT JOIN ledger_accounts a ON a.mode=h.mode AND a.account=h.debit_account WHERE a.account IS NULL` (idem crédito). Hoy no hay bases pobladas. |
+
+### 7.5 Verificación del endurecimiento (`evidencia/10*`)
+
+| Qué | Archivo | Resultado |
+|---|---|---|
+| Regeneración (`--check`) | `10b` (cabecera) y corrida de `gen_ddl_pay.py` | `SQL/pay/ coincide con los .puml` |
+| Diferencias declaradas contra el SQL de referencia | `10b-equivalencia-tras-endurecimiento.txt` | connectors, ledger y merchants: solo triggers/funciones/FK **nuevos** (`solo en referencia: []`); los otros 9: PASS |
+| 27 sondas SQL en tres niveles, como rol no superusuario dueño, referencia (A) vs modelo (B) | `10-sondas-endurecimiento.txt` | PASS; las diferencias A≠B son exactamente las correcciones |
+| Conteos / huérfanos / nulos / aplicación ×2 y como rol dueño | `10c`, `10d` | PASS / 12 de 12 |
+| Costo en pruebas existentes: `reset()` de connectors con TRUNCATE | `10e` (330 fallos) → `10f`/`10j` (helper adaptado: 473 y 484 verdes) | documentado en §7.4 |
+| ledger completo (TigerBeetle real) + prueba nueva | `10g` | 267 verdes; 2 fallos de `faults.spec` (mata y relanza TigerBeetle con su propio binario, ausente en la copia) idénticos contra la referencia (`10h`) |
+| merchants completo + prueba nueva | `10i` | 186 verdes |
+| connectors completo + prueba nueva | `10j` | 484 verdes (sin las specs que levantan pay-mockbank real) |
+| settlement con ledger real | `10l` | 554 verdes; 2 fallos de `nats.spec` en la corrida completa **no se reproducen** aislado, ni con el SQL generado ni con el de referencia (`10m`): interferencia por streams NATS compartidos con otras corridas (EXTERNAL) |
+| Las pruebas nuevas detectan los huecos | `10k` | contra el SQL de referencia fallan en los casos inválidos/límite corregidos (merchants 1, connectors 3, ledger 2) y pasan contra el generado |
+
+TigerBeetle ya estaba corriendo (lo había levantado otro agente en 127.0.0.1:54300); lo usé y **no lo detuve** para no cortarle sus corridas.

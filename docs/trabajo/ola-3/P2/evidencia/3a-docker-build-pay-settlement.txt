@@ -1,4 +1,45 @@
 #1 [internal] load build definition from Dockerfile
 #1 DONE 0.0s
 #2 [internal] load metadata for docker.io/localhub/library/node:22-alpine
-rc=1
+#2 DONE 0.0s
+#3 [internal] load .dockerignore
+#3 DONE 0.0s
+#4 [internal] load build context
+#4 DONE 0.0s
+#5 [build 1/9] FROM docker.io/localhub/library/node:22-alpine@sha256:57d0228532656e935e68a67e712ba9e044881b19fb3aa7aa3ee9fabea0874fb3
+#5 DONE 0.0s
+#5 [build 1/9] FROM docker.io/localhub/library/node:22-alpine@sha256:57d0228532656e935e68a67e712ba9e044881b19fb3aa7aa3ee9fabea0874fb3
+#5 DONE 0.1s
+#4 [internal] load build context
+#4 DONE 0.1s
+#6 [build 2/9] WORKDIR /repo
+#6 DONE 0.0s
+#7 [build 3/9] COPY .yarn ./.yarn
+#7 DONE 0.0s
+#8 [build 4/9] COPY .yarnrc.yml package.json yarn.lock tsconfig.base.json ./
+#8 DONE 0.1s
+#9 [build 5/9] COPY contracts/packages ./contracts/packages
+#9 DONE 0.1s
+#10 [build 6/9] COPY services ./services
+#10 DONE 0.2s
+#11 [build 7/9] RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
+#11 52.66 ➤ YN0000: · Done with warnings in 50s 677ms
+#11 DONE 53.7s
+#12 [build 8/9] RUN node .yarn/releases/yarn-4.14.1.cjs workspaces foreach -R --topological-dev --from pay-settlement run build
+#12 DONE 61.1s
+#13 [build 9/9] RUN find services -mindepth 1 -maxdepth 1 ! -name pay-settlement -exec rm -rf {} +
+#13 DONE 1.8s
+#14 [stage-1 3/4] COPY --from=build /repo /repo
+#14 DONE 8.5s
+#15 [stage-1 4/4] WORKDIR /repo/services/pay-settlement
+#15 DONE 0.4s
+#16 exporting to image
+#16 exporting layers
+#16 exporting layers 26.1s done
+#16 exporting manifest sha256:3352176a6cda9361d47539fe97c2a4f0dfe8b71c42d9216ccabff51d5adbe33b 0.0s done
+#16 exporting config sha256:d2bddaf32d73c0f15a9fda3d404c519876b2b3f7952d5a11ce880702bea469c9 done
+#16 exporting attestation manifest sha256:390378cdfa92b6bc7cc0eadddb63f0e1eec1a13ea3e1399a3d7d9d84e990671c done
+#16 exporting manifest list sha256:737e4077cef438a2ab63cacde5c38fa1c3b31294e92806b1226449ca3f59f7b4 0.0s done
+#16 naming to docker.io/library/pay-settlement-gate:p2 done
+#16 DONE 32.8s
+rc=0

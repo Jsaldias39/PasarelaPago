@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { type LedgerTestContext, businessRef, checked, createLedgerContext, merchantId } from './helpers/app';
+import { type LedgerTestContext, businessRef, createLedgerContext, merchantId } from './helpers/app';
 import { CANARY, captureOutput, dumpSchema, findLeaks, panLikeValues, type Leak } from './helpers/sensitive';
 
 /**

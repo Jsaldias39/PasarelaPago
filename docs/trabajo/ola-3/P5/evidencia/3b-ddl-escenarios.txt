@@ -1,0 +1,27 @@
+# Gate: el DDL vendorizado se aplica limpio en los dos escenarios (con y sin el 001_*.sql de referencia), por el rol dueño, y dos veces
+
+## pay-merchants
+     arnés e2e HOY (librerías + todo sql/*.sql): contracts/packages/outbox/sql/001_outbox_inbox.sql + contracts/packages/idempotency/sql/001_idempotency_keys.sql + services/pay-merchants/sql/ddl.sql ×2 ⇒ 11 tablas
+PASS  pay-merchants: arnés e2e HOY (librerías + todo sql/*.sql) se aplica sin error
+     solo ddl.sql (estado final): services/pay-merchants/sql/ddl.sql ×2 ⇒ 11 tablas
+PASS  pay-merchants: solo ddl.sql (estado final) se aplica sin error
+     librerías + ddl.sql (arnés e2e tras borrar el 001): contracts/packages/outbox/sql/001_outbox_inbox.sql + contracts/packages/idempotency/sql/001_idempotency_keys.sql + services/pay-merchants/sql/ddl.sql ×2 ⇒ 11 tablas
+PASS  pay-merchants: librerías + ddl.sql (arnés e2e tras borrar el 001) se aplica sin error
+
+## pay-risk
+     arnés e2e HOY (librerías + todo sql/*.sql): contracts/packages/outbox/sql/001_outbox_inbox.sql + contracts/packages/idempotency/sql/001_idempotency_keys.sql + services/pay-risk/sql/ddl.sql ×2 ⇒ 5 tablas
+PASS  pay-risk: arnés e2e HOY (librerías + todo sql/*.sql) se aplica sin error
+     solo ddl.sql (estado final): services/pay-risk/sql/ddl.sql ×2 ⇒ 3 tablas
+PASS  pay-risk: solo ddl.sql (estado final) se aplica sin error
+     librerías + ddl.sql (arnés e2e tras borrar el 001): contracts/packages/outbox/sql/001_outbox_inbox.sql + contracts/packages/idempotency/sql/001_idempotency_keys.sql + services/pay-risk/sql/ddl.sql ×2 ⇒ 5 tablas
+PASS  pay-risk: librerías + ddl.sql (arnés e2e tras borrar el 001) se aplica sin error
+
+## pay-schedules
+     arnés e2e HOY (librerías + todo sql/*.sql): contracts/packages/outbox/sql/001_outbox_inbox.sql + contracts/packages/idempotency/sql/001_idempotency_keys.sql + services/pay-schedules/sql/ddl.sql ×2 ⇒ 6 tablas
+PASS  pay-schedules: arnés e2e HOY (librerías + todo sql/*.sql) se aplica sin error
+     solo ddl.sql (estado final): services/pay-schedules/sql/ddl.sql ×2 ⇒ 6 tablas
+PASS  pay-schedules: solo ddl.sql (estado final) se aplica sin error
+     librerías + ddl.sql (arnés e2e tras borrar el 001): contracts/packages/outbox/sql/001_outbox_inbox.sql + contracts/packages/idempotency/sql/001_idempotency_keys.sql + services/pay-schedules/sql/ddl.sql ×2 ⇒ 6 tablas
+PASS  pay-schedules: librerías + ddl.sql (arnés e2e tras borrar el 001) se aplica sin error
+
+resultado: PASS

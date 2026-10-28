@@ -1,0 +1,11 @@
+# settlement (usa el ledger REAL con TigerBeetle): el ledger de la copia lleva el SQL generado con las FK de ledger_holds; el de settlement también (IGNORE startup|env-example)
+== settlement: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/78_pay_settlement/ddl.sql, sha256 5401e1515f4c0596)
+FAIL test/nats.spec.ts
+  ● consumidores durables sobre NATS JetStream real › payment_intent.contradiction_detected de pay-payments (stream PAY_PAYMENTS) abre una excepción; entregado dos veces, una sola
+  ● consumidores durables sobre NATS JetStream real › basura, JSON inválido, sobres inválidos y eventos ajenos no traban el consumidor ni se reintentan sin fin; el siguiente evento válido pasa
+FAIL test/nats.spec.ts
+  ● consumidores durables sobre NATS JetStream real › payment_intent.contradiction_detected de pay-payments (stream PAY_PAYMENTS) abre una excepción; entregado dos veces, una sola
+  ● consumidores durables sobre NATS JetStream real › basura, JSON inválido, sobres inválidos y eventos ajenos no traban el consumidor ni se reintentan sin fin; el siguiente evento válido pasa
+Test Suites: 1 failed, 26 passed, 27 total
+Tests:       2 failed, 554 passed, 556 total
+FIN

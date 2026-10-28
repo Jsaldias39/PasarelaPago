@@ -1,0 +1,25 @@
+$ platform/scripts/check-db-separation.sh 127.0.0.1 54321
+separación: 168 comprobaciones correctas, 0 fallas
+exit=0
+
+$ psql como pay_ledger (dev_only_ledger): privilegios y conexiones
+pay_settlement: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_settlement"
+pay_edge: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_edge"
+pay_vault: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_vault"
+pay_test: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_test"
+postgres: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "postgres"
+template1: pay_ledger
+pay_ledger: pay_ledger
+
+$ psql como pay_settlement (dev_only_settlement)
+pay_ledger: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_ledger"
+pay_payments: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_payments"
+pay_connectors: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_connectors"
+pay_test: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_test"
+postgres: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "postgres"
+template1: pay_settlement
+pay_settlement: pay_settlement
+
+$ roles: atributos (como pay_ledger)
+pay_ledger|f|f|f|f|f
+pay_settlement|f|f|f|f|f

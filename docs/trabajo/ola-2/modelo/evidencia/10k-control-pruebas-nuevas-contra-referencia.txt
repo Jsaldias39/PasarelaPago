@@ -1,0 +1,13 @@
+# CONTROL: las pruebas nuevas contra el SQL de REFERENCIA (antes del endurecimiento) deben FALLAR en los casos inválidos/límite corregidos
+== merchants (merchants-truncate.spec.ts) contra REFERENCIA PURA (ddl.sql de la copia = libs + 001_merchants.sql original; P5 ya había vendorizado el ddl.sql nuevo en el servicio)
+  ● TRUNCATE de las tablas inmutables de pay-merchants › inválido: las cuatro tablas inmutables rechazan TRUNCATE aunque el guardián de sus hijos esté apagado (cada una tiene el suyo)
+Tests:       1 failed, 2 passed, 3 total
+== connectors (connectors-money-guards.spec.ts) contra REFERENCIA
+  ● connector_charges: send_claims monótono, ambiguous libre › límite: dejar send_claims igual y cambiar otras columnas está permitido; bajarlo en 1 no
+  ● connector_charges: send_claims monótono, ambiguous libre › inválido: send_claims no puede volver a cero ni quedar negativo
+  ● TRUNCATE de los registros de dinero › inválido: connector_charges (CASCADE), connector_transfers y connector_refunds rechazan TRUNCATE
+Tests:       3 failed, 3 passed, 6 total
+== ledger (holds-accounts-fk.spec.ts) contra REFERENCIA
+  ● ledger_holds → ledger_accounts (FK compuestas por modo) › límite: las cuentas existen solo en `test`; una retención en `live` o con una sola de las dos registrada se rechaza
+  ● ledger_holds → ledger_accounts (FK compuestas por modo) › inválido: una retención con cuentas que no existen en ninguna parte no entra
+Tests:       2 failed, 1 passed, 3 total
