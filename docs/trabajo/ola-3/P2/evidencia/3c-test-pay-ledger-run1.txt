@@ -1,0 +1,42 @@
+(node:27120) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:27119) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/faults.spec.ts (23.74 s)
+  ● TigerBeetle muerto con SIGKILL en medio del servicio (ledger real) › mientras está caído: 503 ledger_unavailable en escrituras y lecturas, sin efectos a medias; al volver, el MISMO reintento termina una sola vez y el invariante cuadra
+
+    La condición no se cumplió en 20000 ms
+
+       5 |     const value = await condition();
+       6 |     if (value) return value;
+    >  7 |     if (Date.now() > deadline) throw new Error(`La condición no se cumplió en ${timeoutMs} ms`);
+         |                                      ^
+       8 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+       9 |   }
+      10 | }
+
+      at waitFor (test/helpers/wait.ts:7:38)
+      at startTb (test/faults.spec.ts:32:10)
+      at Object.<anonymous> (test/faults.spec.ts:51:3)
+
+  ● TigerBeetle muerto con SIGKILL en medio del servicio (ledger real) › la retención vencida durante la caída se resuelve sola al volver: el monto no se pierde ni se duplica
+
+    La condición no se cumplió en 20000 ms
+
+       5 |     const value = await condition();
+       6 |     if (value) return value;
+    >  7 |     if (Date.now() > deadline) throw new Error(`La condición no se cumplió en ${timeoutMs} ms`);
+         |                                      ^
+       8 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+       9 |   }
+      10 | }
+
+      at waitFor (test/helpers/wait.ts:7:38)
+      at startTb (test/faults.spec.ts:32:10)
+      at Object.<anonymous> (test/faults.spec.ts:51:3)
+
+[31m[Nest] 27120  - [39m10/28/2026, 12:42:47 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado

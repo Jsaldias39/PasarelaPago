@@ -16,7 +16,7 @@ function table(stack: Stack): string {
     return `${n.padEnd(15)} ${String(s.port).padEnd(6)} ${String(s.pid ?? '-').padEnd(8)} ${s.healthy ? 'SANO' : s.started ? 'VIVO-NO-SANO' : 'NO ARRANCA'}${s.startupMs ? ` (${s.startupMs} ms)` : ''}${s.error ? `  ← ${s.error}` : ''}`;
   });
   const warm = stack.warmedUp?.risk;
-  const warmLine = warm ? [`calentamiento de pay-risk: ${warm.attempted ? `HTTP ${warm.status ?? 'sin respuesta'} en ${warm.ms} ms` : 'no se hizo (pay-risk no está sano)'}`] : [];
+  const warmLine = warm ? [`calentamiento de pay-risk: ${warm.attempted ? `${warm.ready ? 'LISTO' : 'NO LLEGÓ A LA RACHA'} — ${warm.attempts} evaluación(es) en ${warm.totalMs} ms (última: HTTP ${warm.lastStatus ?? 'sin respuesta'} ${warm.lastDecision ?? '-'} en ${warm.lastMs} ms)` : 'no se hizo (pay-risk no está sano)'}`] : [];
   return ['servicio        puerto pid      estado', ...rows, ...warmLine].join('\n');
 }
 

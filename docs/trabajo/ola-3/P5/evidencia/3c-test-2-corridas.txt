@@ -5,3 +5,10 @@ Tests:       209 passed, 209 total
 Test Suites: 14 passed, 14 total
 Tests:       200 passed, 200 total
 ### corrida 1 pay-risk
+FAIL test/latency.spec.ts (59.473 s)
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › concurrencia moderada (4 clientes en paralelo), ≥ 400 llamadas — INFORMATIVA: el Watchman (monohilo por búsqueda) es el cuello de botella
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › cada llamada medida dejó su rastro, con su duración interna registrada
+Test Suites: 1 failed, 15 passed, 16 total
+Tests:       3 failed, 225 passed, 228 total
+### corrida 2 pay-merchants
