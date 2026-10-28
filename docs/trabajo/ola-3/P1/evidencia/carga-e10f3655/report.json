@@ -1,0 +1,216 @@
+{
+  "result": {
+    "config": {
+      "baseUrl": "http://127.0.0.1:33855",
+      "peakRps": 10,
+      "rampSeconds": 10,
+      "durationSeconds": 60,
+      "amounts": [
+        10000
+      ],
+      "duplicateFraction": 0.02,
+      "requestTimeoutMs": 30000,
+      "settleTimeoutSeconds": 120,
+      "pollConcurrency": 25,
+      "maxInFlight": 1500,
+      "runId": "e10f3655",
+      "keys": 3
+    },
+    "planned": 550,
+    "sent": 555,
+    "answered": 555,
+    "byStatus": {
+      "201": 555
+    },
+    "byErrorCode": {},
+    "status5xx": 0,
+    "status4xx": 0,
+    "status429": 0,
+    "noResponse": 0,
+    "runnerDropped": 0,
+    "createLatencyMs": {
+      "n": 555,
+      "min": 183.58923299999879,
+      "p50": 5584.975304000007,
+      "p95": 8851.356399000011,
+      "p99": 9240.008437000011,
+      "max": 9518.965131999998,
+      "mean": 5376.768643054059
+    },
+    "sendLagMs": {
+      "n": 550,
+      "min": 0,
+      "p50": 0,
+      "p95": 5.076912000004086,
+      "p99": 14.287217999997665,
+      "max": 43.62823400000343,
+      "mean": 1.0152552000003527
+    },
+    "created": 550,
+    "terminalByStatus": {
+      "succeeded": 525,
+      "failed": 25
+    },
+    "failedByCode": {
+      "risk_denied": 25
+    },
+    "stuck": 0,
+    "stuckSample": [],
+    "timeToTerminalMs": {
+      "n": 550,
+      "min": 68,
+      "p50": 17848,
+      "p95": 30074,
+      "p99": 32496,
+      "max": 34132,
+      "mean": 16590.376363636362
+    },
+    "idempotencyViolations": 0,
+    "startedAt": "2026-10-28T03:43:11.944Z",
+    "sendPhaseMs": 68586.588185,
+    "settlePhaseMs": 15829.338703999994
+  },
+  "cpu": {
+    "mode": "proc",
+    "samples": 16,
+    "perProcess": {
+      "pay-ledger": {
+        "avg": 5.159052613964381,
+        "max": 10.600000000000001
+      },
+      "pay-risk": {
+        "avg": 4.198871894465274,
+        "max": 6.6000000000000005
+      },
+      "pay-qr": {
+        "avg": 2.612598943211618,
+        "max": 5
+      },
+      "pay-vault": {
+        "avg": 0.8131284718941338,
+        "max": 2.8000000000000003
+      },
+      "pay-merchants": {
+        "avg": 0.8264963830605665,
+        "max": 3.2
+      },
+      "pay-webhooks": {
+        "avg": 3.4658285697072038,
+        "max": 6
+      },
+      "pay-schedules": {
+        "avg": 0.6798217179935799,
+        "max": 0.9996001599360257
+      },
+      "pay-mockbank": {
+        "avg": 4.9588664165265675,
+        "max": 7.3999999999999995
+      },
+      "pay-connectors": {
+        "avg": 9.82435958642046,
+        "max": 13
+      },
+      "pay-payments": {
+        "avg": 54.78749636763129,
+        "max": 59.199999999999996
+      },
+      "pay-settlement": {
+        "avg": 1.5997471662890164,
+        "max": 2.8000000000000003
+      },
+      "pay-edge": {
+        "avg": 19.662022638247937,
+        "max": 25.994801039792044
+      },
+      "tigerbeetle": {
+        "avg": 0.4932455275304966,
+        "max": 1
+      }
+    },
+    "machine": {
+      "busyAvg": 85.66649362982525,
+      "busyMax": 93.1910569105691,
+      "loadavgMax": 28.9,
+      "cores": 4
+    },
+    "top": [
+      {
+        "name": "pay-payments",
+        "avg": 54.78749636763129
+      },
+      {
+        "name": "pay-edge",
+        "avg": 19.662022638247937
+      },
+      {
+        "name": "pay-connectors",
+        "avg": 9.82435958642046
+      },
+      {
+        "name": "pay-ledger",
+        "avg": 5.159052613964381
+      },
+      {
+        "name": "pay-mockbank",
+        "avg": 4.9588664165265675
+      }
+    ]
+  },
+  "ledger": {
+    "doubleEntries": 0,
+    "missingEntries": 0,
+    "amountMismatches": 0,
+    "checkedIntents": 525,
+    "linesRead": 525
+  },
+  "evaluation": {
+    "verdict": "NO_APRUEBA",
+    "checks": [
+      {
+        "name": "p99 de la creación",
+        "target": "< 2000 ms",
+        "observed": "9240 ms",
+        "result": "FALLA"
+      },
+      {
+        "name": "errores 5xx",
+        "target": "< 0.100 %",
+        "observed": "0.000 % (0 de 555)",
+        "result": "PASA"
+      },
+      {
+        "name": "intentos colgados (sin estado terminal a tiempo)",
+        "target": "0",
+        "observed": "0 de 550",
+        "result": "PASA"
+      },
+      {
+        "name": "doble asiento / intento duplicado",
+        "target": "0",
+        "observed": "0 asientos duplicados + 0 claves con intentos distintos",
+        "result": "PASA"
+      }
+    ],
+    "caveats": []
+  },
+  "measured": {
+    "sent": 555,
+    "answered": 555,
+    "status5xx": 0,
+    "status429": 0,
+    "noResponse": 0,
+    "runnerDropped": 0,
+    "p99Ms": 9240.008437000011,
+    "sendLagP99Ms": 14.287217999997665,
+    "created": 550,
+    "stuck": 0,
+    "doubleEntries": 0,
+    "idempotencyViolations": 0,
+    "missingEntries": 0,
+    "machineBusyPercentAvg": 85.66649362982525
+  },
+  "environment": {
+    "nproc": 4,
+    "note": "Esta máquina (4 vCPU compartidas, Postgres/NATS/Redis/Temporal/TigerBeetle/Watchman y los 12 servicios en el MISMO host) NO representa el despliegue de producción (Coolify multiservidor, T-01). El resultado sirve para encontrar cuellos de botella y errores de concurrencia, NO para certificar T-01."
+  }
+}
