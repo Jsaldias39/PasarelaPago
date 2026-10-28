@@ -1,0 +1,32 @@
+$ docker build -f platform/Dockerfile.sandbox --build-arg HUB=mirror.gcr.io -t pay-sandbox:bloqueo-mirror .
+#11 44.75     at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+#11 44.75     at TLSSocket.onConnectSecure (node:internal/tls/wrap:1787:34)
+#11 44.75     at TLSSocket.emit (node:events:519:28)
+#11 44.75     at TLSSocket._finishInit (node:internal/tls/wrap:1176:8)
+#11 44.75     at ssl.onhandshakedone (node:internal/tls/wrap:962:12)
+#11 44.75 ➤ YN0000: └ Completed in 43s 398ms
+#11 44.75 ➤ YN0000: · Failed with errors in 43s 895ms
+#11 ERROR: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+------
+ > [build  7/10] RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable:
+44.75     at TLSSocket.emit (node:events:519:28)
+44.75     at emitErrorNT (node:internal/streams/destroy:170:8)
+44.75     at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+44.75     at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+44.75     at TLSSocket.onConnectSecure (node:internal/tls/wrap:1787:34)
+44.75     at TLSSocket.emit (node:events:519:28)
+44.75     at TLSSocket._finishInit (node:internal/tls/wrap:1176:8)
+44.75     at ssl.onhandshakedone (node:internal/tls/wrap:962:12)
+44.75 ➤ YN0000: └ Completed in 43s 398ms
+44.75 ➤ YN0000: · Failed with errors in 43s 895ms
+------
+Dockerfile.sandbox:16
+--------------------
+  14 |     COPY contracts/packages ./contracts/packages
+  15 |     COPY services ./services
+  16 | >>> RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
+  17 |     RUN node .yarn/releases/yarn-4.14.1.cjs build
+  18 |     RUN if [ "$PRUNE" = "1" ]; then node .yarn/releases/yarn-4.14.1.cjs workspaces focus --all --production; fi
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+exit=1

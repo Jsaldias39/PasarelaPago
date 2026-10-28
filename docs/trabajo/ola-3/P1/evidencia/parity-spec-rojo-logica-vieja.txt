@@ -1,0 +1,176 @@
+FAIL e2e/lib/parity-old.tmp.spec.ts
+  ● paridad mock/real — NO APLICA declarado (nivel CORRECTO) › el caso «expired» con sufijo NO APLICA solo sobre HTTP se empareja con el de en proceso (sufijo ignorado) y, por estar DECLARADO, es PARIDAD
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 3
+
+    - Array []
+    + Array [
+    +   "suite › límite: un cobro que nadie paga sigue `pending` hasta su vencimiento y recién entonces se informa `expired`",
+    + ]
+
+      76 |     const all = json([t(IN_PROCESS, EXPIRED, 'passed'), t(OVER_HTTP, EXPIRED_NA, 'todo'), t(IN_PROCESS, 'a', 'passed'), t(OVER_HTTP, 'a', 'passed')]);
+      77 |     const v = verdictOf(all);
+    > 78 |     expect(v.onlyInProcess).toEqual([]);
+         |                             ^
+      79 |     expect(v.onlyOverHttp).toEqual([]);
+      80 |     expect(v.verdict).toBe('PARIDAD');
+      81 |     expect(v.notApplicable).toHaveLength(1);
+
+      at Object.toEqual (e2e/lib/parity-old.tmp.spec.ts:78:29)
+
+  ● paridad mock/real — NO APLICA declarado (nivel CORRECTO) › un NO APLICA en AMBOS lados, declarado como «both», es PARIDAD y el informe lo imprime con su referencia
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "PARIDAD"
+    Received: "DIFERENCIA"
+
+      88 |     const all = json([t(IN_PROCESS, MEDIO_NA, 'todo'), t(OVER_HTTP, MEDIO_NA, 'todo'), t(IN_PROCESS, 'a', 'passed'), t(OVER_HTTP, 'a', 'passed')]);
+      89 |     const v = verdictOf(all);
+    > 90 |     expect(v.verdict).toBe('PARIDAD');
+         |                       ^
+      91 |     expect(v.notApplicable.map((n) => n.side)).toEqual(['both']);
+      92 |     const text = renderParity([v]);
+      93 |     expect(text).toContain('NO APLICA declarado (ambos lados)');
+
+      at Object.toBe (e2e/lib/parity-old.tmp.spec.ts:90:23)
+
+  ● paridad mock/real — NO APLICA declarado (nivel CORRECTO) › cada NO APLICA que declara la lista tiene un motivo y una referencia (no hay declaraciones vacías)
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 11
+    Received:    0
+
+       96 |
+       97 |   it('cada NO APLICA que declara la lista tiene un motivo y una referencia (no hay declaraciones vacías)', () => {
+    >  98 |     expect(DECLARED_NOT_APPLICABLE.length).toBeGreaterThanOrEqual(11);
+          |                                            ^
+       99 |     for (const d of DECLARED_NOT_APPLICABLE) {
+      100 |       expect(d.test.length).toBeGreaterThan(5);
+      101 |       expect(d.reasonContains.length).toBeGreaterThan(5);
+
+      at Object.toBeGreaterThanOrEqual (e2e/lib/parity-old.tmp.spec.ts:98:44)
+
+  ● paridad mock/real — NO APLICA declarado (nivel CORRECTO) › todo/skipped SIN sufijo, idénticos en ambos lados, no rompen la paridad y se IMPRIMEN con su cuenta
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "PARIDAD"
+    Received: "DIFERENCIA"
+
+      108 |     const all = json([t(IN_PROCESS, 'a', 'passed'), t(OVER_HTTP, 'a', 'passed'), t(IN_PROCESS, 'pendiente de P4', 'todo'), t(OVER_HTTP, 'pendiente de P4', 'todo'), t(IN_PROCESS, 'saltada', 'pending'), t(OVER_HTTP, 'saltada', 'pending')]);
+      109 |     const v = verdictOf(all);
+    > 110 |     expect(v.verdict).toBe('PARIDAD');
+          |                       ^
+      111 |     expect(v.skippedOrTodo).toEqual({ todo: 1, skipped: 1 });
+      112 |     expect(renderParity([v])).toContain('todo/skipped idénticos en ambos lados: 1 todo · 1 skipped');
+      113 |   });
+
+      at Object.toBe (e2e/lib/parity-old.tmp.spec.ts:110:23)
+
+  ● paridad mock/real — NO APLICA (nivel LÍMITE) › un NO APLICA declarado solo para HTTP, si aparece también en proceso, es DIFERENCIA (la declaración no cubre ese lado)
+
+    TypeError: Cannot read properties of undefined (reading 'map')
+
+      119 |     const v = verdictOf(all);
+      120 |     expect(v.verdict).toBe('DIFERENCIA');
+    > 121 |     expect(v.undeclared.map((u) => u.side)).toEqual(['inProcess']); // el lado HTTP sí está declarado; el de en proceso no
+          |                         ^
+      122 |   });
+      123 |
+      124 |   it('un NO APLICA cuyo motivo cambió (ya no coincide con la declaración) es DIFERENCIA aunque el título sea el declarado', () => {
+
+      at Object.map (e2e/lib/parity-old.tmp.spec.ts:121:25)
+
+  ● paridad mock/real — NO APLICA (nivel LÍMITE) › un NO APLICA cuyo motivo cambió (ya no coincide con la declaración) es DIFERENCIA aunque el título sea el declarado
+
+    TypeError: Cannot read properties of undefined (reading '0')
+
+      126 |     const v = verdictOf(all);
+      127 |     expect(v.verdict).toBe('DIFERENCIA');
+    > 128 |     expect(v.undeclared[0]).toMatchObject({ side: 'overHttp', reason: 'porque sí' });
+          |                        ^
+      129 |   });
+      130 |
+      131 |   it('todo/skipped sin sufijo en UN solo lado es DIFERENCIA (estado distinto)', () => {
+
+      at Object.<anonymous> (e2e/lib/parity-old.tmp.spec.ts:128:24)
+
+  ● paridad mock/real — NO APLICA (nivel LÍMITE) › un NO APLICA declarado en un lado con el otro lado FALLANDO es DIFERENCIA, y el failed se informa
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: [{"side": "inProcess", "test": "suite › límite: un cobro que nadie paga sigue `pending` hasta su vencimiento y recién entonces se informa `expired`"}]
+    Received: undefined
+
+      140 |     const v = verdictOf(all);
+      141 |     expect(v.verdict).toBe('DIFERENCIA');
+    > 142 |     expect(v.failed).toEqual([{ test: `suite › ${EXPIRED}`, side: 'inProcess' }]);
+          |                      ^
+      143 |   });
+      144 |
+      145 |   it('el mismo NO APLICA declarado de un par NO sirve en el otro par (la declaración es por par)', () => {
+
+      at Object.toEqual (e2e/lib/parity-old.tmp.spec.ts:142:22)
+
+  ● paridad mock/real — NO APLICA (nivel LÍMITE) › el mismo NO APLICA declarado de un par NO sirve en el otro par (la declaración es por par)
+
+    TypeError: expect(received).toHaveLength(expected)
+
+    Matcher error: received value must have a length property whose value must be a number
+
+    Received has value: undefined
+
+      147 |     const v = verdictOf(all, 1);
+      148 |     expect(v.verdict).toBe('DIFERENCIA');
+    > 149 |     expect(v.undeclared).toHaveLength(2);
+          |                          ^
+      150 |   });
+      151 | });
+      152 |
+
+      at Object.toHaveLength (e2e/lib/parity-old.tmp.spec.ts:149:26)
+
+  ● paridad mock/real — failed y estados (nivel INVÁLIDO) › un failed en AMBOS lados es DIFERENCIA (dos rojos iguales no son paridad)
+
+    TypeError: Cannot read properties of undefined (reading 'map')
+
+      155 |     const v = verdictOf(json([t(IN_PROCESS, 'a', 'failed'), t(OVER_HTTP, 'a', 'failed'), t(IN_PROCESS, 'b', 'passed'), t(OVER_HTTP, 'b', 'passed')]));
+      156 |     expect(v.verdict).toBe('DIFERENCIA');
+    > 157 |     expect(v.failed.map((f) => f.side)).toEqual(['inProcess', 'overHttp']);
+          |                     ^
+      158 |     expect(renderParity([v])).toContain('FALLA (en proceso): suite › a');
+      159 |   });
+      160 |
+
+      at Object.map (e2e/lib/parity-old.tmp.spec.ts:157:21)
+
+  ● paridad mock/real — failed y estados (nivel INVÁLIDO) › un NO APLICA no declarado (prueba nueva que la suite marca como NO APLICA) es DIFERENCIA y se imprime como tal
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "NO APLICA SIN DECLARAR"
+    Received string:    "Paridad
+      DIFERENCIA conector mock
+      BLOQUEADO  mercantil_qr: BLOQUEADO — el Banco Mercantil Santa Cruz no entregó documentación de API ni ambiente de pruebas (docs/spikes/banco-mercantil.md, Q-01, Q-11); no hay adaptador real que probar
+      BLOQUEADO  mercantil_card: BLOQUEADO — ídem (docs/spikes/banco-mercantil.md, Q-01, Q-11); la tarjeta además exige el vault real y el alcance PCI (docs/cumplimiento/pci-alcance.md)"
+
+      170 |     const v = verdictOf(all);
+      171 |     expect(v.verdict).toBe('DIFERENCIA');
+    > 172 |     expect(renderParity([v])).toContain('NO APLICA SIN DECLARAR');
+          |                               ^
+      173 |   });
+      174 |
+      175 |   it('un enlace con solo NO APLICA/todo y ninguna prueba verde no es paridad', () => {
+
+      at Object.toContain (e2e/lib/parity-old.tmp.spec.ts:172:31)
+
+Test Suites: 1 failed, 1 total
+Tests:       10 failed, 11 passed, 21 total
+Snapshots:   0 total
+Time:        0.38 s
+Ran all test suites matching e2e/lib/parity-old.tmp.

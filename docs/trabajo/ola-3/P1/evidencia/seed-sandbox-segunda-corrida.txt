@@ -1,0 +1,102 @@
+FAIL e2e/flows/seed-sandbox.e2e.ts (32.322 s)
+  ● seed:sandbox contra el stack real de 12 servicios › CORRECTO: la 1ª corrida inserta 3 comercios, 3 claves, 2 billeteras y 1 mandato, y se declara SINTÉTICA
+
+    seed:sandbox salió con 1: seed:sandbox falló: GET /v1/mandates respondió 401
+
+      80 |   it('CORRECTO: la 1ª corrida inserta 3 comercios, 3 claves, 2 billeteras y 1 mandato, y se declara SINTÉTICA', async () => {
+      81 |     const result = await seed();
+    > 82 |     if (result.code !== 0) throw new Error(`seed:sandbox salió con ${result.code}: ${result.stderr}`);
+         |                                  ^
+      83 |     first = JSON.parse(result.stdout) as typeof first;
+      84 |     stateAfterFirst = JSON.parse(readFileSync(stateFile(), 'utf8')) as SeedState;
+      85 |     expect(first.declaracion).toMatch(/SINTÉTICA.*ningún dato es real/);
+
+      at Object.<anonymous> (e2e/flows/seed-sandbox.e2e.ts:82:34)
+
+  ● seed:sandbox contra el stack real de 12 servicios › CORRECTO: la 2ª corrida inserta 0 y reutiliza todo, con los mismos ids y las mismas claves
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "api_keys": 0,
+    -   "mandates": 0,
+    +   "mandates": 1,
+        "merchants": 0,
+        "wallets": 0,
+      }
+
+      94 |     second = JSON.parse(result.stdout) as typeof second;
+      95 |     stateAfterSecond = JSON.parse(readFileSync(stateFile(), 'utf8')) as SeedState;
+    > 96 |     expect(second.inserted).toEqual({ merchants: 0, api_keys: 0, wallets: 0, mandates: 0 });
+         |                             ^
+      97 |     expect(second.reused).toEqual(first.inserted);
+      98 |     expect(stateAfterSecond.merchants).toEqual(stateAfterFirst.merchants);
+      99 |     expect(stateAfterSecond.mandates).toEqual(stateAfterFirst.mandates);
+
+      at Object.toEqual (e2e/flows/seed-sandbox.e2e.ts:96:29)
+
+  ● seed:sandbox contra el stack real de 12 servicios › CORRECTO: TODO lo sembrado está declarado sintético (nombres, NIT SBX…, marca en el mandato) en los servicios reales
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  -  2
+    + Received  + 18
+
+      Object {
+    -   "legal_name": "TALLER MECANICO VALLE VERDE SRL",
+    -   "tax_id": "SBX0000TALLER1",
+    +   "activated_at": "2026-10-28T17:54:27.332Z",
+    +   "contract": Object {
+    +     "accepted_version": 1,
+    +     "current_version": 1,
+    +     "up_to_date": true,
+    +   },
+    +   "created_at": "2026-10-28T17:54:27.156Z",
+    +   "display_name": "SANDBOX TALLER (SINTÉTICO)",
+    +   "id": "mc_sq4eypkvfgbhguua",
+    +   "kyc": Object {
+    +     "missing_documents": Array [],
+    +     "risk_level": "low",
+    +     "status": "approved",
+    +   },
+    +   "legal_type": "srl",
+    +   "object": "merchant",
+    +   "status": "active",
+    +   "suspension_reason": null,
+      }
+
+      128 |       const office = await stack.callAs('pay-backoffice', 'pay-merchants', 'GET', `/merchants/${merchantId}`, { payMode: null, headers: { authorization: `Bearer ${mintOperatorToken(stack, ['merchant_operator'])}` } });
+      129 |       expect(office.status).toBe(200);
+    > 130 |       expect(office.json).toMatchObject({ tax_id: spec.taxId, legal_name: SEED_LEGAL_NAME });
+          |                           ^
+      131 |       expect(spec.taxId).toMatch(/^SBX/);
+      132 |       expect(spec.label).toContain('(SINTÉTICO)');
+      133 |       expect(token).toMatch(/^sk_test_/);
+
+      at Object.toMatchObject (e2e/flows/seed-sandbox.e2e.ts:130:27)
+
+  ● seed:sandbox contra el stack real de 12 servicios › INVÁLIDO: la clave de OTRO comercio no ve el mandato (403/404), y una clave inventada o la falta de clave dan 401
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      151 |   it('INVÁLIDO: la clave de OTRO comercio no ve el mandato (403/404), y una clave inventada o la falta de clave dan 401', async () => {
+      152 |     const mandateId = stateAfterSecond.mandates[SEED_MANDATES[0]!.ref]!.mandateId;
+    > 153 |     expect((await edge(tokenOf('medico'), 'GET', `/v1/mandates/${mandateId}`)).status).toBe(200); // control positivo: el dueño sí
+          |                                                                                        ^
+      154 |     for (const other of ['taller', 'proveedor']) expect([403, 404]).toContain((await edge(tokenOf(other), 'GET', `/v1/mandates/${mandateId}`)).status);
+      155 |     expect((await edge('sk_test_inventada0000000000000000000000', 'GET', '/v1/merchants/me')).status).toBe(401);
+      156 |     expect((await edge(undefined, 'GET', '/v1/merchants/me')).status).toBe(401);
+
+      at Object.toBe (e2e/flows/seed-sandbox.e2e.ts:153:88)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 4 passed, 8 total
+Snapshots:   0 total
+Time:        32.467 s
+Ran all test suites matching e2e/flows/seed-sandbox.

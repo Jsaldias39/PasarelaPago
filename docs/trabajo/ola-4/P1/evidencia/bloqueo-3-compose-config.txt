@@ -1,0 +1,14 @@
+$ docker compose --env-file platform/.sandbox/secrets.env -f platform/compose.yml -f platform/compose.mock.yml config --quiet
+exit=0
+
+$ ... config --services
+jaeger nats pay-connectors pay-edge pay-ledger pay-merchants pay-mockbank pay-payments pay-qr pay-risk pay-schedules pay-settlement pay-vault pay-webhooks postgres redis sandbox-migrate temporal temporal-db tigerbeetle watchman 
+$ ... config --images
+docker.io/jaegertracing/all-in-one:1.62.0
+docker.io/library/nats:2.10-alpine
+docker.io/library/postgres:16-alpine
+docker.io/library/redis:7-alpine
+docker.io/moov/watchman:v2-static
+docker.io/temporalio/auto-setup:1.25
+ghcr.io/tigerbeetle/tigerbeetle:latest
+pay-sandbox:local

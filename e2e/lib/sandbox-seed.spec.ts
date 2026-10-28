@@ -63,7 +63,9 @@ describe('siembra sintética de sandbox — nivel CORRECTO: la primera corrida s
       expect(spec.label).toMatch(/\(SINTÉTICO\)$/);
       expect(spec.taxId).toMatch(/^SBX/);
     }
-    expect(walletReference('medico')).toMatch(/^sandbox-seed:opening:/);
+    expect(walletReference('medico')).toMatch(/^sandbox_seed_opening_/);
+    // El ledger real solo acepta `<id>:<verbo>` con el verbo en [a-z_]{3,30}: la referencia de cada billetera de la siembra lo cumple.
+    for (const spec of SEED_MERCHANTS) expect(`mc_abcdefghij1234:${walletReference(spec.ref)}`).toMatch(/^[a-z0-9_]{2,10}_[a-z0-9]{10,40}:[a-z_]{3,30}$/);
     for (const spec of SEED_MANDATES) expect(mandateDescription(spec)).toContain(SEED_MARK);
   });
 });

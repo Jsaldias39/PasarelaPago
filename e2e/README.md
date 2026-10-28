@@ -6,7 +6,7 @@ TigerBeetle privado, en `PAY_MODE=sandbox` con el conector `mock`. Matriz, halla
 
 ```bash
 yarn e2e:up | e2e:down | e2e:boot | e2e:smoke
-yarn e2e            # jest, 1 worker: humo, degradado, E1, E2, E3, E4, E5, E6, E7, E8, D-32, ledger, callbacks, guardia de modo, capa sandbox (pay-mockbank), candado y unitarias del arnés
+yarn e2e            # jest, 1 worker: humo, degradado, E1, E2, E3, E4, E5, E6, E7, E8, seed:sandbox, D-32, ledger, callbacks, guardia de modo, capa sandbox (pay-mockbank), candado y unitarias del arnés
 yarn e2e:pending    # solo lo que hoy no puede pasar (falla a propósito); hoy `pending/` está vacío: los hallazgos 13 y 14 se corrigieron y sus reproductores pasaron a flows/
 yarn e2e:typecheck
 yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo proceso (docs/trabajo/ola-3/P1/CARGA.md)
@@ -30,3 +30,9 @@ yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo
 - `flows/e3.e2e.ts` — reembolso parcial con retención y fallo del conector (12 servicios). Dobles declarados: `pay-mockbank` (banco simulado); `lib/fault-proxy.ts` (`BankFaultProxy`, entre `pay-connectors` y el banco: reenvía la orden, el banco la EJECUTA y corta la conexión, para el fallo AMBIGUO que el banco no sabe producir con reembolsos); saldo disponible por asiento de apertura sintético (`fundWallet`); tiempos del arnés de `pay-payments` (espera 3 s, consulta 1 s, 2 intentos, reintento lento 1 s). El fallo definitivo de punta a punta está en `flows/e3-fallo-definitivo.e2e.ts` (hallazgo 13, corregido en `pay-connectors`).
 - `flows/e7.e2e.ts` — tarjeta por campos alojados sin un PAN fuera de pay-vault. PAN SINTÉTICOS (números de prueba públicos; `lib/pan-scan.ts`). Dobles: `lib/hosted-fields-preload.cjs` (campos alojados del PSP, `NODE_OPTIONS=--require` solo en el proceso de pay-vault), la prueba hace de `pay-connectors` para `reveal` y la autorización en el banco simulado (el conector no llama a la bóveda, hallazgo 15) y `lib/otlp-sink.ts` (colector de trazas). Escanea (`lib/sensitive-sources.ts`): logs, bus, todas las filas de las 12 bases, historial de Temporal y trazas.
 - Piezas con prueba propia (sin stack): `lib/fault-proxy.spec.ts`, `lib/pan-scan.spec.ts`, `lib/otlp-sink.spec.ts`.
+
+## Ola 4 (P1.H5.M1/M2/M4)
+
+- `yarn test:parity` (`e2e/parity.ts`, `lib/parity.ts`): PARIDAD = mismo conjunto de pruebas y MISMO estado en el enlace en proceso y en el de `pay-mockbank`. El sufijo « — NO APLICA: …» de la suite se ignora al emparejar títulos, pero la inaplicabilidad tiene que estar DECLARADA en `DECLARED_NOT_APPLICABLE` (par, lado, prueba, motivo y referencia); un NO APLICA no declarado, un `failed` en cualquier lado o un estado distinto es DIFERENCIA (exit 1). `todo`/`skipped` sin sufijo solo valen si son idénticos en ambos lados y se imprimen con su cuenta. Los conectores del Mercantil se informan BLOQUEADOS (Q-01, Q-11).
+- `flows/seed-sandbox.e2e.ts`: corre `e2e/seed-sandbox.ts` (la entrada real de `yarn seed:sandbox`) DOS veces contra el stack de 12 servicios del arnés, con `SANDBOX_*_URL` y un `SANDBOX_DIR` temporal.
+- Lo que no se puede probar aquí (Compose de la capa sandbox: ghcr 403, Docker Hub 429, TLS interceptado): `docs/trabajo/ola-4/P1/BLOQUEOS.md`.

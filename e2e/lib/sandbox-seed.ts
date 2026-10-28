@@ -11,7 +11,7 @@ import { mintOperatorToken, onboardMerchant, SYNTHETIC_LEGAL_NAME, type Onboardi
  * IDEMPOTENTE: la segunda corrida inserta 0. Cómo se reconoce lo ya sembrado:
  *  - comercios y claves: un archivo de estado (`platform/.sandbox/seed-state.json`, modo 0600, con las claves `sk_test_`: se muestran UNA sola vez al crearlas) y se
  *    comprueba con la API que el comercio siga existiendo (si se borró la base, se vuelve a crear);
- *  - billeteras: el `business_ref` fijo del asiento de apertura (el ledger contesta `exists` a la repetición);
+ *  - billeteras: el `business_ref` fijo del asiento de apertura (`<comercio>:sandbox_seed_opening_<ref>`) (el ledger contesta `exists` a la repetición);
  *  - mandatos: la marca en su descripción (se listan los mandatos del pagador por la API pública).
  * Usa las APIs REALES (back-office de pay-merchants con una credencial de operador SINTÉTICA, API pública del borde con la clave sembrada, ledger por su API interna)
  * y reutiliza el alta de `e2e/lib/seed.ts`. Si el estado se perdió pero el comercio existe, no se puede recuperar su clave: se informa y se pide recrear la base.
@@ -78,7 +78,12 @@ export interface SeedDeps {
 }
 
 export const mandateDescription = (spec: SeedMandateSpec): string => `${SEED_MARK} ${spec.ref}`;
-export const walletReference = (ref: string): string => `sandbox-seed:opening:${ref}`;
+/**
+ * Verbo del `business_ref` del asiento de apertura. El ledger exige `<id del comercio>:<verbo>` con el verbo en letras minúsculas y `_` (3–30 caracteres, sin dígitos ni `-` ni `:`):
+ * lo descubrió la corrida contra el stack real (`flows/seed-sandbox.e2e.ts`; la versión anterior, `sandbox-seed:opening:<ref>`, el ledger la rechazaba con 422). El `business_ref` completo es
+ * `${merchantId}:${walletReference(ref)}`.
+ */
+export const walletReference = (ref: string): string => `sandbox_seed_opening_${ref}`;
 
 /** La siembra. Guarda el estado (`save`) después de CADA paso: si se corta, la siguiente corrida sigue donde quedó. */
 export async function runSeed(deps: SeedDeps, state: SeedState, save: (state: SeedState) => void): Promise<SeedReport> {
@@ -212,13 +217,21 @@ export function realDeps(target: OnboardingTarget, issuer: string): SeedDeps {
       const res = await target.callAs('pay-payments', 'pay-ledger', 'POST', '/transactions', {
         merchantId,
         payMode: 'test',
-        headers: { 'idempotency-key': `${reference}:1` },
-        json: { business_ref: reference, attempt: 1, currency: 'BOB', legs: [{ debit_account: 'connector:mock:clearing', credit_account: `merchant:${merchantId}:available`, amount_minor: amountMinor, code: 'adjustment' }] },
+        headers: { 'idempotency-key': `${merchantId}:${reference}:1` },
+        json: { business_ref: `${merchantId}:${reference}`, attempt: 1, currency: 'BOB', legs: [{ debit_account: 'connector:mock:clearing', credit_account: `merchant:${merchantId}:available`, amount_minor: amountMinor, code: 'adjustment' }] },
       });
       if (res.status !== 201 && res.status !== 200) throw new Error(`Asiento de apertura sintético de ${reference} falló (${res.status}): ${res.text.slice(0, 200)}`);
       return res.status === 201;
     },
     async findMandate(token, description) {
+      // El borde aprende la clave recién creada por NATS: puede tardar unos segundos (visto contra el stack real: 401 en la primera consulta). Se espera con tope, nunca sin límite.
+      const deadline = Date.now() + 45_000;
+      for (;;) {
+        const probe = await edge(token, 'GET', '/merchants/me');
+        if (probe.status === 200) break;
+        if (Date.now() > deadline) throw new Error(`pay-edge no reconoce la clave sembrada después de 45 s (GET /v1/merchants/me respondió ${probe.status})`);
+        await pause(500);
+      }
       const res = await edge(token, 'GET', '/mandates?limit=100');
       if (res.status !== 200) throw new Error(`GET /v1/mandates respondió ${res.status}`);
       return (res.json as { data: { id: string; description?: string; status: string }[] }).data.find((m) => m.description === description && m.status !== 'canceled')?.id;
@@ -229,7 +242,7 @@ export function realDeps(target: OnboardingTarget, issuer: string): SeedDeps {
       for (;;) {
         const res = await edge(token, 'POST', '/mandates', { json: body, idempotencyKey });
         if (res.status === 201 || res.status === 200) return (res.json as { id: string }).id;
-        const retryable = res.status === 404 || res.status === 409 || res.status === 422 || res.status >= 500;
+        const retryable = res.status === 401 || res.status === 404 || res.status === 409 || res.status === 422 || res.status >= 500;
         if (!retryable || Date.now() > deadline) throw new Error(`POST /v1/mandates respondió ${res.status}: ${JSON.stringify(res.json).slice(0, 200)}`);
         await pause(1000);
       }
