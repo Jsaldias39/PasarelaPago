@@ -9,6 +9,7 @@ yarn e2e:up | e2e:down | e2e:boot | e2e:smoke
 yarn e2e            # jest, 1 worker: humo, degradado, E1, E2, E4, E5, E6, E8, D-32, ledger, callbacks, guardia de modo, capa sandbox (pay-mockbank), candado y unitarias del arnés
 yarn e2e:pending    # solo lo que hoy no puede pasar: e2e/pending/risk-timeout.e2e.ts, el reproductor del hallazgo 9 de ARNES.md (falla a propósito)
 yarn e2e:typecheck
+yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo proceso (docs/trabajo/ola-3/P1/CARGA.md)
 ```
 
 - Requiere la infra de Compose arriba y los `dist/` construidos.

@@ -1,6 +1,6 @@
 # Prueba de carga de T-01: criterio escrito de antemano, runner y cómo correrla
 
-> **Estado: el runner está escrito y probado como instrumento (41 pruebas, sin carga real); la prueba NO se ha corrido.** Este documento fija el criterio de aceptación **antes** de la primera corrida (PLAN-MAESTRO §8: «prueba de carga en la ola 3 con criterio escrito de antemano»). Si el criterio cambia después de ver un resultado, el cambio se registra acá con la fecha y la razón, y el resultado anterior se reporta tal cual.
+> **Estado: el runner está escrito y probado como instrumento (42 pruebas) y validado con UN humo corto real (`--rps 5 --ramp-seconds 10 --minutes 1`, ver «Humo del instrumento»); la prueba completa NO se ha corrido.** Este documento fija el criterio de aceptación **antes** de la primera corrida (PLAN-MAESTRO §8: «prueba de carga en la ola 3 con criterio escrito de antemano»). Si el criterio cambia después de ver un resultado, el cambio se registra acá con la fecha y la razón, y el resultado anterior se reporta tal cual.
 > **Advertencia que manda sobre todo lo demás:** esta máquina de **4 vCPU** (compartida, con Postgres, NATS, Redis, Temporal, TigerBeetle, Watchman y los **12 servicios en el mismo host**) **NO representa el despliegue de producción** (Coolify multiservidor, T-01). El resultado sirve para **encontrar cuellos de botella y errores de concurrencia**, no para **certificar T-01**. Un `APRUEBA` acá no demuestra que producción aguante 2 × 100.000 pagos por día; un `NO APRUEBA` acá puede deberse al hardware de prueba. El informe lo repite en cada corrida.
 
 ## 1 · Qué se quiere saber (T-01)
@@ -68,9 +68,21 @@ yarn load --rps 25 --ramp-seconds 60 --minutes 5
 # 3. Variantes para encontrar el techo (ver el cuello en «Procesos con más CPU»): --rps 50, 100; o --minutes 30 para ver degradación lenta
 ```
 
-Con el arnés en procesos locales (sin Compose): `yarn e2e:up` en una terminal, luego `yarn load --seed-state <archivo>` o `--key sk_test_…` (las claves de ese stack salen de `seedMerchant`; hoy el arnés no las deja en un archivo). `--cpu auto` usa los PID de `e2e/.run/state.json` o los contenedores `pay-pay-*`.
+**Con el arnés en procesos locales (sin Compose): `yarn load:harness`** — en UN solo proceso toma el candado, levanta `startStack({ mockbank: true })` (12 servicios reales, TigerBeetle propio, calentamiento de pay-risk), sube los topes de tasa del borde SOLO para esa corrida, siembra N comercios con `seedMerchant` (`--merchants`, por defecto 3) y comprueba cada uno con un cobro real hasta `succeeded`, lanza el runner contra el puerto real de pay-edge y el ledger real, muestrea la CPU de los procesos del stack, apaga el stack SIEMPRE (finally y SIGINT/SIGTERM) y sale con 0/1/3 (2 si no pudo prepararse). Mismos parámetros que `yarn load`:
+
+```bash
+yarn load:harness --rps 25 --ramp-seconds 60 --minutes 5     # la corrida de T-01 con el arnés (máquina quieta)
+yarn load:harness --rps 5 --ramp-seconds 10 --minutes 1       # humo corto para validar el instrumento
+yarn load:harness ... --prod-timeouts                         # quita los ajustes de ENTORNO del arnés (RISK_TIMEOUT_MS 2000→300, SCREENING_TIMEOUT_MS 250→200)
+```
+
+`yarn load` (sin `harness`) es para un stack que ya está arriba con puertos fijos (Compose); `--cpu auto` usa los PID de `e2e/.run/state.json` o los contenedores `pay-pay-*`. **Ojo:** el arnés usa por defecto `RISK_TIMEOUT_MS=2000` y `SCREENING_TIMEOUT_MS=250` (ajustes de entorno declarados en ARNES.md); con `--prod-timeouts` corre con los valores operativos y es la variante que puede destapar los hallazgos 9 y 10.
 
 **Lo esperable antes de correr (para no sorprenderse; no es un resultado):** con los valores por defecto del compose (`RISK_TIMEOUT_MS=300`, `SCREENING_TIMEOUT_MS=200`), una evaluación de riesgo lenta bajo carga dispara los hallazgos 9 y 10 de `ARNES.md` (intentos que quedan en `processing` para siempre, o `risk_denied` de un comercio limpio). El criterio 3 los va a ver. No se suben esos tiempos para que pase: si aparecen, son el hallazgo.
 
 ## 7 · Qué NO responde esta prueba
 Capacidad multiservidor; latencia de red real entre servicios; TigerBeetle en clúster (acá es de un nodo); Postgres gestionado; el banco real (el simulado responde en milisegundos y de forma determinista); colas de Temporal con miles de flujos concurrentes en producción; una distribución horaria real. Cuando exista el entorno de staging en Coolify multiservidor, **este mismo runner** apunta a él con `--base … --allow-remote` (solo sandbox/`test`) y el criterio de §2 se mide ahí.
+
+## 8 · Humo del instrumento (no es la prueba de T-01)
+`yarn load:harness --rps 5 --ramp-seconds 10 --minutes 1` (2026-10-28, máquina quieta, load ≈ 0,6 al empezar): 283 pedidos enviados (275 planificados + 8 repetidos con la misma clave), 201×283, p50 341 ms / p95 546 ms / p99 643 ms, 275 intentos `succeeded`, 0 colgados, ledger real: 275 asientos de captura, 0 duplicados, 0 faltantes, 0 importes distintos; tiempo hasta terminal p50 1,1 s; veredicto `APRUEBA`; apagado limpio (`leftoverPids: []`, sin procesos ni candado). Salida literal: `evidencia/carga-humo-harness.txt` (+ `carga-humo-harness/report.json`, `resumen.txt`).
+**Lo que el humo ya enseña sobre la corrida completa:** con solo 5 rps la CPU de la máquina estuvo en 68 % de media (77 % de máximo), con `pay-payments` (≈ 41 % de un núcleo) como proceso más pesado. Extrapolación SIN medir (solo un orden de magnitud): a 25 rps la máquina se acercará o superará el 90 % y la corrida saldrá `NO CONCLUYENTE` por saturación del hardware de prueba; para el techo real hace falta el entorno multiservidor (§7). La primera versión del runner sondeaba los estados terminales recién al terminar el envío e inflaba el «tiempo hasta terminal» (p50 27,9 s); se corrigió para sondear en paralelo (p50 1,1 s) y hay una prueba que lo exige.

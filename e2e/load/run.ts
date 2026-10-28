@@ -10,12 +10,12 @@
  * Salida 0 = APRUEBA · 1 = NO APRUEBA · 3 = NO CONCLUYENTE (reservas: 429, generador saturado, algo sin medir) · 2 = uso. Escribe report.json y resumen.txt en --out.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from '../lib/infra.ts';
-import { checkCaptureLines, readPending, type StatementLine } from './ledger-check.ts';
-import { buildReport, exitCodeOf, renderReport, type FullReport } from './report.ts';
-import { newRunId, runLoad, type LoadConfig } from './runner.ts';
+import { executeLoad } from './execute.ts';
+import { exitCodeOf } from './report.ts';
+import { newRunId, type LoadConfig } from './runner.ts';
 import { startSampler } from './sampler.ts';
 
 const LOOPBACK = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(\/|$)/;
@@ -106,34 +106,10 @@ async function main(): Promise<number> {
     sampler = startSampler({ mode: 'none' });
   }
 
-  process.stdout.write(`Carga ${config.runId}: ${config.peakRps} rps pico, rampa ${config.rampSeconds} s, ${minutes} min, ${keys.length} clave(s) → ${config.baseUrl}\n`);
-  const result = await runLoad(config);
-  const cpu = sampler.stop();
-
-  // Ledger: «ningún doble asiento».
-  let ledger: FullReport['ledger'] = null;
   const ledgerUrl = args.get('ledger-url')?.[0] ?? 'http://127.0.0.1:3105';
-  if (ledgerUrl !== 'off') {
-    try {
-      const merchantIds = await merchantIdsOf(config, merchantByKey);
-      if (merchantIds.some((m) => m === undefined)) throw new Error('no se pudo saber el comercio de alguna clave (GET /v1/merchants/me)');
-      const linesByMerchant = new Map<string, readonly StatementLine[]>();
-      for (const id of new Set(merchantIds as string[])) linesByMerchant.set(id, await readPending({ baseUrl: ledgerUrl.replace(/\/$/, ''), from: result.startedAt }, id));
-      ledger = checkCaptureLines(result.succeeded.map((s) => ({ id: s.id, merchantId: merchantIds[s.merchantIndex]!, netMinor: s.netMinor })), linesByMerchant);
-    } catch (error) {
-      ledger = { error: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
-  const nproc = cpu.machine.cores;
-  const report = buildReport(result, cpu, ledger, nproc);
-  const out = args.get('out')?.[0] ?? join(ROOT, 'docs/trabajo/ola-3/P1/evidencia', `carga-${config.runId}`);
-  mkdirSync(out, { recursive: true });
-  // El informe no lleva las claves ni la lista de intentos completa.
-  writeFileSync(join(out, 'report.json'), JSON.stringify({ ...report, result: { ...report.result, intents: undefined, succeeded: undefined } }, null, 2));
-  const text = renderReport(report);
-  writeFileSync(join(out, 'resumen.txt'), `${text}\n`);
-  process.stdout.write(`\n${text}\n\nInforme en ${out}\n`);
+  const outDir = args.get('out')?.[0] ?? join(ROOT, 'docs/trabajo/ola-3/P1/evidencia', `carga-${config.runId}`);
+  const merchantIds = await merchantIdsOf(config, merchantByKey);
+  const report = await executeLoad({ config, sampler, ledgerUrl: ledgerUrl === 'off' ? undefined : ledgerUrl, merchantIds, outDir });
   return exitCodeOf(report);
 }
 

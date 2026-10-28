@@ -29,7 +29,8 @@
     "seed:sandbox": "node --no-warnings e2e/seed-sandbox.ts",
     "test:parity": "node --no-warnings e2e/parity.ts",
     "load": "node --no-warnings e2e/load/run.ts",
-    "sandbox:secrets": "node platform/scripts/sandbox-secrets.mjs"
+    "sandbox:secrets": "node platform/scripts/sandbox-secrets.mjs",
+    "load:harness": "node --no-warnings e2e/load/harness.ts"
   },
   "devDependencies": {
     "@asyncapi/parser": "^3.6.6",

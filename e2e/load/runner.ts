@@ -101,6 +101,9 @@ export async function runLoad(config: LoadConfig): Promise<LoadResult> {
   const latencies: number[] = [];
   const lags: number[] = [];
   const intents = new Map<string, CreatedIntent>();
+  /** Intentos creados que todavía no se vieron en estado terminal; el sondeo corre EN PARALELO al envío para medir el tiempo real hasta el terminal. */
+  const open = new Map<string, CreatedIntent>();
+  const lastPolled = new Map<string, number>();
   const idempotencyKeyToIntent = new Map<string, string>();
   let sent = 0;
   let answered = 0;
@@ -134,8 +137,50 @@ export async function runLoad(config: LoadConfig): Promise<LoadResult> {
     const previous = idempotencyKeyToIntent.get(idempotencyKey);
     if (previous !== undefined && previous !== body.id) idempotencyViolations += 1; // la MISMA clave devolvió un intento distinto: doble efecto
     idempotencyKeyToIntent.set(idempotencyKey, body.id);
-    if (!intents.has(body.id)) intents.set(body.id, { id: body.id, key, merchantIndex, netMinor: body.net_minor ?? 0, amountMinor, createdAtMs: Date.now() });
+    if (!intents.has(body.id)) {
+      const created: CreatedIntent = { id: body.id, key, merchantIndex, netMinor: body.net_minor ?? 0, amountMinor, createdAtMs: Date.now() };
+      intents.set(body.id, created);
+      open.set(body.id, created);
+    }
   };
+
+  // ── Sondeo de estados terminales, EN PARALELO al envío y por condición con plazo ──
+  const terminalByStatus: Record<string, number> = {};
+  const failedByCode: Record<string, number> = {};
+  const toTerminal: number[] = [];
+  const succeeded: LoadResult['succeeded'] = [];
+  let sendDone = false;
+  let settleDeadline: number | undefined;
+  const POLL_EVERY_MS = 1000;
+  const poll = async (intent: CreatedIntent): Promise<void> => {
+    lastPolled.set(intent.id, performance.now());
+    try {
+      const res = await fetch(`${config.baseUrl}/v1/payment_intents/${intent.id}`, { headers: { authorization: `Bearer ${intent.key}`, accept: 'application/json' }, signal: AbortSignal.timeout(config.requestTimeoutMs) });
+      if (res.status !== 200) return;
+      const body = (await res.json()) as { status?: string; last_error?: { code?: string } | null; net_minor?: number };
+      if (body.status && TERMINAL.has(body.status)) {
+        open.delete(intent.id);
+        bump(terminalByStatus, body.status);
+        toTerminal.push(Date.now() - intent.createdAtMs);
+        if (body.status === 'failed') bump(failedByCode, body.last_error?.code ?? 'sin_code');
+        if (body.status === 'succeeded') succeeded.push({ id: intent.id, merchantIndex: intent.merchantIndex, netMinor: body.net_minor ?? intent.netMinor });
+      }
+    } catch {
+      // se reintenta en la próxima ronda
+    }
+  };
+  const poller = (async () => {
+    for (;;) {
+      if (sendDone) {
+        settleDeadline ??= performance.now() + config.settleTimeoutSeconds * 1000;
+        if (open.size === 0 || performance.now() >= settleDeadline) return;
+      }
+      const now = performance.now();
+      const due = [...open.values()].filter((intent) => now - (lastPolled.get(intent.id) ?? -Infinity) >= POLL_EVERY_MS);
+      for (let i = 0; i < due.length; i += config.pollConcurrency) await Promise.all(due.slice(i, i + config.pollConcurrency).map(poll));
+      await sleep(due.length === 0 ? 100 : 20);
+    }
+  })();
 
   for (let i = 0; i < offsets.length; i += 1) {
     const due = t0 + offsets[i]!;
@@ -165,39 +210,9 @@ export async function runLoad(config: LoadConfig): Promise<LoadResult> {
   }
   await Promise.all(pending);
   const sendPhaseMs = performance.now() - t0;
-
-  // ── Espera a los estados terminales, por condición con plazo ──
+  sendDone = true;
   const settleStart = performance.now();
-  const deadline = settleStart + config.settleTimeoutSeconds * 1000;
-  const open = new Map(intents);
-  const terminalByStatus: Record<string, number> = {};
-  const failedByCode: Record<string, number> = {};
-  const toTerminal: number[] = [];
-  const succeeded: LoadResult['succeeded'] = [];
-  const poll = async (intent: CreatedIntent): Promise<void> => {
-    try {
-      const res = await fetch(`${config.baseUrl}/v1/payment_intents/${intent.id}`, { headers: { authorization: `Bearer ${intent.key}`, accept: 'application/json' }, signal: AbortSignal.timeout(config.requestTimeoutMs) });
-      if (res.status !== 200) return;
-      const body = (await res.json()) as { status?: string; last_error?: { code?: string } | null; net_minor?: number };
-      if (body.status && TERMINAL.has(body.status)) {
-        open.delete(intent.id);
-        bump(terminalByStatus, body.status);
-        toTerminal.push(Date.now() - intent.createdAtMs);
-        if (body.status === 'failed') bump(failedByCode, body.last_error?.code ?? 'sin_code');
-        if (body.status === 'succeeded') succeeded.push({ id: intent.id, merchantIndex: intent.merchantIndex, netMinor: body.net_minor ?? intent.netMinor });
-      }
-    } catch {
-      // se reintenta en la próxima ronda
-    }
-  };
-  while (open.size > 0 && performance.now() < deadline) {
-    const batch = [...open.values()];
-    for (let i = 0; i < batch.length; i += config.pollConcurrency) {
-      if (performance.now() >= deadline) break;
-      await Promise.all(batch.slice(i, i + config.pollConcurrency).map(poll));
-    }
-    if (open.size > 0) await sleep(Math.min(1000, Math.max(0, deadline - performance.now())));
-  }
+  await poller;
   const settlePhaseMs = performance.now() - settleStart;
 
   const { keys, ...rest } = config;

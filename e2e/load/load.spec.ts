@@ -239,6 +239,14 @@ describe('runner de carga contra un borde falso', () => {
     expect(renderReport(report)).toContain('NO representa el despliegue de producción');
   }, 30_000);
 
+  it('el tiempo hasta el estado terminal se mide con el sondeo EN PARALELO al envío (no se infla con la duración de la fase de envío)', async () => {
+    edge = await fakeEdge();
+    const result = await runLoad(config(edge.url, { duplicateFraction: 0, peakRps: 10, rampSeconds: 0, durationSeconds: 4 }));
+    expect(result.timeToTerminalMs.n).toBe(result.created);
+    // El intento falso termina a los 200 ms y el sondeo pasa cada ~1 s: el p99 es del orden de 1,3 s. Si el sondeo esperara a que termine el envío (4 s), sería > 3 s.
+    expect(result.timeToTerminalMs.p99!).toBeLessThan(2500);
+  }, 30_000);
+
   it('LÍMITE: el 5xx inyectado se cuenta por código y rompe el criterio ⇒ NO APRUEBA', async () => {
     edge = await fakeEdge({ fail5xxEvery: 5 });
     const result = await runLoad(config(edge.url, { duplicateFraction: 0 }));
