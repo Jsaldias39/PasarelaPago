@@ -1,4 +1,4 @@
-> **AVANCE (matriz de gates): @@PASS@@ gates en PASS · @@GAP@@ con GAP · 3 `NO APLICA AÚN`** — filas de PLAN-MAESTRO §7. Peldaño: **`TESTED`** (nada se ejecutó contra el stack E1–E8, ni contra Jaeger, ni contra un banco real).
+> **AVANCE (matriz de gates): 10 / 13 gates de PLAN-MAESTRO §7 en PASS (5 de ellos con un GAP declarado y con dueño) · 3 `NO APLICA AÚN`** — más la fila de Dockerfile en PASS y la de inmutabilidad como GAP propuesto. Peldaño: **`TESTED`** (nada se ejecutó contra el stack E1–E8, ni contra Jaeger, ni contra un banco real).
 
 # Matriz de gates P2 — `pay-ledger` y `pay-settlement` (ola 3)
 
@@ -40,12 +40,19 @@ Comandos (salida literal en [`evidencia/3a-gates.txt`](./evidencia/3a-gates.txt)
 (cd services/pay-ledger && yarn build)            exit=0
 (cd services/pay-settlement && yarn build)        exit=0
 yarn eslint "services/pay-ledger/**/*.ts" "services/pay-settlement/**/*.ts"   exit=0
-yarn lint   (raíz, todo el repo)                  exit=@@LINT@@
+yarn lint   (raíz, todo el repo)                  exit=0
 ```
 
 Suites completas con TigerBeetle real, `--maxWorkers=2`:
 
-@@SUITES@@
+| Servicio | Corrida | Suites | Pruebas | Salida |
+|---|---|---|---|---|
+| pay-ledger | 1 | 18/18 | **276/276** | `evidencia/3c-test-pay-ledger-run1.txt` |
+| pay-ledger | 2 | 18/18 | **276/276** | `evidencia/3c-test-pay-ledger-run2.txt` |
+| pay-settlement | 1 | 28/28 | **560/560** | `evidencia/3c-test-pay-settlement-run1.txt` |
+| pay-settlement | 2 | 28/28 | **560/560** | `evidencia/3c-test-pay-settlement-run2.txt` |
+
+Comando de cada corrida: `cd services/<svc> && TB_ADDRESS=127.0.0.1:54310 NATS_URL=nats://127.0.0.1:54250 PAY_TEST_NATS_URL=nats://127.0.0.1:54250 yarn test --maxWorkers=2` (TigerBeetle y NATS **propios**, ver «Entorno»; Postgres del Compose). Lista de las pruebas nuevas con su resultado: [`evidencia/3c-pruebas-nuevas.md`](./evidencia/3c-pruebas-nuevas.md).
 
 - Pruebas **nuevas** de esta ola: `separation.spec.ts` (×2 servicios), `sensitive-data.spec.ts` (×2), `idempotency-parallel.spec.ts` (ledger), `faults.spec.ts` (ledger), `holds-accounts-fk.spec.ts` (ledger).
 - Corridas que **no** cuentan (se conservan en `evidencia/` con su causa, regla 80.4): ver «Entorno».
@@ -134,7 +141,7 @@ Evidencia: `evidencia/3c-test-pay-*-run*.txt` (suites completas) y `evidencia/3a
 
 - *Etapa estática* (grep sobre `src/`, `sql/` y los contratos de P2; 0 coincidencias por regla): ningún `console.*`; ningún log vuelca cuerpos/DTO/extractos/glosas; ningún campo `pan|card_number|cvv|cvc|holder|full/first/last_name|document_number|national_id` en código, SQL ni contratos (`x-pii: none`); ningún literal de 15–19 dígitos; la telemetría no activa captura de valores (`enhancedDatabaseReporting`, `requestHook`, `setAttribute`); el importador sigue **descartando la glosa** del banco.
 - *Etapa dinámica* (`test/sensitive-data.spec.ts` de cada servicio): se meten **canarios** (PAN de prueba `4111…1111` pelado, con espacios y con guiones; `CVV=737`; documento; nombre) por todas las puertas —campos que el contrato no tiene, ids malformados en cuerpo/ruta/consulta/cabecera, glosa/titular/documento/cuenta de origen en **extractos CSV y `camt.053`**, eventos de entrada con el dato dentro, y un **error interno cuyo mensaje trae el dato**— junto a operaciones legítimas, y se busca en **todo lo que el servicio produjo**: logs (stdout/stderr: pino y logger de Nest), respuestas de error (`problem+json`), eventos del outbox y **todas las filas de todas las tablas** del esquema. Detector: canarios + valores con forma de PAN (15–19 dígitos, Luhn, con separadores) + nombres de campo sensibles. Control negativo: el detector grita sobre el mismo material con un canario añadido; el script tiene `--self-test`.
-- Resultado: `@@SENS@@`
+- Resultado: `datos sensibles: LIMPIO (0 fallas)` — 7 reglas estáticas en PASS; `sensitive-data.spec` ledger 5/5 y settlement 3/3 (incluye 3 casos `it.failing` que documentan los GAP de abajo y se invertirán cuando P1 los cierre).
 
 Salida literal: [`evidencia/3c-datos-sensibles.txt`](./evidencia/3c-datos-sensibles.txt) y [`evidencia/3c-datos-sensibles-selftest.txt`](./evidencia/3c-datos-sensibles-selftest.txt).
 

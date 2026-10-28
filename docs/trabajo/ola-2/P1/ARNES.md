@@ -1,28 +1,29 @@
-# Arnés de integración real (ola 2, tanda 2b)
+# Arnés de integración real (ola 2, tandas 2b a 2h)
 
 > Qué es: `e2e/` levanta los 11 servicios reales (`node dist/main.js`) contra la infraestructura de
 > `platform/compose.yml` + un TigerBeetle privado, con `PAY_MODE=sandbox` y el conector `mock`, y
-> ejecuta contra ellos el humo y el primer flujo e2e real (E6). Nada de dinero real, nada de datos reales:
-> todos los secretos se generan sintéticos en cada corrida.
+> ejecuta contra ellos el humo y los flujos e2e reales (E1, E2, E6 y los de claves, degradado, `PAY_MODE` y capa sandbox). Nada de dinero real, nada de datos reales:
+> todos los secretos se generan sintéticos en cada corrida. Desde la tanda 2h puede sumar `pay-mockbank` (servicio 12, banco simulado de la capa sandbox, D-26).
 
-Peldaño de evidencia: **VERIFIED** para el arnés y el flujo E6 (camino real, base real, NATS real, consola y
+Peldaño de evidencia: **VERIFIED** para el arnés y los flujos E1, E2, E6 y la capa sandbox (camino real, base real, NATS real, consola y
 red revisadas); `VERIFIED_FUNCTIONAL_ONLY` no aplica (no hay superficie visual). No se afirma «sin regresiones»
-más allá de lo que listan las salidas de `evidencia/`.
+más allá de lo que listan las salidas de `evidencia/`. **No es `REGRESSION_VERIFIED`**: E1/E2 son sensibles a la carga de la máquina
+(ver § Estado de E1 y E2 en la tanda 2h) y el reporte de cierre lo consolida el coordinador.
 
 ## Cómo se usa
 
 ```bash
-yarn e2e:up        # levanta el stack y deja la tabla de servicios; Ctrl+C lo apaga
+yarn e2e:up        # levanta el stack y deja la tabla de servicios; Ctrl+C lo apaga (`-- --mockbank`: suma pay-mockbank, la capa sandbox completa)
 yarn e2e:down      # apaga lo que haya registrado en e2e/.run/state.json (por PID verificado)
-yarn e2e:boot      # arranca, espera /health/ready de los 11 y apaga
+yarn e2e:boot      # arranca, espera /health/ready de los 11 (de 12 con --mockbank), calienta el camino de riesgo y apaga
 yarn e2e:smoke     # arranca, corre el humo (salud + internas + controles + borde) y apaga
-yarn e2e           # jest: humo, degradado, E6 y las pruebas unitarias del arnés (1 worker)
+yarn e2e           # jest: humo, degradado, E1, E2, E6, claves, PAY_MODE, live-guard, alta real, nombres sintéticos, capa sandbox y las pruebas del arnés (1 worker, 14 suites, 80 pruebas)
 yarn e2e:typecheck # tsc del arnés
 node --no-warnings e2e/cli.ts envprobe   # quita UNA variable por servicio y clasifica el arranque
 ```
 
-Requisitos: la infra de Compose arriba (Postgres 54321, NATS 54222, Redis 54379, Temporal 54233, Watchman 54084)
-y los `dist/` construidos (`yarn workspaces foreach … build`). Un solo stack a la vez: si existe
+Requisitos: la infra de Compose arriba (Postgres 54321, NATS 54222, Redis 54379, Temporal 54233, Watchman 54084), **al menos 1,8 GiB de disco libre**
+(el TigerBeetle privado preasigna ~1,1 GiB; sin espacio el arnés se niega con un mensaje `ENTORNO: …` en vez de dejar un archivo a medias) y los `dist/` construidos (`yarn workspaces foreach … build`). Un solo stack a la vez: si existe
 `e2e/.run/state.json` el arnés se niega a arrancar otro.
 
 Lo que hace al arrancar (en este orden, sin esperas de tiempo fijo; todo espera por condición):
@@ -33,10 +34,12 @@ Lo que hace al arrancar (en este orden, sin esperas de tiempo fijo; todo espera 
    (los servicios no aplican DDL al arrancar).
 3. Formatea y arranca un **TigerBeetle privado** (binario cacheado en `e2e/.run/bin`, archivo de datos propio,
    `LEDGER_ID_NAMESPACE=<runId>`); no toca el TigerBeetle compartido de Compose, que flapea con otros agentes.
-4. Arranca por olas de dependencias: `ledger, risk, qr, vault, merchants, webhooks` → `connectors` →
+4. Arranca por olas de dependencias: `ledger, risk, qr, vault, merchants, webhooks` → (`mockbank`, si se pidió) → `connectors` →
    `payments` → `settlement, schedules` → `edge`; espera `GET /health/ready == 200` de cada uno y aborta la espera
    si el proceso muere (guarda la cola del log).
-5. Al apagar: SIGTERM y luego SIGKILL **por PID** (verificando `/proc/<pid>/cwd`), borra el archivo de datos de
+5. **Calienta el camino de riesgo** (`lib/warmup.ts`, por condición): evalúa en `pay-risk` peticiones sintéticas hasta tener 3 seguidas con `screened: true` y
+   `allow`, con tope de 90 s; informa `LISTO` o `NO LLEGÓ A LA RACHA` y la prueba corre igual (no se oculta un entorno saturado). Ver § Estado de E1 y E2.
+6. Al apagar: SIGTERM y luego SIGKILL **por PID** (verificando `/proc/<pid>/cwd`), borra el archivo de datos de
    TigerBeetle, reinicia las bases y borra los streams. Informa `leftoverPids`.
 
 ## Matriz por servicio

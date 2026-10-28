@@ -1,0 +1,7 @@
+$ scripts/check-sensitive-data.sh --self-test
+detecta  console.*
+detecta  log con cuerpo
+detecta  campo cvv/pan
+detecta  literal de PAN
+self-test: las reglas detectan lo plantado
+exit=0

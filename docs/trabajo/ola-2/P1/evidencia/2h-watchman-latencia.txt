@@ -1,0 +1,8 @@
+# Latencia de Watchman (búsqueda de una razón social sintética), 40 consultas seguidas, medida con curl desde esta máquina
+# 2026-10-28T01:08:48Z · load average: 10.31, 11.83, 12.80 · nproc=4
+n=40 min=0.014759 p50=0.030496 p90=0.064977 max=0.100076
+# Medición anterior (misma consulta, 40 seguidas, 00:29 UTC, load average: 11.71, 14.51, 13.31; otros agentes corriendo jest/tsc en la misma máquina):
+n=40 min=0.021526 p50=0.100776 p90=0.383055 max=0.848916
+# Tres consultas sueltas al inicio de la sesión: 0.038986 / 0.021729 / 0.063831 s.
+# Lectura: la latencia de Watchman varía de ~30 ms (p50) a ~100 ms (p50) y p90 de 65 ms a 383 ms según la carga de la máquina compartida.
+# Presupuesto de pay-risk: SCREENING_TIMEOUT_MS=200 (tope 250); de pay-payments hacia pay-risk: RISK_TIMEOUT_MS=300.

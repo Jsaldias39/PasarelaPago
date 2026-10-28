@@ -94,11 +94,14 @@ export async function createTestApp(options: { controllers?: Array<new (...args:
       await db.drop();
     },
     async reset() {
-      // `DELETE` y no `TRUNCATE`: el modelo prohíbe TRUNCATE en las tablas de dinero (connector_charges/transfers/refunds: append-only para la aplicación).
-      // El orden respeta las FK (hijos primero).
-      for (const table of ['bank_transfer_references', 'connector_refunds', 'connector_callback_events', 'connector_api_attempts', 'connector_charges', 'connector_transfers', 'connector_health', 'connector_callback_endpoints', 'statement_exceptions', 'idempotency_keys', 'outbox_events', 'inbox_events']) {
+      // `DELETE` y no `TRUNCATE` en las tablas de DINERO: el modelo prohíbe TRUNCATE en connector_charges/transfers/refunds (append-only para la aplicación). Hijos primero (FK).
+      for (const table of ['bank_transfer_references', 'connector_refunds', 'connector_callback_events', 'connector_api_attempts', 'connector_charges', 'connector_transfers', 'connector_health', 'connector_callback_endpoints', 'statement_exceptions']) {
         await db.pool.query(`DELETE FROM ${table}`);
       }
+      // Las tablas TÉCNICAS sí con TRUNCATE (no tienen guardián ni FK): el relé del outbox corre en segundo plano y hace `UPDATE outbox_events … published_at` por fila; un
+      // `DELETE FROM outbox_events` a la vez con ese UPDATE da `deadlock detected` (lo vio el log de Postgres: «DELETE FROM outbox_events» vs «UPDATE outbox_events SET published_at»),
+      // mientras que TRUNCATE espera a que el relé suelte la tabla.
+      await db.pool.query('TRUNCATE idempotency_keys, outbox_events, inbox_events');
       clock.set(new Date());
       qr.issued.length = 0;
       // Callbacks que el simulador dejó programados por pruebas anteriores: sus cobros ya no existen.

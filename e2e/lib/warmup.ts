@@ -18,7 +18,7 @@ const MAX_WAIT_MS = 90_000;
  * primera evaluación (pool de base, conexión a Watchman, compilación perezosa) y esa primera evaluación tarda ~300 ms (medido: 280 y 312 ms en dos
  * arranques en frío; `evidencia/2h-risk-primera-evaluacion.txt`). `pay-payments` le da 300 ms (`RISK_TIMEOUT_MS`) y `pay-risk` cribará en 200 ms
  * (`SCREENING_TIMEOUT_MS`, tope 250). El arnés corre en una máquina compartida de 4 núcleos con la carga muchas veces por encima de 10, donde Watchman
- * (que busca en memoria las listas OFAC) pasa de p50 20 ms a p50 100 ms y p90 380 ms (`evidencia/2h-watchman-latencia.txt`): cualquier evaluación puede
+ * (que busca en memoria las listas OFAC) pasa de p50 30 ms / p90 65 ms a p50 100 ms / p90 383 ms (`evidencia/2h-watchman-latencia.txt`): cualquier evaluación puede
  * pasarse de tiempo. Eso destapa dos defectos de PRODUCTO que NO son del arnés y siguen abiertos (ver ARNES.md § Hallazgos 9 y 10): el reintento recibe
  * `409 idempotency_request_in_progress` y `pay-payments` lo trata como rechazo definitivo (el intento queda `processing` para siempre), o `pay-risk`
  * guarda `deny` por «Watchman no pudo cribar» y un comercio limpio termina `risk_denied`.

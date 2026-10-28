@@ -1,0 +1,8 @@
+# Primera evaluación de riesgo tras un arranque en frío del stack (calentamiento del arnés, versión de una sola petición), dos arranques seguidos.
+# Salida literal de `node --no-warnings e2e/cli.ts boot`:
+calentamiento de pay-risk: HTTP 201 en 280 ms
+calentamiento de pay-risk: HTTP 201 en 312 ms
+# Con el calentamiento por racha (3 evaluaciones sanas seguidas, versión final), dos arranques:
+calentamiento de pay-risk: LISTO — 4 evaluación(es) en 1176 ms (última: HTTP 201 allow en 181 ms)
+calentamiento de pay-risk: LISTO — 4 evaluación(es) en 1050 ms (última: HTTP 201 allow en 138 ms)
+# Lectura: la primera evaluación en frío (~280 a 312 ms) rebasa o roza el RISK_TIMEOUT_MS=300 de pay-payments aun sin carga.

@@ -1,6 +1,6 @@
 # Carril P2 — Ledger y liquidación (dinero en reposo)
 
-> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 15 / 19 — 78,9 %** · **Peldaño:** `TESTED` en lo marcado HECHO (pruebas de integración contra Postgres, NATS y TigerBeetle reales, contra el `pay-ledger` real en un proceso aparte y contra dobles declarados de conectores; sin banco real ni stack E1–E8); `A MEDIAS` en H1.M2, H2.M1 y H2.M6a; `BLOQUEADO` en H2.M6b
+> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 17 / 19 — 89,5 %** · **Peldaño:** `TESTED` en lo marcado HECHO (pruebas de integración contra Postgres, NATS y TigerBeetle reales, contra el `pay-ledger` real en un proceso aparte y contra dobles declarados de conectores; sin banco real ni stack E1–E8); `A MEDIAS` en H2.M6a; `BLOQUEADO` en H2.M6b
 > **Evidencia, decisiones y propuestas de la ola 1:** [`docs/trabajo/ola-1/P2/`](../../trabajo/ola-1/P2/REPORTE.md)
 > **Antes de empezar, leé** [`spikes/tigerbeetle.md`](../../spikes/tigerbeetle.md) (hallazgos H-1 a H-7).
 > **Predecesor:** P1.H1 (plataforma y plantilla). Ningún otro: los colaboradores se simulan.
@@ -51,7 +51,7 @@ hecho. Y sumar todos los débitos y créditos del ledger después de E1–E5: si
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
 | P2.H1.M1 | **Spike** TigerBeetle: cliente Node, dos fases, invariantes, vencimiento, licencia confirmada en su `LICENSE` | Responde sí o no a «¿sirve?», con criterio escrito | `evidencia/spike-tigerbeetle.md` con las salidas → [spike](../../spikes/tigerbeetle.md): **SÍ con condiciones** (`TESTED`) | HECHO |
-| P2.H1.M2 | Esquema `pay_ledger` (metadatos de cuentas y transferencias) en el modelo, por el pipeline | Sin deriva modelo ↔ base ↔ ORM | Salida del verificador de deriva | A MEDIAS — SQL de referencia en `services/pay-ledger/sql/` + verificador de deriva SQL ↔ base ↔ mapa (`drift.spec`). Falta: llevarlo al pipeline de `mantra-core-health-model`, que todavía no existe (D-18) |
+| P2.H1.M2 | Esquema `pay_ledger` (metadatos de cuentas y transferencias) en el modelo, por el pipeline | Sin deriva modelo ↔ base ↔ ORM | Salida del verificador de deriva | HECHO — `pay-modules/diagram_72_pay_ledger.puml` → `SQL/pay/72_pay_ledger/ddl.sql` en `mantra-core-health-model` @ `af60b79`, vendorizado en `services/pay-ledger/sql/ddl.sql` (`scripts/vendor-model-sql.sh --check` → `PASS  pay-ledger: sql/ddl.sql coincide con el modelo (282 líneas)`, `evidencia/3c-vendor-check.txt`). `drift.spec` 5/5 contra ese `ddl.sql` y suite completa 276/276 ×2 con TigerBeetle real (`docs/trabajo/ola-3/P2/evidencia/3c-test-pay-ledger-run1.txt`, `…run2.txt`); el `001_ledger.sql` de referencia se quitó. **ORM = mapa del código (schema-map.ts): los servicios usan pg directo, sin ORM; el modelo es la única fuente (D-18)** |
 | P2.H1.M3 | Plan de cuentas y mapeo cuenta lógica ↔ id de 128 bits, determinista | La misma cuenta lógica da siempre el mismo id | Test de propiedad | HECHO |
 | P2.H1.M4 | `POST /transfers` (lote enlazado, atómico) con `business_ref` estable + `attempt`; el servidor deriva el id de 128 bits. Un rechazo exige subir `attempt` (H-TB1) | REQ-P2-1 y 2; tras un rechazo, el mismo `attempt` devuelve el mismo rechazo y `attempt`+1 se acepta; **un `attempt` nuevo tras un intento aceptado, o con salto, da `409 invalid_state_transition` sin mover dinero** | Test concurrente (10×) contra TigerBeetle real | HECHO |
 | P2.H1.M5 | `POST /holds`, `/holds/{id}/post`, `/holds/{id}/void` con vencimiento | REQ-P2-3 | Test con vencimiento corto | HECHO |
@@ -67,7 +67,7 @@ hecho. Y sumar todos los débitos y créditos del ledger después de E1–E5: si
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P2.H2.M1 | Esquema `pay_settlement` (lotes, payouts, corridas, excepciones) en el modelo | Sin deriva | Verificador de deriva | A MEDIAS — SQL de referencia en `services/pay-settlement/sql/` + deriva (`drift.spec`). Falta el modelo (D-18) |
+| P2.H2.M1 | Esquema `pay_settlement` (lotes, payouts, corridas, excepciones) en el modelo | Sin deriva | Verificador de deriva | HECHO — `pay-modules/diagram_78_pay_settlement.puml` → `SQL/pay/78_pay_settlement/ddl.sql` @ `af60b79`, vendorizado en `services/pay-settlement/sql/ddl.sql` (`--check` → `PASS  pay-settlement: sql/ddl.sql coincide con el modelo (463 líneas)`). `drift.spec` 6/6 y suite completa 560/560 ×2 con TigerBeetle real (`docs/trabajo/ola-3/P2/evidencia/3c-test-pay-settlement-run1.txt`, `…run2.txt`); el `001_settlement.sql` de referencia se quitó. **ORM = mapa del código (schema-map.ts): los servicios usan pg directo, sin ORM; el modelo es la única fuente (D-18)** |
 | P2.H2.M2 | Job de corte: `pending → available` según la política del comercio (T+N), idempotente por `(merchant, periodo)` | REQ-P2-5 corriendo el job 2 veces | Test pegado | HECHO |
 | P2.H2.M3 | Interfaz `PayoutRail` + `bank-transfer` (modo A) + `acquirer-settlement` (doble del modo B) | Elige por `settlement.mode` | Test de los dos modos | HECHO |
 | P2.H2.M4 | Payout: retención en `merchant:available` → rail → `post` o `void` según el resultado | Rail falla → retención anulada, saldo intacto | Test con rail en fallo | HECHO |
@@ -92,3 +92,5 @@ hecho. Y sumar todos los débitos y créditos del ledger después de E1–E5: si
 
 Gates de §7 del maestro + **97.7** (qué cambió en el modelo, salida de la aplicación, deriva en
 verde, consultas de huérfanos y duplicados). PRs contra `dev`, mergeables (regla 35).
+
+**Matriz de gates de la ola 3 (PASS/GAP por gate, con comando y salida):** [`docs/trabajo/ola-3/P2/GATES.md`](../../trabajo/ola-3/P2/GATES.md).

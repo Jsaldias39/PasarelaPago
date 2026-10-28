@@ -1,0 +1,27 @@
+# 3a-integracion-base-real
+$ grep -rEn "jest\.mock|mockResolvedValue|mockReturnValue|jest\.fn" services/pay-connectors/test services/pay-qr/test services/pay-mockbank/test services/*/src --include=*.ts (solo los 3 servicios)
+
+== pay-connectors
+(líneas: 0)
+== pay-qr
+(líneas: 0)
+== pay-mockbank
+(líneas: 0)
+
+== spyOn / mockImplementation (dobles declarados):
+services/pay-connectors/test/end-to-end.spec.ts:108:      jest.spyOn(mock, 'createCharge').mockImplementation(async (...args) => {
+
+== cómo se obtiene la base en cada suite (createIsolatedDatabase = esquema propio en el Postgres REAL del Compose, puerto 54321):
+pay-connectors: 5 archivos de prueba usan createIsolatedDatabase
+pay-qr: 6 archivos de prueba usan createIsolatedDatabase
+pay-mockbank: 3 archivos de prueba usan createIsolatedDatabase
+
+== @pay/testing: TEST_DATABASE_URL por defecto:
+6:export const TEST_DATABASE_URL =
+7-  process.env.PAY_TEST_DATABASE_URL ?? 'postgres://postgres:pay@127.0.0.1:54321/pay_test';
+8-
+
+== ORM: ¿hay entidades o algo que mockear? (MikroORM solo abre la conexión; las consultas son SQL con pg contra la base real)
+pay-connectors: dependencias @mikro-orm = 3; archivos src/**/entities = 0; consultas con pg en src = 62
+pay-qr: dependencias @mikro-orm = 3; archivos src/**/entities = 0; consultas con pg en src = 7
+pay-mockbank: dependencias @mikro-orm = 0; archivos src/**/entities = 0; consultas con pg en src = 35

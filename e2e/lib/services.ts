@@ -133,7 +133,7 @@ export function envFor(ctx: EnvContext, name: ServiceName): Record<string, strin
         SANCTIONS_REVIEW_SCORE: '0.60',
         PAYER_HASH_KEY: secrets.payerHashKey,
         // Ajuste del ENTORNO del arnés (ARNES.md § Hallazgos 9 y 10): el tope que admite pay-risk (por defecto 200). La máquina de pruebas es compartida
-        // y con carga > 10 en 4 núcleos Watchman pasa de p50 20 ms a p50 100 ms / p90 380 ms; con 200 ms un comercio limpio puede terminar `risk_denied`.
+        // y con carga > 10 en 4 núcleos Watchman pasa de p50 30 ms a p50 100 ms / p90 383 ms; con 200 ms un comercio limpio puede terminar `risk_denied`.
         SCREENING_TIMEOUT_MS: '250',
       };
     case 'pay-qr':

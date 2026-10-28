@@ -1,0 +1,9 @@
+# 3a-docker-lockfile-diagnostico
+$ docs/trabajo/ola-3/P4/scripts/docker-lockfile-diagnostico.sh pay-qr
+
+== A) como el Dockerfile de producción: SOLO contracts/packages + services/pay-qr (workspaces en el lockfile: 44)
+➤ YN0000: · Yarn 4.14.1
+➤ YN0000: ┌ Resolution step
+➤ YN0028: │ The lockfile would have been modified by this install, which is explicitly forbidden.
+➤ YN0000: · Failed with errors in 0s 237ms
+== B) con el package.json de los OTROS servicios copiado también
