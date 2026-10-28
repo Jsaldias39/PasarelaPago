@@ -1,0 +1,32 @@
+FAIL e2e/pending/e5.e2e.ts (39.925 s)
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › REINTENTO: al llegar los otros Bs 500,00 el pago se ejecuta UNA vez, con asiento tx_ del ledger, y el proveedor cobra Bs 1.000,00
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "id": "tx_j35rdu3vcfmpe4z4eemp",
+    -   "state": "posted",
+    +   "id": undefined,
+    +   "state": undefined,
+        "status": 200,
+      }
+
+      156 |     // El asiento citado por pay-schedules es el de la liberación al proveedor y está confirmado en el ledger REAL.
+      157 |     const tx = await stack.callAs('pay-payments', 'pay-ledger', 'GET', `/transactions/${encodeURIComponent(`${done!.id}:release`)}`, { payMode: 'test' });
+    > 158 |     expect({ status: tx.status, id: (tx.json as { id: string }).id, state: (tx.json as { status: string }).status }).toEqual({ status: 200, id: done!.ledger_transaction_id, state: 'posted' });
+          |                                                                                                                      ^
+      159 |
+      160 |     // Saldos finales: el médico 0; la reserva vacía; el proveedor Bs 1.000,00. Débitos = créditos del pago.
+      161 |     expect(await ledger().balance(payer())).toBe(0);
+
+      at Object.toEqual (e2e/pending/e5.e2e.ts:158:118)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 5 passed, 6 total
+Snapshots:   0 total
+Time:        40.026 s, estimated 65 s
+Ran all test suites matching e2e/pending/e5.e2e.ts.
+exit=1

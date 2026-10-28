@@ -39,7 +39,8 @@ const luhn = (digits: string): boolean => {
  * milisegundos tiene 13 y daría falsos positivos (el 10 % pasa Luhn); los instantes de los logs se quitan antes de buscar.
  */
 export function panLikeValues(text: string): string[] {
-  const cleaned = text.replace(/"(?:time|timestamp|responseTime)":\s*\d+/g, '');
+  // Un UUID canónico (ids de eventos, claves de idempotencia, ids de fila) lleva grupos de dígitos que por azar cumplen Luhn (~1 de cada 500): no es un PAN.
+  const cleaned = text.replace(/"(?:time|timestamp|responseTime)":\s*\d+/g, '').replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '');
   const found: string[] = [];
   for (const m of cleaned.matchAll(/(?<![\d.])(?:\d[ -]?){14,18}\d(?![\d])/g)) {
     const digits = m[0].replace(/[ -]/g, '');

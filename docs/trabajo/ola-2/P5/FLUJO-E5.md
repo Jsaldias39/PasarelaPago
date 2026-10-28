@@ -1,6 +1,6 @@
 # Flujo E5 — pago mensual del médico con saldo AloVida (sin fondos → reintento → éxito)
 
-> **AVANCE (tanda 4a, E5): escrito y tipado; NO ejecutado.** El flujo está en `e2e/pending/e5.e2e.ts` (+ `e2e/lib/p5-schedules.ts`). `yarn e2e:typecheck` y el lint de `e2e/**` salen con 0. El stack no se levantó (lo corre P1, un stack a la vez), así que **ninguna aserción se vio correr**: peldaño `WRITTEN`+`RUNS` (regla 30), nunca `VERIFIED`. La sección «Supuestos sin verificar» dice cuáles son los más probables de fallar en la primera corrida.
+> **AVANCE (tanda 3e): EJECUTADO CONTRA EL STACK REAL, 6 / 6 EN VERDE, 3 corridas (6, 7 y 8).** El flujo vive en `e2e/flows/e5.e2e.ts` (+ `e2e/lib/p5-schedules.ts`). Peldaño: `VERIFIED` para el flujo E5 (UI no aplica; consola/red de los servicios sin errores inesperados en los logs de `e2e/.run/`). Lo que sigue sin cubrir está en «Corridas reales» al final.
 
 Proceso 7.7 («el médico programa sus pagos mensuales») con el medio «saldo AloVida», §6 de `docs/plan/PLAN-MAESTRO.md` (E5, carriles P5 · P2 · P3). Estilo y herramientas: `e2e/flows/e6.e2e.ts`, `docs/trabajo/ola-2/P1/ARNES.md`, `stack.call`/`callAs` y `e2e/lib` (`seed`, `receiver`, `events`, `wait`).
 
@@ -61,7 +61,7 @@ yarn e2e:pending                       # requiere la infra del Compose arriba y 
 node --no-warnings e2e/cli.ts down     # solo si quedó un stack registrado
 ```
 
-Para pasarlo a la suite por defecto cuando dé verde en una corrida real: `git mv e2e/pending/e5.e2e.ts e2e/flows/e5.e2e.ts` (mismas rutas relativas). El ayudante `e2e/lib/p5-schedules.ts` es nuevo y no toca archivos de P1; **P1 queda avisado de que existe**.
+Pasado a la suite por defecto con `git mv e2e/pending/e5.e2e.ts e2e/flows/e5.e2e.ts` tras la corrida 7. El ayudante `e2e/lib/p5-schedules.ts` es nuevo y no toca archivos de P1; **P1 queda avisado de que existe**.
 
 ## Supuestos sin verificar (los más probables de fallar en la primera corrida)
 
@@ -79,3 +79,21 @@ Para pasarlo a la suite por defecto cuando dé verde en una corrida real: `git m
 - El camino `live`, dinero real y el cribado de riesgo del pago programado (PR-18).
 - Que la billetera se alimente de un depósito real: aquí es una apertura sintética.
 - Mandatos de comisión (`pay_commission`, 7.8, requiere `PLATFORM_MERCHANT_ID`).
+
+## Corridas reales (tanda 3e)
+
+Evidencia en `docs/trabajo/ola-3/P5/evidencia/`. Un solo stack por vez; las corridas 1 y 2 chocaron con stacks ajenos y no cuentan.
+
+| # | Resultado | Causa (demostrada) | Clase | Dueño | Arreglo |
+|---|---|---|---|---|---|
+| 1 `3e-e5-corrida-1.txt` | 0/6 | `waitForReplica` agotó el tiempo: `MerchantReplicaConsumer` fallaba cada 2 s. El NATS real devuelve `invalid durable name - durable name cannot contain '.'` para el durable por defecto `pay-schedules.merchant-replica` (`3e-e5-causa-durable-con-punto.txt`) | `PRODUCT_BUG` | P5 (`pay-schedules`) | Durable por defecto `pay-schedules-merchant-replica`; `MERCHANTS_DURABLE` se valida al arrancar; el warning incluye el mensaje del servidor NATS. Prueba roja→verde en `settings.spec.ts` y prueba contra NATS real en `nats-replica.spec.ts` |
+| 2 `3e-e5-corrida-2-dist-viejo.txt` | 0/6 | Mismo síntoma: el stack arranca `services/*/dist` y yo no había reconstruido `pay-schedules` | `ENVIRONMENT` (mío) | P5 | `yarn build` de `pay-schedules` (`3e-e5-schedules-build.txt`) |
+| 3 `…-3-business-ref.txt` | 1/6 | `fundWallet` mandaba un `business_ref` que el ledger rechaza (`422 validation_failed`, `business_ref invalid_format`) | `TEST_BUG` | P5 (`e2e/lib/p5-schedules.ts`) | `<id de comercio>:<verbo>` |
+| 4 `…-4-verbo-con-digito.txt` | 1/6 | El verbo del `business_ref` solo admite `[a-z_]` (regex de `services/pay-ledger/src/ledger/schemas.ts`); mi verbo llevaba un dígito (`e5_…`) | `TEST_BUG` | P5 | Verbos `apertura_uno` / `apertura_dos` |
+| 5 `…-5-forma-de-respuesta.txt` | 5/6 | `GET /transactions/{business_ref}` devuelve `{business_ref, attempts: Transaction[]}` (contrato `internal-ledger-v1.yaml`); mi aserción leía `id`/`status` en la raíz | `TEST_BUG` | P5 (`e5.e2e.ts`) | Aserción sobre `attempts` |
+| 6, 7 | **6/6** | — | — | — | — |
+| 8 `…-8-en-flows.txt` | **6/6** | Ya en `e2e/flows/`, con `e2e/jest.config.cjs` | — | — | — |
+
+**Nada de lo que falló pertenecía a otro carril**: no hay hallazgos para P1, P2 ni P3 en esta tanda. La única interacción con otros fue de coordinación (stacks simultáneos; ver `3e-e5-intento-*.txt`).
+
+**No cubierto:** el saldo inicial del médico se carga con un asiento de apertura sintético [DOBLE] contra el ledger real (no hay entrada de dinero real); el reloj de «hoy» es un doble de `makeMandateDueToday`; sin `pay-mockbank` ni modo B; PR-18 (ejecución directa contra el ledger sin riesgo) sigue como decisión abierta del dueño y no se implementó.

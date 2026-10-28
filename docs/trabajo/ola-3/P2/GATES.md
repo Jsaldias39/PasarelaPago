@@ -1,4 +1,4 @@
-> **AVANCE (matriz de gates): 10 / 13 gates de PLAN-MAESTRO §7 en PASS (los gates 5, 6 y 7 con un GAP menor declarado y con dueño) · 3 `NO APLICA AÚN`** — más la fila de Dockerfile en PASS y la de inmutabilidad como GAP propuesto. Peldaño: **`TESTED`** (nada se ejecutó contra el stack E1–E8, ni contra Jaeger, ni contra un banco real).
+> **AVANCE (matriz de gates): 10 / 13 gates de PLAN-MAESTRO §7 en PASS (los gates 5, 6 y 7 con un GAP menor declarado y con dueño) · 1 PASS parcial (13) · 2 `NO APLICA AÚN` (10, 12)** — más la fila de Dockerfile en PASS y la de inmutabilidad como GAP propuesto. Peldaño: **`TESTED`** (nada se ejecutó contra el stack E1–E8, ni contra Jaeger, ni contra un banco real).
 
 # Matriz de gates P2 — `pay-ledger` y `pay-settlement` (ola 3)
 
@@ -24,9 +24,9 @@
 | 10 | Observabilidad (Jaeger) | **NO APLICA AÚN** | |
 | 11 | Fallos | **PASS** (residual declarado: propuesta 27; la parte de cortes de Postgres, ver la fila `+`) | `SIGKILL` a TigerBeetle; reconciliador de recuperación TigerBeetle → Postgres; cortes de conexión de Postgres (pool, idempotencia, outbox) |
 | 12 | Carga (T-01) | **NO APLICA AÚN** | |
-| 13 | Sandbox (ola 4) | **NO APLICA AÚN** | |
+| 13 | Sandbox (ola 4) | **PASS parcial** (E4 y E8 de punta a punta contra `pay-mockbank`; la paridad con el conector real no aplica aún) | |
 | + | Dockerfile (docker build de producción) | **PASS** tras corregir 2 defectos; arranque del ledger **BLOQUEADO** (ENVIRONMENT) | imágenes construidas, probadas y borradas |
-| + | Cortes de conexión de Postgres (3d) | **PASS aislado** (10/10 ×3 por servicio); **en corrida completa, pendiente de re-ejecutar** | `guardPool` + `pg_terminate_backend` en pool, clientes prestados, `@pay/idempotency` y `@pay/outbox` |
+| + | Cortes de conexión de Postgres (3d/3e) | **PASS** (10/10 por servicio; y en las corridas completas ×2 de la serie 3e) | `guardPool` + `pg_terminate_backend` en pool, clientes prestados, `@pay/idempotency` y `@pay/outbox` |
 | + | Inmutabilidad de registros de dinero (3c) | **GAP** propuesto, no implementado | propuesta 20 |
 
 ---
@@ -48,14 +48,14 @@ Suites completas con TigerBeetle real, `--maxWorkers=2`:
 
 | Servicio | Corrida | Suites | Pruebas | Salida |
 |---|---|---|---|---|
-| pay-ledger | 1 | 19/20 (`pool-resilience` no corrió, ver abajo) | **299/299** | `evidencia/3d-test-pay-ledger-run1.txt` |
-| pay-ledger | 2 | 19/20 (ídem) | **299/299** | `evidencia/3d-test-pay-ledger-run2.txt` |
-| pay-settlement | 1 | 28/29 (ídem) | **570/570** | `evidencia/3d-test-pay-settlement-run1.txt` |
-| pay-settlement | 2 | **no se corrió**: el coordinador pidió dejar la máquina quieta | — | — |
+| pay-ledger | 1 | 21/21 | **301/301** | `evidencia/3e-test-pay-ledger-run1.txt` (`rc=0`) |
+| pay-ledger | 2 | 21/21 | **301/301** | `evidencia/3e-test-pay-ledger-run2.txt` (`rc=0`) |
+| pay-settlement | 1 | 30/30 | **572/572** | `evidencia/3e-test-pay-settlement-run1.txt` (`rc=0`) |
+| pay-settlement | 2 | 30/30 | **572/572** | `evidencia/3e-test-pay-settlement-run2.txt` (`rc=0`) |
 
-**Honestidad sobre estas corridas.** Las 299 + 299 + 570 pruebas que corrieron pasaron, pero en cada corrida **una suite no llegó a ejecutarse** (`rc=1`): `test/pool-resilience.spec.ts` terminó con `Test suite failed to run — Unhandled error (Connection terminated unexpectedly)`. Causa (clasificación ENVIRONMENT, con evidencia en el seguimiento de la pila: un `error` de un pool sin manejador): en esta máquina otros carriles corrían a la vez sus propias pruebas de `pg_terminate_backend` contra el mismo Postgres, y cortaron la conexión ociosa del pool auxiliar que `createIsolatedDatabase` de `@pay/testing` deja abierto sin `guardPool` durante toda la suite. La misma suite pasa **10/10 sola, 3 veces por servicio** (`evidencia/3d-control-negativo-pool-*.txt` incluye la corrida «restaurado»). **Corrección escrita pero NO re-ejecutada** (quedé liberada antes): la suite ahora arma su propio esquema desechable con todos sus pools envueltos (`guardedIsolatedDatabase`). Hasta re-correr ×2 por servicio, el peldaño de este gate en corrida completa es `WRITTEN`, y la suite `reconciler.spec` (13/13) y `pool-resilience` (10/10) sí están `TESTED` por separado. Las corridas previas descartadas están en `evidencia/3d-descartada-*`.
+**Serie final 3e** (con `pool-resilience` reescrito, `guardPool` de `@pay/idempotency` y el detector de PAN corregido). `evidencia/3e-gates.txt`: `yarn typecheck` y `yarn build` de ambos servicios, `eslint`, `yarn lint` de la raíz y `yarn e2e:typecheck`, todos `exit=0`. Las series previas quedan como antecedente y NO cuentan: 3d (la suite `pool-resilience` no se ejecutó por cortes de otras suites; `3d-descartada-*`) y la primera 3e (una prueba de `sensitive-data` falló por un falso positivo del detector de PAN: un UUID con una corrida de dígitos que cumple Luhn por azar, ~1 de cada 500; `3e-descartada-serie1-*`; el detector ahora ignora UUID canónicos y tiene su propia prueba, `pan-detector.spec.ts`).
 
-(Serie 3d, posterior al reconciliador y a `guardPool`; la serie 3c —276/276 ×2 y 560/560 ×2, `evidencia/3c-test-*`— quedó como antecedente.) Comando de cada corrida: `cd services/<svc> && TB_ADDRESS=127.0.0.1:54310 NATS_URL=nats://127.0.0.1:54250 PAY_TEST_NATS_URL=nats://127.0.0.1:54250 yarn test --maxWorkers=2` (TigerBeetle y NATS **propios**, ver «Entorno»; Postgres del Compose). Lista de las pruebas nuevas con su resultado: [`evidencia/3c-pruebas-nuevas.md`](./evidencia/3c-pruebas-nuevas.md).
+(La serie 3c —276/276 ×2 y 560/560 ×2, `evidencia/3c-test-*`— quedó como antecedente.) Comando de cada corrida: `cd services/<svc> && TB_ADDRESS=127.0.0.1:54310 NATS_URL=nats://127.0.0.1:54250 PAY_TEST_NATS_URL=nats://127.0.0.1:54250 yarn test --maxWorkers=2` (TigerBeetle y NATS **propios**, ver «Entorno»; Postgres del Compose). Lista de las pruebas nuevas con su resultado: [`evidencia/3c-pruebas-nuevas.md`](./evidencia/3c-pruebas-nuevas.md).
 
 - Pruebas **nuevas** de esta ola: `separation.spec.ts` (×2 servicios), `sensitive-data.spec.ts` (×2), `idempotency-parallel.spec.ts` (ledger), `faults.spec.ts` (ledger), `holds-accounts-fk.spec.ts` (ledger).
 - Corridas que **no** cuentan (se conservan en `evidencia/` con su causa, regla 80.4): ver «Entorno».
@@ -208,9 +208,15 @@ Otros experimentos de fallos que ya existían y se corren en las mismas suites: 
 
 Motivo: T-01 (el objetivo de capacidad) todavía no tiene un valor acordado ni un entorno de carga; medir «su parte» sin objetivo sería inventar una meta. Lo único medible hoy sin inventar: las suites de concurrencia (gate 4) corren 10–20 operaciones simultáneas con efecto único. **Qué lo destraba:** el valor de T-01 (dueño del producto) y un entorno de carga (P1).
 
-## 13 · Sandbox (ola 4) — NO APLICA AÚN
+## 13 · Sandbox (ola 4) — PASS PARCIAL (flujos E2E sí; paridad con el conector real, no)
 
-Motivo: «sus flujos E2E pasan contra `pay-mockbank` y los tests de contrato del conector son idénticos para el simulador y el real» es del cierre de la ola 4. Hoy `e2e/pending/e4.e2e.ts` y `e8.e2e.ts` compilan y pasan lint pero **no se ejecutaron** (dependen de que P4 emita `payment_intent_id`/`merchant_id` en el extracto y de `pay-mockbank`; ver `ola-2/P2/FLUJOS-E4-E8.md`).
+«Sus flujos E2E pasan contra `pay-mockbank` y los tests de contrato del conector son idénticos para el simulador y el real».
+
+- **Flujos E2E: PASS.** E4 (corte semanal → payout → conciliación con UNA diferencia → excepción, 8 pruebas) y E8 (transferencia bancaria confirmada por la línea del extracto, 6 pruebas) corren contra el stack REAL —11 servicios + `pay-mockbank`, TigerBeetle privado, Postgres y NATS del Compose— y pasan: `yarn e2e e2e/flows/e4.e2e.ts e2e/flows/e8.e2e.ts --verbose` ⇒ `Tests: 14 passed, 14 total`, `rc=0` (`evidencia/3e-e4-e8-en-la-suite-por-defecto.txt`; las corridas individuales: `3e-e4-run1.txt` 8/8 y `3e-e8-run6.txt` 6/6). Se movieron con `git mv` de `e2e/pending/` a `e2e/flows/` (suite por defecto); el movimiento de los dos archivos es el único cambio en terreno de P1; los helpers son de P2 (`e2e/lib/p2-*.ts`).
+- **Lo que hubo que arreglar para que E8 pasara — todo `TEST_BUG` de P2, sin tocar una aserción:** (1) `payerTransfersToBank` era un stub que lanzaba «E8 necesita pay-mockbank»; ahora llama a `POST /sandbox/payer/transfer-in` del banco simulado y recibe el stack; (2) E8 arrancaba el stack sin `mockbank: true`; (3) el conector solo captura una transferencia al conciliar su extracto y su temporizador es de 5 min: E8 pasa `envOverrides` con `RECONCILE_INTERVAL_MS=1000` (propuesta 33). E4 pasó a la primera.
+- **Interferencias entre carriles (ENVIRONMENT), no cuentan como evidencia:** el arranque de E5 de P5 se cruzó con mi corrida 3 de E8 (candado `state.json` no atómico; guardada como `3e-descartada-e8-run3-colision-con-stack-de-P5.txt`) y una corrida mía encontró el stack ocupado por otro carril (`3e-descartada-e8-run5-…`); se repitió limpia (run 6).
+- **Suite e2e completa, una vez** (`yarn e2e`, `evidencia/3e-e2e-completa.txt`): `Test Suites: 2 failed, 18 passed, 20 total · Tests: 5 failed, 124 passed, 129 total`. Los dos que fallan son de P1 y estaban en obras durante la corrida (el candado del stack se estaba haciendo atómico: `lock.ts` 02:46 y `lock.spec.ts` 02:51 se modificaron mientras corría): `e2e/lib/lock.spec.ts` (4 pruebas) y `e2e/flows/degraded.e2e.ts` («un segundo stack… se rechaza» espera el mensaje viejo `/Ya hay un stack registrado/`). Clasificación: PRODUCT/TEST_BUG de P1, con síntoma, archivo y línea en la propuesta 34. Ninguno es de P2 ni de E4/E8.
+- **Paridad con el conector real: NO APLICA AÚN.** Que los tests de contrato del conector sean idénticos para el simulador y el real exige un conector real (banco real: Q-11/T-03). No se afirma.
 
 ## + · Dockerfile (docker build de la imagen de producción) — PASS tras 2 correcciones
 
@@ -229,9 +235,9 @@ Resultado: **ambos builds `rc=0`** (imagen de 991 MB cada una; incluye `devDepen
 
 **GAP (P1):** no existe `.dockerignore` en la raíz: el contexto completo pesa ~2 GB; por eso el build se hizo con un contexto armado con exactamente lo que el Dockerfile copia. Propuesta 21.
 
-## + · Cortes de conexión de Postgres (pool y clientes prestados) — PASS aislado; corrida completa pendiente
+## + · Cortes de conexión de Postgres (pool y clientes prestados) — PASS
 
-Defecto transversal (P5, P4): un `pg.Pool` sin manejador de `error` tira el proceso cuando Postgres corta una conexión. `pool.on('error')` **solo** cubre las ociosas; si el corte llega con la conexión **prestada** (`pool.connect()` en una transacción, un candado de asesoría, el relé del outbox) el cliente emite `error` sin escucha y el proceso muere igual. Corrección en `pay-ledger` y `pay-settlement`: `src/pool-guard.ts` (idéntico al de `pay-connectors`; `guardPool` registra el manejador del pool **y** `pool.on('connect', c => c.on('error', …))`) envolviendo el único `Pool` propio de cada servicio (`database.module.ts`); el pool del ORM (knex) se prueba aparte. Además, `inTransaction` ya no deja que un `ROLLBACK` fallido tape el error real, y los `pg_advisory_unlock` de settlement no tapan el resultado si la conexión murió.
+Defecto transversal (P5, P4): un `pg.Pool` sin manejador de `error` tira el proceso cuando Postgres corta una conexión. `pool.on('error')` **solo** cubre las ociosas; si el corte llega con la conexión **prestada** (`pool.connect()` en una transacción, un candado de asesoría, el relé del outbox) el cliente emite `error` sin escucha y el proceso muere igual. Corrección en `pay-ledger` y `pay-settlement`: `guardPool` (registra el manejador del pool **y** `pool.on('connect', c => c.on('error', …))`) envolviendo el único `Pool` propio de cada servicio (`database.module.ts`). Primero con una copia idéntica a la de `pay-connectors`; en 3e se reemplazó por el `guardPool` que P1 exporta desde `@pay/idempotency` (cambio mecánico: se borró `src/pool-guard.ts`; el servicio le pasa su logger); el pool del ORM (knex) se prueba aparte. Además, `inTransaction` ya no deja que un `ROLLBACK` fallido tape el error real, y los `pg_advisory_unlock` de settlement no tapan el resultado si la conexión murió.
 
 `test/pool-resilience.spec.ts` (10 pruebas por servicio, Postgres real, cortes con `pg_terminate_backend`; los cortes son siempre de pids que la prueba identifica, nunca de otras suites):
 
@@ -249,7 +255,7 @@ Defecto transversal (P5, P4): un `pg.Pool` sin manejador de `error` tira el proc
 
 Controles negativos (`evidencia/3d-control-negativo-pool-ledger.txt`, `…-settlement.txt`): sin el manejador del pool caen 6 pruebas con `Unhandled error. (error: terminating connection due to administrator command)`; sin el manejador de cada cliente prestado caen 3 (idempotencia, inbox y la del ORM). Ambos restaurados ⇒ 10/10.
 
-**Alcance honesto.** El corte «justo después de enviar `COMMIT` y antes de recibir la respuesta» (efecto aplicado, respuesta perdida) no se pudo provocar de forma determinista con `pg_terminate_backend`; la garantía para ese caso es la ya existente (ids deterministas + `ON CONFLICT`, el reintento converge) y se ejercita en `reconciler.spec.ts`. P1 publicó además un `guardPool` en `@pay/idempotency` (sin dependencia de Nest): los dos `pool-guard.ts` copiados pueden reemplazarse por ese (propuesta 29).
+**Alcance honesto.** El corte «justo después de enviar `COMMIT` y antes de recibir la respuesta» (efecto aplicado, respuesta perdida) no se pudo provocar de forma determinista con `pg_terminate_backend`; la garantía para ese caso es la ya existente (ids deterministas + `ON CONFLICT`, el reintento converge) y se ejercita en `reconciler.spec.ts`. Pendiente (propuesta 29): los otros servicios y los pools de `@pay/testing`.
 
 ## + · Inmutabilidad de los registros de dinero de solo-agregar (pedido 3c) — GAP propuesto
 
@@ -273,7 +279,7 @@ La máquina de pruebas estaba **saturada** durante esta ola: carga 10–17, 8+ p
 
 Las salidas de esas corridas se conservan: `evidencia/3a-test-*` (primeras corridas, con TigerBeetle compartido) y `evidencia/3c-descartada-*`. **No hay `skip`, no se subió ningún timeout y no se agregó ningún reintento.** Queda sin cubrir: nada más allá de lo anotado como GAP o `NO APLICA AÚN`.
 
-**Tanda 3d.** Una primera serie de settlement dio 14 fallos por `No space left on device` al crear esquemas de prueba (ENVIRONMENT: el disco compartido se llenó por builds de otros carriles; `evidencia/3d-descartada-settlement-run1-disco-lleno.txt`); una segunda falló una sola prueba mía porque P1 cambió `@pay/idempotency` mientras corría (de «rechazar» a «enmascarar» la clave con forma de PAN; la prueba se adaptó a lo que la librería hace hoy: `3d-descartada-settlement-run2-…`); y una tercera serie completó todas las pruebas pero dejó sin ejecutar la suite `pool-resilience` por cortes de otras suites (arriba; `3d-descartada-*-suite-pool-…`). La serie final (tabla de la sección 1) se interrumpió a pedido del coordinador tras la corrida 1 de settlement. Quedaron **detenidos** el TigerBeetle compartido (`:54300`), el TigerBeetle y el NATS propios de esta tanda; verificado por `/proc` y por conexión rechazada en `:54310`.
+**Tanda 3d.** Una primera serie de settlement dio 14 fallos por `No space left on device` al crear esquemas de prueba (ENVIRONMENT: el disco compartido se llenó por builds de otros carriles; `evidencia/3d-descartada-settlement-run1-disco-lleno.txt`); una segunda falló una sola prueba mía porque P1 cambió `@pay/idempotency` mientras corría (de «rechazar» a «enmascarar» la clave con forma de PAN; la prueba se adaptó a lo que la librería hace hoy: `3d-descartada-settlement-run2-…`); y una tercera serie completó todas las pruebas pero dejó sin ejecutar la suite `pool-resilience` por cortes de otras suites (arriba; `3d-descartada-*-suite-pool-…`). La serie final es la 3e (sección 1, 21/21 y 30/30 suites ×2). Al terminar quedaron **detenidos** mi TigerBeetle (`:54310`) y mi NATS (`:54250`) (conexión rechazada, sin procesos), no hay `e2e/.run/stack.lock` y el stack e2e lo liberé antes de seguir (P5 avisado).
 
 ## No cubierto (consolidado)
 

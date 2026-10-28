@@ -1,0 +1,107 @@
+FAIL e2e/pending/e5.e2e.ts (64.704 s)
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › SIEMBRA [DOBLE]: el médico tiene Bs 500,00 por un asiento de apertura sintético (idempotente); el proveedor, nada
+
+    El asiento de apertura sintético falló (422): {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"validation_failed","errors":[{"field":"business_ref","code":"invalid_format"}],"request_id":"5a66bf15-0ac4-4b05-82a0-c22505e33de4","instance":"/transactions"}
+
+      67 |     },
+      68 |   });
+    > 69 |   if (res.status !== 201 && res.status !== 200) throw new Error(`El asiento de apertura sintético falló (${res.status}): ${res.text}`);
+         |                                                       ^
+      70 |   return (res.json as { id: string }).id;
+      71 | }
+      72 |
+
+      at fundWallet (e2e/lib/p5-schedules.ts:69:55)
+      at Object.<anonymous> (e2e/pending/e5.e2e.ts:84:21)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › PRIMER INTENTO: con Bs 500,00 de Bs 1.000,00 espera fondos, avisa UNA vez y no mueve dinero (aunque haya 5 ejecutores)
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+    @@ -1,7 +1,7 @@
+      Object {
+    -   "available_minor": 50000,
+    +   "available_minor": 0,
+        "currency": "BOB",
+        "mandate_id": "md_urtn33g2fhi7mwj4",
+        "merchant_id": "mc_c4mlmknycgnzszip",
+        "mode": "test",
+        "required_minor": 100000,
+
+      129 |     const attemptOne = notices.filter((e) => e.data.attempt === 1);
+      130 |     expect(attemptOne).toHaveLength(1); // un solo aviso por intento: los 5 ejecutores no lo repiten
+    > 131 |     expect(attemptOne[0]!.data).toMatchObject({ mandate_id: mandateId, merchant_id: doctor.merchantId, mode: 'test', currency: 'BOB', required_minor: MANDATE_AMOUNT, available_minor: FIRST_FUNDS, scheduled_payment_id: first!.id });
+          |                                 ^
+      132 |     expect(typeof attemptOne[0]!.data.retry_at).toBe('string');
+      133 |
+      134 |     // El médico se entera por su webhook (y el evento es de modo test).
+
+      at Object.toMatchObject (e2e/pending/e5.e2e.ts:131:33)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › REINTENTO: al llegar los otros Bs 500,00 el pago se ejecuta UNA vez, con asiento tx_ del ledger, y el proveedor cobra Bs 1.000,00
+
+    El asiento de apertura sintético falló (422): {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"validation_failed","errors":[{"field":"business_ref","code":"invalid_format"}],"request_id":"9ca70672-637c-444d-a5d1-e1298e5c8473","instance":"/transactions"}
+
+      67 |     },
+      68 |   });
+    > 69 |   if (res.status !== 201 && res.status !== 200) throw new Error(`El asiento de apertura sintético falló (${res.status}): ${res.text}`);
+         |                                                       ^
+      70 |   return (res.json as { id: string }).id;
+      71 | }
+      72 |
+
+      at fundWallet (e2e/lib/p5-schedules.ts:69:55)
+      at Object.<anonymous> (e2e/pending/e5.e2e.ts:147:5)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › REINTENTO SEGURO: repetir la retención y la liberación con la MISMA clave devuelve lo mismo y no mueve dinero otra vez
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Object {
+    -   "id": null,
+    -   "result": "exists",
+    -   "state": "posted",
+    -   "status": 200,
+    +   "id": undefined,
+    +   "result": undefined,
+    +   "state": 422,
+    +   "status": 422,
+      }
+
+      188 |       json: { business_ref: `${done!.id}:reserve`, attempt: done!.ledger_attempt, debit_account: payer(), credit_account: reserve(), amount_minor: MANDATE_AMOUNT, currency: 'BOB', expires_in_seconds: 3600 },
+      189 |     });
+    > 190 |     expect({ status: hold.status, id: (hold.json as { id: string }).id, result: (hold.json as { result: string }).result, state: (hold.json as { status: string }).status }).toEqual({ status: 200, id: done!.hold_id, result: 'exists', state: 'posted' });
+          |                                                                                                                                                                              ^
+      191 |
+      192 |     const release = await stack.callAs('pay-schedules', 'pay-ledger', 'POST', '/transactions', {
+      193 |       payMode: 'test',
+
+      at Object.toEqual (e2e/pending/e5.e2e.ts:190:174)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › UN SOLO EFECTO con 5 ejecutores en carrera: un solo `executed` en el bus y en el webhook, una sola fila, ningún pago más
+
+    No se cumplió «el evento executed llega al bus» en 30000 ms; último valor: []
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/pending/e5.e2e.ts:207:22)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 1 passed, 6 total
+Snapshots:   0 total
+Time:        64.842 s
+Ran all test suites matching e2e/pending/e5.e2e.ts.
+exit=1

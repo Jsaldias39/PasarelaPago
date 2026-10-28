@@ -81,9 +81,9 @@ describe('E5 — pago mensual del médico con saldo AloVida: sin fondos → rein
   });
 
   it('SIEMBRA [DOBLE]: el médico tiene Bs 500,00 por un asiento de apertura sintético (idempotente); el proveedor, nada', async () => {
-    const opening = await fundWallet(stack, doctor.merchantId, FIRST_FUNDS, 'e5_apertura_uno');
+    const opening = await fundWallet(stack, doctor.merchantId, FIRST_FUNDS, 'apertura_uno');
     expect(opening).toMatch(/^tx_[a-z0-9]{10,40}$/);
-    expect(await fundWallet(stack, doctor.merchantId, FIRST_FUNDS, 'e5_apertura_uno')).toBe(opening); // repetir la apertura no suma
+    expect(await fundWallet(stack, doctor.merchantId, FIRST_FUNDS, 'apertura_uno')).toBe(opening); // repetir la apertura no suma
     expect(await ledger().balance(payer())).toBe(FIRST_FUNDS);
     expect(await ledger().balance(beneficiary())).toBe(0);
 
@@ -144,7 +144,7 @@ describe('E5 — pago mensual del médico con saldo AloVida: sin fondos → rein
   });
 
   it('REINTENTO: al llegar los otros Bs 500,00 el pago se ejecuta UNA vez, con asiento tx_ del ledger, y el proveedor cobra Bs 1.000,00', async () => {
-    await fundWallet(stack, doctor.merchantId, TOP_UP, 'e5_apertura_dos');
+    await fundWallet(stack, doctor.merchantId, TOP_UP, 'apertura_dos');
     expect(await ledger().balance(payer())).toBe(MANDATE_AMOUNT);
 
     const rows = await until('el pago programado se ejecuta', payments, (list) => list.some((r) => r.status === 'executed'), 90_000, 250);
@@ -155,7 +155,8 @@ describe('E5 — pago mensual del médico con saldo AloVida: sin fondos → rein
 
     // El asiento citado por pay-schedules es el de la liberación al proveedor y está confirmado en el ledger REAL.
     const tx = await stack.callAs('pay-payments', 'pay-ledger', 'GET', `/transactions/${encodeURIComponent(`${done!.id}:release`)}`, { payMode: 'test' });
-    expect({ status: tx.status, id: (tx.json as { id: string }).id, state: (tx.json as { status: string }).status }).toEqual({ status: 200, id: done!.ledger_transaction_id, state: 'posted' });
+    const attempts = (tx.json as { attempts: { id: string; status: string }[] }).attempts; // contrato internal-ledger-v1: { business_ref, attempts: Transaction[] }
+    expect({ status: tx.status, attempts: attempts.map((a) => ({ id: a.id, state: a.status })) }).toEqual({ status: 200, attempts: [{ id: done!.ledger_transaction_id, state: 'posted' }] });
 
     // Saldos finales: el médico 0; la reserva vacía; el proveedor Bs 1.000,00. Débitos = créditos del pago.
     expect(await ledger().balance(payer())).toBe(0);

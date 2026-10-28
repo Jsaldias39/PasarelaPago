@@ -52,7 +52,7 @@ export function ledgerReader(stack: Stack) {
 /**
  * [DOBLE] Asiento de apertura sintético: acredita `amountMinor` en `merchant:{merchantId}:available`. `reference` distingue cada carga
  * (la misma referencia repetida es idempotente: `exists`). `reference` es el verbo del `business_ref` del ledger
- * (`<comercio>:<verbo>`, solo minúsculas y `_`, 3–30 caracteres). Devuelve el id `tx_…` del asiento.
+ * (`<comercio>:<verbo>`, solo letras minúsculas y `_`, sin dígitos, 3–30 caracteres; ver services/pay-ledger/src/ledger/schemas.ts). Devuelve el id `tx_…` del asiento.
  */
 export async function fundWallet(stack: Stack, merchantId: string, amountMinor: number, reference: string): Promise<string> {
   const res = await stack.callAs('pay-payments', 'pay-ledger', 'POST', '/transactions', {

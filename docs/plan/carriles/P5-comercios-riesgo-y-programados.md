@@ -1,6 +1,6 @@
 # Carril P5 — Comercios, riesgo y pagos programados
 
-> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 16 / 18 — 88,9 %** (H1.M1 y H3.M1 pasaron a HECHO en la tanda 3b/3c; quedan H2.M1 `BLOQUEADO` externo y H2.M4 `A MEDIAS`) · **Peldaño:** `TESTED` en lo marcado HECHO (contra Postgres real; el libro mayor, el almacén de objetos y el verificador de operadores son dobles declarados); `UNKNOWN` en el resto. Evidencia: [`../../trabajo/ola-1/P5/`](../../trabajo/ola-1/P5/evidencia/INDICE.md)
+> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 17 / 18 — 94,4 %** (H1.M1 y H3.M1 pasaron a HECHO en la tanda 3b/3c, H2.M4 en la 3e; queda solo H2.M1 `BLOQUEADO` externo) · **Peldaño:** `TESTED` en lo marcado HECHO (contra Postgres real; el libro mayor, el almacén de objetos y el verificador de operadores son dobles declarados); `UNKNOWN` en el resto. Evidencia: [`../../trabajo/ola-1/P5/`](../../trabajo/ola-1/P5/evidencia/INDICE.md)
 > **Predecesor:** P1.H1 (plataforma y plantilla).
 > **Carpetas del monorepo:** `services/pay-merchants/`, `services/pay-risk/`, `services/pay-schedules/` · esquema en `mantra-core-health-model`.
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md)
@@ -91,7 +91,7 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 
 **P5.H3.M1 — Esquema de `pay-schedules` — HECHO.** Mismo método: `sql/ddl.sql` vendorizado del modelo (`77_pay_schedules`, `af60b79`), `src/schema-map.ts`, `test/drift.spec.ts` (14/14 con sus controles negativos). *Peldaño:* `TESTED`. Lo mismo vale para `pay-risk` (`76_pay_risk`): `src/schema-map.ts` + `test/drift.spec.ts` (14/14).
 
-> **Reserva sobre P5.H3.M5 (que consta HECHO):** su evidencia es el E5 de `test/executor.spec.ts` contra el [DOBLE] del libro mayor, con Postgres real. El E5 por la API real contra el stack (`e2e/pending/e5.e2e.ts`) está escrito y tipado, **no ejecutado** (lo corre P1). Si el DoD «salida del E2E» se toma al pie de la letra, el microhito pasaría a `A MEDIAS` y el avance sería 15 / 18 — 83,3 %.
+> **P5.H3.M5 — reserva levantada (tanda 3e).** El E5 por la API real contra el stack (`e2e/flows/e5.e2e.ts`) corrió **6 / 6 en verde** en 3 corridas reales ([`3e-e5-corrida-6.txt`](../../trabajo/ola-3/P5/evidencia/3e-e5-corrida-6.txt), [`-7`](../../trabajo/ola-3/P5/evidencia/3e-e5-corrida-7.txt) y, ya movido a `flows` y con el runner de P1, [`-8-en-flows`](../../trabajo/ola-3/P5/evidencia/3e-e5-corrida-8-en-flows.txt)). Antes fallaron 5 corridas con causas distintas, todas clasificadas en [`FLUJO-E5.md`](../../trabajo/ola-2/P5/FLUJO-E5.md#corridas-reales-tanda-3e). No cubierto: el libro mayor sigue siendo el real, pero el asiento de apertura de saldo es un [DOBLE] sintético declarado (no existe aún una entrada de dinero real); no se probó con `pay-mockbank` ni modo B.
 
 **P5.H2.M4 — p99 < 300 ms — HECHO (tanda 3e).** `test/latency.spec.ts` aislada, 3 corridas, una suite a la vez, Watchman REAL (`v2-static`, solo sandbox) y Postgres real, 4 vCPU ([`3e-latencia-3-corridas.txt`](../../trabajo/ola-3/P5/evidencia/3e-latencia-3-corridas.txt)); p99 de las tres corridas ≤ 208 ms en TODAS las líneas:
 

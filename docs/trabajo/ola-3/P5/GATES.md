@@ -168,7 +168,7 @@ Motivo: T-01 es la prueba a 2× el volumen objetivo en un runner **dedicado** (o
 
 ## 13 · Sandbox E2E (ola 4) — NO APLICA AÚN
 
-Motivo: es de la ola 4 y exige `pay-mockbank` con los flujos E1–E8. La parte de P5 (E5) está escrita y tipada en `e2e/pending/e5.e2e.ts` (+ `docs/trabajo/ola-2/P5/FLUJO-E5.md`); la corre P1.
+Motivo: es de la ola 4 y exige `pay-mockbank` con los flujos E1–E8. La parte de P5 (E5) ya corrió 6/6 contra el stack real y vive en `e2e/flows/e5.e2e.ts` (ver «Corridas reales» en `docs/trabajo/ola-2/P5/FLUJO-E5.md`).
 
 ## Dockerfile (imagen de producción de cada servicio) — PASS
 
