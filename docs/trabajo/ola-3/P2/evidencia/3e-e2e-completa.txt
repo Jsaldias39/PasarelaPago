@@ -425,3 +425,28 @@ SyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript parameter property i
 }
 
 Node.js v22.22.0
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+/home/user/pasarelapago/e2e/lib/lock.ts:21
+export class StackBusyError extends Error {
+  constructor(readonly holder: LockInfo) {
+                       ^^^^^^^^^^^^^^^^
+    const at = new Date(holder.startedAt);
+
+SyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript parameter property is not supported in strip-only mode
+    at parseTypeScript (node:internal/modules/typescript:63:40)
+    at processTypeScriptCode (node:internal/modules/typescript:133:42)
+    at stripTypeScriptModuleTypes (node:internal/modules/typescript:163:10)
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:170:30)
+    at defaultGetFormat (node:internal/modules/esm/get_format:245:36)
+    at defaultLoad (node:internal/modules/esm/load:98:16)
+    at ModuleLoader.load (node:internal/modules/esm/loader:815:12)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:594:31)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34) {
+  code: 'ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX'
+}
+
+Node.js v22.22.0
