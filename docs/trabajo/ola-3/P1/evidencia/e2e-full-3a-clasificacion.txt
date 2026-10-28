@@ -1,0 +1,10 @@
+# yarn e2e (suite completa) con los cambios de la ola 3 — 2026-10-28, máquina compartida con load average 10 a 18 (otros agentes corriendo suites)
+Salida literal de e2e-full-3a.txt (resumen):
+  Test Suites: 1 failed, 14 passed, 15 total
+  Tests:       2 failed, 81 passed, 83 total
+Suite que falló: e2e/flows/sandbox-mockbank.e2e.ts (2 de 4 pruebas). E1, E2, E6, onboarding, claves, pool-error, PAY_MODE, live-guard, humo: en verde.
+Causa de las 2 fallas (reproducida en el log de la corrida, e2e/.run/e2emvrgryzd/pay-payments.log): `recordLedger` ⇒ `UpstreamError: pay-ledger: timeout` (2 veces) y después
+`pay-ledger: circuit_open` (24 veces): el ledger (TigerBeetle privado de la corrida) no contestó dentro del plazo de pay-payments con la máquina saturada, el cortacircuitos se abrió y el
+intento quedó en `processing` hasta el límite de 60 s de la prueba. Clasificación: ENVIRONMENT (CPU/disco compartidos). Ya había pasado 4/4 dos veces en la tanda 2h
+(evidencia 2h-mockbank-run1.txt, 2h-e2e-full-run2.txt, 2h-e2e-full-run4.txt). NO se re-corrió: el coordinador pidió máquina quieta.
+Producto (P3): ver hallazgo 9 de ARNES.md — un cortacircuitos abierto del ledger o un workflow que muere deja el intento en `processing` sin estado terminal.
