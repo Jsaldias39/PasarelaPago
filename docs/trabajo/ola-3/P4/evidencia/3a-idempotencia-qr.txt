@@ -1,0 +1,12 @@
+# 3a-idempotencia-qr
+$ (cd services/pay-qr && yarn test --maxWorkers=2 --verbose test/qr.spec.ts -t simultáneos)
+(las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
+
+(node:18081) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Test Suites: 1 passed, 1 total
+Tests:       21 skipped, 1 passed, 22 total
+Snapshots:   0 total
+Time:        1.548 s, estimated 6 s
+Ran all test suites matching test/qr.spec.ts with tests matching "simultáneos".
+exit=0

@@ -12,7 +12,7 @@ import { resolveAccounts } from './resolve-accounts';
 import { decideAttempt } from './attempts';
 import { type BalanceDto, type LegDto, type TransactionDto, balanceOf } from './dto';
 import { type PostedLeg, emitTransferPosted } from './ledger-events';
-import { accountTbId, publicId } from './ids';
+import { accountTbId, publicId, txGroupId } from './ids';
 import type { PayMode } from './mode';
 import { parseOrThrow, accountQuery, statementQuery, transactionCreate, merchantId } from './schemas';
 import { CreateTransferStatus, TB_ENGINE, TigerBeetleEngine, isConflictStatus, plainTransfer, sameTransfer, transferStatusName } from './tb-engine';
@@ -113,6 +113,7 @@ export class LedgerService {
             credit: accountTbId(mode, leg.credit_account),
             amount: BigInt(leg.amount_minor),
             code: leg.code,
+            meta: { mode, group: txGroupId(mode, input.business_ref, input.attempt) },
           },
           index < settled.length - 1,
         ),

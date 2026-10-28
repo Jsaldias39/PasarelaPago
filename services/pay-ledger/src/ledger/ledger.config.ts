@@ -9,6 +9,14 @@ export interface LedgerConfig {
   readonly invariantIntervalMs: number;
   /** 0 = el barrido de retenciones vencidas no corre solo. */
   readonly holdSweepIntervalMs: number;
+  /** Cada cuánto el reconciliador compara TigerBeetle con Postgres (`reconciler.service.ts`). 0 = solo al arrancar (si `reconcileOnStart`) o a mano. */
+  readonly reconcileIntervalMs: number;
+  /** Recorrer también al arrancar el servicio. */
+  readonly reconcileOnStart: boolean;
+  /** Cuánto hacia atrás mira cada recorrido, en ms. 0 = toda la historia. */
+  readonly reconcileLookbackMs: number;
+  /** Lo más reciente que no se mira (en ms): puede estar a mitad de camino entre TigerBeetle y Postgres. */
+  readonly reconcileGraceMs: number;
   /** Margen sobre `expires_at` antes de dar una retención por vencida (reloj de Postgres contra el de TigerBeetle). */
   readonly holdExpirySkewMs: number;
   /**
@@ -39,6 +47,10 @@ export function loadLedgerConfig(env: NodeJS.ProcessEnv = process.env): LedgerCo
     invariantIntervalMs: integer(env, 'LEDGER_INVARIANT_INTERVAL_MS', 0, 0),
     holdSweepIntervalMs: integer(env, 'LEDGER_HOLD_SWEEP_INTERVAL_MS', 0, 0),
     holdExpirySkewMs: integer(env, 'LEDGER_HOLD_EXPIRY_SKEW_MS', 2000, 0),
+    reconcileIntervalMs: integer(env, 'LEDGER_RECONCILE_INTERVAL_MS', 300_000, 0),
+    reconcileOnStart: flag(env, 'LEDGER_RECONCILE_ON_START', true),
+    reconcileLookbackMs: integer(env, 'LEDGER_RECONCILE_LOOKBACK_MS', 7 * 24 * 3600 * 1000, 0),
+    reconcileGraceMs: integer(env, 'LEDGER_RECONCILE_GRACE_MS', 120_000, 0),
     idNamespace: idNamespace(env.LEDGER_ID_NAMESPACE),
     eventsCarryMode: flag(env, 'EVENTS_CARRY_MODE'),
   };
@@ -50,9 +62,10 @@ function idNamespace(raw: string | undefined): string {
   return raw;
 }
 
-function flag(env: NodeJS.ProcessEnv, name: string): boolean {
+function flag(env: NodeJS.ProcessEnv, name: string, fallback = false): boolean {
   const raw = env[name];
-  if (raw === undefined || raw === '' || raw === 'false') return false;
+  if (raw === undefined || raw === '') return fallback;
+  if (raw === 'false') return false;
   if (raw === 'true') return true;
   throw new Error(`${name} inválido: ${raw} (true | false)`);
 }

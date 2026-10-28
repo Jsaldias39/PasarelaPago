@@ -81,3 +81,53 @@ uid=1000(node) gid=1000(node) groups=1000(node),1000(node)
 imagen sha256:3d0db306af9fcb74279ec756ff35947fab4a8ce609771ee32afd6489a8e77a23 tamaño 990672403 usuario=node cmd=[node dist/main.js] expose=map[3108/tcp:map[]]
 ### docker build -f services/pay-schedules/Dockerfile --build-arg HUB=p5gate.local -t p5gate-pay-schedules:local .
 inicio 2026-10-28T01:09:56Z
+exit=0
+
+#10 [stage-1 4/4] WORKDIR /repo/services/pay-schedules
+#10 DONE 0.3s
+
+#11 exporting to image
+#11 exporting layers
+#11 exporting layers 17.4s done
+#11 exporting manifest sha256:b74c0840adda305b41c63c8dabdffbec38f062406ac236f56a8b593e51411796 0.0s done
+#11 exporting config sha256:927a19bf2c91af3d805aea257a9c559a3852788f49e93e2453f96bd10b9402a3 done
+#11 exporting attestation manifest sha256:0a95860b87edd0c7ef4985e4a4dc9c6023478e30c4b3e263037795d4ebe42a21 done
+#11 exporting manifest list sha256:f876946af5d776d1965ca50cf1a18ad1b6eb3407f353cfbd72cc79652108c79e done
+#11 naming to docker.io/library/p5gate-pay-schedules:local done
+#11 unpacking to docker.io/library/p5gate-pay-schedules:local
+#11 unpacking to docker.io/library/p5gate-pay-schedules:local 6.0s done
+#11 DONE 23.5s
+--- humo del contenedor: sin variables de entorno el servicio debe negarse a arrancar con un mensaje claro (config validada al arrancar, 90.3.4)
+/repo/services/pay-schedules/dist/config.js:10
+        throw new Error('Falta la variable de entorno PAY_MODE (sandbox | live)');
+        ^
+
+Error: Falta la variable de entorno PAY_MODE (sandbox | live)
+    at payModeOf (/repo/services/pay-schedules/dist/config.js:10:15)
+    at loadConfig (/repo/services/pay-schedules/dist/config.js:29:21)
+    at Object.<anonymous> (/repo/services/pay-schedules/dist/database.module.js:23:40)
+    at Module._compile (node:internal/modules/cjs/loader:1781:14)
+    at Object..js (node:internal/modules/cjs/loader:1913:10)
+    at Module.load (node:internal/modules/cjs/loader:1505:32)
+    at Function._load (node:internal/modules/cjs/loader:1309:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+    at Module.require (node:internal/modules/cjs/loader:1527:12)
+    at require (node:internal/modules/helpers:147:16)
+
+Node.js v22.23.4
+docker run sin entorno: exit=1
+--- usuario efectivo dentro de la imagen:
+uid=1000(node) gid=1000(node) groups=1000(node),1000(node)
+imagen sha256:f876946af5d776d1965ca50cf1a18ad1b6eb3407f353cfbd72cc79652108c79e tamaño 990754718 usuario=node cmd=[node dist/main.js] expose=map[3109/tcp:map[]]
+### limpieza
+Untagged: p5gate.local/library/node:22-alpine
+Deleted: sha256:bd28f15c569d5afb238b968240f87d77edfa500af42caf96e7aeb2690dcd7e26
+Untagged: p5gate-pay-merchants:local
+Deleted: sha256:02565828558d492031518c9c78af03f160364d2ad27e5d96167088f3731f3aa2
+Untagged: p5gate-pay-risk:local
+Deleted: sha256:3d0db306af9fcb74279ec756ff35947fab4a8ce609771ee32afd6489a8e77a23
+Untagged: p5gate-pay-schedules:local
+Deleted: sha256:f876946af5d776d1965ca50cf1a18ad1b6eb3407f353cfbd72cc79652108c79e
+Total reclaimed space: 0B
+sin imágenes p5gate restantes
+DONE

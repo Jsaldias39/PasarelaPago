@@ -8,7 +8,7 @@ import { AccountRegistry } from './account-registry';
 import { type AccountInfo, parseAccount } from './accounts';
 import { decideAttempt } from './attempts';
 import type { HoldDto, LegDto } from './dto';
-import { accountTbId, holdResolveTbId, holdTbId, publicId } from './ids';
+import { accountTbId, holdGroupId, holdResolveTbId, holdTbId, publicId } from './ids';
 import { emitHoldCreated, emitHoldExpired, emitHoldPosted, emitHoldVoided } from './ledger-events';
 import type { PayMode } from './mode';
 import { LedgerService, interpretTransfers } from './ledger.service';
@@ -108,7 +108,7 @@ export class HoldService {
       const tbId = holdTbId(mode, input.business_ref, input.attempt);
       const statuses = await this.tb.createTransfers([
         pendingTransfer(
-          { id: tbId, debit: accountTbId(mode, debit.name), credit: accountTbId(mode, credit.name), amount: BigInt(input.amount_minor), code: holdLegCode(debit, credit) },
+          { id: tbId, debit: accountTbId(mode, debit.name), credit: accountTbId(mode, credit.name), amount: BigInt(input.amount_minor), code: holdLegCode(debit, credit), meta: { mode, group: holdGroupId(mode, input.business_ref, input.attempt) } },
           input.expires_in_seconds,
         ),
       ]);
@@ -205,7 +205,7 @@ export class HoldService {
 
       const debit = parseAccount(row.debit_account) as AccountInfo;
       const credit = parseAccount(row.credit_account) as AccountInfo;
-      const leg = { id: 0n, debit: accountTbId(mode, row.debit_account), credit: accountTbId(mode, row.credit_account), amount: BigInt(amount), code: holdLegCode(debit, credit) };
+      const leg = { id: 0n, debit: accountTbId(mode, row.debit_account), credit: accountTbId(mode, row.credit_account), amount: BigInt(amount), code: holdLegCode(debit, credit), meta: { mode, group: holdGroupId(mode, row.business_ref, row.attempt) } };
       const pendingId = holdTbId(mode, row.business_ref, row.attempt);
       const resolveId = holdResolveTbId(pendingId);
       const [status] = await this.tb.createTransfers([
@@ -277,7 +277,7 @@ export class HoldService {
         const debit = parseAccount(row.debit_account) as AccountInfo;
         const credit = parseAccount(row.credit_account) as AccountInfo;
         const [status] = await this.tb.createTransfers([
-          voidPendingTransfer(resolveId, pendingId, { id: resolveId, debit: accountTbId(row.mode, row.debit_account), credit: accountTbId(row.mode, row.credit_account), amount: 0n, code: holdLegCode(debit, credit) }),
+          voidPendingTransfer(resolveId, pendingId, { id: resolveId, debit: accountTbId(row.mode, row.debit_account), credit: accountTbId(row.mode, row.credit_account), amount: 0n, code: holdLegCode(debit, credit), meta: { mode: row.mode, group: holdGroupId(row.mode, row.business_ref, row.attempt) } }),
         ]);
         if (status === CreateTransferStatus.pending_transfer_expired || status === CreateTransferStatus.created) {
           // `created`: TigerBeetle todavía no la había vencido y la anulamos nosotros; el monto vuelve igual. Se informa como vencida.

@@ -57,6 +57,32 @@ export function holdResolveTbId(holdTb: bigint): bigint {
   return hash128('hold-resolve', holdTb.toString(16));
 }
 
+/**
+ * Marca de pertenencia de las transferencias de ESTE despliegue en `user_data_64` (nunca 0: en un filtro de TigerBeetle el 0 significa «cualquiera»).
+ * Sale del espacio de nombres de ids, así que dos despliegues que comparten el cluster no se ven las transferencias (ver `reconciler.service.ts`).
+ */
+export function ownerTag(): bigint {
+  const value = BigInt(`0x${digest('owner').subarray(0, 8).toString('hex')}`);
+  return value === 0n ? 1n : value;
+}
+
+/** Modo de la operación en `user_data_32` (0 = sin marcar): permite pedirle a TigerBeetle solo las transferencias de un modo. */
+export const MODE_CODE: Readonly<Record<PayMode, number>> = { test: 1, live: 2 };
+
+/**
+ * Grupo de una operación de negocio, en `user_data_128` de TODAS sus transferencias (las patas de un asiento, la retención y su post/void). El id de
+ * una transferencia es un hash de (modo, business_ref, attempt, pata) y no se puede invertir: sin esta marca, una transferencia que TigerBeetle
+ * aplicó y Postgres no llegó a registrar no se puede atribuir a ninguna operación ni emparejar con su fila.
+ */
+export function txGroupId(mode: PayMode, businessRef: string, attempt: number): bigint {
+  return hash128('group', 'tx', mode, businessRef, attempt);
+}
+
+/** Igual que `txGroupId`, para la familia de la retención (`pending` + `post`/`void`). */
+export function holdGroupId(mode: PayMode, businessRef: string, attempt: number): bigint {
+  return hash128('group', 'hold', mode, businessRef, attempt);
+}
+
 /** Hex de 32 caracteres (128 bits) para guardarlo en Postgres. */
 export function toHex128(value: bigint): string {
   return value.toString(16).padStart(32, '0');

@@ -1,6 +1,6 @@
 import { ProblemError } from '@pay/problem';
 import { type AccountInfo, parseAccount } from '../src/ledger/accounts';
-import { accountTbId, legTbId } from './helpers/ids';
+import { accountTbId, legTbId, txMeta } from './helpers/ids';
 import { TigerBeetleEngine, plainTransfer } from '../src/ledger/tb-engine';
 import { loadLedgerConfig } from '../src/ledger/ledger.config';
 import { type LedgerTestContext, businessRef, checked, createLedgerContext, merchantId } from './helpers/app';
@@ -283,8 +283,8 @@ describe('POST /transactions — contracargo perdido (D-22): `pending` nunca que
     // el servicio murió justo después de aplicar: 100 de `pending` y 50 de deuda, en un lote enlazado
     await ctx.engine.ensureAccounts('test', [parseAccount(`merchant:${m}:debt`) as AccountInfo]);
     await ctx.engine.createTransfers([
-      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment' }, true),
-      plainTransfer({ id: legTbId(ref, 1, 0, 'debt'), debit: accountTbId(`merchant:${m}:debt`), credit: accountTbId(CLEARING), amount: 50n, code: 'adjustment' }, false),
+      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment', meta: txMeta(ref, 1) }, true),
+      plainTransfer({ id: legTbId(ref, 1, 0, 'debt'), debit: accountTbId(`merchant:${m}:debt`), credit: accountTbId(CLEARING), amount: 50n, code: 'adjustment', meta: txMeta(ref, 1) }, false),
     ]);
     const [applied] = await ctx.engine.lookupAccounts([accountTbId(`merchant:${m}:debt`)]);
     expect(applied.debits_posted).toBe(50n); // aplicado en TigerBeetle, todavía sin registro en Postgres
@@ -439,7 +439,7 @@ describe('recuperación ante una caída entre TigerBeetle y Postgres (ids determ
     // Se crean las cuentas con otra operación y se aplica a mano la pata, como si el servicio hubiera muerto antes de registrar.
     await createTx(body(businessRef('seed'), 1, [leg(CLEARING, `merchant:${m}:pending`, 1)]));
     const statuses = await ctx.engine.createTransfers([
-      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 900n, code: 'charge' }, false),
+      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 900n, code: 'charge', meta: txMeta(ref, 1) }, false),
     ]);
     expect(statuses).toHaveLength(1);
     expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(901);
@@ -455,8 +455,8 @@ describe('recuperación ante una caída entre TigerBeetle y Postgres (ids determ
     const ref = businessRef();
     await createTx(body(businessRef('seed'), 1, [leg(CLEARING, `merchant:${m}:pending`, 1)]));
     await ctx.engine.createTransfers([
-      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 970n, code: 'charge' }, true),
-      plainTransfer({ id: legTbId(ref, 1, 1), debit: accountTbId(CLEARING), credit: accountTbId('platform:fees'), amount: 30n, code: 'fee' }, false),
+      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 970n, code: 'charge', meta: txMeta(ref, 1) }, true),
+      plainTransfer({ id: legTbId(ref, 1, 1), debit: accountTbId(CLEARING), credit: accountTbId('platform:fees'), amount: 30n, code: 'fee', meta: txMeta(ref, 1) }, false),
     ]);
     const res = await createTx(body(ref, 1, [leg(CLEARING, `merchant:${m}:pending`, 970), leg(CLEARING, 'platform:fees', 30, 'fee')]));
     expect(res.status).toBe(201);
@@ -469,7 +469,7 @@ describe('recuperación ante una caída entre TigerBeetle y Postgres (ids determ
     const ref = businessRef('payout');
     await fundAvailable(m, 100);
     await ctx.engine.createTransfers([
-      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:available`), credit: accountTbId('payout:clearing'), amount: 5000n, code: 'payout' }, false),
+      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:available`), credit: accountTbId('payout:clearing'), amount: 5000n, code: 'payout', meta: txMeta(ref, 1) }, false),
     ]);
     const res = await createTx(body(ref, 1, [leg(`merchant:${m}:available`, 'payout:clearing', 50, 'payout')]), 'pay-settlement');
     expect(res.status).toBe(422);
@@ -496,8 +496,8 @@ describe('reutilizar (business_ref, attempt) con OTRO contenido tras una caída:
     await createTx(body(businessRef('seed'), 1, [leg(CLEARING, `merchant:${m}:pending`, 1)]));
     await createTx(body(businessRef('seed'), 1, [leg(CLEARING, 'platform:fees', 1, 'fee')]));
     await ctx.engine.createTransfers([
-      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 970n, code: 'charge' }, true),
-      plainTransfer({ id: legTbId(ref, 1, 1), debit: accountTbId(CLEARING), credit: accountTbId('platform:fees'), amount: 30n, code: 'fee' }, false),
+      plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 970n, code: 'charge', meta: txMeta(ref, 1) }, true),
+      plainTransfer({ id: legTbId(ref, 1, 1), debit: accountTbId(CLEARING), credit: accountTbId('platform:fees'), amount: 30n, code: 'fee', meta: txMeta(ref, 1) }, false),
     ]);
     return { m, ref, before: (await balance(`merchant:${m}:pending`)).balance_minor };
   }
@@ -532,7 +532,7 @@ describe('reutilizar (business_ref, attempt) con OTRO contenido tras una caída:
     const m = merchantId();
     const ref = businessRef();
     await createTx(body(businessRef('seed'), 1, [leg(CLEARING, `merchant:${m}:pending`, 1)]));
-    await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 970n, code: 'charge' }, false)]);
+    await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 970n, code: 'charge', meta: txMeta(ref, 1) }, false)]);
     const before = (await balance(`merchant:${m}:pending`)).balance_minor;
     reused(await createTx(body(ref, 1, [leg(CLEARING, `merchant:${m}:pending`, 970), leg(CLEARING, 'platform:fees', 30, 'fee')])));
     expect(await rows(ref)).toEqual([0, 0]);
@@ -543,7 +543,7 @@ describe('reutilizar (business_ref, attempt) con OTRO contenido tras una caída:
     const m = merchantId();
     const ref = businessRef();
     await createTx(body(businessRef('seed'), 1, [leg(CLEARING, `merchant:${m}:pending`, 1)]));
-    await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 900n, code: 'charge' }, false)]);
+    await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(CLEARING), credit: accountTbId(`merchant:${m}:pending`), amount: 900n, code: 'charge', meta: txMeta(ref, 1) }, false)]);
     reused(await createTx(body(ref, 1, [leg(CLEARING, `merchant:${m}:pending`, 901)])));
     expect(await rows(ref)).toEqual([0, 0]);
   });
@@ -555,8 +555,8 @@ describe('reutilizar (business_ref, attempt) con OTRO contenido tras una caída:
       await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:pending`, 100)]));
       await ctx.engine.ensureAccounts('test', [parseAccount(`merchant:${m}:debt`) as AccountInfo]);
       await ctx.engine.createTransfers([
-        plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment' }, true),
-        plainTransfer({ id: legTbId(ref, 1, 0, 'debt'), debit: accountTbId(`merchant:${m}:debt`), credit: accountTbId(CLEARING), amount: 50n, code: 'adjustment' }, false),
+        plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment', meta: txMeta(ref, 1) }, true),
+        plainTransfer({ id: legTbId(ref, 1, 0, 'debt'), debit: accountTbId(`merchant:${m}:debt`), credit: accountTbId(CLEARING), amount: 50n, code: 'adjustment', meta: txMeta(ref, 1) }, false),
       ]);
       return { m, ref };
     }
@@ -583,7 +583,7 @@ describe('reutilizar (business_ref, attempt) con OTRO contenido tras una caída:
       const m = merchantId();
       const ref = businessRef('dispute');
       await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${m}:pending`, 100)]));
-      await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 60n, code: 'adjustment' }, false)]);
+      await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${m}:pending`), credit: accountTbId(CLEARING), amount: 60n, code: 'adjustment', meta: txMeta(ref, 1) }, false)]);
       reused(await dispute(m, ref, 100));
       expect(await rows(ref)).toEqual([0, 0]);
       expect((await balance(`merchant:${m}:pending`)).balance_minor).toBe(40);
@@ -594,7 +594,7 @@ describe('reutilizar (business_ref, attempt) con OTRO contenido tras una caída:
       const other = merchantId();
       const ref = businessRef('dispute');
       await createTx(body(businessRef(), 1, [leg(CLEARING, `merchant:${other}:pending`, 100)]));
-      await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${other}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment' }, false)]);
+      await ctx.engine.createTransfers([plainTransfer({ id: legTbId(ref, 1, 0), debit: accountTbId(`merchant:${other}:pending`), credit: accountTbId(CLEARING), amount: 100n, code: 'adjustment', meta: txMeta(ref, 1) }, false)]);
       reused(await dispute(m, ref, 100));
       expect((await balance(`merchant:${other}:pending`)).balance_minor).toBe(0); // lo suyo ya estaba aplicado y nadie lo tocó de nuevo
       expect(await rows(ref)).toEqual([0, 0]);

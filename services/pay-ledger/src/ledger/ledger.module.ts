@@ -9,6 +9,7 @@ import { assertDeploymentSafe } from './deployment';
 import { setEventsCarryMode } from './event-mode';
 import { useIdNamespace } from './ids';
 import { LedgerService } from './ledger.service';
+import { ReconcilerService } from './reconciler.service';
 import { TB_ENGINE, TigerBeetleEngine } from './tb-engine';
 
 /** Arranca los jobs periódicos (si están configurados) y cierra el cliente de TigerBeetle al apagar. */
@@ -20,6 +21,7 @@ class LedgerLifecycle implements OnModuleInit, OnApplicationShutdown {
     @Inject(TB_ENGINE) private readonly tb: TigerBeetleEngine,
     private readonly invariant: InvariantService,
     private readonly holds: HoldService,
+    private readonly reconciler: ReconcilerService,
   ) {}
 
   onModuleInit(): void {
@@ -29,6 +31,8 @@ class LedgerLifecycle implements OnModuleInit, OnApplicationShutdown {
     if (this.config.idNamespace) useIdNamespace(this.config.idNamespace);
     setEventsCarryMode(this.config.eventsCarryMode);
     this.invariant.start(this.config.invariantIntervalMs);
+    // Busca lo que TigerBeetle aplicó y Postgres no registró (solo lee y avisa; ver reconciler.service.ts).
+    this.reconciler.start(this.config.reconcileIntervalMs, this.config.reconcileOnStart);
     if (this.config.holdSweepIntervalMs > 0) {
       this.sweep = setInterval(() => void this.holds.sweepExpired(this.config.holdExpirySkewMs).catch(() => undefined), this.config.holdSweepIntervalMs);
       this.sweep.unref();
@@ -37,6 +41,7 @@ class LedgerLifecycle implements OnModuleInit, OnApplicationShutdown {
 
   async onApplicationShutdown(): Promise<void> {
     await this.invariant.stop();
+    await this.reconciler.stop();
     if (this.sweep) clearInterval(this.sweep);
     this.tb.destroy();
   }
@@ -52,8 +57,9 @@ class LedgerLifecycle implements OnModuleInit, OnApplicationShutdown {
     LedgerService,
     HoldService,
     InvariantService,
+    ReconcilerService,
     LedgerLifecycle,
   ],
-  exports: [LedgerService, HoldService, InvariantService, TB_ENGINE],
+  exports: [LedgerService, HoldService, InvariantService, ReconcilerService, TB_ENGINE],
 })
 export class LedgerModule {}

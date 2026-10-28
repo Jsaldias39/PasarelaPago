@@ -1,0 +1,103 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.24kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for p1gate.local/library/node:22-alpine
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 299B done
+#3 DONE 0.0s
+
+#4 [build 1/9] FROM p1gate.local/library/node:22-alpine@sha256:c5f3e534c7db2525855a330fc4b2aed0349c6d61e3ccba3805856e457008f573
+#4 resolve p1gate.local/library/node:22-alpine@sha256:c5f3e534c7db2525855a330fc4b2aed0349c6d61e3ccba3805856e457008f573 0.0s done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 165.12kB 0.0s done
+#5 DONE 0.0s
+
+#6 [build 2/9] WORKDIR /repo
+#6 CACHED
+
+#7 [build 3/9] COPY .yarn ./.yarn
+#7 CACHED
+
+#8 [build 4/9] COPY .yarnrc.yml package.json yarn.lock tsconfig.base.json ./
+#8 CACHED
+
+#9 [build 5/9] COPY contracts/packages ./contracts/packages
+#9 CACHED
+
+#10 [build 6/9] COPY services ./services
+#10 DONE 0.1s
+
+#11 [build 7/9] RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
+#11 0.763 ➤ YN0000: · Yarn 4.14.1
+#11 0.773 ➤ YN0000: ┌ Resolution step
+#11 1.078 ➤ YN0000: └ Completed in 0s 304ms
+#11 1.081 ➤ YN0000: ┌ Post-resolution validation
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p0b35d6), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p127e2d), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p1a8bcb), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p543d20), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p75ae94), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p84876a), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p8d76f5), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p924580), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p9a17b2), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (pc6cadc), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (pdb420a), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.081 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (pfcda7c), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+#11 1.082 ➤ YN0002: │ pay-connectors@workspace:services/pay-connectors doesn't provide @types/json-schema (p0ec860), requested by @apidevtools/json-schema-ref-parser.
+#11 1.082 ➤ YN0002: │ pay-mockbank@workspace:services/pay-mockbank doesn't provide @types/json-schema (pa34781), requested by @apidevtools/json-schema-ref-parser.
+#11 1.082 ➤ YN0002: │ pay-payments@workspace:services/pay-payments doesn't provide @types/json-schema (p4b3a01), requested by @apidevtools/json-schema-ref-parser.
+#11 1.082 ➤ YN0086: │ Some peer dependencies are incorrectly met by your project; run yarn explain peer-requirements <hash> for details, where <hash> is the six-letter p-prefixed code.
+#11 1.143 ➤ YN0000: └ Completed
+#11 1.144 ➤ YN0000: ┌ Fetch step
+#11 8.950 ➤ YN0013: │ 865 packages were added to the project (+ 418.65 MiB).
+#11 8.950 ➤ YN0000: └ Completed in 7s 806ms
+#11 9.006 ➤ YN0000: ┌ Link step
+#11 15.46 ➤ YN0004: │ @parcel/watcher@npm:2.6.0 lists build scripts, but all build scripts have been disabled.
+#11 15.46 ➤ YN0004: │ @scarf/scarf@npm:1.4.0 lists build scripts, but all build scripts have been disabled.
+#11 15.46 ➤ YN0004: │ @swc/core@npm:1.16.20 [9627d] lists build scripts, but all build scripts have been disabled.
+#11 15.46 ➤ YN0004: │ protobufjs@npm:7.6.6 lists build scripts, but all build scripts have been disabled.
+#11 15.46 ➤ YN0004: │ unrs-resolver@npm:1.12.2 lists build scripts, but all build scripts have been disabled.
+#11 15.46 ➤ YN0000: └ Completed in 6s 451ms
+#11 15.55 ➤ YN0000: · Done with warnings in 14s 787ms
+#11 DONE 17.0s
+
+#12 [build 8/9] RUN node .yarn/releases/yarn-4.14.1.cjs workspaces foreach -R --topological-dev --from pay-webhooks run build
+#12 19.59 Done in 18s 504ms
+#12 DONE 19.7s
+
+#13 [build 9/9] RUN find services -mindepth 1 -maxdepth 1 ! -name pay-webhooks -exec rm -rf {} +
+#13 DONE 0.3s
+
+#6 [build 2/9] WORKDIR /repo
+#6 CACHED
+
+#14 [stage-1 3/4] COPY --from=build /repo /repo
+#14 DONE 3.8s
+
+#15 [stage-1 4/4] WORKDIR /repo/services/pay-webhooks
+#15 DONE 0.3s
+
+#16 exporting to image
+#16 exporting layers
+#16 exporting layers 18.1s done
+#16 exporting manifest sha256:6914b0518d42c243ac68888eecc1c0d559597eae8e89a6fc85351ee438902a4f done
+#16 exporting config sha256:b27216219d34d6281eb8b34de8b0a976d96f9da7566c0fbe4f1d3627f0af8a4e done
+#16 exporting attestation manifest sha256:000ffe5b4c4b6ef7c745b15aba5f169441d0000a440935a2a8148064348cca57 done
+#16 exporting manifest list sha256:89b6e547621c80184b87d9b92cd0f3f03a0a567940a20f22757d4ca41eddbf0c done
+#16 naming to docker.io/library/p1gate-pay-webhooks:local done
+#16 unpacking to docker.io/library/p1gate-pay-webhooks:local
+#16 unpacking to docker.io/library/p1gate-pay-webhooks:local 6.7s done
+#16 DONE 24.8s
+
+real	1m9.496s
+user	0m0.218s
+sys	0m0.189s
+exit=0

@@ -1,5 +1,5 @@
 import { type LedgerTestContext, businessRef, checked, createLedgerContext, merchantId } from './helpers/app';
-import { accountTbId, holdTbId } from './helpers/ids';
+import { accountTbId, holdMeta, holdTbId } from './helpers/ids';
 import { pendingTransfer } from '../src/ledger/tb-engine';
 import { waitFor } from './helpers/wait';
 
@@ -225,7 +225,7 @@ describe('POST /holds — reutilizar (business_ref, attempt) con otro contenido 
     const payload = holdBody(m, 100);
     // el servicio murió después de aplicar una retención de 700 con el mismo (business_ref, attempt)
     await ctx.engine.createTransfers([
-      pendingTransfer({ id: holdTbId(payload.business_ref, 1), debit: accountTbId(`merchant:${m}:available`), credit: accountTbId('payout:clearing'), amount: 700n, code: 'payout' }, 60),
+      pendingTransfer({ id: holdTbId(payload.business_ref, 1), debit: accountTbId(`merchant:${m}:available`), credit: accountTbId('payout:clearing'), amount: 700n, code: 'payout', meta: holdMeta(payload.business_ref, 1) }, 60),
     ]);
     const res = await createHold(payload);
     expect(res.status).toBe(422);

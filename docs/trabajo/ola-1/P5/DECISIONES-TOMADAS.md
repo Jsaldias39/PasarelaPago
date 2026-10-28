@@ -71,3 +71,14 @@ los números de pruebas son de prueba y están marcados como tales.
 | ID | Decisión / supuesto | Confirmar con |
 |---|---|---|
 | D5-46 | **Contratos aplicados (PR-16, 17, 21, 22):** `pay-risk` valida `screening` con el esquema del contrato (`merchant_name` 1..300, `name` 1..200, tipos `person\|business`, sin `required`); el importe diario de un intento es el **MAYOR** evaluado (no «el de la primera»: dos evaluaciones pueden compartir `created_at` y el desempate por `id` es aleatorio; reemplaza el criterio de D5-45). `pay-merchants` valida `api_key.revoked` con `merchant_closed` sin sustituciones. | P3 |
+
+## Ola 3, tandas 3a–3c
+
+| ID | Decisión / supuesto | Confirmar con |
+|---|---|---|
+| D5-47 | **Vendorización del modelo:** `services/pay-{merchants,risk,schedules}/sql/ddl.sql` es copia del `ddl.sql` que genera `mantra-core-health-model` (commit `af60b79`), con `node scripts/p5-vendor-model-sql.mjs [--check]` (el `--check` no falla si el repo hermano no está). Los `001_*.sql` de referencia se retiraron. Los tests y el arnés aplican solo `ddl.sql` (más las librerías, inofensivas por `IF NOT EXISTS`). | Modelo / P1 |
+| D5-48 | **ORM = mapa del código (`src/schema-map.ts`):** los servicios usan `pg` directo, sin ORM; el modelo es la única fuente (D-18). `test/drift.spec.ts` compara mapa ↔ base ↔ SQL vendorizado y el SQL literal del código contra el mapa. | Modelo |
+| D5-49 | **Rutas del cliente en logs, errores y trazas:** `src/log-safe.ts` (mismo criterio que `pay-mockbank`) enmascara segmentos que no tengan forma de nombre/id; límite declarado: un segmento con forma de id se conserva. | P1 (plantilla) |
+| D5-50 | **Pool de `pg` con manejador de `error`** en los tres servicios: un corte de conexión ocioso ya no mata el proceso. | P1 (plantilla) |
+| D5-51 | **`pay-risk` sin relé de outbox:** no publica eventos y su base (la del modelo) no tiene `outbox_events`; se quitó `EventsModule`. | P3 |
+| D5-52 | **Dockerfile:** contexto con los `package.json` de todos los workspaces (`Dockerfile.dockerignore`) y `foreach -R … --from`; la plantilla de P1 y los otros 8 servicios tienen el mismo defecto. | P1 |

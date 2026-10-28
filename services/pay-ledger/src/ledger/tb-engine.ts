@@ -6,13 +6,17 @@ import {
   createClient,
   type Account,
   type Client,
+  type QueryFilter,
   type Transfer,
 } from 'tigerbeetle-node';
 import { ProblemError } from '@pay/problem';
 import type { AccountInfo, AccountKind } from './accounts';
-import { accountTbId } from './ids';
+import { MODE_CODE, accountTbId, ownerTag } from './ids';
 import type { PayMode } from './mode';
 import type { LedgerConfig } from './ledger.config';
+
+/** Transferencias por página al recorrer TigerBeetle (el tope del servidor es mayor; una página chica acota el tiempo de cada llamada). */
+const SCAN_PAGE = 1000;
 
 /** Ledger 1 de TigerBeetle = bolivianos (D-06: solo BOB en v1). */
 export const LEDGER_BOB = 1;
@@ -33,24 +37,34 @@ export const LEG_CODES = ['charge', 'fee', 'refund', 'payout', 'release', 'walle
 export type LegCode = (typeof LEG_CODES)[number];
 const TRANSFER_CODE = Object.fromEntries(LEG_CODES.map((code, index) => [code, index + 1])) as Record<LegCode, number>;
 
+/**
+ * Marca que lleva TODA transferencia del ledger en sus `user_data` (ver `ids.ts`): qué operación de negocio es (`group`), de qué modo y de qué
+ * despliegue. Es lo que le permite al reconciliador atribuir una transferencia que Postgres no registró.
+ */
+export interface TransferMeta {
+  readonly mode: PayMode;
+  readonly group: bigint;
+}
+
 export interface PlainTransfer {
   readonly id: bigint;
   readonly debit: bigint;
   readonly credit: bigint;
   readonly amount: bigint;
   readonly code: LegCode;
+  readonly meta: TransferMeta;
 }
 
-function base(id: bigint, debit: bigint, credit: bigint, amount: bigint, code: number): Transfer {
+function base(id: bigint, debit: bigint, credit: bigint, amount: bigint, code: number, meta: TransferMeta): Transfer {
   return {
     id,
     debit_account_id: debit,
     credit_account_id: credit,
     amount,
     pending_id: 0n,
-    user_data_128: 0n,
-    user_data_64: 0n,
-    user_data_32: 0,
+    user_data_128: meta.group,
+    user_data_64: ownerTag(),
+    user_data_32: MODE_CODE[meta.mode],
     timeout: 0,
     ledger: LEDGER_BOB,
     code,
@@ -61,23 +75,26 @@ function base(id: bigint, debit: bigint, credit: bigint, amount: bigint, code: n
 
 /** Pata de un asiento. `linked` encadena con la siguiente: o se aplican todas o ninguna. */
 export function plainTransfer(t: PlainTransfer, linked: boolean): Transfer {
-  return { ...base(t.id, t.debit, t.credit, t.amount, TRANSFER_CODE[t.code]), flags: linked ? TransferFlags.linked : 0 };
+  return { ...base(t.id, t.debit, t.credit, t.amount, TRANSFER_CODE[t.code], t.meta), flags: linked ? TransferFlags.linked : 0 };
 }
 
 /** Primera fase: reserva `amount` sin moverlo; vuelve solo a la cuenta de origen pasados `timeoutSeconds`. */
 export function pendingTransfer(t: PlainTransfer, timeoutSeconds: number): Transfer {
-  return { ...base(t.id, t.debit, t.credit, t.amount, TRANSFER_CODE[t.code]), flags: TransferFlags.pending, timeout: timeoutSeconds };
+  return { ...base(t.id, t.debit, t.credit, t.amount, TRANSFER_CODE[t.code], t.meta), flags: TransferFlags.pending, timeout: timeoutSeconds };
 }
 
 /** Segunda fase: confirma la retención (`amount` ≤ retenido; el resto vuelve a la cuenta de origen). */
 export function postPendingTransfer(id: bigint, pendingId: bigint, t: PlainTransfer): Transfer {
-  return { ...base(id, t.debit, t.credit, t.amount, TRANSFER_CODE[t.code]), pending_id: pendingId, flags: TransferFlags.post_pending_transfer };
+  return { ...base(id, t.debit, t.credit, t.amount, TRANSFER_CODE[t.code], t.meta), pending_id: pendingId, flags: TransferFlags.post_pending_transfer };
 }
 
 /** Segunda fase: anula la retención. */
 export function voidPendingTransfer(id: bigint, pendingId: bigint, t: PlainTransfer): Transfer {
-  return { ...base(id, t.debit, t.credit, 0n, TRANSFER_CODE[t.code]), pending_id: pendingId, flags: TransferFlags.void_pending_transfer };
+  return { ...base(id, t.debit, t.credit, 0n, TRANSFER_CODE[t.code], t.meta), pending_id: pendingId, flags: TransferFlags.void_pending_transfer };
 }
+
+/** Nombre del movimiento a partir del código de TigerBeetle (`null` si no es uno de los nuestros). */
+export const legCodeName = (code: number): LegCode | null => LEG_CODES[code - 1] ?? null;
 
 /** Código numérico de TigerBeetle de un movimiento del contrato. */
 export const transferCode = (code: LegCode): number => TRANSFER_CODE[code];
@@ -178,6 +195,23 @@ export class TigerBeetleEngine {
   async lookupTransfers(ids: readonly bigint[]): Promise<Transfer[]> {
     if (ids.length === 0) return [];
     return this.bounded('lookupTransfers', this.client.lookupTransfers([...ids]));
+  }
+
+  /**
+   * Todas las transferencias marcadas como de ESTE despliegue y de `mode` (`user_data_64` + `user_data_32`; TigerBeetle filtra del lado del servidor, así
+   * que las de otro despliegue o modo ni se leen) con timestamp en [sinceNs, untilNs] (`untilNs` 0 = sin tope), en orden de aplicación. Pagina por
+   * timestamp. Si CUALQUIER página falla, la excepción sube y no se devuelve nada: quien reconcilia no debe sacar conclusiones de una lectura parcial.
+   */
+  async scanMarkedTransfers(mode: PayMode, sinceNs: bigint, untilNs: bigint): Promise<Transfer[]> {
+    const out: Transfer[] = [];
+    let from = sinceNs > 0n ? sinceNs : 1n;
+    for (;;) {
+      const filter: QueryFilter = { user_data_128: 0n, user_data_64: ownerTag(), user_data_32: MODE_CODE[mode], ledger: LEDGER_BOB, code: 0, timestamp_min: from, timestamp_max: untilNs, limit: SCAN_PAGE, flags: 0 };
+      const page = await this.bounded('queryTransfers', this.client.queryTransfers(filter));
+      out.push(...page);
+      if (page.length < SCAN_PAGE) return out;
+      from = page[page.length - 1].timestamp + 1n;
+    }
   }
 
   /** Lectura barata para el readiness: pide una cuenta que no existe. */
