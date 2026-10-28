@@ -126,7 +126,16 @@ export function envFor(ctx: EnvContext, name: ServiceName): Record<string, strin
     case 'pay-ledger':
       return { ...base, TB_ADDRESS: infra.tigerbeetleAddress, TB_CLUSTER_ID: '0', LEDGER_ID_NAMESPACE: ctx.runId.slice(0, 40) };
     case 'pay-risk':
-      return { ...base, WATCHMAN_URL: infra.watchmanUrl, SANCTIONS_DENY_SCORE: '0.80', SANCTIONS_REVIEW_SCORE: '0.60', PAYER_HASH_KEY: secrets.payerHashKey };
+      return {
+        ...base,
+        WATCHMAN_URL: infra.watchmanUrl,
+        SANCTIONS_DENY_SCORE: '0.80',
+        SANCTIONS_REVIEW_SCORE: '0.60',
+        PAYER_HASH_KEY: secrets.payerHashKey,
+        // Ajuste del ENTORNO del arnés (ARNES.md § Hallazgos 9 y 10): el tope que admite pay-risk (por defecto 200). La máquina de pruebas es compartida
+        // y con carga > 10 en 4 núcleos Watchman pasa de p50 20 ms a p50 100 ms / p90 380 ms; con 200 ms un comercio limpio puede terminar `risk_denied`.
+        SCREENING_TIMEOUT_MS: '250',
+      };
     case 'pay-qr':
       return { ...base, QR_ACCOUNT_GUID: 'e2e.sandbox.guid' };
     case 'pay-vault':
@@ -185,6 +194,11 @@ export function envFor(ctx: EnvContext, name: ServiceName): Record<string, strin
         TEMPORAL_NAMESPACE: 'default',
         TEMPORAL_TASK_QUEUE: `pay-payments-${ctx.runId}`,
         TEMPORAL_RUN_WORKER: 'true',
+        // Ajuste del ENTORNO del arnés (ARNES.md § Hallazgo 9): con el valor por defecto (300 ms, objetivo p99 del contrato) la primera evaluación de riesgo
+        // en frío (~300 ms medidos) o una con la máquina cargada vence en el cliente y el reintento recibe `409 idempotency_request_in_progress`, que
+        // `pay-payments` trata como rechazo definitivo: el intento queda `processing` para siempre. El defecto sigue abierto en P3; acá solo se evita
+        // que lo dispare la latencia del entorno. `flows/risk-timeout.e2e.ts` (pending) lo reproduce con el valor por defecto.
+        RISK_TIMEOUT_MS: '2000',
         RISK_FAIL_CLOSED_THRESHOLD_MINOR: '0',
         RISK_ALLOW_BELOW_THRESHOLD: 'false',
       };

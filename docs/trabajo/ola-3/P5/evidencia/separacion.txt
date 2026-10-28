@@ -1,34 +1,34 @@
 # Gate: SEPARACIÓN — cada servicio arranca y trabaja con un rol de base sin permisos sobre las demás
 
 ## pay-merchants (rol pay_merchants, contraseña dev_only_merchants del Compose)
-PASS  pay-merchants arrancó y GET /health/ready == 200 con el rol pay_merchants (base temporal p5gate_merchants_f9b7ebf9, dueño pay_merchants)
+PASS  pay-merchants arrancó y GET /health/ready == 200 con el rol pay_merchants (base temporal p5gate_merchants_8690ebf0, dueño pay_merchants)
      rol efectivo: {"usuario":"pay_merchants","superusuario":false,"crea_bases":false,"crea_roles":false}
 PASS  pay_merchants no es superusuario ni puede crear bases ni roles
-     sesiones del proceso en pg_stat_activity: [{"usename":"pay_merchants","datname":"p5gate_merchants_f9b7ebf9","sesiones":1}]
+     sesiones del proceso en pg_stat_activity: [{"usename":"pay_merchants","datname":"p5gate_merchants_8690ebf0","sesiones":2}]
 PASS  todas las sesiones abiertas por pay-merchants usan el rol pay_merchants
      pay_merchants contra 13 bases ajenas: 13 × «permission denied for database»
 PASS  pay_merchants NO entra a ninguna de las 13 bases ajenas (11 servicios + postgres + pay_test)
-PASS  el rol de pay-risk tampoco entra a la base de pay-merchants (p5gate_merchants_f9b7ebf9)
+PASS  el rol de pay-risk tampoco entra a la base de pay-merchants (p5gate_merchants_8690ebf0)
 
 ## pay-risk (rol pay_risk, contraseña dev_only_risk del Compose)
-PASS  pay-risk arrancó y GET /health/ready == 200 con el rol pay_risk (base temporal p5gate_risk_5175151b, dueño pay_risk)
+PASS  pay-risk arrancó y GET /health/ready == 200 con el rol pay_risk (base temporal p5gate_risk_2bbfb13b, dueño pay_risk)
      rol efectivo: {"usuario":"pay_risk","superusuario":false,"crea_bases":false,"crea_roles":false}
 PASS  pay_risk no es superusuario ni puede crear bases ni roles
-     sesiones del proceso en pg_stat_activity: [{"usename":"pay_risk","datname":"p5gate_risk_5175151b","sesiones":1}]
+     sesiones del proceso en pg_stat_activity: [{"usename":"pay_risk","datname":"p5gate_risk_2bbfb13b","sesiones":2}]
 PASS  todas las sesiones abiertas por pay-risk usan el rol pay_risk
      pay_risk contra 13 bases ajenas: 13 × «permission denied for database»
 PASS  pay_risk NO entra a ninguna de las 13 bases ajenas (11 servicios + postgres + pay_test)
-PASS  el rol de pay-merchants tampoco entra a la base de pay-risk (p5gate_risk_5175151b)
+PASS  el rol de pay-merchants tampoco entra a la base de pay-risk (p5gate_risk_2bbfb13b)
 
 ## pay-schedules (rol pay_schedules, contraseña dev_only_schedules del Compose)
-PASS  pay-schedules arrancó y GET /health/ready == 200 con el rol pay_schedules (base temporal p5gate_schedules_50033e44, dueño pay_schedules)
+PASS  pay-schedules arrancó y GET /health/ready == 200 con el rol pay_schedules (base temporal p5gate_schedules_41da4a7d, dueño pay_schedules)
      rol efectivo: {"usuario":"pay_schedules","superusuario":false,"crea_bases":false,"crea_roles":false}
 PASS  pay_schedules no es superusuario ni puede crear bases ni roles
-     sesiones del proceso en pg_stat_activity: [{"usename":"pay_schedules","datname":"p5gate_schedules_50033e44","sesiones":2}]
+     sesiones del proceso en pg_stat_activity: [{"usename":"pay_schedules","datname":"p5gate_schedules_41da4a7d","sesiones":1}]
 PASS  todas las sesiones abiertas por pay-schedules usan el rol pay_schedules
      pay_schedules contra 13 bases ajenas: 13 × «permission denied for database»
 PASS  pay_schedules NO entra a ninguna de las 13 bases ajenas (11 servicios + postgres + pay_test)
-PASS  el rol de pay-merchants tampoco entra a la base de pay-schedules (p5gate_schedules_50033e44)
+PASS  el rol de pay-merchants tampoco entra a la base de pay-schedules (p5gate_schedules_41da4a7d)
 
 ## matriz completa del Compose (platform/scripts/check-db-separation.sh, solo lectura)
 separación: 168 comprobaciones correctas, 0 fallas

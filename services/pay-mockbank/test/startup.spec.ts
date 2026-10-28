@@ -42,9 +42,8 @@ describe('PAY_MODE: pay-mockbank solo existe en sandbox', () => {
   });
 
   it('inválido: sin definir, vacío o mal escrito NO arranca (ninguno cae en sandbox por accidente)', async () => {
-    for (const mode of [undefined, '', 'LIVE', 'Sandbox', 'prod', 'test', 'sandbox ', 'sandbox,live']) {
-      await refuses({ PAY_MODE: mode, ...SECRET }, /PAY_MODE debe ser sandbox/);
-    }
+    // Procesos independientes: en paralelo (nueve arranques en serie pasaban de los 20 s del tiempo de la prueba con la máquina cargada).
+    await Promise.all([undefined, '', 'LIVE', 'Sandbox', 'prod', 'test', 'sandbox ', 'sandbox,live'].map((mode) => refuses({ PAY_MODE: mode, ...SECRET }, /PAY_MODE debe ser sandbox/)));
   });
 
   it('inválido: sin el secreto de los callbacks, o con parámetros mal formados, tampoco arranca', async () => {

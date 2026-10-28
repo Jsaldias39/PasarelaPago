@@ -16,12 +16,12 @@ PASS  POST /kyc/documents con contenido centinela (y un PAN de prueba dentro del
      error provocado «ruta inexistente con centinelas»: 404 {"type":"urn:alovida:pay:problem:resource_not_found","title":"No existe el recurso","status":404,"code":"resou
 PASS  los seis errores provocados responden 4xx (ninguno 5xx)
      eventos: 1 en el outbox (merchant.created), 1 publicados en JetStream
-     trazas: 186 spans en Jaeger para el servicio p5gate-pay-merchants-26bb466b
+     trazas: 182 spans en Jaeger para el servicio p5gate-pay-merchants-043110e5
 PASS  Jaeger recibió spans del servicio (si no, el grep de trazas no demostraría nada)
    fuentes (la razón social solo puede aparecer en merchant.created / merchant.activated, D-33):
-     logs del proceso                       6402 bytes · centinelas: 0 · PAN/CVV: 0
+     logs del proceso                       6484 bytes · centinelas: 0 · PAN/CVV: 0
 PASS  logs del proceso: sin centinelas prohibidos ni PAN/CVV
-     trazas (Jaeger)                      259150 bytes · centinelas: 0 · PAN/CVV: 0
+     trazas (Jaeger)                      249529 bytes · centinelas: 0 · PAN/CVV: 0
 PASS  trazas (Jaeger): sin centinelas prohibidos ni PAN/CVV
      eventos del outbox: merchant.created      423 bytes · centinelas: 0 (permitidos por contrato: razon_social×1) · PAN/CVV: 0
 PASS  eventos del outbox: merchant.created: sin centinelas prohibidos ni PAN/CVV
@@ -36,7 +36,7 @@ PASS  lo publicado en JetStream no lleva NIT ni nombre de fantasía
 
 ## pay-risk (cribado contra el Watchman REAL del Compose, listas estáticas de 2019 solo sandbox)
 PASS  pay-risk arrancó (rol pay_risk, NATS privado, OTel → Jaeger)
-     evaluación: 201 {"id":"ra_lwmsqknkxv422rau","object":"risk_assessment","payment_intent_id":"pi_gate0000001","decision":"review","reason_code":"screening_una
+     evaluación: 201 {"id":"ra_7m3ch7izxd3zev6s","object":"risk_assessment","payment_intent_id":"pi_gate0000001","decision":"allow","reason_code":"no_limits_conf
 PASS  POST /assessments con razón social, nombre del pagador y una «huella» que es un PAN de prueba ⇒ 201
 PASS  segunda evaluación (otro intento) ⇒ 201
      error provocado «campo extra cvv + dob»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
@@ -46,19 +46,19 @@ PASS  segunda evaluación (otro intento) ⇒ 201
      error provocado «JSON truncado con los nombres»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
      error provocado «ruta con razón social y PAN en el path»: 404 {"type":"urn:alovida:pay:problem:resource_not_found","title":"No existe el recurso","status":404,"code":"resou
 PASS  los seis errores provocados responden 4xx (ninguno 5xx)
-     base completa (5 tablas: outbox_events, inbox_events, idempotency_keys, risk_rule_sets, risk_assessments) volcada para el grep
-     trazas: 138 spans en Jaeger para p5gate-pay-risk-a8e9a5d3
+     base completa (3 tablas: risk_rule_sets, risk_assessments, idempotency_keys) volcada para el grep
+     trazas: 127 spans en Jaeger para p5gate-pay-risk-ebe8f988
 PASS  Jaeger recibió spans del servicio
    fuentes (pay-risk NO guarda ni registra ningún nombre: tampoco en su base):
-     logs del proceso                       5053 bytes · centinelas: 0 · PAN/CVV: 0
+     logs del proceso                       4605 bytes · centinelas: 0 · PAN/CVV: 0
 PASS  logs del proceso: sin centinelas prohibidos ni PAN/CVV
-     trazas (Jaeger)                      171943 bytes · centinelas: 0 · PAN/CVV: 0
+     trazas (Jaeger)                      151639 bytes · centinelas: 0 · PAN/CVV: 0
 PASS  trazas (Jaeger): sin centinelas prohibidos ni PAN/CVV
      eventos del outbox                        0 bytes · centinelas: 0 · PAN/CVV: 0
 PASS  eventos del outbox: sin centinelas prohibidos ni PAN/CVV
      cuerpos de error devueltos             1427 bytes · centinelas: 0 · PAN/CVV: 0
 PASS  cuerpos de error devueltos: sin centinelas prohibidos ni PAN/CVV
-     toda la base (rastro, reglas, idempotencia)     1517 bytes · centinelas: 0 · PAN/CVV: 0
+     toda la base (rastro, reglas, idempotencia)     1461 bytes · centinelas: 0 · PAN/CVV: 0
 PASS  toda la base (rastro, reglas, idempotencia): sin centinelas prohibidos ni PAN/CVV
 
 ## pay-schedules (libro mayor simulado por un doble que responde 500: el ejecutor falla en cada intento)
@@ -74,12 +74,12 @@ PASS  los cinco errores provocados responden 4xx
      el ejecutor llamó al libro mayor simulado 2 veces (POST /holds)
 PASS  el ejecutor corrió (el mandato vence hoy) y falló contra el doble — así se generan logs de error reales
      eventos en el outbox: mandate.created
-     trazas: 202 spans en Jaeger para p5gate-pay-schedules-07f9f584
+     trazas: 206 spans en Jaeger para p5gate-pay-schedules-91032535
 PASS  Jaeger recibió spans del servicio
    fuentes (la descripción del mandato es dato del comercio: puede estar en la API y en su evento mandate.created si el contrato lo define; nunca en logs ni trazas):
-     logs del proceso                       4392 bytes · centinelas: 0 · PAN/CVV: 0
+     logs del proceso                       4417 bytes · centinelas: 0 · PAN/CVV: 0
 PASS  logs del proceso: sin centinelas prohibidos ni PAN/CVV
-     trazas (Jaeger)                      323831 bytes · centinelas: 0 · PAN/CVV: 0
+     trazas (Jaeger)                      333562 bytes · centinelas: 0 · PAN/CVV: 0
 PASS  trazas (Jaeger): sin centinelas prohibidos ni PAN/CVV
      eventos del outbox                      587 bytes · centinelas: 0 · PAN/CVV: 0
 PASS  eventos del outbox: sin centinelas prohibidos ni PAN/CVV

@@ -57,9 +57,8 @@ async function connectorsHealth(port: number): Promise<string[]> {
 
 describe('PAY_MODE: explícito, sin valor por defecto', () => {
   it('inválido: sin definir, vacío o mal escrito NO arranca (ninguno cae en live ni en sandbox)', async () => {
-    for (const mode of [undefined, '', 'LIVE', 'Sandbox', 'prod', 'production', 'test', 'live ', 'sandbox,live']) {
-      await refuses({ PAY_MODE: mode, ...MOCK_SECRET }, /PAY_MODE debe ser sandbox o live/);
-    }
+    // Procesos independientes: en paralelo (nueve arranques en serie pasaban de los 20 s del tiempo de la prueba con la máquina cargada).
+    await Promise.all([undefined, '', 'LIVE', 'Sandbox', 'prod', 'production', 'test', 'live ', 'sandbox,live'].map((mode) => refuses({ PAY_MODE: mode, ...MOCK_SECRET }, /PAY_MODE debe ser sandbox o live/)));
   });
 
   it('correcto: sandbox arranca, y lo informa (conector mock cargado)', async () => {

@@ -1,19 +1,32 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs';
-import { connect } from 'node:net';
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs';
+import { connect, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type LedgerTestContext, businessRef, checked, createLedgerContext, merchantId, repoPath } from './helpers/app';
 import { waitFor } from './helpers/wait';
 
 /**
- * Gate «Fallos» (PLAN-MAESTRO §7): experimento de inyección de fallos sobre el ledger REAL. Se levanta un TigerBeetle propio en otro puerto (no
+ * Gate «Fallos» (PLAN-MAESTRO §7): experimento de inyección de fallos sobre el ledger REAL. Se levanta un TigerBeetle propio en un puerto libre al azar (no
  * toca el de desarrollo), se lo mata con SIGKILL en medio del servicio y se observa: (1) lo que el cliente ve mientras está caído, (2) que no queda
  * ningún efecto a medias, (3) que al volver el mismo reintento —con la MISMA clave— termina y mueve el dinero UNA vez, (4) que el invariante global
  * cuadra. Documentado en docs/trabajo/ola-3/P2/GATES.md (gate «Fallos»).
  */
-const PORT = 54302;
-const BINARY = repoPath('.tools/tigerbeetle/tigerbeetle');
+/** Puerto libre elegido al azar: otras corridas (de otros carriles) pueden estar usando uno fijo. */
+let PORT = 0;
+const freePort = (): Promise<number> =>
+  new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
+const REPO_BINARY = repoPath('.tools/tigerbeetle/tigerbeetle');
+/** Copia del binario con otro nombre y datos en `data.db`: así un `pkill tigerbeetle` de otra corrida no mata el almacén de ESTA prueba. */
+let BINARY = '';
+const DATA = 'data.db';
 const CLEARING = 'connector:mercantil_qr:clearing';
 const key = () => `key-${Math.random().toString(36).slice(2, 12)}`;
 const leg = (debit_account: string, credit_account: string, amount_minor: number, code = 'charge') => ({ debit_account, credit_account, amount_minor, code });
@@ -29,7 +42,7 @@ let dir: string;
 let tb: ChildProcess | undefined;
 const startTb = async () => {
   const log = join(dir, `tb-${Date.now()}.log`);
-  tb = spawn(BINARY, ['start', `--addresses=127.0.0.1:${PORT}`, join(dir, '0_0.tigerbeetle')], { stdio: ['ignore', openSync(log, 'a'), openSync(log, 'a')] });
+  tb = spawn(BINARY, ['start', `--addresses=127.0.0.1:${PORT}`, join(dir, DATA)], { stdio: ['ignore', openSync(log, 'a'), openSync(log, 'a')] });
   const opened = await waitFor(portOpen, 40_000, 200);
   if (!opened) process.stderr.write(`TigerBeetle de la prueba no abrió el puerto ${PORT}:\n${readFileSync(log, 'utf8').slice(-1500)}\n`);
   expect(opened).toBe(true);
@@ -47,10 +60,14 @@ const killTb = async () => {
 let ctx: LedgerTestContext;
 const saved = { address: process.env.TB_ADDRESS, timeout: process.env.TB_TIMEOUT_MS };
 beforeAll(async () => {
-  expect(existsSync(BINARY)).toBe(true); // lo deja platform/scripts/tigerbeetle-dev.sh start
+  expect(existsSync(REPO_BINARY)).toBe(true); // lo deja platform/scripts/tigerbeetle-dev.sh start
   dir = mkdtempSync(join(tmpdir(), 'pay-ledger-faults-'));
-  const format = spawnSync(BINARY, ['format', '--cluster=0', '--replica=0', '--replica-count=1', join(dir, '0_0.tigerbeetle')], { encoding: 'utf8' });
+  BINARY = join(dir, 'p2-store');
+  copyFileSync(REPO_BINARY, BINARY, 0);
+  chmodSync(BINARY, 0o755);
+  const format = spawnSync(BINARY, ['format', '--cluster=0', '--replica=0', '--replica-count=1', join(dir, DATA)], { encoding: 'utf8' });
   expect(format.status).toBe(0);
+  PORT = await freePort();
   await startTb();
   process.env.TB_ADDRESS = `127.0.0.1:${PORT}`;
   process.env.TB_TIMEOUT_MS = '1500'; // el servicio responde 503 en ~1,5 s en vez de colgarse
