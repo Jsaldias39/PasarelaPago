@@ -209,6 +209,13 @@ transferencias contra el extracto del banco simulado.
 `yarn e2e:pending` corre con `--passWithNoTests`. E1 y E2 ya NO están acá: se movieron a `flows/` y pasan (§ Estado de E1 y E2). Una suposición que quedó verificada: el intento expone `succeeded_at` y `GET /v1/balance` muestra
 `pending_minor = net_minor` (E1 lo afirma y pasa).
 
+## Tanda 3a (ola 3) — cambios del arnés
+
+- `yarn e2e` ahora tiene **15 suites / 83 pruebas** (se sumó `flows/pool-error.e2e.ts`: se cortan con `pg_terminate_backend` todas las sesiones de pay-edge y pay-webhooks con los procesos reales y siguen vivos).
+- El humo (`e2e/lib/smoke.ts`, grupo `borde`) **valida cada respuesta contra `public-v1.yaml`** (`loadContract`) y marca `CONTRATO_ROTO` si el estado o la forma no están declarados; `smoke.spec.ts` prueba que el validador detecta incumplimientos.
+- Última corrida completa (máquina compartida y saturada): `Test Suites: 1 failed, 14 passed, 15 total · Tests: 2 failed, 81 passed, 83 total`; la suite que falla es `sandbox-mockbank` por `pay-ledger: timeout` ⇒ `circuit_open` (ENVIRONMENT): `docs/trabajo/ola-3/P1/evidencia/e2e-full-3a-clasificacion.txt`. E1 y E2 pasaron en esa corrida.
+- Matriz de gates y el resto: `docs/trabajo/ola-3/P1/GATES.md`.
+
 ## No cubierto
 
 - Svix real (el motor de entrega es el propio, declarado DOBLE de Svix).

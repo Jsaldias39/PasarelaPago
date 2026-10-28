@@ -1,0 +1,11 @@
+# Tablas del modelo (mantra-core-health-model, SQL/pay) vs el DDL de referencia de cada servicio — 2026-10-28T02:04:28Z
+modelo @ af60b79
+== modelo 71_pay_edge
+"api_key_replica" "inbox_events" "merchant_replica" 
+== servicio services/pay-edge/sql/001_edge.sql
+api_key_replica inbox_events merchant_replica 
+== modelo 80_pay_webhooks
+"idempotency_keys" "inbox_events" "webhook_deliveries" "webhook_delivery_attempts" "webhook_endpoints" "webhook_secrets" 
+== servicio services/pay-webhooks/sql/001_webhooks.sql
+inbox_events webhook_deliveries webhook_delivery_attempts webhook_endpoints webhook_secrets 
+Lectura: mismas tablas (idempotency_keys de webhooks sale de @pay/idempotency/sql). NO se comparó columna por columna ni hay drift.spec: ver GAP del gate 9.

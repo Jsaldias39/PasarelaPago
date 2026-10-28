@@ -1,0 +1,8 @@
+# Primera corrida de test/path-sensitive.spec.ts (servicio real + colector OTLP) ANTES de enmascarar la query en los spans · 3c
+# Comando: yarn test test/path-sensitive.spec.ts -t "servicio real"   (en pay-payments y en pay-vault; mismo resultado)
+# Clasificación (regla 80.4): PRODUCT_BUG. El exportador ya enmascaraba url.path / url.full / http.target / http.url, pero la instrumentación http de
+# OpenTelemetry copia la query en un atributo APARTE, `url.query`, y salía en claro por OTLP (bytes crudos del colector):
+#   FUGA 1023456028 en: "...url.path ... /payment_intents/:x ... url.query ... documento=1023456028 ... client.address ..."
+#   Expected: false  Received: true   (path-sensitive.spec.ts: expect(wire.includes(Buffer.from(leak))).toBe(false))
+# Corrección: src/observability/masking-exporter.ts reemplaza `url.query` y `http.query` por «[redacted]». Segunda corrida: 27/27 en los dos servicios.
+# (Salida transcrita de la consola de la corrida fallida; la corrida literal posterior está en 3c-pay-*-test-1.txt y 3c-jaeger-trazas.txt.)

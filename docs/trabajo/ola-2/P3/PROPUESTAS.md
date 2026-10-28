@@ -43,3 +43,21 @@
 
 ## Resueltas por el coordinador en la tanda 2a (ya no son propuestas)
 PROP-2 (`tx_`/`hd_`), 3 (`mock`), 4 (`risk_denied`/`payment_declined`), 5 (`contradiction_detected`), 7 (cuenta en `bank_transfer_instructions`), 8 (`ch_`/`cr_`), 9 (D-28), 10 (`GET /refunds/{id}`), 11 (`GET /refunds/{id}` del conector). PROP-6 (disputas) sigue siendo decisión del dueño; PROP-13 y 14 son de plataforma.
+
+
+## Propuestas de la tanda 3c (P3 no toca `contracts/`, `platform/`, `e2e/` ni otros carriles)
+
+## P3-21 · No registrar el mensaje de un error de actividad de Temporal (logger del SDK)
+- **Hoy:** el logger de Temporal (`DefaultLogger`) escribe `Activity failed { error: Error: <mensaje + pila> … }` con el error completo de una actividad que falla (se ve en las salidas de las suites). Los errores de nuestras actividades no traen datos de personas, pero un error de `pg` puede traer un valor de columna en el mensaje o en `detail`.
+- **Propuesta (mía, sin implementar por ahora):** pasar a `Runtime.install` un logger propio que, para `Activity failed` y `Workflow failed`, escriba solo `activityType`, `attempt` y el NOMBRE del error. Probar con un canario en el mensaje de una actividad.
+
+## P3-22 · Librería compartida para el guardia del pool (P1)
+- **Hoy:** `guardPool` existe copiado en pay-merchants, pay-connectors, pay-payments y pay-vault (y otros dos casos más con variantes). Es el defecto transversal que más veces se repitió.
+- **Propuesta:** moverlo a un paquete `@pay/pg-pool` en `contracts/packages/` con la prueba de corte a mitad de transacción incluida, y que la plantilla de servicio (`platform/templates/service`) lo traiga. Mientras tanto cada servicio conserva su copia y su prueba.
+
+## P3-23 · Plantilla de Dockerfile: base glibc cuando hay módulos nativos (P1)
+- **Hoy:** la plantilla usa `node:22-alpine`. `@temporalio/core-bridge` solo se distribuye para glibc: la imagen de pay-payments construía y no arrancaba (`ld-linux-x86-64.so.2`). Lo mismo aplica a cualquier servicio que use el cliente nativo de TigerBeetle u otro `.node` (pay-ledger ya mostró un problema de `io_uring` distinto).
+- **Propuesta:** documentar en la plantilla cuándo cambiar a `node:22-bookworm-slim`, y que `verify-template.sh` arranque la imagen (no solo la construya).
+
+## P3-24 · Prueba de idempotencia concurrente en pay-vault (mía)
+- Falta `Promise.all` de 10 `POST /capture_sessions` con la misma clave (una sola fila) y de `DELETE /tokens/{t}`. No se escribió en 3c porque el coordinador reservó la máquina; está en PENDIENTE del reporte.
