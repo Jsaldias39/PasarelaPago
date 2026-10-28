@@ -1,0 +1,12 @@
+# ROJO (comportamiento ANTERIOR: todo review/deny = risk_denied definitivo; screening_unavailable no se reintenta) · tests de cribado no disponible · 3e (2026-10-28T03:48:54Z)
+  ● correcto · la evaluación de riesgo está EN VUELO: se reintenta con la misma clave y el cobro avanza UNA vez › cribado no disponible (`201 review/screening_unavailable`, `screened:false`) dos veces y luego `allow` ⇒ NO es `risk_denied`: se reintenta con la MISMA clave y el cobro avanza UNA vez
+    Se agotó la espera de: pi_21d585716965d91a38c7c46b → requires_action
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+  ● límite · la decisión nunca llega: terminal VISIBLE (failed/risk_unavailable), fail-closed, sin cargo; nunca `processing` eterno › cribado no disponible PERSISTENTE ⇒ se agotan los intentos con la misma clave y el intento queda failed/risk_unavailable (NO risk_denied), sin cargo, con constancia `risk_unresolved`
+    Expected length: 4
+    Received length: 1
+    Received array:  [{"at": 1793159397765, "body": {"amount_minor": 10000, "currency": "BOB", "merchant_id": "mc_merchant00001", "method": "qr", "payment_intent_id": "pi_bdbf8d53f6e6a63ad1a577a9", "screening": {"merchant_name": "Comercio de Prueba S.R.L."}}, "headers": {"accept": "*/*", "accept-encoding": "gzip, deflate", "accept-language": "*", "connection": "keep-alive", "content-length": "194", "content-type": "application/json", "host": "127.0.0.1:41833", "idempotency-key": "pi_bdbf8d53f6e6a63ad1a577a9:risk", "sec-fetch-mode": "cors", "user-agent": "node", "x-request-id": "fa2f8c90-8b96-4076-ba13-8da7d71de5a7", "x-service-id": "pay-payments"}, "method": "POST", "path": "/assessments", "query": {}}]
+  ● franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000): solo la indisponibilidad pura pasa › límite · cribado no disponible (`review/screening_unavailable`) persistente ⇒ failed/risk_unavailable, SIN cargo, con constancia, aunque el monto esté bajo el umbral
+    - Expected  - 3
+    + Received  + 1
+Tests:       3 failed, 17 skipped, 20 total

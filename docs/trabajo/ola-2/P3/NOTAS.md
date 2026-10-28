@@ -127,3 +127,15 @@ Evidencia: `docs/trabajo/ola-3/P3/evidencia/3c-*.txt`. Matriz de gates: [`../../
 4. **Dockerfile.** Mismas dos correcciones que pay-ledger y, solo en pay-payments, base `node:22-bookworm-slim`: el puente nativo de Temporal no carga en alpine/musl.
 5. **Gate de datos sensibles reproducible** (`scripts/check-sensitive-data-p3.sh`) y pruebas nuevas (`sensitive-data.spec.ts`, `path-sensitive.spec.ts`, `separation.spec.ts`).
 6. **Estado al cerrar la tanda:** corrida 2 de la suite completa de pay-payments NO ejecutada (el coordinador pidió la máquina quieta); la consulta a Jaeger con el `safeUrl` final tampoco se repitió; idempotencia en paralelo de pay-vault sin prueba concurrente.
+
+
+# Tanda 3e (resultado ambiguo del riesgo, regla 11)
+
+Evidencia: `docs/trabajo/ola-3/P3/evidencia/3e-*.txt`. Detalle y tabla de política: [`GATES.md`](../../ola-3/P3/GATES.md), gate 11 c).
+
+1. **PRODUCT_BUG** hallado por el arnés de P1: un `409 idempotency_request_in_progress` de pay-risk (o un timeout del cliente) se trataba como rechazo definitivo y el intento quedaba en `processing` para siempre. Ahora se reintenta con la MISMA `Idempotency-Key` hasta que riesgo responda; agotada la política, `failed/risk_unavailable` (fail-closed, sin cargo) con constancia `risk_unresolved`.
+2. **`review/screening_unavailable` con `screened:false`** (Watchman caído; el contrato dice que no queda congelado bajo la clave) tampoco es denegación: se reintenta igual. Son definitivos `deny`, `review` con `screened:true` y `screening_not_provided`, `payer_unidentified`, `outside_allowed_hours`.
+3. **Revisión de seguridad (HIGH):** la franquicia «bajo el umbral pasa» (`RISK_ALLOW_BELOW_THRESHOLD`, apagada por defecto) aplica SOLO a una indisponibilidad pura en el primer intento (5xx, red, breaker abierto). En vuelo agotado, indisponibilidad después de un intento que ya mandó la evaluación, y 4xx de integración ⇒ siempre `failed/risk_unavailable` con constancia (`risk_unresolved` / `risk_integration_error`).
+4. **Archivos:** `src/temporal/activities.ts` (`assessRisk`, `isRiskInFlight`, `RiskScreeningUnavailable`); pruebas `test/ola3.risk-inflight.spec.ts` (20), `test/payment.workflow.spec.ts` (cota del test de riesgo colgado) y el doble `test/doubles/risk.double.ts` (modos nuevos `firstSlowMs`, `hangFirst`, `inProgressFirst`, `in_progress`, `rejects`, `screeningUnavailableFirst`, `screening_unavailable`; `review` ahora devuelve `screened:true` como el pay-risk real).
+5. **Para P1:** `e2e/pending/risk-timeout.e2e.ts` pasa SIN editarlo (1/1); puede moverse a `e2e/flows/`.
+6. Riesgo residual: un cobro cuyo riesgo no responde en toda la política (6 intentos por defecto, ~12 s de backoff) termina `failed/risk_unavailable` aunque pay-risk acabe respondiendo `allow` después; es el costado fail-closed. El tiempo total de la política es configurable (`ACTIVITY_MAX_ATTEMPTS`, `ACTIVITY_INITIAL_MS`, `ACTIVITY_MAX_MS`).

@@ -1,0 +1,31 @@
+# Trazas reales en Jaeger con el safeUrl FINAL (pay-payments y pay-vault, OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:54318) · 3e (2026-10-28T04:02:05Z)
+## pay-payments
+$ GET /payment_intents/<NIT 1023456028 | PAN 4111111111111111 | CI 7654321-1A>?documento=1023456028, con y sin identidad
+403 404 403 404 403 404 
+spans leídos de Jaeger: 96
+  http.route = /
+  http.route = /health/ready
+  http.route = /payment_intents/:id
+  url.full = /health/ready
+  url.full = /payment_intents/:x
+  url.path = /health/ready
+  url.path = /payment_intents/:x
+  url.query = [redacted]
+  contiene 1023456028 : False
+  contiene 4111111111111111 : False
+  contiene 7654321 : False
+## pay-vault
+$ GET /tokens/<NIT 1023456028 | PAN 4111111111111111 | CI 7654321-1A>?documento=1023456028, con y sin identidad
+403 404 403 404 403 404 
+spans leídos de Jaeger: 96
+  http.route = /
+  http.route = /health/ready
+  http.route = /tokens/:token
+  url.full = /health/ready
+  url.full = /tokens/:x
+  url.path = /health/ready
+  url.path = /tokens/:x
+  url.query = [redacted]
+  contiene 1023456028 : False
+  contiene 4111111111111111 : False
+  contiene 7654321 : False

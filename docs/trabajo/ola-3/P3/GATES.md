@@ -1,4 +1,4 @@
-> **AVANCE (matriz de gates): 10 / 13 gates de PLAN-MAESTRO §7 en PASS (6 de ellos con un GAP declarado y con dueño: 1, 4, 5, 6, 7 y 11) · 3 `NO APLICA AÚN` (10, 12 y 13)** — más la fila de Dockerfile en PASS tras 3 correcciones. Peldaño: **`TESTED`** (nada se ejecutó contra el stack E1–E8 completo ni contra un banco real; los tres colaboradores de `pay-payments` —riesgo, conectores, ledger— son dobles declarados que validan el contrato). **Pendiente declarado:** la corrida 2 de la suite completa de `pay-payments` (el coordinador reservó la máquina; ver «Entorno»).
+> **AVANCE (matriz de gates): 10 / 13 gates de PLAN-MAESTRO §7 en PASS (6 de ellos con un GAP declarado y con dueño: 1, 4, 5, 6, 7 y 11) · 3 `NO APLICA AÚN` (10, 12 y 13)** — más la fila de Dockerfile en PASS tras 3 correcciones. Peldaño: **`TESTED`** (nada se ejecutó contra el stack E1–E8 completo ni contra un banco real; los tres colaboradores de `pay-payments` —riesgo, conectores, ledger— son dobles declarados que validan el contrato). Tanda 3e (cierre): suites de `pay-payments` ×2 verdes sobre el código FINAL (31 suites / 395 pruebas) y el reproductor E2E de P1 (`risk-timeout`) en verde.
 
 # Matriz de gates P3 — `pay-payments` y `pay-vault` (ola 3)
 
@@ -12,7 +12,7 @@
 
 | # | Gate (§7) | Veredicto | Una línea |
 |---|---|---|---|
-| 1 | Typecheck, lint y unitarios | **PASS** con **GAP** menor | typecheck/build/eslint/`yarn lint` raíz en 0; pay-vault 129/129 ×2; pay-payments 375/375 ×1 (la corrida 2 de 3c quedó pendiente) |
+| 1 | Typecheck, lint y unitarios | **PASS** | typecheck/build/eslint/`yarn lint` raíz en 0; pay-vault 129/129 ×2; pay-payments 395/395 ×2 (3e) |
 | 2 | Integración contra base real | **PASS** | Postgres, Temporal y NATS reales; sin ORM (pg directo, `MikroOrmModule` sin entidades) |
 | 3 | Contrato | **PASS** (con alcance declarado) | respuestas y eventos validados contra OpenAPI/AsyncAPI; `contracts:lint` y `contracts:events` en 0 |
 | 4 | Idempotencia en paralelo | **PASS** en pay-payments tras corregir un `PRODUCT_BUG`; **GAP** en pay-vault (sin prueba concurrente) | pay-payments: 50 y 10 concurrentes; pay-vault no tiene prueba concurrente |
@@ -45,13 +45,14 @@ Suites completas (`yarn test --maxWorkers=2`, Postgres/Temporal/NATS reales):
 | Servicio | Corrida | Suites | Pruebas | Salida |
 |---|---|---|---|---|
 | pay-payments | 1 | 30/30 | **375/375** | `evidencia/3c-pay-payments-test-1.txt` |
-| pay-payments | 2 | — | — | **No ejecutada**: el coordinador pidió la máquina quieta (ver «Entorno») |
+| pay-payments (3e, código final) | 1 | 31/31 | **395/395** | `evidencia/3e-pay-payments-test-1.txt` |
+| pay-payments (3e, código final) | 2 | 31/31 | **395/395** | `evidencia/3e-pay-payments-test-2.txt` |
 | pay-vault | 1 | 11/11 | **129/129** | `evidencia/3c-pay-vault-test-1.txt` |
 | pay-vault | 2 | 11/11 | **129/129** | `evidencia/3c-pay-vault-test-2.txt` |
 
 Respaldo de la tanda anterior (mismo código salvo las pruebas y arreglos de 3c): `3b-pay-payments-test-1/2.txt` (24 suites / 314 ×2) y `3b-pay-vault-test-1/2.txt` (79 ×2).
 
-**GAP menor:** la segunda corrida verde de `pay-payments` sobre el código FINAL de 3c no se ejecutó. Comando que lo cierra: `cd services/pay-payments && yarn test --maxWorkers=2 > …/3c-pay-payments-test-2.txt`. Hasta entonces el peldaño de `pay-payments` en este gate es una sola corrida verde sobre el código final.
+La tanda 3e agregó `ola3.risk-inflight.spec.ts` (20 pruebas) y modificó el doble de riesgo (`test/doubles/risk.double.ts`) y `payment.workflow.spec.ts` (ver «Resultado ambiguo del riesgo» en el gate 11). Gates de 3e: `evidencia/3e-gates.txt` (typecheck, build, `yarn eslint services/pay-payments services/pay-vault`, `yarn lint` raíz: exit 0).
 
 Pruebas nuevas de 3c: `pg-pool.error.spec.ts` (12 en cada servicio), `pg-pool.tx-cut.spec.ts` (2 en pay-payments, 1 en pay-vault), `path-sensitive.spec.ts` (27 en cada servicio), `separation.spec.ts` (10 en cada servicio), `sensitive-data.spec.ts` (6, pay-payments), `intents.insert.race.spec.ts` (3, pay-payments) y un caso nuevo en `internal.api.spec.ts`.
 
@@ -100,7 +101,7 @@ yarn contracts:events   exit=0   (40 mensajes, 350 mutantes rechazados, piiHits 
 - **Corrección:** `src/persistence/intents.repo.ts` usa `ON CONFLICT DO NOTHING` sin objetivo (cualquier choque único es «ya existe») y `createInternalIntent` devuelve el intento ganador si la carrera la ganó otro pagador con otro id (`src/payments/payments.service.ts`). Prueba nueva en `internal.api.spec.ts` (dos pagadores a la vez, ningún 5xx).
 - **Clasificación:** **`PRODUCT_BUG`** (no `ENVIRONMENT`): la carga solo ensanchó la ventana de la carrera. Hay una observación menor sin tocar: con claves distintas, las peticiones que llegan antes de que el ganador inserte responden `201` y no `200`; todas con el MISMO intento.
 
-**GAP (pay-vault):** `pay-vault` no tiene una prueba de N peticiones paralelas con la misma clave sobre `POST /capture_sessions`, `DELETE /tokens/{t}` ni `reveal` (el reveal no guarda su respuesta de idempotencia a propósito, porque guardaría el PAN: `vault.api.spec.ts` «el reveal NO guarda su respuesta…»). Existe la repetición secuencial con la misma clave (misma sesión) y el borrado idempotente. **De quién:** P3 (mío); no se escribió en esta tanda porque el coordinador reservó la máquina antes de poder correrla. Prueba a agregar: `Promise.all` de 10 `POST /capture_sessions` con la misma clave → una sola fila en `capture_sessions`.
+**GAP (pay-vault, sigue abierto):** `pay-vault` no tiene una prueba de N peticiones paralelas con la misma clave sobre `POST /capture_sessions`, `DELETE /tokens/{t}` ni `reveal` (el reveal no guarda su respuesta de idempotencia a propósito, porque guardaría el PAN: `vault.api.spec.ts` «el reveal NO guarda su respuesta…»). Existe la repetición secuencial con la misma clave (misma sesión) y el borrado idempotente. **De quién:** P3 (mío); no se escribió en esta tanda porque el coordinador reservó la máquina antes de poder correrla. Prueba a agregar: `Promise.all` de 10 `POST /capture_sessions` con la misma clave → una sola fila en `capture_sessions`.
 
 ## 5 · Autorización negativa — PASS, con GAP (clave revocada)
 
@@ -134,7 +135,7 @@ Salida literal de `psql` con `dev_only_payments` y `dev_only_vault` (`FATAL: per
   - `sensitive-data.spec.ts` (pay-payments): canarios `payer_name` y `legal_name` más un PAN, por un cobro exitoso, uno denegado por riesgo, riesgo caído (fail-closed), entradas inválidas y campos no declarados; se busca en **logs** (stdout/stderr), **respuestas** (también las de error), **eventos del outbox**, **las llamadas a pay-connectors y pay-ledger**, y **todas las filas de todas las tablas**. Resultado: 0 apariciones fuera de los dos lugares declarados (`merchant_replica.legal_name` y `payment_intents.payer_name` mientras el intento no es terminal; tras el terminal, 0 filas con nombre). Controles positivos: riesgo SÍ recibe los dos nombres (a propósito, D-29) y el detector grita sobre material con un canario.
   - `pan-leak.spec.ts` (ambos): PAN en cada campo posible ⇒ 422/404 sin repetirlo; ni tablas, ni outbox, ni logs, ni respuestas, ni llamadas a conectores (pay-payments); en pay-vault, ni tablas, ni logs ni respuestas fuera de `reveal` (CVV buscado como token).
   - `path-sensitive.spec.ts` (ambos, servicio real `dist/main.js`): **PAN, NIT y CI (con o sin complemento) en la ruta** no llegan al log de acceso, a `instance` ni a los spans que salen por OTLP (se levanta un colector y se busca en los bytes crudos).
-- *Trazas reales:* spans de ambos servicios leídos desde **Jaeger** (`evidencia/3c-jaeger-trazas.txt`): `url.path`, `url.full`, `http.route` con `/payment_intents/:x` o `/tokens/:x`, `url.query = [redacted]`, y 0 apariciones del NIT, del PAN ni de la CI sintéticos. (La captura es anterior al último ajuste de `safeUrl`, que ahora conserva la plantilla de Express `:id` en `http.route`; ese ajuste lo cubre `path-sensitive.spec.ts` y la repetición de esta consulta contra Jaeger quedó pendiente.)
+- *Trazas reales:* spans de ambos servicios leídos desde **Jaeger** (`evidencia/3c-jaeger-trazas.txt`): `url.path`, `url.full`, `http.route` con `/payment_intents/:x` o `/tokens/:x`, `url.query = [redacted]`, y 0 apariciones del NIT, del PAN ni de la CI sintéticos. (La captura de 3c es anterior al último ajuste de `safeUrl`; la repetida en 3e con el código final (`evidencia/3e-jaeger-trazas.txt`) muestra `http.route = /payment_intents/:id` y `/tokens/:token`, `url.path` con `:x`, `url.query = [redacted]` y 0 apariciones de NIT, PAN y CI.)
 
 **Lo que la prueba descubrió y se corrigió:**
 1. La **`url.query` de los spans** salía en claro (`documento=1023456028`): el exportador enmascaraba el path pero no la query, que la instrumentación http guarda en un atributo aparte (`evidencia/3c-spans-query-FALLA-PREVIA.txt`). Ahora `MaskingTraceExporter` la reemplaza por `[redacted]`.
@@ -192,6 +193,17 @@ Corte a mitad de una transacción de NEGOCIO, con el servicio real (`pg-pool.tx-
 
 Sin el guardia, el worker de Jest muere al cortar una conexión prestada (`Test suite failed to run — Unhandled error. (Error: Connection terminated unexpectedly`, `evidencia/3c-pg-pool-tx-control-negativo-sin-guard.txt`).
 
+**c) Resultado ambiguo del riesgo (tanda 3e, CLAUDE.md regla 11).** Defecto hallado por el arnés E2E de P1 (`e2e/pending/risk-timeout.e2e.ts`): con `RISK_TIMEOUT_MS` corto, el cliente vence, reintenta con la MISMA clave y recibe `409 idempotency_request_in_progress`; `assessRisk` lo trataba como rechazo definitivo (`nonRetryable`) y el workflow moría con el intento en `processing` PARA SIEMPRE. Tras una revisión de seguridad se cerró también el fail-open de la franquicia «bajo el umbral». Política vigente (`src/temporal/activities.ts`, `assessRisk`):
+
+| Causa | Qué hace | Estado final |
+|---|---|---|
+| `409 idempotency_request_in_progress`, timeout del cliente, `201 review/screening_unavailable` con `screened:false` (el cribado no pudo completarse; el contrato dice que NO queda congelado bajo la clave), o cualquier indisponibilidad DESPUÉS de un intento que ya mandó la evaluación (por ejemplo el breaker abierto por los propios timeouts) | error REINTENTABLE de la actividad: Temporal reintenta con espera creciente y la MISMA `Idempotency-Key`, sin crear otra evaluación | si riesgo responde: sigue su decisión (un solo cobro). Si se agota la política: `failed/risk_unavailable` SIEMPRE (fail-closed, sin cargo, sin mirar monto ni `RISK_ALLOW_BELOW_THRESHOLD`) con constancia `risk_unresolved` |
+| cualquier otro 4xx declarado que no es una decisión (error de integración nuestro) | fail-closed enseguida, sin reintentar | `failed/risk_unavailable` con constancia `risk_integration_error`; el workflow TERMINA (no queda vivo) |
+| 5xx, red o breaker abierto en el PRIMER intento (indisponibilidad pura) | única causa a la que aplica la franquicia (apagada por defecto) | fail-closed (`failed/risk_unavailable`); con la franquicia encendida y el monto bajo el umbral, pasa (comportamiento previo, documentado) |
+| `deny`, o `review` con el cribado hecho (`screened:true`) o por razón de negocio (`screening_not_provided`, `payer_unidentified`, `outside_allowed_hours`) | decisión definitiva | `failed/risk_denied`, UNA llamada, sin reintentos ni constancia |
+
+Pruebas (`test/ola3.risk-inflight.spec.ts`, 20, tres niveles con el doble de riesgo): 409 en curso y luego `allow` ⇒ avanza y cobra UNA vez (misma clave en todas las llamadas); primera evaluación lenta; `screening_unavailable` y luego `allow`; timeout y luego `allow`; breaker de 2 fallas abierto por los propios timeouts ⇒ no cierra antes de tiempo; 409, timeout y `screening_unavailable` PERSISTENTES ⇒ `failed/risk_unavailable` terminal, sin cargo, sin asiento, con constancia y con el workflow `COMPLETED` en Temporal; 4xx de integración; `deny`/`review`/`screening_not_provided` definitivos; y con `RISK_ALLOW_BELOW_THRESHOLD=true` y umbral 1.000.000: 5xx puro PASA, y 409 agotado, timeout agotado, timeout seguido de 5xx, `screening_unavailable` y 422 ⇒ `failed` sin cargo con constancia. Rojos de los comportamientos anteriores: `3e-risk-inflight-ROJO-comportamiento-anterior.txt` (5 fallidas; el intento quedaba en `processing`), `3e-risk-franquicia-ROJO-version-previa.txt` (4 fallidas) y `3e-risk-screening-unavailable-ROJO-comportamiento-anterior.txt` (3 fallidas). El reproductor de P1, sin editarlo: `yarn e2e:pending e2e/pending/risk-timeout.e2e.ts` ⇒ 1/1 en verde (`evidencia/3e-e2e-risk-timeout.txt`). Cambio de requisito, no de aserción: «riesgo colgado falla rápido (< 4 s)» pasó a «se reintenta con la misma clave hasta agotar la política y termina `failed/risk_unavailable` en < 10 s» (`payment.workflow.spec.ts`), por el pedido explícito de reintentar timeouts con la misma clave.
+
 **GAP:** no se bajó Postgres ni NATS completos (la infraestructura es compartida con otros carriles); el corte de conexiones es el fallo de Postgres que sí se pudo inyectar sin afectarlos. Dueño: P1 (entorno de fallos aislado). El `crash` de `completeIntent` tras el commit sigue siendo simulado en proceso (un commit de una sola sentencia no tiene ventana para un SIGKILL, ver 2g).
 
 ## 12 · Carga (objetivo de T-01) — NO APLICA AÚN
@@ -228,11 +240,10 @@ Resultado: ambos builds `rc=0`. Arranque (`--network host`, rol `pay_<svc>` de s
 | Build de pay-vault: `no space left on device` (disco compartido al 98 %) | ENVIRONMENT | `3c-docker-build-pay-vault.txt` de la primera corrida (sobrescrita); `3c-docker-limpieza.txt` | poda de imágenes y caché, reintento exitoso |
 | `yarn lint` de la raíz dio exit 1 en 3b por dos errores de otros carriles (`pay-ledger`, `pay-mockbank`) | EXTERNAL (otro carril) | `3b-eslint-raiz.txt` | en 3c dio exit 0 (los arreglaron) |
 
-No hay `skip`, ningún timeout subido y ningún reintento agregado. **La corrida 2 de `pay-payments` (3c) no se ejecutó**: durante la redacción de esta matriz el coordinador pidió la máquina quieta para probar el sistema completo; los procesos propios se cerraron (verificado por `/proc`, sin jest, sin `dist/main.js`, sin contenedores) y no se lanzó ninguna suite más.
+No hay `skip`, ningún timeout subido y ningún reintento agregado. Durante 3c el coordinador pidió la máquina quieta para probar el sistema completo (los procesos propios se cerraron, verificado por `/proc`); la segunda corrida de la suite completa se hizo después, en 3e, sobre el código final (395/395 ×2).
 
 ## No cubierto (consolidado)
 
-- Segunda corrida de la suite completa de `pay-payments` sobre el código final de 3c, y repetir la consulta a Jaeger con el `safeUrl` final.
 - Idempotencia en paralelo de `pay-vault` (gate 4).
 - Stack E1–E8 completo, propagación de trazas entre servicios, banco real, carga T-01, sandbox: filas 10, 12 y 13.
 - Clave de API revocada (P1/P5); `template1` (P1).

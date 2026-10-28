@@ -45,7 +45,7 @@ class RiskScreeningUnavailable extends Error {
   }
 }
 const isScreeningUnavailable = (assessment: { decision: string; screened: boolean; reason_code: string }): boolean =>
-  assessment.decision === 'review' && assessment.screened === false && !DEFINITIVE_UNSCREENED_REVIEWS.has(assessment.reason_code);
+  assessment.decision === 'review' && !assessment.screened && !DEFINITIVE_UNSCREENED_REVIEWS.has(assessment.reason_code);
 
 /** Intento actual de la actividad (1 en el primero). Fuera de Temporal (pruebas directas) no hay contexto: se cuenta como el último. */
 function attemptOfActivity(): number {
