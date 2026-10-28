@@ -143,8 +143,16 @@ describe('candado del stack — nivel LÍMITE: carreras y huérfanos', () => {
     writeOrphan({ pid: deadPid(), startTime: '123', runId: 'huerfano', startedAt: new Date().toISOString() });
     const results = await race(8);
     expect(results.filter((r) => r.startsWith('WON'))).toHaveLength(1);
-    expect(results.filter((r) => r.startsWith('WON'))[0]).toContain('RECLAIMED huerfano');
-    expect(results.filter((r) => r.startsWith('LOST'))).toHaveLength(7);
+    // Quien aparta el huérfano (rename) no siempre es quien termina ganando el link: otro puede crear el candado nuevo en medio, y entonces el
+    // que reclamó pierde y el ganador entra "limpio". El invariante es: gana uno, nadie pierde por culpa del huérfano y no queda nada.
+    const lost = results.filter((r) => r.startsWith('LOST'));
+    expect(lost).toHaveLength(7);
+    for (const message of lost) {
+      expect(message).toMatch(/stack en uso por runId racer\d+/);
+      expect(message).not.toContain('huerfano');
+    }
+    expect(existsSync(lockPathOf(root))).toBe(false);
+    expect(readdirSync(root)).toEqual([]);
   });
 
   it('el dueño muere con SIGKILL (no pudo soltar nada) ⇒ el candado queda y el siguiente lo reclama', async () => {
