@@ -18,30 +18,44 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-/** Un proceso hijo que intenta adquirir el candado. Imprime `WON <pid>` o `LOST <mensaje>`; el ganador lo retiene `holdMs` y lo suelta. */
+/**
+ * Un proceso hijo que intenta adquirir el candado. Imprime `WON <pid>` o `LOST <mensaje>`. El ganador NO retiene el candado por un plazo fijo: lo retiene hasta que el padre
+ * le CIERRA la entrada estándar, y el padre lo hace cuando TODOS los hijos ya informaron. Así el resultado no depende de cuánto tarde cada hijo en arrancar (carga de la
+ * máquina, caché de transformación en frío): un plazo fijo permitía que un hijo tardío llegara cuando el ganador ya había soltado y ganara otra vez.
+ * `delayMs` simula un arranque lento de ese hijo.
+ */
 const RACER = `
-  const [lockModule, root, holdMs] = process.argv.slice(1);
-  import(lockModule).then(async (m) => {
+  const [lockModule, root, delayMs] = process.argv.slice(1);
+  new Promise((resolve) => setTimeout(resolve, Number(delayMs))).then(() => import(lockModule)).then(async (m) => {
     try {
       const lock = m.acquireStackLock(root, 'racer' + process.pid);
       console.log('WON ' + process.pid + (lock.reclaimed ? ' RECLAIMED ' + lock.reclaimed.runId : ''));
-      await new Promise((resolve) => setTimeout(resolve, Number(holdMs)));
+      await new Promise((resolve) => { process.stdin.on('end', resolve); process.stdin.resume(); });
       lock.release();
     } catch (error) {
       console.log('LOST ' + error.message);
     }
   });`;
-const race = (count: number, holdMs: number) =>
-  Promise.all(
-    Array.from({ length: count }, () =>
-      new Promise<string>((resolve) => {
-        const child = spawn(process.execPath, ['--no-warnings', '-e', RACER, '--', LOCK_TS, root, String(holdMs)], { stdio: ['ignore', 'pipe', 'inherit'] });
-        let out = '';
-        child.stdout.on('data', (c: Buffer) => (out += c.toString()));
-        child.on('exit', () => resolve(out.trim()));
-      }),
+/** Lanza `count` hijos a la vez (cada uno con su retraso de arranque) y espera, por condición, a que todos informen; recién entonces suelta al ganador. */
+const race = async (count: number, delays: readonly number[] = []): Promise<string[]> => {
+  const children = Array.from({ length: count }, (_, i) => spawn(process.execPath, ['--no-warnings', '-e', RACER, '--', LOCK_TS, root, String(delays[i] ?? 0)], { stdio: ['pipe', 'pipe', 'inherit'] }));
+  const lines = await Promise.all(
+    children.map(
+      (child) =>
+        new Promise<string>((resolve) => {
+          let out = '';
+          child.stdout!.on('data', (c: Buffer) => {
+            out += c.toString();
+            if (out.includes('\n')) resolve(out.trim());
+          });
+          child.once('exit', () => resolve(out.trim())); // un hijo que muere sin informar queda como línea vacía y la aserción lo delata
+        }),
     ),
   );
+  for (const child of children) child.stdin!.end(); // todos informaron: ahora sí el ganador suelta
+  await Promise.all(children.map((child) => new Promise((resolve) => (child.exitCode !== null ? resolve(undefined) : child.once('exit', resolve)))));
+  return lines;
+};
 const deadPid = (): number => {
   const child = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' });
   return Number(child.stdout);
@@ -88,7 +102,7 @@ describe('candado del stack — nivel CORRECTO', () => {
 
 describe('candado del stack — nivel LÍMITE: carreras y huérfanos', () => {
   it('DOS arranques simultáneos ⇒ exactamente UNO gana; los otros fallan claro (8 procesos reales a la vez)', async () => {
-    const results = await race(8, 1500);
+    const results = await race(8);
     const won = results.filter((r) => r.startsWith('WON'));
     const lost = results.filter((r) => r.startsWith('LOST'));
     expect(won).toHaveLength(1);
@@ -96,6 +110,12 @@ describe('candado del stack — nivel LÍMITE: carreras y huérfanos', () => {
     for (const message of lost) expect(message).toMatch(/stack en uso por runId racer\d+ pid \d+ desde \d{2}:\d{2}/);
     expect(existsSync(lockPathOf(root))).toBe(false); // el ganador lo soltó al terminar
     expect(readdirSync(root)).toEqual([]); // y no quedó ningún temporal
+  });
+
+  it('el resultado NO depende de cuánto tarde cada hijo en arrancar: con arranques escalonados hasta 2,5 s (más que cualquier plazo fijo anterior) sigue ganando exactamente uno', async () => {
+    const results = await race(6, [0, 400, 900, 1600, 2000, 2500]);
+    expect(results.filter((r) => r.startsWith('WON'))).toHaveLength(1);
+    expect(results.filter((r) => r.startsWith('LOST'))).toHaveLength(5);
   });
 
   it('candado huérfano (pid muerto) ⇒ se reclama y se dice de quién era', () => {
@@ -121,14 +141,14 @@ describe('candado del stack — nivel LÍMITE: carreras y huérfanos', () => {
 
   it('VARIOS procesos reclamando el MISMO huérfano a la vez ⇒ exactamente uno gana', async () => {
     writeOrphan({ pid: deadPid(), startTime: '123', runId: 'huerfano', startedAt: new Date().toISOString() });
-    const results = await race(8, 1500);
+    const results = await race(8);
     expect(results.filter((r) => r.startsWith('WON'))).toHaveLength(1);
     expect(results.filter((r) => r.startsWith('WON'))[0]).toContain('RECLAIMED huerfano');
     expect(results.filter((r) => r.startsWith('LOST'))).toHaveLength(7);
   });
 
   it('el dueño muere con SIGKILL (no pudo soltar nada) ⇒ el candado queda y el siguiente lo reclama', async () => {
-    const child = spawn(process.execPath, ['--no-warnings', '-e', RACER, '--', LOCK_TS, root, '60000'], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const child = spawn(process.execPath, ['--no-warnings', '-e', RACER, '--', LOCK_TS, root, '0'], { stdio: ['pipe', 'pipe', 'inherit'] });
     await firstLine(child);
     expect(peekLock(root)).toMatchObject({ alive: true, info: { pid: child.pid } });
     child.kill('SIGKILL');

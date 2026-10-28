@@ -1,0 +1,14 @@
+## docker compose config (platform/compose.yml + platform/compose.mock.yml, secretos sintéticos de platform/.sandbox)
+exit=0
+## sin secretos el config se niega con mensaje claro (control negativo)
+error while interpolating services.pay-connectors.environment.PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET: required variable SANDBOX_CONNECTOR_MOCK_WEBHOOK_SECRET is missing a value: corré node platform
+error while interpolating services.pay-merchants.environment.OPERATOR_TOKEN_PUBLIC_KEY: required variable SANDBOX_OPERATOR_TOKEN_PUBLIC_KEY is missing a value: corré node platform/scripts/sandbox-sec
+## node --check de los scripts
+ok
+## yarn e2e:typecheck
+exit=0
+## yarn eslint e2e platform
+exit=0
+## jest: sandbox-seed, parity, load, lock
+Test Suites: 4 passed, 4 total
+Tests:       74 passed, 74 total

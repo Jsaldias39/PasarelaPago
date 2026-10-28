@@ -81,9 +81,9 @@ describe('E5 — pago mensual del médico con saldo AloVida: sin fondos → rein
   });
 
   it('SIEMBRA [DOBLE]: el médico tiene Bs 500,00 por un asiento de apertura sintético (idempotente); el proveedor, nada', async () => {
-    const opening = await fundWallet(stack, doctor.merchantId, FIRST_FUNDS, `${doctor.merchantId}:1`);
+    const opening = await fundWallet(stack, doctor.merchantId, FIRST_FUNDS, 'e5_apertura_uno');
     expect(opening).toMatch(/^tx_[a-z0-9]{10,40}$/);
-    expect(await fundWallet(stack, doctor.merchantId, FIRST_FUNDS, `${doctor.merchantId}:1`)).toBe(opening); // repetir la apertura no suma
+    expect(await fundWallet(stack, doctor.merchantId, FIRST_FUNDS, 'e5_apertura_uno')).toBe(opening); // repetir la apertura no suma
     expect(await ledger().balance(payer())).toBe(FIRST_FUNDS);
     expect(await ledger().balance(beneficiary())).toBe(0);
 
@@ -144,7 +144,7 @@ describe('E5 — pago mensual del médico con saldo AloVida: sin fondos → rein
   });
 
   it('REINTENTO: al llegar los otros Bs 500,00 el pago se ejecuta UNA vez, con asiento tx_ del ledger, y el proveedor cobra Bs 1.000,00', async () => {
-    await fundWallet(stack, doctor.merchantId, TOP_UP, `${doctor.merchantId}:2`);
+    await fundWallet(stack, doctor.merchantId, TOP_UP, 'e5_apertura_dos');
     expect(await ledger().balance(payer())).toBe(MANDATE_AMOUNT);
 
     const rows = await until('el pago programado se ejecuta', payments, (list) => list.some((r) => r.status === 'executed'), 90_000, 250);

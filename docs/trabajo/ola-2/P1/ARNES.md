@@ -216,6 +216,11 @@ transferencias contra el extracto del banco simulado.
 - Última corrida completa (máquina compartida y saturada): `Test Suites: 1 failed, 14 passed, 15 total · Tests: 2 failed, 81 passed, 83 total`; la suite que falla es `sandbox-mockbank` por `pay-ledger: timeout` ⇒ `circuit_open` (ENVIRONMENT): `docs/trabajo/ola-3/P1/evidencia/e2e-full-3a-clasificacion.txt`. E1 y E2 pasaron en esa corrida.
 - Matriz de gates y el resto: `docs/trabajo/ola-3/P1/GATES.md`.
 
+## Tanda 4a (ola 4) — candado del stack y capa sandbox
+
+- **Candado atómico** `e2e/.run/stack.lock` (`e2e/lib/lock.ts`): se adquiere con `link(2)` ANTES de tocar bases, NATS o puertos (lo toman `startStack`, `e2e:down` y `e2e:envprobe`); un candado huérfano (pid muerto o reutilizado) se reclama y se avisa; quien pierde falla con «stack en uso por runId X pid Y desde HH:MM» sin haber hecho nada. Se libera en `stopStack`, al salir y ante SIGINT/SIGTERM. Un `state.json` huérfano se limpia solo al ganar el candado. Pruebas: `e2e/lib/lock.spec.ts` (16, sin stack real). Evidencia: `docs/trabajo/ola-3/P1/evidencia/candado-stack.txt` y `lock-intermitencia.txt`.
+- **Capa sandbox**: `platform/compose.mock.yml` + `platform/Dockerfile.sandbox` (UNA imagen, 12 contenedores), `yarn sandbox:secrets`, `yarn seed:sandbox`, `yarn test:parity`, `yarn load` (ver `docs/trabajo/ola-3/P1/CARGA.md`) y `docs/runbooks/sandbox-a-produccion.md`. Verificado solo con `docker compose config`, typecheck, eslint y pruebas unitarias; **nada de esto se corrió contra un stack**.
+
 ## No cubierto
 
 - Svix real (el motor de entrega es el propio, declarado DOBLE de Svix).

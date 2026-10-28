@@ -3,7 +3,7 @@ const path = require('node:path');
 
 module.exports = {
   rootDir: path.join(__dirname, '..'),
-  testMatch: ['<rootDir>/e2e/flows/**/*.e2e.ts', '<rootDir>/e2e/lib/**/*.spec.ts'],
+  testMatch: ['<rootDir>/e2e/flows/**/*.e2e.ts', '<rootDir>/e2e/lib/**/*.spec.ts', '<rootDir>/e2e/load/**/*.spec.ts'],
   testEnvironment: 'node',
   maxWorkers: 1,
   testTimeout: 180000,
