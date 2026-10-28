@@ -117,13 +117,18 @@ describe('pay-settlement: lo que produce con datos sensibles en extractos, petic
   });
 });
 
-describe('GAP conocido (librería compartida @pay/idempotency, carril P1): la clave de idempotencia se guarda tal cual', () => {
-  // La `Idempotency-Key` la elige quien llama (siempre un servicio nuestro, que manda un UUID o un hash) y se guarda 24 h en `idempotency_keys.key`. Si un llamador
-  // pusiera allí un PAN, un nombre o un documento, quedaría en la base. El contrato solo limita el largo (255). Mitigación posible: rechazar claves con forma de PAN
-  // (15-19 dígitos que cumplan Luhn) en la librería. `failing` pasa mientras se guarde y FALLA cuando P1 lo cierre: entonces quitar `.failing`.
-  it.failing('una Idempotency-Key con forma de PAN no llega a la base', async () => {
+describe('la Idempotency-Key con forma de PAN se rechaza antes de guardarse (@pay/idempotency, cerrado por P1)', () => {
+  // La `Idempotency-Key` la elige quien llama y se guarda 24 h en `idempotency_keys.key`. Antes de que P1 la cerrara, un PAN en esa cabecera quedaba en la base
+  // (`it.failing` documentaba el hueco y avisó al cerrarse). Ahora la librería la rechaza con 422 `card_number_detected` sin repetir su valor.
+  it('POST /payouts con un PAN como clave: 422, ni el valor en la respuesta ni nada en la base, y no se crea el pago', async () => {
     ctx = await createSettlementContext();
-    await ctx.as('pay-schedules').post('/payouts', { merchant_id: merchantId(), amount_minor: 100, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', CANARY.pan);
+    const before = Number((await ctx.db.pool.query('SELECT count(*)::int AS n FROM settlement_payouts')).rows[0].n);
+    const res = await ctx.as('pay-schedules').post('/payouts', { merchant_id: merchantId(), amount_minor: 100, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', CANARY.pan);
+    expect(res.status).toBe(422);
+    expect(res.body).toMatchObject({ code: 'validation_failed' });
+    expect(JSON.stringify(res.body)).toContain('card_number_detected');
+    expect(findLeaks('respuesta', JSON.stringify(res.body))).toEqual([]);
     expect(findLeaks('filas de la base', (await dumpSchema(ctx.db.pool)).text)).toEqual([]);
+    expect(Number((await ctx.db.pool.query('SELECT count(*)::int AS n FROM settlement_payouts')).rows[0].n)).toBe(before);
   });
 });

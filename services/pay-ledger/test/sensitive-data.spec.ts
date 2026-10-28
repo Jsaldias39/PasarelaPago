@@ -109,10 +109,10 @@ describe('GAP conocido (plantilla de servicio, carril P1): la ruta que el client
   });
 });
 
-describe('GAP conocido (librería compartida @pay/idempotency, carril P1): la clave de idempotencia se guarda tal cual', () => {
-  // Ver la explicación en pay-settlement/test/sensitive-data.spec.ts. En el ledger la guardan `POST /holds/{id}/post` y `/void` (crear una retención y las transferencias
-  // se deduplican por `business_ref` + `attempt` y no la guardan). `failing` pasa mientras se guarde y FALLA cuando P1 lo cierre: entonces quitar `.failing`.
-  it.failing('una Idempotency-Key con forma de PAN no llega a la base', async () => {
+describe('la Idempotency-Key con forma de PAN se rechaza antes de guardarse (@pay/idempotency, cerrado por P1)', () => {
+  // Ver pay-settlement/test/sensitive-data.spec.ts. En el ledger la guardan `POST /holds/{id}/post` y `/void` (crear una retención y las transferencias se deduplican
+  // por `business_ref` + `attempt` y no la guardan). Rechazada antes de ejecutar nada: la retención sigue pendiente y no se mueve dinero.
+  it('POST /holds/{id}/post con un PAN como clave: 422 sin repetirlo, no se guarda y la retención NO se confirma', async () => {
     const m = merchantId();
     const fund = { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs: [leg(CLEARING, `merchant:${m}:pending`, 500)] };
     expect((await ctx.as('pay-payments').post('/transactions', fund).set('idempotency-key', key())).status).toBe(201);
@@ -120,7 +120,11 @@ describe('GAP conocido (librería compartida @pay/idempotency, carril P1): la cl
     expect((await ctx.as('pay-settlement').post('/transactions', release).set('idempotency-key', key())).status).toBe(201);
     const hold = await ctx.as('pay-settlement').post('/holds', { business_ref: businessRef('payout'), attempt: 1, debit_account: `merchant:${m}:available`, credit_account: 'payout:clearing', amount_minor: 1, currency: 'BOB', expires_in_seconds: 60 }).set('idempotency-key', key());
     expect(hold.status).toBe(201);
-    expect((await ctx.as('pay-settlement').post(`/holds/${hold.body.id}/post`).set('idempotency-key', CANARY.pan)).status).toBe(200);
+    const res = await ctx.as('pay-settlement').post(`/holds/${hold.body.id}/post`).set('idempotency-key', CANARY.pan);
+    expect(res.status).toBe(422);
+    expect(JSON.stringify(res.body)).toContain('card_number_detected');
+    expect(findLeaks('respuesta', JSON.stringify(res.body))).toEqual([]);
+    expect((await ctx.as('pay-settlement').get(`/holds/${hold.body.id}`)).body.status).toBe('pending'); // no se ejecutó nada
     expect(findLeaks('filas de la base', (await dumpSchema(ctx.db.pool)).text)).toEqual([]);
   });
 });

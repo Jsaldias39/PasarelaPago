@@ -1,0 +1,16 @@
+# 3a-autorizacion-mockbank
+$ (cd services/pay-mockbank && yarn test --maxWorkers=2 test/mode-header.spec.ts --verbose --reporters default)
+
+(node:32590) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/mode-header.spec.ts
+  X-Pay-Mode: sandbox en todas las respuestas
+    ✓ éxito, error de validación, 403, 404 y 503 (305 ms)
+    ✓ los extractos CSV y camt.053 también la llevan, y una petición con `X-Pay-Mode: live` no la cambia a otra cosa (34 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        1.332 s
+Ran all test suites matching test/mode-header.spec.ts.
+exit=0

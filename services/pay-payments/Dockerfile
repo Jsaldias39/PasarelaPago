@@ -2,7 +2,9 @@
 #   docker build -f services/pay-payments/Dockerfile --build-arg HUB=docker.io -t pay-payments .
 ARG HUB=docker.io
 
-FROM ${HUB}/library/node:22-alpine AS build
+# Base glibc (no alpine): el puente nativo de Temporal (@temporalio/core-bridge) solo se distribuye para glibc; en alpine el proceso muere con
+# «Error loading shared library ld-linux-x86-64.so.2» (hallado al construir la imagen, tanda 3c).
+FROM ${HUB}/library/node:22-bookworm-slim AS build
 WORKDIR /repo
 COPY .yarn ./.yarn
 COPY .yarnrc.yml package.json yarn.lock tsconfig.base.json ./
@@ -14,7 +16,7 @@ RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
 RUN node .yarn/releases/yarn-4.14.1.cjs workspaces foreach -R --topological-dev --from pay-payments run build
 RUN find services -mindepth 1 -maxdepth 1 ! -name pay-payments -exec rm -rf {} +
 
-FROM ${HUB}/library/node:22-alpine
+FROM ${HUB}/library/node:22-bookworm-slim
 ENV NODE_ENV=production
 WORKDIR /repo
 COPY --from=build /repo /repo

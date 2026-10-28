@@ -1,14 +1,176 @@
 # 3c-concurrencia-connectors
-$ (cd services/pay-connectors && yarn test --maxWorkers=2 --verbose test/send-lock.spec.ts test/charges.spec.ts test/transfers.spec.ts -t simultáne|corrida|candado|withSendLock|conexiones)
+$ (cd services/pay-connectors && yarn test --maxWorkers=2 test/send-lock.spec.ts test/charges.spec.ts test/transfers.spec.ts -t simultáne|corrida|candado|withSendLock|conexiones --verbose --reporters default)
 (las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
 
-(node:24764) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:26445) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
-(node:24765) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:26447) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/charges.spec.ts (9.243 s)
+  POST /charges
+    ✓ corrida 1: 20 pedidos simultáneos con la misma clave crean UN solo cobro y UN solo QR (524 ms)
+    ✓ corrida 2: 20 pedidos simultáneos con la misma clave crean UN solo cobro y UN solo QR (261 ms)
+    ✓ corrida 3: 20 pedidos simultáneos con la misma clave crean UN solo cobro y UN solo QR (213 ms)
+    ✓ corrida 4: 20 pedidos simultáneos con la misma clave crean UN solo cobro y UN solo QR (241 ms)
+    ✓ corrida 5: 20 pedidos simultáneos con la misma clave crean UN solo cobro y UN solo QR (206 ms)
+    ○ skipped QR aprobado: cobro del contrato, con el payload del QR, ruteado al simulador en sandbox
+    ○ skipped sin Idempotency-Key ⇒ 400 idempotency_key_required y no se crea nada
+    ○ skipped la misma clave y el mismo cuerpo devuelven el MISMO cobro y no llaman otra vez al proveedor
+    ○ skipped la misma clave con OTRO cuerpo ⇒ 422 idempotency_key_reused
+    ○ skipped validación: campo desconocido ⇒ 422 con el campo señalado
+    ○ skipped validación: moneda que no es BOB ⇒ 422 con el campo señalado
+    ○ skipped validación: importe cero ⇒ 422 con el campo señalado
+    ○ skipped validación: importe decimal ⇒ 422 con el campo señalado
+    ○ skipped validación: importe como texto ⇒ 422 con el campo señalado
+    ○ skipped validación: medio inexistente ⇒ 422 con el campo señalado
+    ○ skipped validación: vence en el pasado ⇒ 422 con el campo señalado
+    ○ skipped validación: vencimiento ilegible ⇒ 422 con el campo señalado
+    ○ skipped validación: intento mal formado ⇒ 422 con el campo señalado
+    ○ skipped validación: comercio mal formado ⇒ 422 con el campo señalado
+    ○ skipped validación: token de tarjeta con QR ⇒ 422 con el campo señalado
+    ○ skipped validación: conector preferido inexistente ⇒ 422 con el campo señalado
+    ○ skipped validación: descripción de 201 caracteres ⇒ 422 con el campo señalado
+    ○ skipped un cuerpo que no es un objeto ⇒ 422
+    ○ skipped un solo cobro vivo por intento: otro cobro del mismo intento ⇒ 409 hasta que el primero se anule
+    ○ skipped rechazo síncrono (centavos 01): el cobro nace `failed` con `card_declined`, y el intento puede reintentarse
+    ○ skipped transferencia bancaria: instrucciones con una referencia única; el simulador de tarjeta/QR no interviene
+    ○ skipped nunca guarda ni devuelve el token de tarjeta
+  timeout ambiguo (centavos 07) y caída (centavos 06)
+    ○ skipped el timeout se reintenta con la MISMA referencia: un solo cobro en el proveedor
+    ○ skipped si el timeout persiste ⇒ 502 sin cambiar de conector; reintentar con la misma clave retoma el MISMO cobro
+    ○ skipped caída del simulador (centavos 06): 502 connector_unavailable y el proveedor no recibe nada
+    ○ skipped proveedor caído al cobrar: 502 sin efecto; al volver, la MISMA clave completa el MISMO cobro
+  GET /charges/{id} y /status
+    ○ skipped lee un cobro: contrato, y un id mal formado o ajeno es 404
+    ○ skipped pay-settlement también puede leer
+    ○ skipped callback perdido (centavos 05): sin refresh sigue pendiente; con refresh=true el proveedor revela `captured` y se publica el evento
+    ○ skipped proveedor sin respuesta durante refresh ⇒ último estado conocido con stale:true
+    ○ skipped refresh con un valor que no es booleano ⇒ 422; cobro inexistente ⇒ 404
+  POST /charges/{id}/cancel
+    ○ skipped anula un cobro pendiente; repetirlo (otra clave) es idempotente; el intento queda libre
+    ○ skipped un cobro ya pagado no se anula ⇒ 409 invalid_state_transition
+    ○ skipped sin Idempotency-Key ⇒ 400; cobro inexistente ⇒ 404
+  POST /charges/{id}/refunds
+    ✓ corrida 1: 5 reembolsos simultáneos de Bs 30 sobre Bs 100 ⇒ exactamente 3 prosperan (352 ms)
+    ✓ corrida 2: 5 reembolsos simultáneos de Bs 30 sobre Bs 100 ⇒ exactamente 3 prosperan (339 ms)
+    ✓ corrida 3: 5 reembolsos simultáneos de Bs 30 sobre Bs 100 ⇒ exactamente 3 prosperan (319 ms)
+    ✓ corrida 4: 5 reembolsos simultáneos de Bs 30 sobre Bs 100 ⇒ exactamente 3 prosperan (234 ms)
+    ✓ corrida 5: 5 reembolsos simultáneos de Bs 30 sobre Bs 100 ⇒ exactamente 3 prosperan (310 ms)
+    ✓ corrida 1: dos envíos del MISMO reembolso a la vez (el bloqueo de la clave venció y otro proceso lo retomó) ⇒ un solo reembolso en el proveedor y la fila queda ambigua, no `failed` (448 ms)
+    ✓ corrida 2: dos envíos del MISMO reembolso a la vez (el bloqueo de la clave venció y otro proceso lo retomó) ⇒ un solo reembolso en el proveedor y la fila queda ambigua, no `failed` (633 ms)
+    ✓ corrida 3: dos envíos del MISMO reembolso a la vez (el bloqueo de la clave venció y otro proceso lo retomó) ⇒ un solo reembolso en el proveedor y la fila queda ambigua, no `failed` (504 ms)
+    ✓ corrida 4: dos envíos del MISMO reembolso a la vez (el bloqueo de la clave venció y otro proceso lo retomó) ⇒ un solo reembolso en el proveedor y la fila queda ambigua, no `failed` (561 ms)
+    ✓ corrida 5: dos envíos del MISMO reembolso a la vez (el bloqueo de la clave venció y otro proceso lo retomó) ⇒ un solo reembolso en el proveedor y la fila queda ambigua, no `failed` (533 ms)
+    ○ skipped reembolso parcial y total: contrato, evento `kind: refund`, y no se puede reembolsar más de lo cobrado
+    ○ skipped la misma clave devuelve el mismo reembolso y no reembolsa dos veces
+    ○ skipped cobro no pagado ⇒ 409; inexistente ⇒ 404; cuerpo inválido ⇒ 422; sin clave ⇒ 400
+    ○ skipped proveedor caído ⇒ 502 sin efecto (la reserva se libera) y al volver la misma clave lo completa
+    ○ skipped timeout y DESPUÉS Unavailable en el reintento ⇒ 500 ambiguo (jamás «sin efecto»): la reserva se mantiene y la misma clave lo completa sin reembolsar dos veces
+
+PASS test/send-lock.spec.ts
+  withSendLock: un solo envío a la vez por transacción de dinero
+    ✓ corrida 1: 12 envíos simultáneos del mismo id jamás se superponen (251 ms)
+    ✓ corrida 2: 12 envíos simultáneos del mismo id jamás se superponen (305 ms)
+    ✓ corrida 3: 12 envíos simultáneos del mismo id jamás se superponen (175 ms)
+    ✓ corrida 4: 12 envíos simultáneos del mismo id jamás se superponen (148 ms)
+    ✓ corrida 5: 12 envíos simultáneos del mismo id jamás se superponen (188 ms)
+    ✓ ids distintos no se bloquean entre sí (69 ms)
+    ✓ el candado se suelta aunque el trabajo falle (15 ms)
+    ✓ si no se consigue en el plazo ⇒ 500 (un 4xx quedaría guardado por la clave) y no espera para siempre (303 ms)
+    ✓ corrida 1: 30 envíos de ids DISTINTOS a la vez con pools de 3 conexiones terminan todos (sin agotar el pool ni interbloquearse) (149 ms)
+    ✓ corrida 2: 30 envíos de ids DISTINTOS a la vez con pools de 3 conexiones terminan todos (sin agotar el pool ni interbloquearse) (245 ms)
+    ✓ corrida 3: 30 envíos de ids DISTINTOS a la vez con pools de 3 conexiones terminan todos (sin agotar el pool ni interbloquearse) (184 ms)
+    ✓ corrida 4: 30 envíos de ids DISTINTOS a la vez con pools de 3 conexiones terminan todos (sin agotar el pool ni interbloquearse) (234 ms)
+    ✓ corrida 5: 30 envíos de ids DISTINTOS a la vez con pools de 3 conexiones terminan todos (sin agotar el pool ni interbloquearse) (212 ms)
+    ✓ más envíos distintos que conexiones de candado y poco plazo ⇒ los que no caben fallan con un error DEFINIDO (500, reintentable) sin colgarse, y sin haber hecho el trabajo (585 ms)
+
+PASS test/transfers.spec.ts (16.643 s)
+  POST /transfers
+    ✓ corrida 1: 10 pedidos simultáneos del mismo par (claves distintas) ⇒ UNA transferencia y UN pago (571 ms)
+    ✓ corrida 2: 10 pedidos simultáneos del mismo par (claves distintas) ⇒ UNA transferencia y UN pago (340 ms)
+    ✓ corrida 3: 10 pedidos simultáneos del mismo par (claves distintas) ⇒ UNA transferencia y UN pago (386 ms)
+    ✓ corrida 4: 10 pedidos simultáneos del mismo par (claves distintas) ⇒ UNA transferencia y UN pago (247 ms)
+    ✓ corrida 5: 10 pedidos simultáneos del mismo par (claves distintas) ⇒ UNA transferencia y UN pago (211 ms)
+    ✓ corrida 1: attempt 1 y attempt 2 de la misma operación a la vez ⇒ solo uno prospera (132 ms)
+    ✓ corrida 2: attempt 1 y attempt 2 de la misma operación a la vez ⇒ solo uno prospera (121 ms)
+    ✓ corrida 3: attempt 1 y attempt 2 de la misma operación a la vez ⇒ solo uno prospera (161 ms)
+    ✓ corrida 4: attempt 1 y attempt 2 de la misma operación a la vez ⇒ solo uno prospera (208 ms)
+    ✓ corrida 5: attempt 1 y attempt 2 de la misma operación a la vez ⇒ solo uno prospera (144 ms)
+    ○ skipped transferencia pagada: contrato, referencia `business_ref:attempt` y consulta posterior
+    ○ skipped el mismo par business_ref+attempt devuelve la MISMA transferencia (200) con otra clave y no paga dos veces
+    ○ skipped la misma Idempotency-Key repite la respuesta guardada
+    ○ skipped mismo attempt con OTRO contenido ⇒ 422 idempotency_key_reused
+    ○ skipped attempt nuevo tras una transferencia pagada ⇒ 409 invalid_state_transition
+    ○ skipped un attempt que no es el siguiente ⇒ 409; el 1 es el primero
+    ○ skipped fallida por el banco (centavos 01): `failed` con failure_code; el siguiente attempt sí se acepta y se paga; después, 409
+    ○ skipped en tránsito (centavos 02): no admite otro attempt; la consulta lo lleva a `paid` cuando el banco lo confirma
+    ○ skipped atascada (centavos 08): sigue en tránsito aunque pase el tiempo
+    ○ skipped proveedor caído ANTES de enviar nada: 502 `connector_unavailable` (definitivo) y la fila pasa a `failed` con motivo (no se borra); el siguiente attempt se acepta
+    ○ skipped caída del simulador por importe (centavos 06) ⇒ 502 definitivo, fila `failed`, y el banco no ejecutó nada
+    ○ skipped validación: campo desconocido ⇒ 422
+    ○ skipped validación: business_ref demasiado corto ⇒ 422
+    ○ skipped validación: business_ref con caracteres no admitidos ⇒ 422
+    ○ skipped validación: attempt cero ⇒ 422
+    ○ skipped validación: attempt decimal ⇒ 422
+    ○ skipped validación: conector inexistente ⇒ 422
+    ○ skipped validación: importe cero ⇒ 422
+    ○ skipped validación: importe decimal ⇒ 422
+    ○ skipped validación: moneda que no es BOB ⇒ 422
+    ○ skipped validación: destino vacío ⇒ 422
+    ○ skipped validación: destino de 101 caracteres ⇒ 422
+    ○ skipped validación: conector no cargado (mercantil_qr) ⇒ 422
+    ○ skipped validación: conector sin transferencias (bank_transfer) ⇒ 422
+    ○ skipped sin Idempotency-Key ⇒ 400; un cuerpo que no es objeto ⇒ 422; pay-payments no puede ordenar transferencias
+    AMBIGUA — la orden se ejecuta y timeout
+      ○ skipped con reintentos: se reintenta con la MISMA referencia y el proveedor devuelve la transferencia ya ejecutada (un solo pago)
+      ○ skipped sin reintentos: responde 500 (jamás `connector_unavailable`), deja el registro, y la consulta autoritativa dice `paid`; reordenar no paga dos veces
+    AMBIGUA — la orden se ejecuta y un proxy contesta 502 con HTML
+      ○ skipped con reintentos: se reintenta con la MISMA referencia y el proveedor devuelve la transferencia ya ejecutada (un solo pago)
+      ○ skipped sin reintentos: responde 500 (jamás `connector_unavailable`), deja el registro, y la consulta autoritativa dice `paid`; reordenar no paga dos veces
+    AMBIGUA — la orden se ejecuta y el socket se corta
+      ○ skipped con reintentos: se reintenta con la MISMA referencia y el proveedor devuelve la transferencia ya ejecutada (un solo pago)
+      ○ skipped sin reintentos: responde 500 (jamás `connector_unavailable`), deja el registro, y la consulta autoritativa dice `paid`; reordenar no paga dos veces
+    regla 11 — un resultado ambiguo no se convierte en definitivo
+      ○ skipped timeout y DESPUÉS `Unavailable` en el reintento ⇒ NO es `connector_unavailable`: 500, la fila se conserva marcada como «pudo llegar»
+      ○ skipped la fila de una transferencia posiblemente enviada NUNCA desaparece: ni por fallos, ni por consultas, ni por caídas
+      ○ skipped un rechazo GENÉRICO en la consulta NO es `transfer_not_found`: devuelve el último estado conocido
+      ○ skipped `not_found` EXPLÍCITO del proveedor ⇒ 404 transfer_not_found, y la fila igual se conserva
+      ○ skipped referencia DETERMINISTA: dos envíos del mismo par separados por una caída presentan la MISMA referencia y el banco ejecuta UNA transferencia
+  POST /transfers — carrera entre envíos concurrentes (HIGH: doble pago)
+    ✓ corrida 1: el primer envío es AMBIGUO (timeout, la orden se ejecuta) y el segundo concurrente recibe Unavailable ⇒ UNA orden, la fila queda ambigua (no `failed`) y el flag sigue en true (423 ms)
+    ✓ corrida 2: el primer envío es AMBIGUO (timeout, la orden se ejecuta) y el segundo concurrente recibe Unavailable ⇒ UNA orden, la fila queda ambigua (no `failed`) y el flag sigue en true (444 ms)
+    ✓ corrida 3: el primer envío es AMBIGUO (timeout, la orden se ejecuta) y el segundo concurrente recibe Unavailable ⇒ UNA orden, la fila queda ambigua (no `failed`) y el flag sigue en true (306 ms)
+    ✓ corrida 4: el primer envío es AMBIGUO (timeout, la orden se ejecuta) y el segundo concurrente recibe Unavailable ⇒ UNA orden, la fila queda ambigua (no `failed`) y el flag sigue en true (295 ms)
+    ✓ corrida 5: el primer envío es AMBIGUO (timeout, la orden se ejecuta) y el segundo concurrente recibe Unavailable ⇒ UNA orden, la fila queda ambigua (no `failed`) y el flag sigue en true (291 ms)
+    ✓ corrida 1: 10 envíos simultáneos sanos del mismo par ⇒ UNA sola llamada al proveedor (332 ms)
+    ✓ corrida 2: 10 envíos simultáneos sanos del mismo par ⇒ UNA sola llamada al proveedor (515 ms)
+    ✓ corrida 3: 10 envíos simultáneos sanos del mismo par ⇒ UNA sola llamada al proveedor (215 ms)
+    ✓ corrida 4: 10 envíos simultáneos sanos del mismo par ⇒ UNA sola llamada al proveedor (240 ms)
+    ✓ corrida 5: 10 envíos simultáneos sanos del mismo par ⇒ UNA sola llamada al proveedor (224 ms)
+    ✓ corrida 1: banco caído y dos envíos simultáneos ⇒ el primero prueba «no se envió» (502) y el segundo ve ese estado ya resuelto SIN llamar otra vez (184 ms)
+    ✓ corrida 2: banco caído y dos envíos simultáneos ⇒ el primero prueba «no se envió» (502) y el segundo ve ese estado ya resuelto SIN llamar otra vez (173 ms)
+    ✓ corrida 3: banco caído y dos envíos simultáneos ⇒ el primero prueba «no se envió» (502) y el segundo ve ese estado ya resuelto SIN llamar otra vez (186 ms)
+    ✓ corrida 4: banco caído y dos envíos simultáneos ⇒ el primero prueba «no se envió» (502) y el segundo ve ese estado ya resuelto SIN llamar otra vez (221 ms)
+    ✓ corrida 5: banco caído y dos envíos simultáneos ⇒ el primero prueba «no se envió» (502) y el segundo ve ese estado ya resuelto SIN llamar otra vez (248 ms)
+    ○ skipped el flag es MONÓTONO en la base: ningún UPDATE puede bajarlo ni hacer retroceder `send_claims`
+  GET /transfers/{reference}
+    ○ skipped sin registro ⇒ 404 problem+json con code `transfer_not_found` (y solo así)
+    ○ skipped proveedor sin respuesta ⇒ el último estado conocido (no terminal), nunca un 404
+    ○ skipped referencia mal formada (sin attempt) ⇒ 400 bad_request
+    ○ skipped referencia mal formada (attempt no numérico) ⇒ 400 bad_request
+    ○ skipped referencia mal formada (attempt cero) ⇒ 400 bad_request
+    ○ skipped referencia mal formada (caracteres no admitidos) ⇒ 400 bad_request
+    ○ skipped referencia mal formada (demasiado corta) ⇒ 400 bad_request
+    ○ skipped una ruta desconocida NO se parece a transfer_not_found (404 genérico resource_not_found)
+  POST /transfers — ráfaga de transferencias DISTINTAS mayor que los pools (sin interbloqueo ni DoS)
+    ✓ corrida 1: %i transferencias distintas a la vez con 4 conexiones de candado y pool de datos de 10 terminan todas, una orden por transferencia (1490 ms)
+    ✓ corrida 2: %i transferencias distintas a la vez con 4 conexiones de candado y pool de datos de 10 terminan todas, una orden por transferencia (1417 ms)
+    ✓ corrida 3: %i transferencias distintas a la vez con 4 conexiones de candado y pool de datos de 10 terminan todas, una orden por transferencia (1295 ms)
+    ✓ sin capacidad de candado en el plazo ⇒ 500 definido (no un 4xx, que la clave guardaría) SIN haber llamado al proveedor; la misma clave completa después, una orden por transferencia (2668 ms)
+
 Test Suites: 3 passed, 3 total
 Tests:       84 skipped, 58 passed, 142 total
 Snapshots:   0 total
-Time:        15.272 s, estimated 18 s
+Time:        17.337 s
 Ran all test suites matching test/send-lock.spec.ts|test/charges.spec.ts|test/transfers.spec.ts with tests matching "simultáne|corrida|candado|withSendLock|conexiones".
 exit=0

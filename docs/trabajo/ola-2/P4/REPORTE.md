@@ -78,3 +78,19 @@ Gates literales en `evidencia/2b-*`: typecheck, build, test×2 (`--maxWorkers=2`
 **No cubierto:** `yarn e2e` / el stack completo (lo hace P1; no se levantó); nada contra un banco real (el contrato del banco es **ficticio**, no se usa para los adaptadores reales); el ciclo auth/captura/anulación de tarjeta lo expone el banco pero el conector aún no lo usa (D-P4-43); `e2e/lib/p2-bank.ts` (de P2) no se editó: sus constantes coinciden con `ESCENARIOS.md` y solo falta que P2 cambie `payerTransfersToBank` por la llamada documentada.
 **A MEDIAS:** P4.H4.M4 — anda el pagador contra `pay-qr` real y el cobro llega a `succeeded` por callback firmado; falta el DoD literal (E1 con `yarn e2e`, que corre P1).
 **Decisiones:** D-P4-42 a D-P4-50.
+
+---
+
+> **AVANCE (ola 3, tandas 3a + 3b + 3c): carril P4 17 / 22 microtareas HECHO — 77,3 %.** Gates: 10 PASS · 1 PASS parcial (autorización negativa) · 2 con GAP (contrato del lado consumidor; Dockerfile de producción) · 3 NO APLICA AÚN (Jaeger, carga, E2E sandbox). Peldaño: `TESTED` (código) y `VERIFIED` (procesos reales: separación, datos sensibles, corte de Postgres, imagen en ejecución). Matriz completa con comando y salida literal: [`../../ola-3/P4/GATES.md`](../../ola-3/P4/GATES.md).
+
+| Tanda | Pedido | Estado |
+|---|---|---|
+| 3a | Matriz de gates + `X-Pay-Mode: sandbox` en connectors y qr | HECHO (15 filas; GAP y NO APLICA AÚN con dueño) |
+| 3b | `schema-map.ts` + `drift.spec` (8+8, con controles negativos); `ddl.sql` vendorizado + `--check`; P4.H1.M2 → HECHO | HECHO. Nota literal: «ORM = mapa del código (schema-map.ts): los servicios usan pg directo, sin ORM; el modelo es la única fuente (D-18)» |
+| 3c | Modelo estable `af60b79`: re-vendorizar, `reset()` con `DELETE` en orden de FK (desvío: tablas técnicas con `TRUNCATE` por deadlock con el relé), pruebas por restricción (6/6), evaluación de triggers (propuesta #12), `001_*.sql` borrados | HECHO |
+| — | `yarn lint` de la raíz (variable sin usar en `idempotency-parallel.spec.ts`) | HECHO, exit 0 |
+| — | Defecto transversal del `pg.Pool` | HECHO en los tres servicios; hallazgo: `pool.on('error')` solo no cubre clientes prestados (propuesta #16) |
+
+**A MEDIAS / GAP:** construcción de producción de la imagen (P1: plantilla de Dockerfile, propuesta #11); tests de consumidor (P1/P3); «otro comercio» (P1/P3, propuesta #15); corrección de la línea 39 de `pci-alcance.md` (P1/P3, propuesta #10).
+**No cubierto:** nada contra un banco real; el resto de los servicios con el `pg.Pool` incompleto.
+**Propuestas nuevas:** #9 (actualizada: ya se envía la cabecera), #16 (pool).

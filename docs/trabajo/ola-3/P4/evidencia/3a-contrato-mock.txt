@@ -1,12 +1,72 @@
 # 3a-contrato-mock
-$ (cd services/pay-connectors && yarn test:contract --maxWorkers=2)
+$ (cd services/pay-connectors && yarn test:contract --maxWorkers=2 --verbose --reporters default)
 (las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
 
-(node:26849) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:28657) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/contract/contract.spec.ts
+  mock — banco en proceso (SimulatedBank)
+    declaración
+      ✓ código, modo sandbox y medios soportados coinciden con lo declarado (2 ms)
+    createCharge / getStatus / cancel
+      ✓ correcto: por cada medio declarado crea el cobro con la acción siguiente de su tipo, y repetir la referencia devuelve el MISMO cobro (3 ms)
+      ✓ correcto: getStatus devuelve un estado válido con su instante; un cobro aprobado termina `captured` (o sigue `pending` si el medio se confirma por extracto) (1 ms)
+      ✓ límite: un cobro que nadie paga sigue `pending` hasta su vencimiento y recién entonces se informa `expired` (8 ms)
+      ✓ correcto: cancel de un cobro pendiente lo deja `canceled` y es idempotente (1 ms)
+      ✓ inválido: una referencia desconocida se rechaza de forma definitiva (ConnectorRejectedError), nunca se inventa un estado (1 ms)
+      ✎ todo inválido: un medio que el conector no declara se rechaza — NO APLICA: el conector declara varios medios
+    resultados ambiguos y caída (regla 11: ambiguo ≠ fallo)
+      ✓ timeout ambiguo: ConnectorTimeoutError (la orden PUDO ejecutarse) y repetir la MISMA referencia devuelve el mismo cobro (1 ms)
+      ✓ banco caído: createCharge lanza ConnectorUnavailableError (no se envió nada); la sonda lo marca abajo y, al volver, arriba (1 ms)
+      ✓ rechazo síncrono: el importe «rechazado» devuelve `failed` con un código estable (1 ms)
+    refund / getRefund
+      ✓ correcto: reembolso parcial de un cobro cobrado, idempotente por referencia y consultable; el excedente se rechaza (2 ms)
+      ✓ límite: getRefund de una referencia que el banco no tiene devuelve `not_found` EXPLÍCITO (no un error)
+      ✓ inválido: reembolsar un cobro desconocido se rechaza; un conector que no reembolsa lo rechaza SIEMPRE, sin tocar nada
+    verifyCallback
+      ✓ correcto: un callback bien firmado se interpreta en un evento con su id, referencia, estado e importe (2 ms)
+      ✓ inválido: firma alterada, cuerpo alterado, sin cabeceras, repetición fuera de ventana o basura ⇒ ok:false (nunca se acepta); un conector sin callbacks los rechaza TODOS (2 ms)
+    fetchStatement
+      ✓ correcto: un cobro cobrado aparece como crédito con NUESTRA referencia y el importe cobrado (3 ms)
+      ✓ límite: una ventana vacía devuelve [] (no un error) (1 ms)
+      ✓ inválido: con el banco caído el extracto lanza ConnectorUnavailableError (no devuelve [] como si no hubiera movimientos)
+      ✎ todo correcto: el depósito del pagador con la referencia de las instrucciones aparece en el extracto (el banco no avisa) — NO APLICA: este conector cobra por callback/consulta, no por depósitos
+    createTransfer / getTransfer
+      ✓ correcto: la orden se paga, es idempotente por referencia y se puede consultar; una desconocida da `not_found` EXPLÍCITO (2 ms)
+      ✓ límite/inválido: Bs …01 la rechaza (`rejected_by_bank`); Bs …07 se EJECUTA y la respuesta se pierde (ambiguo), y la consulta demuestra que se pagó
+  mock — pay-mockbank por HTTP (proceso real)
+    declaración
+      ✓ código, modo sandbox y medios soportados coinciden con lo declarado (50 ms)
+    createCharge / getStatus / cancel
+      ✓ correcto: por cada medio declarado crea el cobro con la acción siguiente de su tipo, y repetir la referencia devuelve el MISMO cobro (205 ms)
+      ✓ correcto: getStatus devuelve un estado válido con su instante; un cobro aprobado termina `captured` (o sigue `pending` si el medio se confirma por extracto) (33 ms)
+      ✓ correcto: cancel de un cobro pendiente lo deja `canceled` y es idempotente (157 ms)
+      ✓ inválido: una referencia desconocida se rechaza de forma definitiva (ConnectorRejectedError), nunca se inventa un estado (17 ms)
+      ✎ todo límite: un cobro que nadie paga sigue `pending` hasta su vencimiento y recién entonces se informa `expired` — NO APLICA: un banco remoto usa su propia hora, o cobra al instante (no hay cobro que venza); el vencimiento se prueba en test/mockbank.spec.ts (caso 08)
+      ✎ todo inválido: un medio que el conector no declara se rechaza — NO APLICA: el conector declara varios medios
+    resultados ambiguos y caída (regla 11: ambiguo ≠ fallo)
+      ✓ timeout ambiguo: ConnectorTimeoutError (la orden PUDO ejecutarse) y repetir la MISMA referencia devuelve el mismo cobro (440 ms)
+      ✓ banco caído: createCharge lanza ConnectorUnavailableError (no se envió nada); la sonda lo marca abajo y, al volver, arriba (29 ms)
+      ✓ rechazo síncrono: el importe «rechazado» devuelve `failed` con un código estable (9 ms)
+    refund / getRefund
+      ✓ correcto: reembolso parcial de un cobro cobrado, idempotente por referencia y consultable; el excedente se rechaza (107 ms)
+      ✓ límite: getRefund de una referencia que el banco no tiene devuelve `not_found` EXPLÍCITO (no un error) (9 ms)
+      ✓ inválido: reembolsar un cobro desconocido se rechaza; un conector que no reembolsa lo rechaza SIEMPRE, sin tocar nada (18 ms)
+    verifyCallback
+      ✓ correcto: un callback bien firmado se interpreta en un evento con su id, referencia, estado e importe (4 ms)
+      ✓ inválido: firma alterada, cuerpo alterado, sin cabeceras, repetición fuera de ventana o basura ⇒ ok:false (nunca se acepta); un conector sin callbacks los rechaza TODOS (9 ms)
+    fetchStatement
+      ✓ correcto: un cobro cobrado aparece como crédito con NUESTRA referencia y el importe cobrado (50 ms)
+      ✓ límite: una ventana vacía devuelve [] (no un error) (16 ms)
+      ✓ inválido: con el banco caído el extracto lanza ConnectorUnavailableError (no devuelve [] como si no hubiera movimientos) (9 ms)
+      ✎ todo correcto: el depósito del pagador con la referencia de las instrucciones aparece en el extracto (el banco no avisa) — NO APLICA: este conector cobra por callback/consulta, no por depósitos
+    createTransfer / getTransfer
+      ✓ correcto: la orden se paga, es idempotente por referencia y se puede consultar; una desconocida da `not_found` EXPLÍCITO (26 ms)
+      ✓ límite/inválido: Bs …01 la rechaza (`rejected_by_bank`); Bs …07 se EJECUTA y la respuesta se pierde (ambiguo), y la consulta demuestra que se pagó (428 ms)
+
 Test Suites: 1 passed, 1 total
 Tests:       5 todo, 37 passed, 42 total
 Snapshots:   0 total
-Time:        4.138 s
+Time:        5.063 s
 Ran all test suites matching test/contract/.
 exit=0

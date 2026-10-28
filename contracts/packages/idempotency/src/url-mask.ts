@@ -8,18 +8,22 @@ import { containsCardNumber } from './card-number';
  * pasarela (prefijo conocido de los contratos + cuerpo alfanumérico de 8 a 64 con al menos una letra, y sin ningún PAN dentro); todo lo demás se enmascara como `:x`.
  * La query no se conserva nunca (regla 90.2.2).
  *
- * LÍMITES conocidos: una palabra en minúsculas sin dígitos pasa tal cual (un nombre de persona escrito así en la URL no se enmascara); un id con prefijo propio y
- * letras pasa aunque lleve dígitos de más (los ids reales son aleatorios y tienen dígitos por azar: enmascararlos por «6 dígitos seguidos» taparía 1 de cada 3).
+ * Un id propio con SEIS o más dígitos seguidos también se enmascara (un NIT o una cédula pegados a un prefijo conocido): cuesta ver en el log alrededor de 1 de cada 3
+ * ids aleatorios, y es el compromiso que el servicio ya tenía (`pay-edge/test/log-safe.spec.ts`).
+ * LÍMITE conocido: una palabra en minúsculas sin dígitos pasa tal cual (un nombre de persona escrito así en la URL no se enmascara).
  */
 const WORD = /^(?:[a-z][a-z_]{0,40}|v[0-9]{1,2})$/; // `v1`, `v2`: la versión de la API es la única palabra de ruta con dígitos
 /** Prefijos de id de los contratos (`contracts/openapi`, `contracts/asyncapi`): `^<prefijo>_[a-z0-9]{n,m}$`. */
 const OWN_ID = /^(?:mc|pi|ch|re|key|tok|po|md|hd|we|sb|rx|rr|tr|ra|qr|cs|cr|tx|tf|sp|sl|kd|dp|cg|ca)_(?=[a-z0-9]*[a-z])[a-z0-9]{8,64}$/;
 
+/** Seis o más dígitos seguidos (NIT, cédula, teléfono) dentro de un id propio: se enmascara. */
+const LONG_DIGITS = /[0-9]{6,}/;
+
 export function safeUrl(url: string): string {
   const path = url.split('?')[0]?.split('#')[0] ?? '';
   return path
     .split('/')
-    .map((segment) => (segment === '' || WORD.test(segment) || (OWN_ID.test(segment) && !containsCardNumber(segment)) ? segment : ':x'))
+    .map((segment) => (segment === '' || WORD.test(segment) || (OWN_ID.test(segment) && !containsCardNumber(segment) && !LONG_DIGITS.test(segment)) ? segment : ':x'))
     .join('/');
 }
 

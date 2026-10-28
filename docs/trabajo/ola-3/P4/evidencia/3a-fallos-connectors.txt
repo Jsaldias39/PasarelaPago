@@ -1,441 +1,445 @@
 # 3a-fallos-connectors
-$ (cd services/pay-connectors && yarn test --maxWorkers=2 --verbose test/db-down.spec.ts test/infra-faults.spec.ts)
+$ (cd services/pay-connectors && yarn test --maxWorkers=2 test/db-down.spec.ts test/infra-faults.spec.ts --verbose --reporters default)
 (las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
 
-(node:25920) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:27717) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
-(node:25919) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:27718) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
-[31m[Nest] 25920  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27718  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'e4b149e8-2209-419b-845b-b5f0807fac9b'[39m
+  request_id: [32m'a06760a4-c21e-4463-b544-3b66133b025c'[39m
 }
 Error no controlado
-[31m[Nest] 25920  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27718  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'a08d4d5c-b726-4ec7-b157-45c7561bd390'[39m
+  request_id: [32m'7a5b0ba5-99bb-4a40-a468-081248430810'[39m
 }
 Error no controlado
-[31m[Nest] 25920  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27718  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'dc620691-9b81-456c-8b68-6b1562560cb4'[39m
+  request_id: [32m'8d2c55d1-be88-4055-8568-368c934781ef'[39m
 }
 Error no controlado
-[31m[Nest] 25920  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27718  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'd333046b-547c-4b83-af72-fcec2fc8678e'[39m
+  request_id: [32m'8f2887b2-87f7-48cc-9882-7eed796c8af6'[39m
 }
 Error no controlado
-[31m[Nest] 25920  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  code: [32m'57P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-[31m[Nest] 25920  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'23583ba7-5eed-4630-86b1-453a915786ec'[39m
+  request_id: [32m'18935d5d-2db7-48e9-884d-4a4a817ee765'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'c9540bfa-8bec-435a-aea3-40b1ea629554'[39m
+  request_id: [32m'a1067c14-842e-4426-94f0-259656105c91'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'4ab1a8b4-c5a1-4a49-a146-60b39c973cee'[39m
+  request_id: [32m'ebefa819-c7b2-4ada-8a83-3992d1203c13'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'26f064c2-ee51-43f0-b053-b27e13de8d70'[39m
+  request_id: [32m'450ec7a3-3671-46bf-883d-4424ec473415'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27718  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'87d05d22-e9c3-48ba-943a-6f69e1e88a69'[39m
+  request_id: [32m'86a5212c-d7eb-4ddb-b8d9-8fc98e686b70'[39m
+}
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'01c8d075-412b-42dc-96f6-92017c0b2469'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'431ac88d-5b78-4e14-9088-d3ee9821a963'[39m
+  request_id: [32m'6a7f07d5-d9fb-4922-b0e5-1b9764affe51'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'9075003a-5bdb-4ae1-b3aa-010845106ee3'[39m
+  request_id: [32m'e4d0c248-69ee-41c9-b690-4a012ef9f639'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'b25b1de0-ef17-48ea-a27a-7ae43c4f43db'[39m
+  request_id: [32m'1c8ec9b7-7b35-4e8d-84f3-16ca6b62df6f'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'762167fd-7a81-4e56-be48-99878b59dfd0'[39m
+  request_id: [32m'13680096-4262-4adc-8e34-441bde0aa949'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'e2e832c9-d415-4487-83e9-636a8be5ee77'[39m
+  request_id: [32m'9ab6d992-f282-45d9-8f99-f02cb95805cb'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'5d7f609d-d287-4046-9b46-f630098434df'[39m
+  request_id: [32m'ab6cee36-9eb8-4466-955a-c2b7908f26b9'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'80078e55-2531-4439-a1f9-bfc493a010a4'[39m
+  request_id: [32m'22c309f8-33b2-41ea-9827-828e24dc5915'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'd11a59c3-abd7-4999-a2b3-b3caa33e3510'[39m
+  request_id: [32m'3f85fa95-69a6-4a9a-8f38-f896c2a8b7b6'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'ba3df4fc-254f-42e1-9b80-1a7e5d612bd2'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'0d4c0086-5f80-48f3-8d1b-a1454c8dd9c1'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'3c011652-c870-489f-98f0-a4680a418824'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'fc55a6cf-b714-4072-bfd9-776dd12fe3ab'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'a1b56428-2665-48a9-9832-a035afc92e2c'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'a1884585-6ce8-4760-8c13-b2f3c9b15335'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'a4a3fc73-d558-4b0d-a4c1-32673f3ce75d'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'19caf5ee-30de-4056-b23b-44ad647ebf43'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'd4b94a1d-a535-4aa1-9793-69c2c808eb9f'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'7caeca20-78fb-4235-9cdc-cd28c284c3ca'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'b10bc285-d7c9-42ae-ab7e-19539de92e52'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'c0e7f0e7-b2bb-45c4-8cea-b7ddb04d3a58'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'b528e874-072c-4eea-a3b2-0b06fcbc03e5'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'9ae066e4-678a-4d33-b0b6-6c5b6395ca44'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'f43a2397-dfc8-483f-870f-7cb329fef5eb'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'f368d082-6eda-42fb-8645-7b0f0bb0ca09'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'a4279743-2b97-4cf2-aa3b-e9797a1f4a6f'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'1130d502-00a5-4441-afde-867b5b60bd53'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'36b79f56-41a9-4176-a0e5-be32befd0a50'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'f562ee9c-8238-43f6-9a14-1cd3fc30c624'[39m
-}
-Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
   err: [32m'Error'[39m,
   code: [32m'53300'[39m,
   event_id: [90mundefined[39m
 }
 El relé del outbox falló
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+PASS test/db-down.spec.ts
+  base propia caída a mitad de servicio
+    ✓ cada operación responde 5xx del contrato sin filtrar la cadena de conexión, el SQL ni la pila; la salud lo dice (503) y el proceso sigue vivo (136 ms)
+    ✓ al volver la base, REINTENTAR con la misma Idempotency-Key converge: UN solo cobro, y repetirlo devuelve el mismo (393 ms)
+
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'fdf2fe4e-6a28-4bb2-b008-0e4eb4116dae'[39m
+  request_id: [32m'695fddb9-2da5-42ab-b5e7-72f19156199e'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'9c0aebec-cab5-45f7-8e02-220bcccae2f3'[39m
+  request_id: [32m'b0a9c9ca-39dd-4507-83d3-d39daa0cb2ec'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'edcb899f-0555-45ae-938a-7501d1844d39'[39m
+  request_id: [32m'91ff854c-831b-4759-af22-11d14a83900b'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'71ab4c92-d79c-4df8-98e9-11fbcc7a40bb'[39m
+  request_id: [32m'f3bd4bb0-5985-4fe8-af27-550f7586850b'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'5605f070-8f8a-4d02-82cc-3d0be09f6224'[39m
+  request_id: [32m'6470dfaf-9022-479e-be49-b42c88ecc192'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'cf061bcc-dd45-422c-8925-ff6155d974e4'[39m
+  request_id: [32m'8fcc30e9-bae7-4f84-9ed9-7f259ede7442'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'815cca0e-b2d4-4864-a6db-a686bb5cc441'[39m
+  request_id: [32m'3b700374-1cf6-4a8c-bf1f-35b793a271fb'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'8899ebe1-721e-4914-b43f-0dadf39fd539'[39m
+  request_id: [32m'6da9db7c-7c90-44c7-9db4-55caeca08c52'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'1457bb4f-839c-4a35-8b30-c5c0c685ee10'[39m
+  request_id: [32m'44b10d9b-d19a-4e22-b012-28259ca3c51d'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'c614169e-9db6-42ed-855c-23d79128ce64'[39m
+  request_id: [32m'b395b2d6-113c-46e7-9508-42a1b7e36b3b'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'adb56a23-0098-45d2-b411-7f57ca39dceb'[39m
+  request_id: [32m'6352b49e-ed67-4c8f-a603-f60e4fc102c3'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'5808e62b-a3a9-4b28-b65e-a8c47f1f9e3b'[39m
+  request_id: [32m'49e398ca-57a4-4b92-a15d-9f2e2120859b'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'42519ea9-1ed1-414a-a329-f817f15bc552'[39m
+  request_id: [32m'2576742b-8787-4e0f-b28f-d1b8a29159c5'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'202c9823-4197-46de-9e77-ee5d2a0b24db'[39m
+  request_id: [32m'79e4bacc-829f-48d2-9cf0-dfef0d3f06df'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'665ddad7-212d-4744-bf80-db063ee480e7'[39m
+  request_id: [32m'50c0d54a-065d-4f86-8a23-fc7d3aa8ce15'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'3515f767-d583-4c34-bbc8-f4ec33e69808'[39m
+  request_id: [32m'7040fc4d-f95e-4bf3-99ad-d7c420104134'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'8c73cd00-0354-47be-a2a8-1181f6d18f87'[39m
+  request_id: [32m'af30168f-e6ef-40d1-9367-033ba23b9ef0'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'f0c037ce-7363-4046-9aa1-610d9482b322'[39m
+  request_id: [32m'a7a6a012-472a-45c9-8a30-4272e72b4f58'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:32 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
   err: [32m'Error'[39m,
-  request_id: [32m'b496a2ca-d94b-4a6f-9d80-5bf68136e735'[39m
+  code: [32m'53300'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'3340e3f1-af1b-4087-9f89-622a51369ec9'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'44f455cf-64e5-4c4a-929c-dca3024104ca'[39m
+  request_id: [32m'621b760a-5452-427d-acf0-d522926d7444'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'1f3a0e5f-3ff0-4ac2-8c18-5ded90e61d16'[39m
+  request_id: [32m'f07448dd-bfa8-4a13-b484-633b41f47044'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'7272d3b0-97f1-4682-82dc-83d4d4983f0f'[39m
+  request_id: [32m'514a96ef-7361-4d93-a946-a190443041aa'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'a354b144-8244-45e6-a304-de88c4792240'[39m
+  request_id: [32m'6f8fc5f7-eec8-4fb7-9550-8963d4a48438'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'893e011b-70aa-4746-a131-e73c90272ad0'[39m
+  request_id: [32m'9e360bbe-17cf-4a60-bcce-b9f5f48fdc21'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'b0a57562-dbed-4ee3-8fcb-0e51f334234d'[39m
+  request_id: [32m'd16565b5-e164-40a8-8a6f-2929b592fc15'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'80efdc43-b542-4cd6-8378-eb9a1dc335ff'[39m
+  request_id: [32m'bd4f44d6-f155-439e-83d3-8c368e76b5d6'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'df85d6c8-ea8a-4dee-a266-0f6c209447d3'[39m
+  request_id: [32m'0ad986ed-383f-4dee-9c50-18600c1b40de'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'12ab5b18-6fb5-40f3-9092-222b7e8598ee'[39m
+  request_id: [32m'53863bf7-c821-4c38-8c60-22ea9e4ee796'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'63484c40-30dc-40a9-9015-1fd4c2dc55c7'[39m
+  request_id: [32m'093e8a5d-9b70-447a-a7ea-088ec114fa97'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'7f4b5d61-9ccf-47cf-a4f1-6b74aa7ce20d'[39m
+  request_id: [32m'3ba4c1ef-9a7f-4012-bc08-d6b8df8d4e86'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'89418d16-2edf-4759-b6eb-7c2dc2453230'[39m
+  request_id: [32m'6db0526e-d379-4278-96dc-5fe0a0c2bc41'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'15f7ec6d-4822-4319-b745-2fb38857f283'[39m
+  request_id: [32m'bf91a392-e6ad-46dc-9d70-1c267371fa83'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'b3e12615-feda-4919-bec8-3db1d840a00b'[39m
+  request_id: [32m'857a9e6e-3f0d-426b-bd57-fea757235578'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'5d8d70f2-69d0-427d-83af-a44ddddb4648'[39m
+  request_id: [32m'c7100060-9b68-4e70-b694-e122f3f8d679'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'35c6c479-8c93-4520-be08-4a9ec6083173'[39m
+  request_id: [32m'c687cea2-5423-44f7-97d5-91f0e81864ec'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'5ca7c434-9ab9-400e-bf99-c56e5eba1afa'[39m
+  request_id: [32m'88deaeda-d876-4f77-b3a6-24892ecffd76'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'b3e876a2-f023-4c85-a2af-3cac4e6a8e31'[39m
+  request_id: [32m'98901e01-6c92-448a-9fff-0e7382b1e14b'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'd73c296a-4d00-431d-b5cf-5052968c2eec'[39m
+  request_id: [32m'7d26f1ad-e669-4325-8f17-b22161401831'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'c0fc7bbc-5bfd-42c4-b17d-9f219936bf2b'[39m
+  request_id: [32m'597ac153-8837-40fe-859f-02ea859a1c80'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'd03421de-421a-49aa-a8b0-28b3d953b334'[39m
+  request_id: [32m'83fc15ce-81bd-49b6-ac70-5c20364cd41f'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
   err: [32m'Error'[39m,
-  request_id: [32m'3d57ba7c-2732-47d3-bf50-ca8bc46acb42'[39m
+  code: [32m'53300'[39m,
+  event_id: [90mundefined[39m
+}
+El relé del outbox falló
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'4f16056e-0af5-48e2-9fb3-ca1bbbbc3628'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'ded30e0a-16c6-4a05-9777-e68f1bea4617'[39m
+  request_id: [32m'60b3d10f-d3f8-45f1-869a-07e92891c7dc'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'885a5c83-3679-48df-9f52-da4c96e15003'[39m
+  request_id: [32m'1206e861-0033-4953-bd20-0622bc35bfef'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'903a3da9-b57e-4f91-92e6-9aba06edbf09'[39m
+  request_id: [32m'445732be-363a-4c5b-b764-19ad87cf96af'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'dec00f08-caaa-4fb2-8b3d-008b752ee590'[39m
+  request_id: [32m'63d633f2-188a-4af3-835a-5fe329824d08'[39m
 }
 Error no controlado
-[31m[Nest] 25919  - [39m10/28/2026, 1:34:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'aa09ad6b-ccec-452d-9582-c72d5fe33153'[39m
+  request_id: [32m'9a6fe3df-ce82-4d3e-b3c8-2916fba7e8a2'[39m
 }
 Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'd7f9307b-d5a2-4ea6-8362-20af2e82d08f'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'10ba15d3-4c02-4931-899b-52f448aa68c0'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'98d011cc-cb35-4ba4-9a41-5b01dfafedf3'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'89a36b2b-6b59-4333-8a9f-4c637eee1b55'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'df22ce13-9b49-4d1f-8518-792dc1f46792'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'02737f10-3d2f-43ad-b2ed-598998081594'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'a356ff1b-928d-4ea5-b70f-c61096a23f45'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'db7354ee-c78e-468d-b81f-577203e31238'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'6a732d5f-aa58-4690-a10e-4f9479b8d030'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'f1b83ae8-31c9-404c-b68a-b9e3944df25f'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'0b61ac88-08e8-4ab9-a152-b9857b110d1f'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'81e91ef3-45d2-4812-ac3f-47bcc646adc9'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'f60f4414-d662-45b4-9e54-c9af603875d8'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'1db23d41-a08d-4cac-9c52-3841a077de13'[39m
+}
+Error no controlado
+[31m[Nest] 27717  - [39m10/28/2026, 1:42:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'8a8fcc34-9d61-4c36-9b59-8cc1531ddec5'[39m
+}
+Error no controlado
+PASS test/infra-faults.spec.ts (6.223 s)
+  fallos de infraestructura bajo contención: nunca un resultado inventado, y reintentar converge
+    ✓ corrida 1: 12 callbacks idénticos con una de cada 3 conexiones rechazada ⇒ cada respuesta es applied, duplicate o 500; reentregar converge a UN solo avance y UN evento (904 ms)
+    ✓ corrida 2: 12 callbacks idénticos con una de cada 3 conexiones rechazada ⇒ cada respuesta es applied, duplicate o 500; reentregar converge a UN solo avance y UN evento (375 ms)
+    ✓ corrida 3: 12 callbacks idénticos con una de cada 3 conexiones rechazada ⇒ cada respuesta es applied, duplicate o 500; reentregar converge a UN solo avance y UN evento (237 ms)
+    ✓ corrida 4: 12 callbacks idénticos con una de cada 3 conexiones rechazada ⇒ cada respuesta es applied, duplicate o 500; reentregar converge a UN solo avance y UN evento (155 ms)
+    ✓ corrida 5: 12 callbacks idénticos con una de cada 3 conexiones rechazada ⇒ cada respuesta es applied, duplicate o 500; reentregar converge a UN solo avance y UN evento (232 ms)
+    ✓ corrida 1: 10 pedidos simultáneos del mismo par de transferencia con conexiones rechazadas (datos y candados) ⇒ nada inventado, UNA orden en el proveedor, converge a `paid` (154 ms)
+    ✓ corrida 2: 10 pedidos simultáneos del mismo par de transferencia con conexiones rechazadas (datos y candados) ⇒ nada inventado, UNA orden en el proveedor, converge a `paid` (123 ms)
+    ✓ corrida 3: 10 pedidos simultáneos del mismo par de transferencia con conexiones rechazadas (datos y candados) ⇒ nada inventado, UNA orden en el proveedor, converge a `paid` (279 ms)
+    ✓ corrida 4: 10 pedidos simultáneos del mismo par de transferencia con conexiones rechazadas (datos y candados) ⇒ nada inventado, UNA orden en el proveedor, converge a `paid` (207 ms)
+    ✓ corrida 5: 10 pedidos simultáneos del mismo par de transferencia con conexiones rechazadas (datos y candados) ⇒ nada inventado, UNA orden en el proveedor, converge a `paid` (425 ms)
+
 Test Suites: 2 passed, 2 total
 Tests:       12 passed, 12 total
 Snapshots:   0 total
-Time:        5.364 s
+Time:        6.612 s
 Ran all test suites matching test/db-down.spec.ts|test/infra-faults.spec.ts.
 exit=0

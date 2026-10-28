@@ -32,10 +32,10 @@ describe('safeUrl — la URL que llega a los logs y a `instance` no puede delata
     expect(safeUrl(url)).toBe(expected);
   });
 
-  it('los ids de la pasarela con dígitos y letras mezclados, o con pocos dígitos separados, NO se enmascaran', () => {
+  it('los ids de la pasarela con dígitos y letras mezclados (sin 6 dígitos seguidos) y la versión de la API NO se enmascaran', () => {
     expect(safeUrl('/v1/api_keys/key_a1b2c3d4e5')).toBe('/v1/api_keys/key_a1b2c3d4e5');
-    expect(safeUrl('/v1/webhook_endpoints/we_ab12-cd34')).toBe('/v1/webhook_endpoints/we_ab12-cd34');
-    expect(safeUrl('/v1/v2-2026')).toBe('/v1/v2-2026');
+    expect(safeUrl('/v1/webhook_endpoints/we_ab12cd34ef')).toBe('/v1/webhook_endpoints/we_ab12cd34ef');
+    expect(safeUrl('/v2/payment_intents')).toBe('/v2/payment_intents');
   });
 
   it('INVÁLIDO: entradas raras no lanzan', () => {

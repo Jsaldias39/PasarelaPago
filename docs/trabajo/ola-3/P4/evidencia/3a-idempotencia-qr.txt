@@ -1,12 +1,41 @@
 # 3a-idempotencia-qr
-$ (cd services/pay-qr && yarn test --maxWorkers=2 --verbose test/qr.spec.ts -t simultáneos)
+$ (cd services/pay-qr && yarn test --maxWorkers=2 test/qr.spec.ts -t simultáneos --verbose --reporters default)
 (las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
 
-(node:898) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:30300) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/qr.spec.ts
+  POST /qr
+    ✓ idempotencia: 20 pedidos simultáneos con la misma clave y cuerpo crean UN solo QR (318 ms)
+    ○ skipped emite un QR dinámico: respuesta del contrato, payload EMVCo válido con el monto, la referencia y el CRC
+    ○ skipped REQ: sin Idempotency-Key ⇒ 400 idempotency_key_required
+    ○ skipped la misma clave con OTRO cuerpo ⇒ 422 idempotency_key_reused y no crea nada nuevo
+    ○ skipped estático: sin monto, `***` de referencia, y un solo vigente por comercio (el segundo pedido devuelve el mismo con 200)
+    ○ skipped un segundo QR dinámico para el mismo intento ⇒ 409 hasta que se anule el anterior
+    ○ skipped validación: acumula los errores por campo y rechaza campos no declarados
+    ○ skipped los pedidos solo se validan contra el contrato: el cuerpo válido pasa validateRequest y el inválido no
+  consulta, referencia, vencimiento y anulación
+    ○ skipped GET /qr/:id y /qr-references/:reference devuelven el QR; ids mal formados o ajenos son 404 sin distinguirse
+    ○ skipped un QR dinámico vencido pasa a `expired` al leerlo, y aun así se puede anular
+    ○ skipped anular es idempotente: la segunda vez devuelve el mismo QR anulado sin cambiar la fecha
+  imagen y lectura
+    ○ skipped PNG: un lector independiente (jsQR) lee exactamente el payload; SVG: es un SVG sin el texto del payload
+    ○ skipped POST /qr/decode lee un payload, avisa si el CRC no coincide y rechaza la basura
+  identidad entre servicios (matriz negativa por ruta)
+    ○ skipped post /qr: sin X-Service-Id, o de un servicio no permitido ⇒ 403
+    ○ skipped post /qr/decode: sin X-Service-Id, o de un servicio no permitido ⇒ 403
+    ○ skipped get /qr/qr_abcdefghij12: sin X-Service-Id, o de un servicio no permitido ⇒ 403
+    ○ skipped get /qr/qr_abcdefghij12/image: sin X-Service-Id, o de un servicio no permitido ⇒ 403
+    ○ skipped post /qr/qr_abcdefghij12/cancel: sin X-Service-Id, o de un servicio no permitido ⇒ 403
+    ○ skipped get /qr-references/ABC123: sin X-Service-Id, o de un servicio no permitido ⇒ 403
+    ○ skipped `pay-mockbank` (el pagador simulado de la capa sandbox) puede LEER un QR con /qr/decode y NADA más
+    ○ skipped la salud es pública (sin identidad)
+  contrato
+    ○ skipped toda operación del contrato tiene su ruta implementada, y ninguna ruta sobra
+
 Test Suites: 1 passed, 1 total
 Tests:       21 skipped, 1 passed, 22 total
 Snapshots:   0 total
-Time:        1.628 s, estimated 7 s
+Time:        1.676 s, estimated 2 s
 Ran all test suites matching test/qr.spec.ts with tests matching "simultáneos".
 exit=0
