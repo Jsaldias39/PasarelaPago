@@ -1,8 +1,11 @@
 # Plan maestro — Pasarela de pagos ALOVIDA
 
-> **AVANCE: 8 / 108 — 7,4 %.** Ola 0 en curso. Peldaño de evidencia: **`TESTED`** para lo marcado `HECHO` en los carriles
-> (librerías `@pay/*`, plantilla de servicio, Compose local y tres spikes), **`UNKNOWN`** para el resto. Los 11 servicios
-> todavía no existen: lo que hay son librerías, contratos en borrador y la plantilla. Evidencia en [`../trabajo/ola-0/`](../trabajo/ola-0/REPORTE.md).
+> **AVANCE: 83 / 109 — 76,1 %.** Ola 3 en curso (endurecimiento). Peldaño de evidencia: **`TESTED`** en los carriles; los flujos
+> E1, E2, E4, E5, E6 y E8 se observaron en un stack real (Postgres, NATS, Redis, Temporal, TigerBeetle, Watchman) en una máquina de 4 vCPU
+> (`VERIFIED` por flujo, sin `REGRESSION_VERIFIED` global: falta una segunda corrida limpia de toda la verificación). Carga: APRUEBA a 5 rps y
+> NO APRUEBA a 10 y 25 rps por saturación del host, con las invariantes de dinero intactas
+> ([diagnóstico](../trabajo/ola-3/integracion/evidencia/carga-diagnostico.md)). Los 12 servicios existen; lo bloqueado por algo externo
+> (Q-11/T-03, Svix, mTLS, Jaeger, OpenBao, CI en GitHub) y el carril INT están declarados en cada carril. Evidencia en [`../trabajo/`](../trabajo/).
 >
 > - Fuente del pedido: procesos **7.1–7.9** de `SALUD/📋 Registro de procesos por módulo.md` (bóveda `mantra_core_technologies_health_docs`).
 > - Decisiones del dueño: [`DECISIONES.md`](./DECISIONES.md) (D-01 a D-15, tensiones T-01 a T-03 y preguntas abiertas Q-01 a Q-10).
