@@ -33,3 +33,62 @@ FAIL test/pool-resilience.spec.ts (6.955 s)
   err: [32m'TypeError'[39m
 }
 La corrida de conciliación falló por un error inesperado
+[31m[Nest] 5400  - [39m10/28/2026, 1:46:09 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(3) {
+  payout: [32m'po_mnhe2mpjnucorwnbsesb'[39m,
+  hold: [32m'hd_048fc1235e19fd290320'[39m,
+  hold_status: [32m'expired'[39m
+}
+El riel pagó pero la retención del ledger no se pudo confirmar
+FAIL test/payout.spec.ts (14.177 s)
+  ● payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) › lectura y autorización › lista paginada, del más nuevo al más viejo, con filtros por comercio y estado
+
+    error: could not extend file "base/16408/6226197": No space left on device
+
+      47 |   }
+      48 |   const pool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${schema}`, max });
+    > 49 |   for (const file of sqlFiles) await pool.query(readFileSync(file, 'utf8'));
+         |                                ^
+      50 |   return {
+      51 |     pool,
+      52 |     schema,
+
+      at ../../node_modules/pg-pool/index.js:45:11
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:49:32)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at funded (test/payout.spec.ts:15:9)
+      at Object.<anonymous> (test/payout.spec.ts:320:17)
+
+  ● payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) › lectura y autorización › lista paginada, del más nuevo al más viejo, con filtros por comercio y estado
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+FAIL test/consumers.spec.ts (7.813 s)
+  ● payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) › inválido (fecha ilegible): se descarta sin abrir nada ni dejar rastro en el inbox
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa[31m[Nest] 5400  - [39m10/28/2026, 1:46:27 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(2) {
+  payout: [32m'po_ebwgr73spjw565ufx2vx'[39m,
+  reason: [32m'RailAmbiguousError'[39m
+}
+ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva
+[31m[Nest] 5400  - [39m10/28/2026, 1:46:27 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(2) {
+  payout: [32m'po_ebwgr73spjw565ufx2vx'[39m,
+  reason: [32m'RailAmbiguousError'[39m
+}
+ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva
+[31m[Nest] 5399  - [39m10/28/2026, 1:46:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado

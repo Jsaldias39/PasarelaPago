@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { ProblemError, type ProblemDetails } from '@pay/problem';
-import { containsCardNumber } from './card-number';
+import { safeIdempotencyKey } from './card-number';
 
-export { containsCardNumber } from './card-number';
+export { containsCardNumber, safeIdempotencyKey } from './card-number';
 export { guardPool } from './pool-guard';
 export { maskSpanAttributes, maskUrl, safeUrl, URL_PATH_ATTRIBUTES, URL_QUERY_ATTRIBUTES } from './url-mask';
 
@@ -119,18 +119,18 @@ export class IdempotencyStore {
   /**
    * Ejecuta `handler` una sola vez por `(scope, key)`.
    *
-   * @throws ProblemError `validation_failed` (422, `card_number_detected`) si la clave tiene forma de número de tarjeta (nunca se guarda);
-   *   `idempotency_key_reused` (422) si la clave se usó con otro pedido;
+   * Una clave con forma de número de tarjeta se guarda como `masked-<sha256>` (la misma clave da el mismo hash: la idempotencia sigue funcionando).
+   *
+   * @throws ProblemError `idempotency_key_reused` (422) si la clave se usó con otro pedido;
    *   `idempotency_request_in_progress` (409) si otra ejecución sigue viva.
    */
   async execute<T>(
     request: IdempotencyRequest,
     handler: (context: IdempotencyContext) => Promise<HandlerResult<T>>,
   ): Promise<IdempotencyResult<T>> {
-    // La clave se guarda EN CLARO: una con forma de PAN se rechaza antes de tocar la base (y sin repetir su valor en el error).
-    if (containsCardNumber(request.key)) {
-      throw new ProblemError('validation_failed', { errors: [{ field: 'idempotency-key', code: 'card_number_detected', message: 'La Idempotency-Key no puede parecerse a un número de tarjeta' }] });
-    }
+    // La clave se guarda EN CLARO: una con forma de PAN se guarda como su hash (`safeIdempotencyKey`), nunca tal cual. NO se rechaza: un falso positivo (una clave
+    // hexadecimal con 13 o más dígitos seguidos que casualmente cumple Luhn) tiraría una petición legítima, y las claves internas (`pi_…:risk`) también pasan por acá.
+    request = { ...request, key: safeIdempotencyKey(request.key) };
     const deadline = Date.now() + this.options.waitForCompletionMs;
     for (;;) {
       const claim = await this.claim(request);

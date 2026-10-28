@@ -15,6 +15,8 @@
  * fecha y un correlativo de 14 a 17 dígitos separados por guiones) se marca aunque no sea una tarjeta. Una clave legítima recomendada (UUID, ULID, texto con letras)
  * no lo sufre. LÍMITE: no detecta un PAN partido por LETRAS ni codificado (base64, hexadecimal). No lanza nunca y no devuelve ni conserva ningún fragmento del texto.
  */
+import { createHash } from 'node:crypto';
+
 const MIN_PAN = 13;
 const MAX_PAN = 19;
 const FORMAT_CHARS = /\p{Cf}/gu;
@@ -69,4 +71,14 @@ export function containsCardNumber(text: string): boolean {
     if (hasLuhnWindow(match[0].replace(/ /g, ''))) return true;
   }
   return false;
+}
+
+/**
+ * La `Idempotency-Key` que se guarda y se reenvía. Se guarda EN CLARO (`idempotency_keys.key`, 24 h) y viaja en cabeceras: una con forma de número de tarjeta se
+ * reemplaza por `masked-<sha256 de la clave>`: el mismo texto da siempre el mismo valor (la idempotencia sigue funcionando) y el PAN no queda en ninguna parte.
+ * NO se rechaza: {@link containsCardNumber} tiene falsos positivos con identificadores hexadecimales (una corrida de 13 o más dígitos que cumple Luhn por azar,
+ * del orden de 1 de cada 500 claves de 32 hex) y rechazar tiraría peticiones legítimas, además de las claves internas que arma cada servicio (`pi_…:risk`).
+ */
+export function safeIdempotencyKey(key: string): string {
+  return containsCardNumber(key) ? `masked-${createHash('sha256').update(key).digest('hex')}` : key;
 }
