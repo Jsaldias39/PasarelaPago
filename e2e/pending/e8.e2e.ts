@@ -42,7 +42,12 @@ describe('E8 — transferencia bancaria confirmada por la línea del extracto', 
   }
 
   beforeAll(async () => {
-    stack = await startStack({ tolerateFailures: false, mockbank: true });
+    stack = await startStack({
+      tolerateFailures: false,
+      mockbank: true,
+      // El banco NO avisa: el conector descubre el depósito al conciliar su extracto, y su temporizador por defecto es de 5 min (RECONCILE_INTERVAL_MS). Aquí corre cada segundo.
+      envOverrides: { 'pay-connectors': { RECONCILE_INTERVAL_MS: '1000' } },
+    });
     startedAt = new Date();
     merchant = await seedMerchant(stack, { label: 'COMERCIO E8 (SINTÉTICO)' });
     expect((await waitForEdgeToKnow(stack, merchant)).ok).toBe(true);

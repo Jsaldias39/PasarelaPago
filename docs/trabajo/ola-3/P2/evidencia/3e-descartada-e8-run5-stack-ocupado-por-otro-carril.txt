@@ -1,0 +1,103 @@
+FAIL e2e/pending/e8.e2e.ts
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › INSTRUCCIONES: el cobro nace requires_action con la referencia única y la cuenta recaudadora SINTÉTICA de sandbox; repetir la petición devuelve el mismo cobro y la misma referencia
+
+    StackBusyError: stack en uso por runId e2emvriab34abm pid 3055 desde 02:39. Un solo stack a la vez: esperá a que termine (o, si ese proceso está colgado, matalo; un candado de un proceso muerto se reclama solo).
+
+      100 |       }
+      101 |       const holder = readLock(path);
+    > 102 |       if (holder && isHolderAlive(holder)) throw new StackBusyError(holder);
+          |                                                  ^
+      103 |       // Huérfano (o ilegible): se aparta con rename; si otro lo reclamó primero, el rename falla con ENOENT y se reintenta la creación exclusiva.
+      104 |       const aside = `${path}.stale.${pid}.${Math.random().toString(36).slice(2, 10)}`;
+      105 |       try {
+
+      at acquireStackLock (e2e/lib/lock.ts:102:50)
+      at startStack (e2e/stack.ts:131:32)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:45:29)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › ANTES DEL EXTRACTO: sin la línea del banco el cobro sigue abierto y el ledger no tiene nada (el banco no avisa, no hay callback)
+
+    StackBusyError: stack en uso por runId e2emvriab34abm pid 3055 desde 02:39. Un solo stack a la vez: esperá a que termine (o, si ese proceso está colgado, matalo; un candado de un proceso muerto se reclama solo).
+
+      100 |       }
+      101 |       const holder = readLock(path);
+    > 102 |       if (holder && isHolderAlive(holder)) throw new StackBusyError(holder);
+          |                                                  ^
+      103 |       // Huérfano (o ilegible): se aparta con rename; si otro lo reclamó primero, el rename falla con ENOENT y se reintenta la creación exclusiva.
+      104 |       const aside = `${path}.stale.${pid}.${Math.random().toString(36).slice(2, 10)}`;
+      105 |       try {
+
+      at acquireStackLock (e2e/lib/lock.ts:102:50)
+      at startStack (e2e/stack.ts:131:32)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:45:29)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › CONFIRMACIÓN POR EL EXTRACTO: el crédito con la referencia y el importe exactos captura el cobro; el ledger deja neto en pending y comisión en fees, débitos = créditos
+
+    StackBusyError: stack en uso por runId e2emvriab34abm pid 3055 desde 02:39. Un solo stack a la vez: esperá a que termine (o, si ese proceso está colgado, matalo; un candado de un proceso muerto se reclama solo).
+
+      100 |       }
+      101 |       const holder = readLock(path);
+    > 102 |       if (holder && isHolderAlive(holder)) throw new StackBusyError(holder);
+          |                                                  ^
+      103 |       // Huérfano (o ilegible): se aparta con rename; si otro lo reclamó primero, el rename falla con ENOENT y se reintenta la creación exclusiva.
+      104 |       const aside = `${path}.stale.${pid}.${Math.random().toString(36).slice(2, 10)}`;
+      105 |       try {
+
+      at acquireStackLock (e2e/lib/lock.ts:102:50)
+      at startStack (e2e/stack.ts:131:32)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:45:29)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › UNA SOLA VEZ: el conector vuelve a leer la misma línea en cada ciclo y NO captura dos veces: un evento captured, una captura en el ledger
+
+    StackBusyError: stack en uso por runId e2emvriab34abm pid 3055 desde 02:39. Un solo stack a la vez: esperá a que termine (o, si ese proceso está colgado, matalo; un candado de un proceso muerto se reclama solo).
+
+      100 |       }
+      101 |       const holder = readLock(path);
+    > 102 |       if (holder && isHolderAlive(holder)) throw new StackBusyError(holder);
+          |                                                  ^
+      103 |       // Huérfano (o ilegible): se aparta con rename; si otro lo reclamó primero, el rename falla con ENOENT y se reintenta la creación exclusiva.
+      104 |       const aside = `${path}.stale.${pid}.${Math.random().toString(36).slice(2, 10)}`;
+      105 |       try {
+
+      at acquireStackLock (e2e/lib/lock.ts:102:50)
+      at startStack (e2e/stack.ts:131:32)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:45:29)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › CONCILIACIÓN (P2): la línea del extracto cruza con el asiento de la captura; la corrida termina sin excepciones y no mueve el ledger
+
+    StackBusyError: stack en uso por runId e2emvriab34abm pid 3055 desde 02:39. Un solo stack a la vez: esperá a que termine (o, si ese proceso está colgado, matalo; un candado de un proceso muerto se reclama solo).
+
+      100 |       }
+      101 |       const holder = readLock(path);
+    > 102 |       if (holder && isHolderAlive(holder)) throw new StackBusyError(holder);
+          |                                                  ^
+      103 |       // Huérfano (o ilegible): se aparta con rename; si otro lo reclamó primero, el rename falla con ENOENT y se reintenta la creación exclusiva.
+      104 |       const aside = `${path}.stale.${pid}.${Math.random().toString(36).slice(2, 10)}`;
+      105 |       try {
+
+      at acquireStackLock (e2e/lib/lock.ts:102:50)
+      at startStack (e2e/stack.ts:131:32)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:45:29)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › IMPORTE DISTINTO: un crédito con la referencia correcta pero otro importe NO captura el cobro; queda a la vista como excepción para una persona
+
+    StackBusyError: stack en uso por runId e2emvriab34abm pid 3055 desde 02:39. Un solo stack a la vez: esperá a que termine (o, si ese proceso está colgado, matalo; un candado de un proceso muerto se reclama solo).
+
+      100 |       }
+      101 |       const holder = readLock(path);
+    > 102 |       if (holder && isHolderAlive(holder)) throw new StackBusyError(holder);
+          |                                                  ^
+      103 |       // Huérfano (o ilegible): se aparta con rename; si otro lo reclamó primero, el rename falla con ENOENT y se reintenta la creación exclusiva.
+      104 |       const aside = `${path}.stale.${pid}.${Math.random().toString(36).slice(2, 10)}`;
+      105 |       try {
+
+      at acquireStackLock (e2e/lib/lock.ts:102:50)
+      at startStack (e2e/stack.ts:131:32)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:45:29)
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 6 total
+Snapshots:   0 total
+Time:        0.262 s, estimated 119 s
+Ran all test suites matching e2e/pending/e8.e2e.ts.
+rc=1

@@ -13,14 +13,16 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkInfra, deleteServiceStreams, makeReceiverCertificate, resetDatabase, ROOT, startPrivateTigerBeetle } from './lib/infra.ts';
+import { acquireStackLock, type StackLock } from './lib/lock.ts';
 import { warmUp, type WarmUpReport } from './lib/warmup.ts';
 import { freePorts, isOurProcess, type Managed, spawnNode, tailLog, terminate, waitFor } from './lib/process.ts';
 import { ALL_SERVICES, DEFAULT_INFRA, DEPENDS_ON, envFor, generateSecrets, type EnvContext, type Infra, type RunSecrets, SERVICES, type ServiceName } from './lib/services.ts';
 
+export { StackBusyError } from './lib/lock.ts';
 export { ALL_SERVICES, OPTIONAL_SERVICES, SERVICES, type ServiceName } from './lib/services.ts';
 
 export const RUN_DIR = join(ROOT, 'e2e/.run');
-const STATE_FILE = join(RUN_DIR, 'state.json');
+const stateFileOf = (runRoot: string): string => join(runRoot, 'state.json');
 
 export interface ServiceStatus {
   readonly name: ServiceName;
@@ -56,6 +58,10 @@ export interface CallOptions {
 export interface Stack {
   readonly runId: string;
   readonly runDir: string;
+  /** Carpeta que contiene `stack.lock` y `state.json` (por defecto `e2e/.run`; las pruebas del candado usan una temporal). */
+  readonly runRoot: string;
+  /** El candado del stack (un solo stack a la vez): se libera en `stopStack`, al salir el proceso y ante SIGINT/SIGTERM. */
+  readonly lock: StackLock;
   readonly infra: Infra;
   readonly secrets: RunSecrets;
   readonly services: Record<ServiceName, ServiceStatus>;
@@ -83,6 +89,8 @@ export interface StartOptions {
   readonly mockbank?: boolean;
   /** Calienta el camino de riesgo al terminar el arranque (por defecto `true`; ver lib/warmup.ts). `false` en las pruebas que miden el arranque en frío. */
   readonly warmUp?: boolean;
+  /** Carpeta del candado y del estado de la corrida (por defecto `e2e/.run`). Solo para probar el candado sin tocar el real. */
+  readonly runRoot?: string;
   /** `true` (por defecto): un servicio que falla se anota y se sigue. `false`: se lanza al primer fallo. */
   readonly tolerateFailures?: boolean;
   /** Tope de espera de la readiness de cada servicio. */
@@ -113,7 +121,24 @@ function request(stackUrl: string, method: string, path: string, options: CallOp
   });
 }
 
+/**
+ * Arranca el stack. El CANDADO (`stack.lock`, creación exclusiva y atómica, ver lib/lock.ts) se adquiere ANTES de tocar bases, NATS o puertos: quien pierde falla
+ * con «stack en uso por runId X pid Y desde HH:MM» sin haber hecho ningún efecto. Si el arranque falla, el candado se libera.
+ */
 export async function startStack(options: StartOptions = {}): Promise<Stack> {
+  const runRoot = options.runRoot ?? RUN_DIR;
+  const runId = `e2e${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+  const lock = acquireStackLock(runRoot, runId);
+  try {
+    return await bootStack(options, runRoot, runId, lock);
+  } catch (error) {
+    lock.release();
+    throw error;
+  }
+}
+
+async function bootStack(options: StartOptions, runRoot: string, runId: string, lock: StackLock): Promise<Stack> {
+  const stateFile = stateFileOf(runRoot);
   const infra = options.infra ?? DEFAULT_INFRA;
   const names = (options.only ?? (options.mockbank ? ALL_SERVICES : SERVICES)).filter((n) => ALL_SERVICES.includes(n));
   const withMockbank = names.includes('pay-mockbank');
@@ -121,12 +146,15 @@ export async function startStack(options: StartOptions = {}): Promise<Stack> {
   const tolerate = options.tolerateFailures ?? true;
   const readyTimeoutMs = options.readyTimeoutMs ?? 90_000;
 
-  if (existsSync(STATE_FILE)) throw new Error(`Ya hay un stack registrado en ${STATE_FILE}: corré \`yarn e2e:down\` (un solo stack a la vez).`);
   const missing = (await checkInfra(infra)).filter((c) => !c.ok);
   if (missing.length > 0) throw new Error(`Falta infraestructura del Compose: ${missing.map((m) => `${m.name} (${m.detail})`).join(', ')}. Levantala con \`docker compose -f platform/compose.yml up -d\`.`);
 
-  const runId = `e2e${Date.now().toString(36)}`;
-  const runDir = join(RUN_DIR, runId);
+  // Con el candado en la mano no hay otro stack vivo: un `state.json` que quedó es de una corrida muerta y se limpia (procesos verificados por PID, bases, streams).
+  if (existsSync(stateFile)) {
+    process.stderr.write(`[e2e] estado huérfano en ${stateFile}: se limpia antes de arrancar\n`);
+    await cleanupLeftovers(infra, { runRoot, lockHeld: true });
+  }
+  const runDir = join(runRoot, runId);
   mkdirSync(runDir, { recursive: true });
   const ports = await freePorts(ALL_SERVICES.length + 2);
   const portOf = Object.fromEntries(ALL_SERVICES.map((n, i) => [n, ports[i]])) as Record<ServiceName, number>;
@@ -151,6 +179,8 @@ export async function startStack(options: StartOptions = {}): Promise<Stack> {
   const stack: Stack = {
     runId,
     runDir,
+    runRoot,
+    lock,
     infra,
     secrets,
     services,
@@ -167,9 +197,9 @@ export async function startStack(options: StartOptions = {}): Promise<Stack> {
     },
   };
 
-  writeFileSync(STATE_FILE, JSON.stringify({ runId, runDir, startedAt: new Date().toISOString(), pids: {}, ports: portOf, tigerbeetlePid: tb?.managed.pid }, null, 2));
+  writeFileSync(stateFile, JSON.stringify({ runId, runDir, startedAt: new Date().toISOString(), pids: {}, ports: portOf, tigerbeetlePid: tb?.managed.pid }, null, 2));
   const persist = () =>
-    writeFileSync(STATE_FILE, JSON.stringify({ runId, runDir, pids: Object.fromEntries([...processes].map(([n, p]) => [n, p.pid])), ports: portOf, tigerbeetlePid: tb?.managed.pid }, null, 2));
+    writeFileSync(stateFile, JSON.stringify({ runId, runDir, pids: Object.fromEntries([...processes].map(([n, p]) => [n, p.pid])), ports: portOf, tigerbeetlePid: tb?.managed.pid }, null, 2));
 
   const ready = new Set<ServiceName>();
   const attempted = new Set<ServiceName>();
@@ -252,7 +282,8 @@ export async function stopStack(stack: Stack, options: { keepLogs?: boolean } = 
   }
   const leftoverPids = [...stack.processes.values()].filter((p) => isOurProcess(p.pid, `services/${p.name}`)).map((p) => p.pid);
   if (stack.tigerbeetle && isOurProcess(stack.tigerbeetle.pid, 'pasarelapago')) leftoverPids.push(stack.tigerbeetle.pid);
-  rmSync(STATE_FILE, { force: true });
+  rmSync(stateFileOf(stack.runRoot), { force: true });
+  stack.lock.release(); // último paso: hasta acá nadie más pudo arrancar sobre las bases y los streams que se acaban de vaciar
   if (!options.keepLogs) {
     // los logs se conservan: son la evidencia; solo se borran el almacén de KYC y las claves temporales
     rmSync(join(stack.runDir, 'kyc'), { recursive: true, force: true });
@@ -262,7 +293,19 @@ export async function stopStack(stack: Stack, options: { keepLogs?: boolean } = 
 }
 
 /** Limpia restos de un stack cuyo proceso de control murió: mata SOLO los PIDs registrados que sigan siendo servicios nuestros. */
-export async function cleanupLeftovers(infra: Infra = DEFAULT_INFRA): Promise<{ killed: number[]; state: boolean }> {
+export async function cleanupLeftovers(infra: Infra = DEFAULT_INFRA, options: { runRoot?: string; lockHeld?: boolean } = {}): Promise<{ killed: number[]; state: boolean }> {
+  const runRoot = options.runRoot ?? RUN_DIR;
+  // Limpiar reinicia bases y borra streams: con un stack VIVO eso lo destruiría. Se toma el candado (o se verifica que ya es nuestro) antes de tocar nada.
+  const own = options.lockHeld ? undefined : acquireStackLock(runRoot, 'cleanup');
+  try {
+    return await cleanupLocked(infra, runRoot);
+  } finally {
+    own?.release();
+  }
+}
+
+async function cleanupLocked(infra: Infra, runRoot: string): Promise<{ killed: number[]; state: boolean }> {
+  const STATE_FILE = stateFileOf(runRoot);
   if (!existsSync(STATE_FILE)) return { killed: [], state: false };
   const state = JSON.parse(readFileSync(STATE_FILE, 'utf8')) as { runDir: string; pids: Record<string, number>; tigerbeetlePid?: number };
   const killed: number[] = [];

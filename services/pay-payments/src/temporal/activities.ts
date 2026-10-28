@@ -177,21 +177,30 @@ export function createActivities(deps: Deps) {
         if (assessment.decision !== 'allow') return await denyByRisk(intentId);
         return { proceed: true };
       } catch (error) {
-        // Política (P3.H2.M2, regla 11): sin decisión de riesgo no se cobra. Pero «sin decisión» tiene dos causas distintas:
+        // Política (P3.H2.M2, regla 11): sin decisión de riesgo no se cobra. Pero «sin decisión» tiene tres causas distintas:
         //  · EN VUELO (409 en curso, o timeout del cliente): se reintenta con la MISMA clave (Temporal, con backoff) hasta que riesgo responda con su
-        //    decisión; solo si se agota la política de la actividad el intento se cierra `failed/risk_unavailable` (fail-closed, sin cargo), NUNCA queda
-        //    en `processing` para siempre.
-        //  · NO DISPONIBLE o respuesta fuera de contrato (5xx, red, breaker abierto, cualquier otro 4xx): fail-closed enseguida; los 4xx dejan constancia
-        //    para una persona porque son un error de integración nuestro, no una decisión de negocio (solo `deny`/`review` en una respuesta válida lo son).
+        //    decisión. Si se agota la política de la actividad el intento se cierra SIEMPRE `failed/risk_unavailable` (fail-closed, sin cargo, con constancia
+        //    para una persona), sea cual sea el monto y la configuración: esa evaluación sigue viva y puede volver como `deny`. NUNCA queda en `processing`.
+        //  · RESPUESTA FUERA DE LA DECISIÓN (cualquier 4xx declarado que no es `deny`/`review` en una respuesta válida): es un error de integración nuestro;
+        //    mismo cierre SIEMPRE fail-closed y con constancia. Solo una `decision` válida es un «sí» o un «no» de negocio.
+        //  · NO DISPONIBLE (5xx, red, breaker abierto): única causa a la que aplica la franquicia «bajo el umbral pasa» (RISK_ALLOW_BELOW_THRESHOLD,
+        //    por defecto apagada), porque ahí no hay ninguna evaluación en vuelo que pueda llegar a decir «no».
         const inFlight = isRiskInFlight(error);
-        if (inFlight && attemptOfActivity() < config.policy.activity.maxAttempts) {
+        const attempt = attemptOfActivity();
+        if (inFlight && attempt < config.policy.activity.maxAttempts) {
           throw ApplicationFailure.retryable('pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave', 'RiskInFlight');
         }
-        if (isUpstreamError(error) || isRejection(error)) {
-          if (inFlight || isRejection(error)) {
-            const kind = inFlight ? 'risk_unresolved' : 'risk_integration_error';
-            await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'ambiguous', sourceEventId: `ambiguous:${kind}`, kind, reason: 'risk_without_decision_fail_closed' }));
-          }
+        // Si una vuelta ANTERIOR de esta actividad ya mandó la evaluación (attempt > 1), una indisponibilidad ahora (por ejemplo el breaker abierto por los
+        // propios timeouts) NO borra que haya una evaluación viva: se trata igual que «en vuelo agotado».
+        const earlierAttemptSent = attempt > 1 && attempt !== Number.MAX_SAFE_INTEGER && isUpstreamError(error);
+        const integrationError = !inFlight && isRejection(error);
+        if (inFlight || earlierAttemptSent || integrationError) {
+          const kind = integrationError ? 'risk_integration_error' : 'risk_unresolved';
+          await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'ambiguous', sourceEventId: `ambiguous:${kind}`, kind, reason: 'risk_without_decision_fail_closed' }));
+          await settle(intentId, 'failed', { failureCode: 'risk_unavailable' });
+          return { proceed: false };
+        }
+        if (isUpstreamError(error)) {
           const failClosed = BigInt(intent.amountMinor) >= config.policy.riskFailClosedThresholdMinor || !config.policy.riskAllowBelowThreshold;
           if (failClosed) {
             await settle(intentId, 'failed', { failureCode: 'risk_unavailable' });

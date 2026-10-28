@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { mkdirSync, rmSync } from 'node:fs';
+import { acquireStackLock } from './lock.ts';
 import { deleteServiceStreams, makeReceiverCertificate, resetDatabase, ROOT, startPrivateTigerBeetle } from './infra.ts';
 import { freePorts, spawnNode, tailLog, terminate, waitFor } from './process.ts';
 import { DEFAULT_INFRA, envFor, generateSecrets, SERVICES, type EnvContext, type ServiceName } from './services.ts';
@@ -19,8 +20,18 @@ export interface EnvProbeRow {
  * Los servicios corren en paralelo entre sí y en serie dentro de cada uno (cada uno usa su puerto). `PORT` no se prueba.
  */
 export async function probeEnv(options: { concurrency?: number; perBootTimeoutMs?: number } = {}): Promise<EnvProbeRow[]> {
-  const infra = DEFAULT_INFRA;
   const runId = `probe${Date.now().toString(36)}`;
+  // Reinicia las bases y borra los streams como cualquier stack: mismo candado (un solo stack a la vez), antes de tocar nada.
+  const lock = acquireStackLock(join(ROOT, 'e2e/.run'), runId);
+  try {
+    return await probeLocked(options, runId);
+  } finally {
+    lock.release();
+  }
+}
+
+async function probeLocked(options: { concurrency?: number; perBootTimeoutMs?: number }, runId: string): Promise<EnvProbeRow[]> {
+  const infra = DEFAULT_INFRA;
   const ports = await freePorts(SERVICES.length + 2);
   const portOf = Object.fromEntries(SERVICES.map((n, i) => [n, ports[i]])) as Record<ServiceName, number>;
   const infraWithTb = { ...infra, tigerbeetleAddress: `127.0.0.1:${ports[SERVICES.length + 1]}` };
