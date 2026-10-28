@@ -1,0 +1,62 @@
+FAIL e2e/flows/degraded.e2e.ts (39.722 s)
+  ● arnés — arranques degradados › un segundo stack mientras hay uno registrado se rechaza (un solo stack a la vez)
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /Ya hay un stack registrado/
+    Received message: "stack en uso por runId e2emvrj917lnam pid 14272 desde 03:06. Un solo stack a la vez: esperá a que termine (o, si ese proceso está colgado, matalo; un candado de un proceso muerto se reclama solo)."
+
+          103 |       }
+          104 |       const holder = readLock(path);
+        > 105 |       if (holder && isHolderAlive(holder)) throw new StackBusyError(holder);
+              |                                                  ^
+          106 |       // Huérfano (o ilegible): se aparta con rename; si otro lo reclamó primero, el rename falla con ENOENT y se reintenta la creación exclusiva.
+          107 |       const aside = `${path}.stale.${pid}.${Math.random().toString(36).slice(2, 10)}`;
+          108 |       try {
+
+      at acquireStackLock (e2e/lib/lock.ts:105:50)
+      at startStack (e2e/stack.ts:131:32)
+      at Object.<anonymous> (e2e/flows/degraded.e2e.ts:38:30)
+      at Object.toThrow (node_modules/expect/build/index.js:2155:20)
+      at Object.toThrow (e2e/flows/degraded.e2e.ts:38:62)
+
+[e2e] candado huérfano reclamado: runId huerfano pid 25861 (2026-10-28T02:10:25.689Z) ya no existe
+[e2e] candado huérfano reclamado: runId pid-reutilizado pid 14272 (2026-10-28T03:10:25.692Z) ya no existe
+[e2e] candado huérfano reclamado: runId huerfano pid 25868 (2026-10-28T03:10:25.731Z) ya no existe
+[e2e] candado huérfano reclamado: runId racer25931 pid 25931 (2026-10-28T03:10:26.067Z) ya no existe
+[e2e] candado huérfano reclamado: ilegible
+[e2e] candado huérfano reclamado: ilegible
+
+Summary of all failing tests
+FAIL e2e/flows/degraded.e2e.ts (39.722 s)
+  ● arnés — arranques degradados › un segundo stack mientras hay uno registrado se rechaza (un solo stack a la vez)
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /Ya hay un stack registrado/
+    Received message: "stack en uso por runId e2emvrj917lnam pid 14272 desde 03:06. Un solo stack a la vez: esperá a que termine (o, si ese proceso está colgado, matalo; un candado de un proceso muerto se reclama solo)."
+
+          103 |       }
+          104 |       const holder = readLock(path);
+        > 105 |       if (holder && isHolderAlive(holder)) throw new StackBusyError(holder);
+              |                                                  ^
+          106 |       // Huérfano (o ilegible): se aparta con rename; si otro lo reclamó primero, el rename falla con ENOENT y se reintenta la creación exclusiva.
+          107 |       const aside = `${path}.stale.${pid}.${Math.random().toString(36).slice(2, 10)}`;
+          108 |       try {
+
+      at acquireStackLock (e2e/lib/lock.ts:105:50)
+      at startStack (e2e/stack.ts:131:32)
+      at Object.<anonymous> (e2e/flows/degraded.e2e.ts:38:30)
+      at Object.toThrow (node_modules/expect/build/index.js:2155:20)
+      at Object.toThrow (e2e/flows/degraded.e2e.ts:38:62)
+
+
+Test Suites: 1 failed, 21 passed, 22 total
+Tests:       1 failed, 176 passed, 177 total
+Snapshots:   0 total
+Time:        297.089 s, estimated 330 s
+Ran all test suites.
+
+real	4m58.134s
+user	3m23.775s
+sys	1m42.984s

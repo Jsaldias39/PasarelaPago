@@ -203,8 +203,7 @@ transferencias contra el extracto del banco simulado.
 | Archivo | Qué prueba | Qué lo bloquea hoy | Quién | Se pasa a `flows/` cuando |
 |---|---|---|---|---|
 | `e2e/pending/risk-timeout.e2e.ts` | REPRODUCTOR del hallazgo 9: cuatro cobros con `RISK_TIMEOUT_MS=40`; esperado `succeeded` | Falla HOY: el intento queda `processing` (409 tratado como rechazo definitivo) | P3 (con P5) | `assessRisk` reintente el 409 con la misma clave |
-| `e2e/pending/e4.e2e.ts` | E4 corte semanal → payout → conciliación → excepción | Carril P2/P4 (no tocado en esta tanda; no re-corrido) | P2 + P4 | Ver `docs/trabajo/ola-2/P2/FLUJOS-E4-E8.md` |
-| `e2e/pending/e5.e2e.ts`, `e2e/pending/e8.e2e.ts` | E5 y E8 (transferencia bancaria por extracto) | Carril P2/P4; E8 necesita `p2-bank.ts` sobre `pay-mockbank` (hallazgo 12) | P2 + P4 | Ídem |
+| _(ninguno más)_ | E4, E5 y E8 ya están en `e2e/flows/` y pasan (E4 y E8 de P2/P4: 14/14 con pay-mockbank; E5 de P5: 6/6) | — | — | — |
 
 `yarn e2e:pending` corre con `--passWithNoTests`. E1 y E2 ya NO están acá: se movieron a `flows/` y pasan (§ Estado de E1 y E2). Una suposición que quedó verificada: el intento expone `succeeded_at` y `GET /v1/balance` muestra
 `pending_minor = net_minor` (E1 lo afirma y pasa).
@@ -218,8 +217,9 @@ transferencias contra el extracto del banco simulado.
 
 ## Tanda 4a (ola 4) — candado del stack y capa sandbox
 
-- **Candado atómico** `e2e/.run/stack.lock` (`e2e/lib/lock.ts`): se adquiere con `link(2)` ANTES de tocar bases, NATS o puertos (lo toman `startStack`, `e2e:down` y `e2e:envprobe`); un candado huérfano (pid muerto o reutilizado) se reclama y se avisa; quien pierde falla con «stack en uso por runId X pid Y desde HH:MM» sin haber hecho nada. Se libera en `stopStack`, al salir y ante SIGINT/SIGTERM. Un `state.json` huérfano se limpia solo al ganar el candado. Pruebas: `e2e/lib/lock.spec.ts` (16, sin stack real). Evidencia: `docs/trabajo/ola-3/P1/evidencia/candado-stack.txt` y `lock-intermitencia.txt`.
-- **Capa sandbox**: `platform/compose.mock.yml` + `platform/Dockerfile.sandbox` (UNA imagen, 12 contenedores), `yarn sandbox:secrets`, `yarn seed:sandbox`, `yarn test:parity`, `yarn load` (ver `docs/trabajo/ola-3/P1/CARGA.md`) y `docs/runbooks/sandbox-a-produccion.md`. Verificado solo con `docker compose config`, typecheck, eslint y pruebas unitarias; **nada de esto se corrió contra un stack**.
+- **Candado atómico** `e2e/.run/stack.lock` (`e2e/lib/lock.ts`): se adquiere con `link(2)` ANTES de tocar bases, NATS o puertos (lo toman `startStack`, `e2e:down` y `e2e:envprobe`); un candado huérfano (pid muerto o reutilizado) se reclama y se avisa; quien pierde falla con «stack en uso por runId X pid Y desde HH:MM» sin haber hecho nada. Se libera en `stopStack`, al salir y ante SIGINT/SIGTERM. Un `state.json` huérfano se limpia solo al ganar el candado. Pruebas: `e2e/lib/lock.spec.ts` (16, sin stack real) y, con procesos reales, `flows/degraded.e2e.ts` (el segundo stack falla con `StackBusyError` y verifica el runId y el pid del dueño). Evidencia: `docs/trabajo/ola-3/P1/evidencia/candado-stack.txt` y `lock-intermitencia.txt`.
+- **Capa sandbox**: `platform/compose.mock.yml` + `platform/Dockerfile.sandbox` (UNA imagen, 12 contenedores), `yarn sandbox:secrets`, `yarn seed:sandbox`, `yarn test:parity`, `yarn load` (ver `docs/trabajo/ola-3/P1/CARGA.md`) y `docs/runbooks/sandbox-a-produccion.md`. **Decisión sobre `RECONCILE_INTERVAL_MS` (propuesta de P2):** NO va en el entorno por defecto del arnés. El valor por defecto del conector (5 min) es el operativo y los flujos que no dependen del extracto no tienen por qué pagar un barrido por segundo; solo E8 descubre el depósito al conciliar el extracto, y lo fija él mismo con `envOverrides: { 'pay-connectors': { RECONCILE_INTERVAL_MS: '1000' } }`, visible en la prueba que lo necesita (mismo criterio que `STATUS_INQUIRY_MS` en E2). Si un tercer flujo lo necesita, se promueve a opción del arnés.
+- Verificado solo con `docker compose config`, typecheck, eslint y pruebas unitarias; **nada de esto se corrió contra un stack**.
 
 ## No cubierto
 
