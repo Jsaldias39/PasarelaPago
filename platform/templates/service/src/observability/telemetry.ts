@@ -6,23 +6,16 @@ import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
 import { NestInstrumentation } from '@opentelemetry/instrumentation-nestjs-core';
 import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
-import { safeUrl } from '../log-safe';
+import { maskSpanAttributes } from '@pay/idempotency';
 
 /**
- * La ruta de la petición la escribe el cliente (puede traer un PAN o un nombre) y varias instrumentaciones la copian a sus spans
- * (`url.path`, `url.full`, `http.target`, `http.url`). Se enmascara aquí, justo antes de exportar, igual que en el log de acceso.
+ * La ruta y la query de la petición las escribe el cliente (pueden traer un PAN, un NIT o una CI) y varias instrumentaciones las copian a sus spans (`url.*`,
+ * `http.*`). Se enmascaran aquí, justo antes de exportar, con la función COMPARTIDA (`@pay/idempotency`, `maskSpanAttributes`: lista única de atributos y prueba
+ * que recorre todos), igual que en el log de acceso.
  */
-const URL_ATTRIBUTES = ['url.path', 'url.full', 'http.target', 'http.url'];
-export const maskUrl = (value: string): string => {
-  const absolute = /^(https?:\/\/[^/]+)(\/.*)?$/.exec(value);
-  return absolute ? `${absolute[1]}${safeUrl(absolute[2] ?? '/')}` : safeUrl(value);
-};
 export class MaskingTraceExporter extends OTLPTraceExporter {
   override export(spans: Parameters<OTLPTraceExporter['export']>[0], resultCallback: Parameters<OTLPTraceExporter['export']>[1]): void {
-    for (const span of spans) {
-      const attributes = span.attributes as Record<string, unknown>;
-      for (const key of URL_ATTRIBUTES) if (typeof attributes[key] === 'string') attributes[key] = maskUrl(attributes[key]);
-    }
+    for (const span of spans) maskSpanAttributes(span.attributes as Record<string, unknown>);
     super.export(spans, resultCallback);
   }
 }

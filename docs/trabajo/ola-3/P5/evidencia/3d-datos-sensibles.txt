@@ -1,0 +1,17 @@
+# Gate: DATOS SENSIBLES — sin PAN, CVV, documento ni nombre (razón social, nombre del pagador) en logs, trazas, eventos ni errores
+# Método: se envían datos CENTINELA sintéticos a cada servicio real (HTTP), se provocan errores, y se busca cada centinela en: el log del proceso,
+# las trazas OTel (Jaeger), el outbox + los mensajes publicados en JetStream, y los cuerpos de error devueltos. Además un detector de PAN (marca + Luhn) y de rótulos CVV.
+
+## pay-merchants
+PASS  pay-merchants arrancó (rol pay_merchants, NATS privado, OTel → Jaeger)
+     alta de comercio: 201
+PASS  POST /merchants con razón social, fantasía y NIT centinela ⇒ 201
+     documento KYC: 201
+PASS  POST /kyc/documents con contenido centinela (y un PAN de prueba dentro del archivo) ⇒ 201
+     error provocado «campos inválidos + cvv + card_number»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
+     error provocado «NIT repetido»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
+     error provocado «archivo que no es PDF»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
+     error provocado «comercio inexistente»: 404 {"type":"urn:alovida:pay:problem:resource_not_found","title":"No existe el recurso","status":404,"code":"resou
+     error provocado «sin credencial»: 401 {"type":"urn:alovida:pay:problem:unauthorized","title":"Falta una credencial válida","status":401,"code":"unau
+     error provocado «ruta inexistente con centinelas»: 404 {"type":"urn:alovida:pay:problem:resource_not_found","title":"No existe el recurso","status":404,"code":"resou
+PASS  los seis errores provocados responden 4xx (ninguno 5xx)

@@ -3,6 +3,8 @@ import { ProblemError, type ProblemDetails } from '@pay/problem';
 import { containsCardNumber } from './card-number';
 
 export { containsCardNumber } from './card-number';
+export { guardPool } from './pool-guard';
+export { maskSpanAttributes, maskUrl, safeUrl, URL_PATH_ATTRIBUTES, URL_QUERY_ATTRIBUTES } from './url-mask';
 
 /**
  * Idempotency-Key sobre PostgreSQL, con fases atómicas y puntos de recuperación
