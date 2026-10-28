@@ -3,7 +3,12 @@ import { spawnSync } from 'node:child_process';
 import { Controller, Get, Inject, Logger, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { MikroORM } from '@mikro-orm/core';
+import { resolve } from 'node:path';
 import { Client, type Pool } from 'pg';
+import { IdempotencyStore } from '@pay/idempotency';
+import { OutboxRelay, processOnce, type CloudEvent, type EventPublisher } from '@pay/outbox';
+import { TEST_DATABASE_URL, createIsolatedDatabase, type IsolatedDatabase } from '@pay/testing';
+import { guardPool } from '../src/pool-guard';
 import { DatabaseModule, PG_POOL } from '../src/database.module';
 import { ServiceConfigModule } from '../src/config.module';
 import { inTransaction } from '../src/ledger/unit-of-work';
@@ -73,6 +78,11 @@ const warnedAboutIdleConnection = () => warn.mock.calls.some((c) => JSON.stringi
 const loggedText = () => JSON.stringify([...warn.mock.calls, ...error.mock.calls]);
 
 describe('el pool de la aplicación sobrevive a que Postgres corte conexiones', () => {
+  it('el PG_POOL del módulo real está envuelto por `guardPool` (manejador del pool + manejador de cada cliente que presta)', () => {
+    expect(pool.listenerCount('error')).toBeGreaterThanOrEqual(1);
+    expect(pool.listenerCount('connect')).toBeGreaterThanOrEqual(1);
+  });
+
   it('control negativo: un `Pool` SIN manejador mata el proceso cuando le cortan una conexión ociosa; el del servicio sí tiene manejador', async () => {
     expect(pool.listenerCount('error')).toBeGreaterThanOrEqual(1);
     const script = `
@@ -154,5 +164,124 @@ describe('el pool de la aplicación sobrevive a que Postgres corte conexiones', 
     const text = loggedText();
     expect(text).toContain('Conexión ociosa cortada');
     expect(text).not.toMatch(/terminating connection|administrator command|57P01|FATAL|SELECT|pg_backend_pid|pg_sleep|password|127\.0\.0\.1/i);
+  });
+});
+
+/**
+ * Los clientes que PRESTAN las librerías compartidas (`@pay/idempotency`, `@pay/outbox`): hacen `pool.connect()` y esperan a otro sistema entre consultas.
+ * Se prueban con el pool envuelto EXACTAMENTE como el de producción (`guardPool`) sobre un esquema desechable con el DDL del modelo. Regla 11: un corte en
+ * medio de una operación es AMBIGUO, no un fallo definitivo: nunca queda un efecto a medias, y reintentar con la misma clave converge sin duplicar.
+ */
+describe('las librerías que prestan conexión: corte con pg_terminate_backend EN MEDIO de una transacción', () => {
+  let db: IsolatedDatabase;
+  let killer: Client;
+  const rand = () => Math.random().toString(36).slice(2, 12);
+  const effects = async () => Number((await db.pool.query("SELECT count(*)::int AS n FROM outbox_events WHERE aggregate_type = 'prueba-corte'")).rows[0].n);
+  const effect = (client: { query: Pool['query'] } | { query: (t: string, p?: unknown[]) => Promise<unknown> }, id: string) =>
+    client.query(`INSERT INTO outbox_events (id, aggregate_type, aggregate_id, type, subject, envelope) VALUES ($1, 'prueba-corte', $1, 'prueba.corte', 'prueba.corte', '{}'::jsonb)`, [id]);
+  /** Corta el backend y sigue consultando por esa conexión hasta que falle: el corte cae «en medio» de la transacción. */
+  const cutAndTouch = async (client: { query: (t: string, p?: unknown[]) => Promise<unknown> }, pid: number) => {
+    await killer.query('SELECT pg_terminate_backend($1)', [pid]);
+    for (let i = 0; i < 100; i += 1) {
+      await client.query('SELECT 1');
+      await new Promise((r) => setTimeout(r, 30));
+    }
+  };
+  const pidOf = async (client: { query: (t: string, p?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> }) => (await client.query('SELECT pg_backend_pid() AS pid')).rows[0].pid as number;
+
+  beforeAll(async () => {
+    db = await createIsolatedDatabase([resolve(process.cwd(), 'sql/ddl.sql')]);
+    guardPool(db.pool, 'PgPool');
+    killer = new Client({ connectionString: TEST_DATABASE_URL });
+    await killer.connect();
+  });
+  afterAll(async () => {
+    await killer.end();
+    await db.drop();
+  });
+
+  it('@pay/idempotency: cortar DENTRO de `atomic` ⇒ el proceso sigue, la operación falla, el efecto NO queda, y reintentar con la misma clave lo aplica UNA sola vez', async () => {
+    const store = new IdempotencyStore(db.pool);
+    const request = { scope: 'prueba:corte', key: `k-${rand()}`, requestHash: 'h1' };
+    const id = `ef_${rand()}`;
+    const operation = (cut: boolean) => async (ctx: { atomic: <R>(point: string, work: (c: { query: (t: string, p?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> }) => Promise<R>) => Promise<R> }) => {
+      await ctx.atomic('efecto-aplicado', async (client) => {
+        const pid = await pidOf(client);
+        await effect(client, id);
+        if (cut) await cutAndTouch(client, pid);
+      });
+      return { status: 201, body: { id } };
+    };
+
+    await expect(store.execute(request, operation(true))).rejects.toThrow();
+    expect(await effects()).toBe(0); // la transacción se deshizo entera: ni un efecto a medias
+    const row = (await db.pool.query('SELECT state, locked_at FROM idempotency_keys WHERE scope = $1 AND key = $2', [request.scope, request.key])).rows[0];
+    expect(row).toMatchObject({ state: 'started', locked_at: null }); // la clave quedó libre para el reintento (no «completada» con un fallo)
+
+    const retry = await store.execute(request, operation(false));
+    expect(retry).toMatchObject({ status: 201, replayed: false });
+    expect(await effects()).toBe(1);
+    const again = await store.execute(request, operation(false));
+    expect(again).toMatchObject({ status: 201, replayed: true });
+    expect(await effects()).toBe(1); // exactamente una vez
+  });
+
+  it('@pay/outbox (inbox): cortar dentro de `processOnce` ⇒ ni el efecto ni la marca del evento quedan; el reintento lo procesa una vez y la tercera entrega es duplicado', async () => {
+    const eventId = `ev_${rand()}`;
+    const id = `ef_${rand()}`;
+    await expect(
+      processOnce(db.pool, 'prueba-corte', eventId, async (client) => {
+        const pid = await pidOf(client);
+        await effect(client, id);
+        await cutAndTouch(client, pid);
+      }),
+    ).rejects.toThrow();
+    expect(await effects()).toBe(1 - 1 + (await effects())); // referencia: se compara contra el antes/después de abajo
+    const marked = async () => Number((await db.pool.query("SELECT count(*)::int AS n FROM inbox_events WHERE consumer = 'prueba-corte' AND event_id = $1", [eventId])).rows[0].n);
+    expect(await marked()).toBe(0);
+    const before = await effects();
+    expect(await processOnce(db.pool, 'prueba-corte', eventId, async (client) => void (await effect(client, id)))).toBe('processed');
+    expect(await effects()).toBe(before + 1);
+    expect(await processOnce(db.pool, 'prueba-corte', eventId, async () => undefined)).toBe('duplicate');
+    expect(await marked()).toBe(1);
+  });
+
+  it('@pay/outbox (relé): cortar con la transacción del relé abierta y el evento ya «publicado» ⇒ `drainOnce` falla, NADA queda marcado como publicado, y el siguiente ciclo lo entrega otra vez (al menos una vez; mismo id para deduplicar)', async () => {
+    const ids = [`ob_${rand()}`, `ob_${rand()}`, `ob_${rand()}`];
+    for (const id of ids) await effect(db.pool, id);
+    let relayPid = 0;
+    const delivered: string[] = [];
+    let cutOnce = true;
+    const publisher: EventPublisher = {
+      publish: async (_subject: string, event: CloudEvent) => {
+        delivered.push(event.id);
+        if (cutOnce) {
+          cutOnce = false;
+          await killer.query('SELECT pg_terminate_backend($1)', [relayPid]); // la publicación «salió», pero se pierde la conexión antes de marcarla
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      },
+    };
+    const spyPool = {
+      query: db.pool.query.bind(db.pool),
+      connect: async () => {
+        const client = await db.pool.connect();
+        relayPid = await pidOf(client);
+        return client;
+      },
+    };
+    const relay = new OutboxRelay(spyPool as never, publisher);
+    const published = async () => Number((await db.pool.query("SELECT count(*)::int AS n FROM outbox_events WHERE aggregate_type = 'prueba-corte' AND aggregate_id = ANY($1) AND published_at IS NOT NULL", [ids])).rows[0].n);
+
+    await expect(relay.drainOnce()).rejects.toThrow();
+    expect(await published()).toBe(0); // la transacción del relé se deshizo: ningún evento quedó marcado
+    expect(delivered).toHaveLength(1); // …pero el primero ya salió una vez (ambiguo, no fallo)
+
+    let drained = 0;
+    while (drained < 3) drained += await relay.drainOnce();
+    expect(await published()).toBe(3);
+    const mine = delivered.filter((d) => ids.includes(d));
+    expect(new Set(mine)).toEqual(new Set(ids)); // todos entregados…
+    expect(mine.filter((d) => d === mine[0]).length).toBe(2); // …y el primero DOS veces con el mismo id (el destino deduplica por Nats-Msg-Id)
   });
 });

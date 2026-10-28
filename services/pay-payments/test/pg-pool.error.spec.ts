@@ -172,7 +172,10 @@ describe('3c · pg.Pool: una conexión cortada por Postgres no tumba el proceso 
       expect(await terminate(h.app, 'idle in transaction')).toBe(1);
       await sleep(500);
       expect(h.alive()).toBe(true);
-      expect(await h.send('tx_next')).toMatchObject({ error: 'error', code: expect.stringMatching(/^(57P01|08006)$/) }); // la sentencia que sigue falla: la transacción NO sigue a medias
+      // La sentencia que sigue falla (pg: «Client has encountered a connection error and is not queryable»): la transacción NO sigue a medias.
+      const next = await h.send('tx_next');
+      expect(next.ok).toBeUndefined();
+      expect(next.error).toBeDefined();
       expect(await h.send('ping')).toMatchObject({ ok: true });
       expect(h.alive()).toBe(true);
     } finally {
