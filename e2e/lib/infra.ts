@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statfsSync } from 'node:fs';
 import { connect as netConnect } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { connect } from 'nats';
@@ -72,7 +72,16 @@ function ensureTigerBeetleBinary(): string {
  * pero con archivo de datos y puerto propios, para no pisar al TigerBeetle compartido del script ni que otro lo detenga a mitad de
  * una corrida. Los datos viven en el directorio de la corrida y se borran al apagar.
  */
+/** Espacio libre que exige `format` de TigerBeetle: el archivo de datos preasigna ~1,1 GiB y hay que dejar margen para la copia del binario y los logs. */
+const MIN_FREE_BYTES = 1.8 * 1024 ** 3;
+
 export async function startPrivateTigerBeetle(runDir: string, port: number): Promise<{ managed: Managed; address: string; dataFile: string }> {
+  mkdirSync(runDir, { recursive: true });
+  const fs = statfsSync(runDir);
+  const free = fs.bavail * fs.bsize;
+  if (free < MIN_FREE_BYTES) {
+    throw new Error(`ENTORNO: no hay espacio para el TigerBeetle de la corrida (libre ${(free / 1024 ** 3).toFixed(2)} GiB, hacen falta ${(MIN_FREE_BYTES / 1024 ** 3).toFixed(1)} GiB en ${runDir}). Liberá disco (docker system df, e2e/.run).`);
+  }
   const source = ensureTigerBeetleBinary();
   // Copia del binario a la carpeta de la corrida: otro agente puede volver a descomprimir el del script mientras este corre.
   mkdirSync(runDir, { recursive: true });
@@ -80,7 +89,13 @@ export async function startPrivateTigerBeetle(runDir: string, port: number): Pro
   copyFileSync(source, bin);
   chmodSync(bin, 0o755);
   const dataFile = join(runDir, '0_0.tigerbeetle');
-  execFileSync(bin, ['format', '--cluster=0', '--replica=0', '--replica-count=1', dataFile], { stdio: 'ignore' });
+  try {
+    execFileSync(bin, ['format', '--cluster=0', '--replica=0', '--replica-count=1', dataFile], { stdio: 'ignore' });
+  } catch (error) {
+    // Un `format` interrumpido (típicamente por disco lleno) deja el archivo preasignado a medias: no se conserva.
+    rmSync(dataFile, { force: true });
+    throw error;
+  }
   const address = `127.0.0.1:${port}`;
   const managed = spawnProcess('tigerbeetle', bin, ['start', `--addresses=${address}`, dataFile], ROOT, {}, join(runDir, 'tigerbeetle.log'));
   const ready = await waitFor(() => tcpOpen(address), 30_000, () => (managed.exit ? 'tigerbeetle terminó antes de abrir el puerto' : undefined));

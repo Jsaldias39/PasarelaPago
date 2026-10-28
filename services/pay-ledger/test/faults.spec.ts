@@ -25,6 +25,7 @@ const freePort = (): Promise<number> =>
   });
 const REPO_BINARY = repoPath('.tools/tigerbeetle/tigerbeetle');
 /** Copia del binario con otro nombre y datos en `data.db`: así un `pkill tigerbeetle` de otra corrida no mata el almacén de ESTA prueba. */
+// `--cache-grid=128MiB`: con el tamaño por defecto el proceso ocupa ~3 GB y, en una máquina compartida, el OOM killer del kernel lo mata en plena prueba.
 let BINARY = '';
 const DATA = 'data.db';
 const CLEARING = 'connector:mercantil_qr:clearing';
@@ -42,7 +43,7 @@ let dir: string;
 let tb: ChildProcess | undefined;
 const startTb = async () => {
   const log = join(dir, `tb-${Date.now()}.log`);
-  tb = spawn(BINARY, ['start', `--addresses=127.0.0.1:${PORT}`, join(dir, DATA)], { stdio: ['ignore', openSync(log, 'a'), openSync(log, 'a')] });
+  tb = spawn(BINARY, ['start', `--addresses=127.0.0.1:${PORT}`, '--cache-grid=128MiB', join(dir, DATA)], { stdio: ['ignore', openSync(log, 'a'), openSync(log, 'a')] });
   const opened = await waitFor(portOpen, 40_000, 200);
   if (!opened) process.stderr.write(`TigerBeetle de la prueba no abrió el puerto ${PORT}:\n${readFileSync(log, 'utf8').slice(-1500)}\n`);
   expect(opened).toBe(true);

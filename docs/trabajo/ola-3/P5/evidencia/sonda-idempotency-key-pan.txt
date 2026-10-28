@@ -1,0 +1,9 @@
+# Sonda: Idempotency-Key con forma de PAN (4111111111111111) — ¿llega a logs, respuestas o a la base?
+     pay-merchants: petición 201; la clave con forma de PAN aparece en: tabla idempotency_keys
+HALLAZGO  pay-merchants: Idempotency-Key con forma de PAN persiste en tabla idempotency_keys
+     pay-risk: petición 201; la clave con forma de PAN aparece en: tabla risk_assessments, tabla idempotency_keys
+HALLAZGO  pay-risk: Idempotency-Key con forma de PAN persiste en tabla risk_assessments, tabla idempotency_keys
+     pay-schedules: petición 201; la clave con forma de PAN aparece en: tabla idempotency_keys
+HALLAZGO  pay-schedules: Idempotency-Key con forma de PAN persiste en tabla idempotency_keys
+
+resultado: PASS
