@@ -91,8 +91,13 @@ describe('conexión ociosa cortada por Postgres: el proceso sobrevive y el pool 
   }, 60_000);
 
   it('límite: se cortan TODAS las conexiones ociosas a la vez; las siguientes peticiones, incluso concurrentes, se atienden', async () => {
-    await Promise.all(['pool-all-0001-padding', 'pool-all-0002-padding', 'pool-all-0003-padding'].map((k) => post(creation(k).request)));
-    const all = await idle();
+    // Precondición: más de una conexión ociosa. En un equipo rápido 3 peticiones pueden atenderse sobre una sola conexión, así que la ráfaga concurrente
+    // se repite hasta que el pool abrió varias (la aserción sigue exigiendo > 1).
+    const all = (await until(async () => {
+      await Promise.all(['pool-all-0001-padding', 'pool-all-0002-padding', 'pool-all-0003-padding'].map((k) => post(creation(k).request)));
+      const found = await idle();
+      return found.length > 1 ? found : undefined;
+    }, 30_000)) as Backend[];
     expect(all.length).toBeGreaterThan(1);
     await terminate(admin, all.map((b) => b.pid));
     await gone(all.map((b) => b.pid));
