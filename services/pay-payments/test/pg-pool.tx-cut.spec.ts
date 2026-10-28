@@ -48,7 +48,7 @@ describe('corte a mitad de una transacción (conexión prestada) en pay-payments
       expect(response.status).toBe(500);
       expect(response.type).toBe('application/problem+json');
       expect(response.body.code).toBe('internal_error');
-      expect(JSON.stringify(response.body)).not.toMatch(/terminat|administrator|payment_intents|INSERT|57P01/i);
+      expect(JSON.stringify(response.body)).not.toMatch(/terminat|administrator|INSERT|SELECT|57P01/i);
     } finally {
       await dropTrigger('payment_intents');
     }

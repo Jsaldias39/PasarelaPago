@@ -178,7 +178,7 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
   const rand = () => Math.random().toString(36).slice(2, 12);
   const effects = async () => Number((await db.pool.query("SELECT count(*)::int AS n FROM outbox_events WHERE aggregate_type = 'prueba-corte'")).rows[0].n);
   const effect = (client: { query: Pool['query'] } | { query: (t: string, p?: unknown[]) => Promise<unknown> }, id: string) =>
-    client.query(`INSERT INTO outbox_events (id, aggregate_type, aggregate_id, type, subject, envelope) VALUES ($1, 'prueba-corte', $1, 'prueba.corte', 'prueba.corte', '{}'::jsonb)`, [id]);
+    client.query(`INSERT INTO outbox_events (id, aggregate_type, aggregate_id, type, subject, envelope) VALUES ($1::text, 'prueba-corte', $1::text, 'prueba.corte', 'prueba.corte', jsonb_build_object('id', $1::text))`, [id]);
   /** Corta el backend y sigue consultando por esa conexión hasta que falle: el corte cae «en medio» de la transacción. */
   const cutAndTouch = async (client: { query: (t: string, p?: unknown[]) => Promise<unknown> }, pid: number) => {
     await killer.query('SELECT pg_terminate_backend($1)', [pid]);
