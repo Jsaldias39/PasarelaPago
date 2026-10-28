@@ -1,0 +1,41 @@
+(node:16797) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16798) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 16797  - [39m10/28/2026, 1:58:13 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+FAIL test/pool-resilience.spec.ts (5.256 s)
+
+
+  ● Test suite failed to run
+
+    Unhandled error. (Error: Connection terminated unexpectedly
+        at Connection.<anonymous> (/home/user/pasarelapago/node_modules/pg/lib/client.js:204:73)
+        at Object.onceWrapper (node:events:633:28)
+        at Connection.emit (node:events:519:28)
+        at Socket.<anonymous> (/home/user/pasarelapago/node_modules/pg/lib/connection.js:64:12)
+        at Socket.emit (node:events:519:28)
+        at TCP.<anonymous> (node:net:346:12)
+        at TCP.callbackTrampoline (node:internal/async_hooks:130:17))
+
+      at Connection.<anonymous> (../../node_modules/pg/lib/client.js:204:73)
+      at Socket.<anonymous> (../../node_modules/pg/lib/connection.js:64:12)
+      at TCP.callbackTrampoline (node:internal/async_hooks:130:17))
+      at Client._handleErrorEvent (../../node_modules/pg/lib/client.js:422:10)
+      at Connection.<anonymous> (../../node_modules/pg/lib/client.js:222:16)
+      at Socket.<anonymous> (../../node_modules/pg/lib/connection.js:64:12)
+
+[31m[Nest] 16798  - [39m10/28/2026, 1:58:25 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(3) {
+  payout: [32m'po_hvmsrcahc4rl4tn7v23e'[39m,
+  hold: [32m'hd_1b8c3824ef90ee685b72'[39m,
+  hold_status: [32m'expired'[39m
+}
+El riel pagó pero la retención del ledger no se pudo confirmar
+[31m[Nest] 16797  - [39m10/28/2026, 1:58:57 AM [31m  ERROR[39m [38;5;3m[ReconciliationService] [39mObject(2) {
+  run: [32m'rr_csdnecymxpvbjj35eoeq'[39m,
+  err: [32m'TypeError'[39m
+}
+La corrida de conciliación falló por un error inesperado
