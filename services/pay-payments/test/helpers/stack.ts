@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { DefaultLogger, Runtime } from '@temporalio/worker';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
+import { createPgPool } from '../../src/pg-pool';
 import { createIsolatedDatabase, TEST_DATABASE_URL, type IsolatedDatabase } from '@pay/testing';
 import { loadConfig, type ServiceConfig } from '../../src/config';
 import { createDeps, type Deps } from '../../src/deps';
@@ -79,7 +80,8 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
   const config = loadConfig(env);
   // El servicio usa SU pool, del tamaño del de producción (10): la Postgres es compartida por todos los carriles y un pool de 60
   // conexiones por prueba la satura (SQLSTATE 53300). `db.pool` queda solo para que la prueba consulte y verifique.
-  const servicePool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${db.schema}`, max: 10 });
+  // Nace guardado (`createPgPool`) igual que en producción: una prueba que corta conexiones no debe tumbar al worker de Jest.
+  const servicePool = createPgPool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${db.schema}`, max: 10 });
   const deps = createDeps(servicePool as never, config, { wallet });
   const worker = options.inProcessWorker === false ? undefined : await startPaymentsWorker(deps, { workflowsPath: WORKFLOWS_PATH });
   const orchestrator = await TemporalOrchestrator.connect({ address: config.temporal.address, namespace: config.temporal.namespace, taskQueue });

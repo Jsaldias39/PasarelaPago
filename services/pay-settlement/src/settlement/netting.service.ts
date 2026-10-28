@@ -9,7 +9,6 @@ import type { PayMode } from './mode';
 import { LEDGER_PORT, type LedgerPort } from './ports';
 import { chargeCreate, parseOrThrow } from './schemas';
 import { inTransaction } from './unit-of-work';
-import { watchClient } from '../pg-client';
 
 export interface ChargeRow {
   id: string;
@@ -103,7 +102,6 @@ export class NettingService {
   /** Cobra lo que se pueda de un cobro abierto. Devuelve el cobro como quedó. */
   async collect(chargeId: string): Promise<ChargeRow> {
     const lock = await this.pool.connect();
-    const watch = watchClient(lock);
     try {
       await lock.query('SELECT pg_advisory_lock(hashtext($1))', [`charge:${chargeId}`]);
       try {
@@ -112,7 +110,7 @@ export class NettingService {
         await lock.query('SELECT pg_advisory_unlock(hashtext($1))', [`charge:${chargeId}`]).catch(() => undefined); // si la conexión murió, el candado de sesión murió con ella
       }
     } finally {
-      watch.release();
+      lock.release();
     }
   }
 

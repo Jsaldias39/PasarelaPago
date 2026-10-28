@@ -52,7 +52,7 @@ beforeAll(() => {
 afterAll(async () => admin.end());
 
 /** Corta con `pg_terminate_backend` las conexiones de esa `application_name` que estén en ese estado; devuelve cuántas. */
-async function terminate(appName: string, state: 'idle' | 'active', since?: Date): Promise<number> {
+async function terminate(appName: string, state: 'idle' | 'active' | 'idle in transaction', since?: Date): Promise<number> {
   const { rows } = await admin.query(
     `SELECT pg_terminate_backend(pid) AS done FROM pg_stat_activity
       WHERE application_name = $1 AND state = $2 AND pid <> pg_backend_pid() AND ($3::timestamptz IS NULL OR backend_start >= $3)`,
@@ -65,7 +65,7 @@ const backendsOf = async (appName: string): Promise<number> => (await admin.quer
 interface Harness {
   readonly child: ChildProcess;
   readonly app: string;
-  send(op: 'ping' | 'spread' | 'sleep'): Promise<{ ok?: boolean; error?: string; code?: string }>;
+  send(op: 'ping' | 'spread' | 'sleep' | 'tx_open' | 'tx_next' | 'tx_sleep'): Promise<{ ok?: boolean; error?: string; code?: string }>;
   /** Todo lo que el proceso escribió, SIN las respuestas del arnés: es el log del servicio. */
   log(): string;
   alive(): boolean;
@@ -73,11 +73,11 @@ interface Harness {
   stop(): Promise<void>;
 }
 
-async function harness(bare = false): Promise<Harness> {
+async function harness(mode: 'guard' | 'bare' | 'idle-only' = 'guard'): Promise<Harness> {
   const app = `pool-test-${RUN}-${randomBytes(2).toString('hex')}`;
   const child = spawn(process.execPath, [path.join(root, 'test/helpers/pool-child.cjs')], {
     cwd: root,
-    env: { ...process.env, POOL_URL: URL, POOL_APP: app, POOL_BARE: bare ? '1' : '0', NODE_OPTIONS: '' },
+    env: { ...process.env, POOL_URL: URL, POOL_APP: app, POOL_BARE: mode === 'bare' ? '1' : '0', POOL_IDLE_ONLY: mode === 'idle-only' ? '1' : '0', NODE_OPTIONS: '' },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let output = '';
@@ -164,6 +164,52 @@ describe('3c · pg.Pool: una conexión cortada por Postgres no tumba el proceso 
     }
   });
 
+  it('límite (conexión PRESTADA) · se corta la conexión de una transacción abierta ENTRE dos sentencias: el proceso sigue vivo, la siguiente sentencia de esa transacción rechaza y el pool sirve consultas nuevas', async () => {
+    const h = await harness();
+    try {
+      expect(await h.send('tx_open')).toMatchObject({ ok: true });
+      await until(async () => (await admin.query("SELECT 1 FROM pg_stat_activity WHERE application_name = $1 AND state = 'idle in transaction'", [h.app])).rowCount === 1 || undefined, 10_000, 'la transacción abierta');
+      expect(await terminate(h.app, 'idle in transaction')).toBe(1);
+      await sleep(500);
+      expect(h.alive()).toBe(true);
+      expect(await h.send('tx_next')).toMatchObject({ error: 'error', code: expect.stringMatching(/^(57P01|08006)$/) }); // la sentencia que sigue falla: la transacción NO sigue a medias
+      expect(await h.send('ping')).toMatchObject({ ok: true });
+      expect(h.alive()).toBe(true);
+    } finally {
+      await h.stop();
+    }
+  });
+
+  it('inválido (conexión PRESTADA) · se corta en medio de una sentencia DENTRO de una transacción: esa sentencia rechaza con el error de pg, el proceso sigue vivo y nada queda confirmado', async () => {
+    const h = await harness();
+    try {
+      expect(await h.send('tx_open')).toMatchObject({ ok: true });
+      const running = h.send('tx_sleep');
+      await until(async () => (await admin.query("SELECT 1 FROM pg_stat_activity WHERE application_name = $1 AND state = 'active'", [h.app])).rowCount === 1 || undefined, 10_000, 'la sentencia en curso');
+      expect(await terminate(h.app, 'active')).toBe(1);
+      expect(await running).toMatchObject({ error: 'error', code: '57P01' });
+      await sleep(300);
+      expect(h.alive()).toBe(true);
+      expect(await h.send('ping')).toMatchObject({ ok: true });
+      expect(h.log()).not.toMatch(FORBIDDEN_IN_LOG);
+    } finally {
+      await h.stop();
+    }
+  });
+
+  it('CONTROL NEGATIVO · con SOLO pool.on(error) (sin el manejador del cliente prestado) un corte en medio de una transacción SÍ mata el proceso: la corrección del coordinador es necesaria', async () => {
+    const h = await harness('idle-only');
+    try {
+      expect(await h.send('tx_open')).toMatchObject({ ok: true });
+      await until(async () => (await admin.query("SELECT 1 FROM pg_stat_activity WHERE application_name = $1 AND state = 'idle in transaction'", [h.app])).rowCount === 1 || undefined, 10_000, 'la transacción abierta');
+      await terminate(h.app, 'idle in transaction');
+      const outcome = await Promise.race([h.exited, sleep(8_000).then(() => 'sigue vivo' as const)]);
+      expect(outcome).not.toBe('sigue vivo');
+    } finally {
+      await h.stop();
+    }
+  });
+
   it('log · el aviso lleva solo el NOMBRE del error: ni el mensaje de Postgres, ni el SQL, ni el SQLSTATE', async () => {
     const h = await harness();
     try {
@@ -181,7 +227,7 @@ describe('3c · pg.Pool: una conexión cortada por Postgres no tumba el proceso 
   });
 
   it('CONTROL NEGATIVO · un pg.Pool pelado (sin manejador) SÍ muere cuando Postgres corta una ociosa: la prueba detecta el defecto', async () => {
-    const h = await harness(true);
+    const h = await harness('bare');
     try {
       await h.send('ping');
       await until(async () => (await backendsOf(h.app)) >= 1 || undefined, 10_000, 'la conexión del pool');

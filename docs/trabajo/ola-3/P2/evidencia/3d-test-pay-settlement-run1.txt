@@ -18,3 +18,68 @@ El riel pagó pero la retención del ledger no se pudo confirmar
   err: [32m'TypeError'[39m
 }
 La corrida de conciliación falló por un error inesperado
+[31m[Nest] 10410  - [39m10/28/2026, 1:32:00 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(2) {
+  payout: [32m'po_rmxqtz3wmturwdgtjukk'[39m,
+  reason: [32m'RailAmbiguousError'[39m
+}
+ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva
+[31m[Nest] 10410  - [39m10/28/2026, 1:32:00 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(2) {
+  payout: [32m'po_rmxqtz3wmturwdgtjukk'[39m,
+  reason: [32m'RailAmbiguousError'[39m
+}
+ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva
+[31m[Nest] 10409  - [39m10/28/2026, 1:32:08 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+FAIL test/sensitive-data.spec.ts (5.135 s)
+  ● GAP conocido (librería compartida @pay/idempotency, carril P1): la clave de idempotencia se guarda tal cual › una Idempotency-Key con forma de PAN no llega a la base
+
+    Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.
+
+      122 |   // pusiera allí un PAN, un nombre o un documento, quedaría en la base. El contrato solo limita el largo (255). Mitigación posible: rechazar claves con forma de PAN
+      123 |   // (15-19 dígitos que cumplan Luhn) en la librería. `failing` pasa mientras se guarde y FALLA cuando P1 lo cierre: entonces quitar `.failing`.
+    > 124 |   it.failing('una Idempotency-Key con forma de PAN no llega a la base', async () => {
+          |      ^
+      125 |     ctx = await createSettlementContext();
+      126 |     await ctx.as('pay-schedules').post('/payouts', { merchant_id: merchantId(), amount_minor: 100, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', CANARY.pan);
+      127 |     expect(findLeaks('filas de la base', (await dumpSchema(ctx.db.pool)).text)).toEqual([]);
+
+      at failing (test/sensitive-data.spec.ts:124:6)
+      at describe (test/sensitive-data.spec.ts:120:1)
+
+{"level":30,"time":1793151143414,"pid":10410,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":13,"msg":"request completed"}
+[31m[Nest] 10410  - [39m10/28/2026, 1:32:23 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'98709f53-5235-4ae0-a425-4e1a329f36b6'[39m
+}
+Error no controlado
+{"level":30,"time":1793151143421,"pid":10410,"hostname":"vm","req":{"id":"98709f53-5235-4ae0-a425-4e1a329f36b6","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":2,"msg":"request errored"}
+{"level":30,"time":1793151143588,"pid":10410,"hostname":"vm","req":{"id":"170c9116-2ec6-4d10-9fb1-9f54b0241b53","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":158,"msg":"request completed"}
+
+Summary of all failing tests
+FAIL test/sensitive-data.spec.ts (5.135 s)
+  ● GAP conocido (librería compartida @pay/idempotency, carril P1): la clave de idempotencia se guarda tal cual › una Idempotency-Key con forma de PAN no llega a la base
+
+    Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.
+
+      122 |   // pusiera allí un PAN, un nombre o un documento, quedaría en la base. El contrato solo limita el largo (255). Mitigación posible: rechazar claves con forma de PAN
+      123 |   // (15-19 dígitos que cumplan Luhn) en la librería. `failing` pasa mientras se guarde y FALLA cuando P1 lo cierre: entonces quitar `.failing`.
+    > 124 |   it.failing('una Idempotency-Key con forma de PAN no llega a la base', async () => {
+          |      ^
+      125 |     ctx = await createSettlementContext();
+      126 |     await ctx.as('pay-schedules').post('/payouts', { merchant_id: merchantId(), amount_minor: 100, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', CANARY.pan);
+      127 |     expect(findLeaks('filas de la base', (await dumpSchema(ctx.db.pool)).text)).toEqual([]);
+
+      at failing (test/sensitive-data.spec.ts:124:6)
+      at describe (test/sensitive-data.spec.ts:120:1)
+
+
+Test Suites: 1 failed, 28 passed, 29 total
+Tests:       1 failed, 565 passed, 566 total
+Snapshots:   0 total
+Time:        120.422 s
+Ran all test suites.
+Test results written to: ../../../../../tmp/claude-0/-home-user/e2a1ca80-8ad4-54a7-8e83-0b9ce0655bff/scratchpad/3d-pay-settlement-run1.json
+rc=1

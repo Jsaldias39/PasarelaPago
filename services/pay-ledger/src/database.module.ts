@@ -1,8 +1,9 @@
-import { Global, Inject, Logger, Module, type OnApplicationShutdown } from '@nestjs/common';
+import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { defineConfig } from '@mikro-orm/postgresql';
 import { Pool } from 'pg';
 import { SERVICE_CONFIG, loadConfig, type ServiceConfig } from './config';
+import { guardPool } from './pool-guard';
 
 /** Pool de `pg` que usan las librerías @pay/* (idempotencia, outbox, inbox). El ORM tiene el suyo. */
 export const PG_POOL = Symbol('PG_POOL');
@@ -44,11 +45,8 @@ const config = loadConfig();
           max: 10,
           application_name: 'pay-ledger',
         });
-        // Si Postgres corta una conexión ociosa (reinicio, failover, pg_terminate_backend) el pool emite `error`; sin manejador Node lo trata como
-        // excepción no capturada y el proceso muere. El pool descarta esa conexión y abre otra en la siguiente consulta. Solo se registra el NOMBRE del
-        // error: el mensaje puede traer la consulta o datos de la conexión.
-        pool.on('error', (error) => new Logger('PgPool').warn({ err: error.name }, 'Conexión ociosa cortada por Postgres; el pool la repone'));
-        return pool;
+        // Sin manejadores de `error` un corte de Postgres (reinicio, failover, pg_terminate_backend) tira el proceso, con la conexión ociosa Y con la prestada.
+        return guardPool(pool, 'PgPool');
       },
     },
   ],

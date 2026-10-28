@@ -1,0 +1,25 @@
+(node:17777) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 17777  - [39m10/28/2026, 1:32:31 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+(node:17778) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/sensitive-data.spec.ts (6.752 s)
+  ● GAP conocido (librería compartida @pay/idempotency, carril P1): la clave de idempotencia se guarda tal cual › una Idempotency-Key con forma de PAN no llega a la base
+
+    Failing test passed even though it was supposed to fail. Remove `.failing` to remove error.
+
+      122 |   // pusiera allí un PAN, un nombre o un documento, quedaría en la base. El contrato solo limita el largo (255). Mitigación posible: rechazar claves con forma de PAN
+      123 |   // (15-19 dígitos que cumplan Luhn) en la librería. `failing` pasa mientras se guarde y FALLA cuando P1 lo cierre: entonces quitar `.failing`.
+    > 124 |   it.failing('una Idempotency-Key con forma de PAN no llega a la base', async () => {
+          |      ^
+      125 |     ctx = await createSettlementContext();
+      126 |     await ctx.as('pay-schedules').post('/payouts', { merchant_id: merchantId(), amount_minor: 100, currency: 'BOB', rail: 'bank_transfer', reason: 'manual' }).set('idempotency-key', CANARY.pan);
+      127 |     expect(findLeaks('filas de la base', (await dumpSchema(ctx.db.pool)).text)).toEqual([]);
+
+      at failing (test/sensitive-data.spec.ts:124:6)
+      at describe (test/sensitive-data.spec.ts:120:1)
+

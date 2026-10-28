@@ -2,7 +2,6 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { TransferFlags, type Transfer } from 'tigerbeetle-node';
 import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database.module';
-import { watchClient } from '../pg-client';
 import { holdGroupId, toHex128, txGroupId } from './ids';
 import { LEDGER_CONFIG, type LedgerConfig } from './ledger.config';
 import { KEY_MODE_OF, type PayMode } from './mode';
@@ -153,11 +152,9 @@ export class ReconcilerService {
 
   private async run(mode: PayMode, startedAt: Date, options: ReconcileOptions, finish: (s: ReconciliationStatus, r?: Partial<ReconciliationReport>) => ReconciliationReport): Promise<ReconciliationReport> {
     let client: PoolClient | undefined;
-    let watch: ReturnType<typeof watchClient> | undefined;
     let locked = false;
     try {
       client = await this.pool.connect();
-      watch = watchClient(client);
       const lock = await client.query<{ got: boolean }>(`SELECT pg_try_advisory_lock(hashtext('ledger:reconciler:' || current_schema() || ':' || $1)) AS got`, [mode]);
       locked = lock.rows[0].got;
       if (!locked) return finish('skipped', { detail: 'otra réplica está reconciliando' });
@@ -216,7 +213,7 @@ export class ReconcilerService {
     } finally {
       if (client) {
         if (locked) await client.query(`SELECT pg_advisory_unlock(hashtext('ledger:reconciler:' || current_schema() || ':' || $1))`, [mode]).catch(() => undefined);
-        watch?.release();
+        client.release();
       }
     }
   }
