@@ -1,0 +1,38 @@
+FAIL e2e/flows/e3.e2e.ts (118.477 s)
+  ● E3 — reembolso parcial con retención y fallo del conector › el stack incluye al banco simulado y el proxy de fallos reenvía hacia él
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      81 |     expect(probe.status).toBe(200);
+      82 |     // pay-connectors habla con el proxy (MOCKBANK_URL) y el proxy con el banco: si el conector hubiera quedado fuera, el cobro de abajo no pasaría.
+    > 83 |     expect(proxy.records.some((r) => r.action === 'forwarded')).toBe(true);
+         |                                                                 ^
+      84 |   });
+      85 |
+      86 |   it('CORRECTO: reembolso parcial de Bs 40,00 sobre Bs 100,00: retención, orden al banco, confirmación; el dinero sale UNA vez y quedan 60,00 por reembolsar', async () => {
+
+      at Object.toBe (e2e/flows/e3.e2e.ts:83:65)
+
+  ● E3 — reembolso parcial con retención y fallo del conector › FALLO DEFINITIVO (502 connector_unavailable, banco caído): el reembolso queda failed, la retención se anula, el disponible vuelve entero y el importe se puede volver a reembolsar
+
+    No se cumplió «el reembolso re_26b26cf1ad8ab68a32fcf8d1 llega a un estado terminal» en 60000 ms; último valor: {"id":"re_26b26cf1ad8ab68a32fcf8d1","object":"refund","payment_intent":"pi_0263bd04802afc563e5e4363","amount_minor":4000,"currency":"BOB","status":"pending","reason":"requested_by_customer","failure_code":null,"created_at":"2026-10-28T05:48:50.498Z"}
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/flows/e3.e2e.ts:195:22)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 4 passed, 6 total
+Snapshots:   0 total
+Time:        118.547 s
+Ran all test suites matching e2e/flows/e3.

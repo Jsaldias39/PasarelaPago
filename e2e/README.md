@@ -6,8 +6,8 @@ TigerBeetle privado, en `PAY_MODE=sandbox` con el conector `mock`. Matriz, halla
 
 ```bash
 yarn e2e:up | e2e:down | e2e:boot | e2e:smoke
-yarn e2e            # jest, 1 worker: humo, degradado, E1, E2, E4, E5, E6, E8, D-32, ledger, callbacks, guardia de modo, capa sandbox (pay-mockbank), candado y unitarias del arnés
-yarn e2e:pending    # solo lo que hoy no puede pasar: e2e/pending/risk-timeout.e2e.ts, el reproductor del hallazgo 9 de ARNES.md (falla a propósito)
+yarn e2e            # jest, 1 worker: humo, degradado, E1, E2, E3, E4, E5, E6, E7, E8, D-32, ledger, callbacks, guardia de modo, capa sandbox (pay-mockbank), candado y unitarias del arnés
+yarn e2e:pending    # solo lo que hoy no puede pasar (falla a propósito): e3-fallo-definitivo (hallazgo 13) y e7-token-mockbank (hallazgo 14) de ARNES.md
 yarn e2e:typecheck
 yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo proceso (docs/trabajo/ola-3/P1/CARGA.md)
 ```
@@ -21,6 +21,12 @@ yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo
   `stack.callAs(from, name, …)` (añade `x-service-id`, `x-pay-mode`, `x-merchant-id`).
 - `lib/seed.ts` siembra un comercio sandbox (DOBLE declarado del onboarding) con llave `sk_test_`.
 - `lib/receiver.ts` es el comercio de prueba: HTTPS con certificado autofirmado, con rutas `up`/`down`/`gone`.
-- Las dependencias `pg`, `nats` y `yaml` se importan desde el `node_modules` raíz (no están declaradas).
+- Las dependencias `pg`, `nats`, `yaml` y `@temporalio/client` se importan desde el `node_modules` raíz (no están declaradas).
 - `flows/` es la suite por defecto (todo debe pasar). `pending/` son pruebas escritas contra el contrato que hoy no pueden pasar por una
   causa ajena documentada en ARNES.md § Pendientes; cuando la causa se resuelve se mueven a `flows/`.
+
+## E3 y E7 (tanda P1.H5.M3) — dobles que usan
+
+- `flows/e3.e2e.ts` — reembolso parcial con retención y fallo del conector (12 servicios). Dobles declarados: `pay-mockbank` (banco simulado); `lib/fault-proxy.ts` (`BankFaultProxy`, entre `pay-connectors` y el banco: reenvía la orden, el banco la EJECUTA y corta la conexión, para el fallo AMBIGUO que el banco no sabe producir con reembolsos); saldo disponible por asiento de apertura sintético (`fundWallet`); tiempos del arnés de `pay-payments` (espera 3 s, consulta 1 s, 2 intentos, reintento lento 1 s). El fallo definitivo de punta a punta está en `pending/e3-fallo-definitivo.e2e.ts` (hallazgo 13).
+- `flows/e7.e2e.ts` — tarjeta por campos alojados sin un PAN fuera de pay-vault. PAN SINTÉTICOS (números de prueba públicos; `lib/pan-scan.ts`). Dobles: `lib/hosted-fields-preload.cjs` (campos alojados del PSP, `NODE_OPTIONS=--require` solo en el proceso de pay-vault), la prueba hace de `pay-connectors` para `reveal` y la autorización en el banco simulado (el conector no llama a la bóveda, hallazgo 15) y `lib/otlp-sink.ts` (colector de trazas). Escanea (`lib/sensitive-sources.ts`): logs, bus, todas las filas de las 12 bases, historial de Temporal y trazas.
+- Piezas con prueba propia (sin stack): `lib/fault-proxy.spec.ts`, `lib/pan-scan.spec.ts`, `lib/otlp-sink.spec.ts`.

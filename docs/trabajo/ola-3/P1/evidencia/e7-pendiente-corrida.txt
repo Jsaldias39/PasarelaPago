@@ -1,0 +1,22 @@
+  ● hallazgo 14 pendiente — pay-mockbank acepta un token legítimo con una racha de 12 dígitos › autoriza una tarjeta con card_token tok_ab123456789012cdef0123ab
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 422
+
+      20 |   it('autoriza una tarjeta con card_token tok_ab123456789012cdef0123ab', async () => {
+      21 |     const res = await stack.callAs('pay-connectors', 'pay-mockbank', 'POST', '/sandbox/card-authorizations', { payMode: 'test', json: { reference: 'ch_e7token00000000000001', amount_minor: 10_000, card_token: 'tok_ab123456789012cdef0123ab' } });
+    > 22 |     expect(res.status).toBe(201); // FALLA HOY: 422
+         |                        ^
+      23 |   });
+      24 | });
+      25 |
+
+      at Object.toBe (e2e/pending/e7-token-mockbank.e2e.ts:22:24)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        2.392 s, estimated 3 s
+Ran all test suites matching e2e/pending/e7-token.

@@ -1,0 +1,21 @@
+FAIL e2e/pending/e3-fallo-definitivo.e2e.ts (53.108 s)
+  ● E3 pendiente — fallo definitivo del conector (502 connector_unavailable) deja el reembolso failed y la retención anulada › con el banco caído el reembolso termina failed (connector_unavailable), la retención queda anulada y el disponible vuelve entero
+
+    No se cumplió «el reembolso re_1d033d4afe24ae48066e0d98 llega a un estado terminal» en 30000 ms; último valor: {"id":"re_1d033d4afe24ae48066e0d98","object":"refund","payment_intent":"pi_c3153e850b204fcfbdf7d3f5","amount_minor":4000,"currency":"BOB","status":"pending","reason":"requested_by_customer","failure_code":null,"created_at":"2026-10-28T05:53:11.008Z"}
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/pending/e3-fallo-definitivo.e2e.ts:49:21)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        53.163 s
+Ran all test suites.
