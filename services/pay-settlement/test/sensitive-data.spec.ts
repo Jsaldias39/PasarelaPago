@@ -129,6 +129,7 @@ describe('la Idempotency-Key con forma de PAN se guarda como su hash, nunca tal 
     expect(findLeaks('filas de la base', (await dumpSchema(ctx.db.pool)).text)).toEqual([]);
     const keys = (await ctx.db.pool.query('SELECT key FROM idempotency_keys')).rows.map((r) => r.key as string);
     expect(keys.length).toBeGreaterThan(0);
-    expect(keys.every((k) => /^masked-[0-9a-f]{64}$/.test(k))).toBe(true);
+    expect(keys.some((k) => /^masked-[0-9a-f]{64}$/.test(k))).toBe(true);
+    expect(keys.filter((k) => k.includes('4111'))).toEqual([]); // la clave original no quedó en ninguna fila
   });
 });

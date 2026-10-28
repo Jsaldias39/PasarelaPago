@@ -65,6 +65,20 @@ describe('pay-edge: una conexión ociosa cortada por Postgres no tumba el proces
     expect(uncaught).toEqual([]);
   });
 
+  it('límite: una conexión PRESTADA cortada en MEDIO de una transacción (entre dos sentencias) NO tumba el proceso; quien la usa recibe el rechazo y el pool sigue sirviendo', async () => {
+    const client = await pool.connect();
+    await client.query('BEGIN');
+    const pid = (await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid;
+    await client.query('CREATE TEMP TABLE medio (n int)');
+    await terminate([pid]);
+    // El `error` del cliente llega con la conexión prestada y sin consulta en vuelo: sin `guardPool` este evento no tiene escucha y mata el proceso.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(uncaught).toEqual([]);
+    await expect(client.query('INSERT INTO medio VALUES (1)')).rejects.toBeInstanceOf(Error);
+    client.release(true);
+    expect((await pool.query('SELECT 1 AS ok')).rows[0]).toEqual({ ok: 1 });
+  });
+
   it('privacidad: al log va solo el NOMBRE del error, nunca su mensaje', async () => {
     const pids = await idleBackends(2);
     warnings.length = 0;

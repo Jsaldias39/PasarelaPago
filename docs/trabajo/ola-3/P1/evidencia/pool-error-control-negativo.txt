@@ -1,0 +1,9 @@
+## CONTROL NEGATIVO pay-edge: solo pool.on('error') (patrón anterior), sin guardPool
+  ● pay-edge: una conexión ociosa cortada por Postgres no tumba el proceso › límite: se cortan TODAS las conexiones ociosas a la vez y el pool se repone
+    Unhandled error. (error: terminating connection due to administrator command
+  ● pay-edge: una conexión ociosa cortada por Postgres no tumba el proceso › límite: se cortan TODAS las conexiones ociosas a la vez y el pool se repone
+    Unhandled error. (Error: Connection terminated unexpectedly
+  ● pay-edge: una conexión ociosa cortada por Postgres no tumba el proceso › privacidad: al log va solo el NOMBRE del error, nunca su mensaje
+Tests:       2 failed, 2 passed, 4 total
+## restaurado (con guardPool)
+Tests:       4 passed, 4 total

@@ -2,28 +2,29 @@
 exit=0
 ## idempotency build  (cd contracts/packages/idempotency && yarn build)
 exit=0
-## idempotency test  (cd contracts/packages/idempotency && yarn test --maxWorkers=2)
-Test Suites: 2 passed, 2 total
-Tests:       30 passed, 30 total
-Time:        1.583 s, estimated 2 s
+## idempotency test run 1  (cd contracts/packages/idempotency && yarn test --maxWorkers=2)
+Test Suites: 4 passed, 4 total
+Tests:       129 passed, 129 total
+Time:        3.373 s
+exit=0
+## idempotency test run 2  (cd contracts/packages/idempotency && yarn test --maxWorkers=2)
+Test Suites: 4 passed, 4 total
+Tests:       129 passed, 129 total
+Time:        3.139 s
 exit=0
 ## pay-edge typecheck  (cd services/pay-edge && yarn typecheck)
 exit=0
 ## pay-edge build  (cd services/pay-edge && yarn build)
 exit=0
 ## pay-edge test run 1  (cd services/pay-edge && yarn test --maxWorkers=2)
-  err: [32m'Error'[39m,
-Error no controlado
 Test Suites: 15 passed, 15 total
-Tests:       403 passed, 403 total
-Time:        17.74 s
+Tests:       406 passed, 406 total
+Time:        18.158 s
 exit=0
 ## pay-edge test run 2  (cd services/pay-edge && yarn test --maxWorkers=2)
-  err: [32m'Error'[39m,
-Error no controlado
 Test Suites: 15 passed, 15 total
-Tests:       403 passed, 403 total
-Time:        17.137 s, estimated 18 s
+Tests:       406 passed, 406 total
+Time:        18.664 s
 exit=0
 ## pay-webhooks typecheck  (cd services/pay-webhooks && yarn typecheck)
 exit=0
@@ -31,27 +32,18 @@ exit=0
 exit=0
 ## pay-webhooks test run 1  (cd services/pay-webhooks && yarn test --maxWorkers=2)
 Test Suites: 13 passed, 13 total
-Tests:       409 passed, 409 total
-Time:        9.059 s, estimated 12 s
+Tests:       411 passed, 411 total
+Time:        10.556 s, estimated 13 s
 exit=0
 ## pay-webhooks test run 2  (cd services/pay-webhooks && yarn test --maxWorkers=2)
 Test Suites: 13 passed, 13 total
-Tests:       409 passed, 409 total
-Time:        11.9 s
+Tests:       411 passed, 411 total
+Time:        11.931 s
 exit=0
 ## e2e:typecheck  (cd . && yarn e2e:typecheck)
 exit=0
 ## yarn lint (raíz)  (cd . && yarn lint)
-  15:22  error  Irregular whitespace not allowed  no-irregular-whitespace
-  15:26  error  Irregular whitespace not allowed  no-irregular-whitespace
-  16:27  error  Irregular whitespace not allowed  no-irregular-whitespace
-   7:10  error  'eventsOf' is defined but never used           @typescript-eslint/no-unused-vars
-   7:60  error  'statusOf' is defined but never used           @typescript-eslint/no-unused-vars
-   7:70  error  'waitFor' is defined but never used            @typescript-eslint/no-unused-vars
-  11:5   error  'contract' is assigned a value but never used  @typescript-eslint/no-unused-vars
-✖ 7 problems (7 errors, 0 warnings)
-exit=1
+exit=0
+## eslint solo de lo mío  (cd . && yarn eslint contracts/packages/idempotency/**/*.ts services/pay-edge/**/*.ts services/pay-webhooks/**/*.ts platform/**/*.ts e2e/**/*.ts)
+exit=0
 ## contracts:lint  (cd . && yarn contracts:lint)
-exit=0
-## contracts:events  (cd . && yarn contracts:events)
-exit=0

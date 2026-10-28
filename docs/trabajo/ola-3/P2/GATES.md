@@ -1,4 +1,4 @@
-> **AVANCE (matriz de gates): 10 / 13 gates de PLAN-MAESTRO §7 en PASS (5 de ellos con un GAP declarado y con dueño) · 3 `NO APLICA AÚN`** — más la fila de Dockerfile en PASS y la de inmutabilidad como GAP propuesto. Peldaño: **`TESTED`** (nada se ejecutó contra el stack E1–E8, ni contra Jaeger, ni contra un banco real).
+> **AVANCE (matriz de gates): 10 / 13 gates de PLAN-MAESTRO §7 en PASS (los gates 5, 6 y 7 con un GAP menor declarado y con dueño) · 3 `NO APLICA AÚN`** — más la fila de Dockerfile en PASS y la de inmutabilidad como GAP propuesto. Peldaño: **`TESTED`** (nada se ejecutó contra el stack E1–E8, ni contra Jaeger, ni contra un banco real).
 
 # Matriz de gates P2 — `pay-ledger` y `pay-settlement` (ola 3)
 
@@ -18,14 +18,15 @@
 | 4 | Idempotencia en paralelo | **PASS** | N=10 en paralelo, misma clave, por cada mutación: un solo efecto |
 | 5 | Autorización negativa | **PASS** con **GAP** (clave revocada: es de P1/P5) | otro comercio, sin identidad/clave, `test` contra `live`: probados |
 | 6 | Separación | **PASS** con **GAP** menor (`template1`, de P1) | prueba nueva con el rol `dev_only_<svc>` + salida de `psql` + contenedor |
-| 7 | Datos sensibles | **PASS** con **GAP** menores (propuestas 23, 24) | script reproducible; canarios en logs, errores, eventos y filas |
+| 7 | Datos sensibles | **PASS** con **GAP** menor (propuesta 24) | script reproducible; canarios en logs, errores, eventos y filas |
 | 8 | PCI | **PASS** (clasificación provisoria de settlement) | `pci-alcance.md` líneas 33–34 |
 | 9 | Deriva de esquema | **PASS** | `drift.spec` ×2 contra el `ddl.sql` del modelo |
 | 10 | Observabilidad (Jaeger) | **NO APLICA AÚN** | |
-| 11 | Fallos | **PASS** con **GAP** (propuesta 25) | `SIGKILL` a TigerBeetle en medio del servicio, con recuperación |
+| 11 | Fallos | **PASS** (residual declarado: propuesta 27) | `SIGKILL` a TigerBeetle; reconciliador de recuperación TigerBeetle → Postgres; cortes de conexión de Postgres (pool, idempotencia, outbox) |
 | 12 | Carga (T-01) | **NO APLICA AÚN** | |
 | 13 | Sandbox (ola 4) | **NO APLICA AÚN** | |
 | + | Dockerfile (docker build de producción) | **PASS** tras corregir 2 defectos; arranque del ledger **BLOQUEADO** (ENVIRONMENT) | imágenes construidas, probadas y borradas |
+| + | Cortes de conexión de Postgres (3d) | **PASS** | `guardPool` + `pg_terminate_backend` en pool, clientes prestados, `@pay/idempotency` y `@pay/outbox` |
 | + | Inmutabilidad de registros de dinero (3c) | **GAP** propuesto, no implementado | propuesta 20 |
 
 ---
@@ -47,12 +48,12 @@ Suites completas con TigerBeetle real, `--maxWorkers=2`:
 
 | Servicio | Corrida | Suites | Pruebas | Salida |
 |---|---|---|---|---|
-| pay-ledger | 1 | 18/18 | **276/276** | `evidencia/3c-test-pay-ledger-run1.txt` |
-| pay-ledger | 2 | 18/18 | **276/276** | `evidencia/3c-test-pay-ledger-run2.txt` |
-| pay-settlement | 1 | 28/28 | **560/560** | `evidencia/3c-test-pay-settlement-run1.txt` |
-| pay-settlement | 2 | 28/28 | **560/560** | `evidencia/3c-test-pay-settlement-run2.txt` |
+| pay-ledger | 1 | 19/19 | **299/299** | `evidencia/3d-test-pay-ledger-run1.txt` |
+| pay-ledger | 2 | 19/19 | **299/299** | `evidencia/3d-test-pay-ledger-run2.txt` |
+| pay-settlement | 1 | 29/29 | **570/570** | `evidencia/3d-test-pay-settlement-run1.txt` |
+| pay-settlement | 2 | 29/29 | **570/570** | `evidencia/3d-test-pay-settlement-run2.txt` |
 
-Comando de cada corrida: `cd services/<svc> && TB_ADDRESS=127.0.0.1:54310 NATS_URL=nats://127.0.0.1:54250 PAY_TEST_NATS_URL=nats://127.0.0.1:54250 yarn test --maxWorkers=2` (TigerBeetle y NATS **propios**, ver «Entorno»; Postgres del Compose). Lista de las pruebas nuevas con su resultado: [`evidencia/3c-pruebas-nuevas.md`](./evidencia/3c-pruebas-nuevas.md).
+(Serie 3d, posterior al reconciliador y a `guardPool`; la serie 3c —276/276 ×2 y 560/560 ×2, `evidencia/3c-test-*`— quedó como antecedente.) Comando de cada corrida: `cd services/<svc> && TB_ADDRESS=127.0.0.1:54310 NATS_URL=nats://127.0.0.1:54250 PAY_TEST_NATS_URL=nats://127.0.0.1:54250 yarn test --maxWorkers=2` (TigerBeetle y NATS **propios**, ver «Entorno»; Postgres del Compose). Lista de las pruebas nuevas con su resultado: [`evidencia/3c-pruebas-nuevas.md`](./evidencia/3c-pruebas-nuevas.md).
 
 - Pruebas **nuevas** de esta ola: `separation.spec.ts` (×2 servicios), `sensitive-data.spec.ts` (×2), `idempotency-parallel.spec.ts` (ledger), `faults.spec.ts` (ledger), `holds-accounts-fk.spec.ts` (ledger).
 - Corridas que **no** cuentan (se conservan en `evidencia/` con su causa, regla 80.4): ver «Entorno».
@@ -135,7 +136,7 @@ Evidencia: `evidencia/3c-test-pay-*-run*.txt` (suites completas) y `evidencia/3a
 
 **GAP menor (de P1) — `template1`:** cualquier rol de servicio abre `template1` (`PGPASSWORD=dev_only_ledger psql -U pay_ledger -d template1` ⇒ entra). No contiene datos de negocio, pero el gate dice «sin permisos sobre las demás bases». La prueba lo declara con `it.failing` (pasa mientras el hueco exista y **falla cuando P1 lo cierre**). Propuesta 22: `REVOKE ALL ON DATABASE template1 FROM PUBLIC` en `platform/postgres/init-databases.sh`.
 
-## 7 · Datos sensibles — PASS, con GAP menores
+## 7 · Datos sensibles — PASS, con GAP menor
 
 **Script reproducible:** [`scripts/check-sensitive-data.sh`](../../../../scripts/check-sensitive-data.sh) (`--static`, `--self-test`).
 
@@ -145,11 +146,11 @@ Evidencia: `evidencia/3c-test-pay-*-run*.txt` (suites completas) y `evidencia/3a
 
 Salida literal: [`evidencia/3c-datos-sensibles.txt`](./evidencia/3c-datos-sensibles.txt) y [`evidencia/3c-datos-sensibles-selftest.txt`](./evidencia/3c-datos-sensibles-selftest.txt).
 
-**Lo que la prueba descubrió (GAP, con `it.failing` que avisa cuando se cierren):**
+**Lo que la prueba descubrió (un GAP abierto con `it.failing` que avisa cuando se cierre; el otro ya se cerró):**
 
 | Hallazgo | Severidad | Dónde | Propuesta |
 |---|---|---|---|
-| La `Idempotency-Key` se guarda tal cual 24 h en `idempotency_keys.key` (si un llamador pusiera un PAN, queda en la base). Pasa en settlement (`POST /payouts…`) y en el ledger (`/holds/{id}/post`) | MENOR (las llamadoras son servicios nuestros que mandan UUID) | `@pay/idempotency` (P1) | 23 |
+| ~~La `Idempotency-Key` se guarda tal cual 24 h~~ **CERRADO por P1** durante esta tanda: `@pay/idempotency` guarda una clave con forma de PAN como `masked-<sha256>` (no la rechaza; la idempotencia sigue). Las dos pruebas `it.failing` avisaron al cerrarse y se convirtieron en pruebas normales (ledger y settlement: sin PAN en la base ni en la respuesta; la clave queda enmascarada) | — | `@pay/idempotency` | — (propuesta 23 cerrada) |
 | La ruta del cliente se refleja en `instance` del `problem+json` y en el log de acceso (`GET /holds/4111111111111111` ⇒ 404 con la ruta). Vuelve al mismo cliente | MENOR | `ProblemFilter`/plantilla (P1) | 24 |
 | Solo se prueba que el **código** no activa captura de valores en la telemetría; **no se inspeccionaron spans reales** (Jaeger) | — | gate «Observabilidad» | cuando exista E1 |
 
@@ -178,7 +179,7 @@ Verificación (97.2): fuente de verdad (el `ddl.sql` del modelo, vendorizado) �
 
 Motivo: la traza de E1 de punta a punta exige el stack completo (P1/P3/P4) corriendo con `OTEL_EXPORTER_OTLP_ENDPOINT`; P2 no está en el camino de E1 hasta el asiento (ledger) y el stack no se levanta en esta ola. Lo que sí existe: ambos servicios tienen `src/observability/telemetry.ts` con instrumentación de http/express/nest/pg, **solo activa** si hay `OTEL_EXPORTER_OTLP_ENDPOINT`, y la etapa estática del gate 7 verifica que no capture valores. Jaeger está levantado en el Compose (healthy) pero **no se inspeccionó ningún span**. Se activa con E1 (ola 3, P1).
 
-## 11 · Fallos — PASS, con GAP
+## 11 · Fallos — PASS
 
 **Experimento de inyección de fallos documentado** (`pay-ledger/test/faults.spec.ts`, ledger real, `evidencia/3c-test-pay-ledger-run*.txt`): se levanta un TigerBeetle propio (puerto libre al azar, binario copiado con otro nombre y caché reducida), se lo mata con **`SIGKILL`** en medio del servicio y se observa.
 
@@ -190,7 +191,14 @@ Motivo: la traza de E1 de punta a punta exige el stack completo (P1/P3/P4) corri
 | Estado final | un solo movimiento y una sola retención, saldos exactos, **invariante global `ok`** |
 | Retención con vencimiento que vence durante la caída | al volver el monto se restituye solo; invariante `ok` |
 
-**Hallazgo (GAP, propuesta 25):** al volver, el cliente de TigerBeetle entrega lo que había quedado en su cola aunque el HTTP ya respondió 503; justo después TigerBeetle puede ir **por delante** de Postgres (movimiento y retención aplicados, sin fila) hasta que el reintento con los mismos ids converge. Es el principio ya documentado (H-5: un timeout no significa que no se aplicó; ids deterministas), pero **si nadie reintenta queda un huérfano** que el invariante detecta y nada repara. Cambio mayor: lo decide el coordinador.
+**Hallazgo (propuesta 25) y su cierre en 3d — reconciliador de recuperación TigerBeetle → Postgres** (`src/ledger/reconciler.service.ts`, `test/reconciler.spec.ts`, 13 pruebas con TigerBeetle y Postgres reales, `evidencia/3d-test-pay-ledger-run*.txt`):
+
+- **Qué hace.** TigerBeetle aplica primero y Postgres registra después; si el proceso muere entre los dos, o el cliente nativo entrega tras un *timeout* lo que quedó en su cola, TigerBeetle queda por delante. El job (al arrancar y cada `LEDGER_RECONCILE_INTERVAL_MS`, 5 min por defecto; candado de sesión de Postgres por esquema y modo ⇒ una réplica a la vez) lee de TigerBeetle **solo** las transferencias marcadas como de este despliegue y modo, las agrupa por operación y busca la operación en Postgres. Lo que no está: **huérfano** (aviso `ledger.reconciliation.diverged` nivel error con importes y cuentas, sin `business_ref` ni datos de personas, + gauges `orphanGroups/orphanAmountMinor/resolutionAhead`). Una retención que Postgres da por `pending` y TigerBeetle ya resolvió: **resolución adelantada**. Una retención huérfana ya vencida: se cuenta (`expiredHolds`), no alerta (TigerBeetle devolvió el monto solo).
+- **Qué NO hace, a propósito.** Solo lee: no inserta, no actualiza, no borra, no asume nada (reglas 5 y 11). Y **no reconstruye la fila**: de una transferencia solo quedan ids (hashes irreversibles) y la marca; el `business_ref` y el `attempt` (NOT NULL) solo los tiene el llamador. Para que sea posible hace falta esquema nuevo (propuesta 27: tabla de hallazgos y tabla de intención previa), que es del modelo.
+- **La marca.** Toda transferencia lleva `user_data_128` = grupo de la operación (asiento, o retención + post/void), `user_data_64` = despliegue, `user_data_32` = modo; TigerBeetle filtra del lado del servidor. Es lo que permite atribuir un huérfano y ignorar lo de otro despliegue/modo.
+- **Los tres niveles** (`reconciler.spec.ts`): *correcto* — sin divergencia no hace nada (6 transferencias / 4 operaciones, `ok`, Postgres intacto, invariante `ok`). *Límite* — TigerBeetle por delante por **una pata**, por **varias patas enlazadas**, por un **contracargo partido**, por una **retención pendiente** y por una **segunda fase**: en cada caso se informa (con nombres de cuenta e importe) y **el reintento del llamador con la misma clave adopta lo aplicado sin duplicar** (saldos exactos, invariante `ok`, reconciliador `ok`); lo muy reciente (`graceMs`) no se informa; la retención vencida no alerta. *Inválido* — transferencias de otro despliegue, de otro ledger de TigerBeetle y sin marca no se leen; las de otro modo solo aparecen al reconciliar ese modo; **idempotente** (3 corridas con huérfanos pendientes ⇒ mismo informe, Postgres y TigerBeetle sin cambios); **falla cerrado** (error al leer TigerBeetle, a mitad del recorrido o al conectar a Postgres ⇒ `failed`, sin `ok` ni huérfanos a medias, alerta propia, y el huérfano sigue ahí cuando se vuelve a poder leer); **una sola réplica** (con el candado tomado, `skipped` sin leer nada).
+- **Cómo se provoca la caída.** Un trigger de PRUEBA, en el esquema desechable, hace fallar el INSERT/UPDATE de Postgres justo después de que el servicio aplicó en TigerBeetle: el servicio responde 500 de verdad y TigerBeetle queda por delante (no se simula con una transferencia armada a mano).
+- **Veredicto.** El riesgo de dinero movido y no visible queda **detectado, avisado y adoptable por el reintento**; el residual que sí queda es que, si **nadie** reintenta, un huérfano **requiere a una persona** (regla 11) hasta que el modelo agregue las tablas de la propuesta 27. Por eso el gate pasa a PASS pero el residual está declarado, no escondido.
 
 Otros experimentos de fallos que ya existían y se corren en las mismas suites: riel ambiguo (`ambiguous_executed`/`ambiguous_lost`) ⇒ retención viva y escalamiento, nunca anulada; ledger caído a mitad de un pago/corte/neteo (`failNext`, `applyFirst`) ⇒ converge al reintentar; extracto ilegible o conector caído ⇒ corrida `failed` sin asientos; muerte del servicio justo tras aplicar en TigerBeetle y antes de Postgres (contracargo) ⇒ el reintento no duplica.
 
@@ -219,6 +227,28 @@ Resultado: **ambos builds `rc=0`** (imagen de 991 MB cada una; incluye `devDepen
 
 **GAP (P1):** no existe `.dockerignore` en la raíz: el contexto completo pesa ~2 GB; por eso el build se hizo con un contexto armado con exactamente lo que el Dockerfile copia. Propuesta 21.
 
+## + · Cortes de conexión de Postgres (pool y clientes prestados) — PASS
+
+Defecto transversal (P5, P4): un `pg.Pool` sin manejador de `error` tira el proceso cuando Postgres corta una conexión. `pool.on('error')` **solo** cubre las ociosas; si el corte llega con la conexión **prestada** (`pool.connect()` en una transacción, un candado de asesoría, el relé del outbox) el cliente emite `error` sin escucha y el proceso muere igual. Corrección en `pay-ledger` y `pay-settlement`: `src/pool-guard.ts` (idéntico al de `pay-connectors`; `guardPool` registra el manejador del pool **y** `pool.on('connect', c => c.on('error', …))`) envolviendo el único `Pool` propio de cada servicio (`database.module.ts`); el pool del ORM (knex) se prueba aparte. Además, `inTransaction` ya no deja que un `ROLLBACK` fallido tape el error real, y los `pg_advisory_unlock` de settlement no tapan el resultado si la conexión murió.
+
+`test/pool-resilience.spec.ts` (10 pruebas por servicio, Postgres real, cortes con `pg_terminate_backend`; los cortes son siempre de pids que la prueba identifica, nunca de otras suites):
+
+| Nivel | Caso | Resultado |
+|---|---|---|
+| control | un `Pool` sin manejador mata un proceso hijo al cortarle la conexión; el `PG_POOL` real tiene los dos manejadores | PASS |
+| correcto | corte de UNA conexión ociosa ⇒ el proceso sigue y el pool repone | PASS |
+| límite | corte de TODAS las ociosas a la vez y la del ORM | PASS |
+| límite | corte en medio de una consulta ⇒ la petición falla con `500 problem+json internal_error` (sin SQL ni mensaje) y el proceso sigue | PASS |
+| límite | conexión PRESTADA cortada entre dos consultas (`inTransaction`) ⇒ la operación falla, el `ROLLBACK` no tapa el error, la conexión muerta se descarta | PASS |
+| inválido | el log solo lleva el NOMBRE del error: ni mensaje de Postgres, ni SQL, ni host/rol | PASS |
+| `@pay/idempotency` | corte DENTRO de `atomic` ⇒ el proceso sigue, la operación falla, **el efecto no queda**, la clave queda libre (`started`, sin bloqueo), el reintento con la misma clave lo aplica **una vez** y el siguiente lo repite | PASS |
+| `@pay/outbox` (inbox) | corte dentro de `processOnce` ⇒ ni el efecto ni la marca del evento; el reintento procesa una vez y la tercera entrega es duplicado | PASS |
+| `@pay/outbox` (relé) | corte con la transacción del relé abierta y el evento ya «publicado» ⇒ `drainOnce` falla, **nada queda marcado**, el siguiente ciclo lo entrega otra vez (al menos una vez, mismo id para deduplicar) | PASS |
+
+Controles negativos (`evidencia/3d-control-negativo-pool-ledger.txt`, `…-settlement.txt`): sin el manejador del pool caen 6 pruebas con `Unhandled error. (error: terminating connection due to administrator command)`; sin el manejador de cada cliente prestado caen 3 (idempotencia, inbox y la del ORM). Ambos restaurados ⇒ 10/10.
+
+**Alcance honesto.** El corte «justo después de enviar `COMMIT` y antes de recibir la respuesta» (efecto aplicado, respuesta perdida) no se pudo provocar de forma determinista con `pg_terminate_backend`; la garantía para ese caso es la ya existente (ids deterministas + `ON CONFLICT`, el reintento converge) y se ejercita en `reconciler.spec.ts`. P1 publicó además un `guardPool` en `@pay/idempotency` (sin dependencia de Nest): los dos `pool-guard.ts` copiados pueden reemplazarse por ese (propuesta 29).
+
 ## + · Inmutabilidad de los registros de dinero de solo-agregar (pedido 3c) — GAP propuesto
 
 Pregunta: ¿`ledger_transactions`, `ledger_legs`, `ledger_statement_lines`, `ledger_rejections` y `settlement_audit` deberían tener un guardián de inmutabilidad? **Sí.** `CLAUDE.md` regla 5: «los errores se corrigen con asientos inversos, nunca con `UPDATE` ni `DELETE`».
@@ -241,6 +271,8 @@ La máquina de pruebas estaba **saturada** durante esta ola: carga 10–17, 8+ p
 
 Las salidas de esas corridas se conservan: `evidencia/3a-test-*` (primeras corridas, con TigerBeetle compartido) y `evidencia/3c-descartada-*`. **No hay `skip`, no se subió ningún timeout y no se agregó ningún reintento.** Queda sin cubrir: nada más allá de lo anotado como GAP o `NO APLICA AÚN`.
 
+**Tanda 3d.** Una primera serie de settlement dio 14 fallos por `No space left on device` al crear esquemas de prueba (ENVIRONMENT: el disco compartido se llenó por builds de otros carriles; `evidencia/3d-descartada-settlement-run1-disco-lleno.txt`) y una segunda falló una sola prueba mía porque P1 cambió `@pay/idempotency` mientras corría (de «rechazar» a «enmascarar» la clave con forma de PAN; la prueba se adaptó a lo que la librería hace hoy, `3d-descartada-settlement-run2-…`). La serie 3d de arriba se corrió completa después, con TigerBeetle y NATS propios. Quedó **detenido** el TigerBeetle compartido (`:54300`) y se bajó el NATS propio.
+
 ## No cubierto (consolidado)
 
 - Stack E1–E8, Jaeger, banco real, carga T-01, sandbox: ver filas 10, 12, 13.
@@ -248,3 +280,7 @@ Las salidas de esas corridas se conservan: `evidencia/3a-test-*` (primeras corri
 - Clave de API revocada (P1/P5).
 - Que el banco no envíe PAN completo (pregunta B).
 - Spans reales de la telemetría.
+- Corte de Postgres justo entre el envío de `COMMIT` y su respuesta (no determinista de provocar).
+- Reconstrucción automática de la fila de un huérfano de TigerBeetle (imposible con el esquema actual: propuesta 27).
+- Métricas del reconciliador fuera del proceso (no hay backend de métricas: propuesta 30).
+- Pools de los otros 9 servicios y de `@pay/testing` (propuesta 29).

@@ -8,7 +8,7 @@ import { containsPan } from './redact';
  *
  * Límite conocido: una palabra en minúsculas, sin dígitos, pasa tal cual (un nombre de persona escrito así en la URL no se enmascara).
  */
-const WORD = /^[a-z][a-z_]{0,40}$/;
+const WORD = /^:?[a-z][a-z_]{0,40}$/; // «:id» (plantilla de ruta de Express) también es una palabra
 const OWN_ID = /^(?:pi|re|dp|mc|cs|tok|ch|cr|tx|hd)_(?=[a-z0-9]*[a-z])[a-z0-9]{8,64}$/;
 
 export function safeUrl(url: string): string {

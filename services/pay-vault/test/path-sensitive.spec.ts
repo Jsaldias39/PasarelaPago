@@ -27,6 +27,7 @@ describe('safeUrl (tres niveles)', () => {
     ['correcto', `${ROUTE_A}/tok_abcdefghij12`, `${ROUTE_A}/tok_abcdefghij12`],
     ['correcto', '/health/ready', '/health/ready'],
     ['correcto', '/probe/problem', '/probe/problem'],
+    ['correcto (plantilla de ruta de Express)', `${ROUTE_A}/:id`, `${ROUTE_A}/:id`],
   ])('%s · %s se conserva', (_nivel, input, expected) => expect(safeUrl(input)).toBe(expected));
 
   it.each([
@@ -75,7 +76,7 @@ describe('los atributos de URL de los spans se enmascaran antes de exportar (Mas
       expect(seen).toHaveLength(1);
       const text = JSON.stringify(seen[0]);
       for (const leak of LEAKS) expect(text).not.toContain(leak);
-      expect(seen[0]).toMatchObject({ 'url.path': `${ROUTE_A}/:x`, 'url.full': `http://svc:3000${ROUTE_B}/:x`, 'http.method': 'GET', 'db.system': 'postgresql', 'http.route': `${ROUTE_A}/:x`, 'url.query': '[redacted]' });
+      expect(seen[0]).toMatchObject({ 'url.path': `${ROUTE_A}/:x`, 'url.full': `http://svc:3000${ROUTE_B}/:x`, 'http.method': 'GET', 'db.system': 'postgresql', 'http.route': `${ROUTE_A}/:id`, 'url.query': '[redacted]' });
     } finally {
       spy.mockRestore();
     }
