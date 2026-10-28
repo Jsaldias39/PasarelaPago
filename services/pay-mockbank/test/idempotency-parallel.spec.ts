@@ -14,7 +14,7 @@ beforeEach(async () => {
 
 const count = async (table: string): Promise<number> => (await t.db.pool.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0].n as number;
 /** Los pedidos salen YA, todos a la vez (supertest es perezoso: `.then` los dispara). */
-const parallel = <T>(n: number, send: (i: number) => request.Test): Promise<request.Response[]> => Promise.all(Array.from({ length: n }, (_, i) => send(i).then((r) => r)));
+const parallel = (n: number, send: (i: number) => request.Test): Promise<request.Response[]> => Promise.all(Array.from({ length: n }, (_, i) => send(i).then((r) => r)));
 
 describe.each([1, 2, 3, 4, 5])('corrida %i', () => {
   it('20 cobros simultáneos con la MISMA referencia ⇒ UN cobro, una sola creación (201), el mismo `bank_reference` y UN callback', async () => {

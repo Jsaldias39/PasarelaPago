@@ -1,0 +1,20 @@
+# Gate: TRUNCATE rechazado en las tablas inmutables, con el ROL DE LA APLICACIÓN (no superusuario, dueño de la base) — modelo af60b79 / INTEGRACION.md §7.4
+     rol: {"u":"pay_merchants","su":false} sobre p5gate_merchants_97a93966
+PASS  se opera con pay_merchants (no superusuario)
+     TRUNCATE contract_versions: la tabla contract_versions es inmutable (TRUNCATE)
+PASS  TRUNCATE contract_versions lo rechaza el trigger (inmutable)
+     TRUNCATE contract_acceptances: la tabla contract_acceptances es inmutable (TRUNCATE)
+PASS  TRUNCATE contract_acceptances lo rechaza el trigger (inmutable)
+     TRUNCATE fee_schedule_versions: la tabla fee_schedule_versions es inmutable (TRUNCATE)
+PASS  TRUNCATE fee_schedule_versions lo rechaza el trigger (inmutable)
+     TRUNCATE fee_schedule_channels: la tabla fee_schedule_channels es inmutable (TRUNCATE)
+PASS  TRUNCATE fee_schedule_channels lo rechaza el trigger (inmutable)
+     UPDATE contract_versions SET published_by = 'otro' WHERE version = 900: la tabla contract_versions es inmutable (UPDATE)
+PASS  con una fila presente: «UPDATE contract_versions SET published_by = 'otro'» lo rechaza el trigger de fila
+     DELETE FROM contract_versions WHERE version = 900: la tabla contract_versions es inmutable (DELETE)
+PASS  con una fila presente: «DELETE FROM contract_versions» lo rechaza el trigger de fila
+PASS  control: api_keys (no inmutable) sí se puede vaciar — el guardián es específico de las tablas inmutables
+     triggers BEFORE TRUNCATE: contract_acceptances.contract_acceptances_no_truncate, contract_versions.contract_versions_no_truncate, fee_schedule_channels.fee_schedule_channels_no_truncate, fee_schedule_versions.fee_schedule_versions_no_truncate
+PASS  las cuatro tablas inmutables tienen su trigger BEFORE TRUNCATE
+
+resultado: PASS

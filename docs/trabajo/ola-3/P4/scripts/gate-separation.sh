@@ -24,6 +24,7 @@ check_service() {
   export PGPASSWORD="$pass"
   local psql_base=(psql -h "$HOST" -p "$PORT" -U "$role" -d "$role" -v ON_ERROR_STOP=1 -q)
   # 1. DDL con el rol del servicio (no el superusuario).
+  # pay-connectors y pay-qr: sql/ddl.sql (el del MODELO, con las tablas técnicas incluidas); pay-mockbank: su doble (sql/001_mockbank.sql).
   local files=("$ROOT/services/$svc/sql/"*.sql)
   [ -n "$extra_sql" ] && files+=($extra_sql)
   local args=(-c "DROP SCHEMA IF EXISTS $schema CASCADE" -c "CREATE SCHEMA $schema" -c "SET search_path TO $schema")
@@ -68,11 +69,9 @@ check_service() {
   unset PGPASSWORD
 }
 
-IDEMP="$ROOT/contracts/packages/idempotency/sql/001_idempotency_keys.sql"
-OUTBOX="$ROOT/contracts/packages/outbox/sql/001_outbox_inbox.sql"
 FUT=$(date -u -d '+1 hour' +%Y-%m-%dT%H:%M:%SZ)
-check_service pay-connectors "$IDEMP $OUTBOX" 'code=$(curl -s -o /dev/null -w "%{http_code}" -H "x-service-id: pay-payments" -H "x-pay-mode: test" "http://127.0.0.1:$port/connectors/health"); [ "$code" = 200 ] && echo "OK GET /connectors/health = 200 (lee connector_health en SU base)" || echo "HTTP $code"'
-check_service pay-qr "$IDEMP $OUTBOX" 'code=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "content-type: application/json" -H "x-service-id: pay-connectors" -H "x-pay-mode: test" -H "idempotency-key: sep-$$-key-padding" -d "{\"kind\":\"dynamic\",\"merchant_id\":\"mc_clinicasantacruz1\",\"merchant_name\":\"Clinica\",\"merchant_city\":\"Santa Cruz\",\"currency\":\"BOB\",\"amount_minor\":10000,\"payment_intent_id\":\"pi_sep$$00000001\",\"expires_at\":\"'"$FUT"'\"}" "http://127.0.0.1:$port/qr"); [ "$code" = 201 ] && echo "OK POST /qr = 201 (escribe qr_codes e idempotency_keys en SU base)" || echo "HTTP $code"'
+check_service pay-connectors "" 'code=$(curl -s -o /dev/null -w "%{http_code}" -H "x-service-id: pay-payments" -H "x-pay-mode: test" "http://127.0.0.1:$port/connectors/health"); [ "$code" = 200 ] && echo "OK GET /connectors/health = 200 (lee connector_health en SU base)" || echo "HTTP $code"'
+check_service pay-qr "" 'code=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "content-type: application/json" -H "x-service-id: pay-connectors" -H "x-pay-mode: test" -H "idempotency-key: sep-$$-key-padding" -d "{\"kind\":\"dynamic\",\"merchant_id\":\"mc_clinicasantacruz1\",\"merchant_name\":\"Clinica\",\"merchant_city\":\"Santa Cruz\",\"currency\":\"BOB\",\"amount_minor\":10000,\"payment_intent_id\":\"pi_sep$$00000001\",\"expires_at\":\"'"$FUT"'\"}" "http://127.0.0.1:$port/qr"); [ "$code" = 201 ] && echo "OK POST /qr = 201 (escribe qr_codes e idempotency_keys en SU base)" || echo "HTTP $code"'
 check_service pay-mockbank "" 'code=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "content-type: application/json" -H "x-service-id: pay-connectors" -H "x-pay-mode: test" -d "{\"reference\":\"ch_sep$$00000001\",\"amount_minor\":10000,\"currency\":\"BOB\",\"method\":\"qr\",\"expires_at\":\"'"$FUT"'\"}" "http://127.0.0.1:$port/sandbox/charges"); [ "$code" = 201 ] && echo "OK POST /sandbox/charges = 201 (escribe mb_charges en SU base)" || echo "HTTP $code"'
 
 echo

@@ -3,7 +3,7 @@
 Pagos programados de la pasarela de pagos ALOVIDA (carril P5, `P5.H3`): el médico paga una obligación mensual (7.7) y un proveedor paga su comisión a ALOVIDA (7.8).
 
 - **Base propia:** `pay_schedules`. No leas la base de ningún otro servicio.
-- **Esquema:** `sql/ddl.sql` es el DDL que GENERA el modelo (`mantra-core-health-model`, D-18), vendorizado con `node scripts/p5-vendor-model-sql.mjs` (`--check` lo contrasta con el modelo). `src/schema-map.ts` es el mapa de lo que el código usa (sin ORM) y `test/drift.spec.ts` verifica mapa ↔ base ↔ SQL. `sql/reference/001_schedules.sql` es el SQL de referencia anterior: se conserva fuera de `sql/` (para que el arnés e2e no lo aplique junto al `ddl.sql`) hasta que el modelo quede estable, y entonces se borra.
+- **Esquema:** `sql/ddl.sql` es el DDL que GENERA el modelo (`mantra-core-health-model`, D-18), vendorizado con `node scripts/p5-vendor-model-sql.mjs` (`--check` lo contrasta con el modelo). `src/schema-map.ts` es el mapa de lo que el código usa (sin ORM) y `test/drift.spec.ts` verifica mapa ↔ base ↔ SQL. El SQL de referencia anterior (`001_*.sql`) se retiró al quedar estable el modelo (commit `af60b79`).
 - **API pública** (la reenvía `pay-edge`, con `X-Merchant-Id` y `X-Pay-Mode: test|live`, D-28): `POST|GET /mandates`, `DELETE /mandates/{id}`. Contrato: `contracts/openapi/public-v1.yaml`.
 - **Eventos:** `mandate.created|canceled`, `scheduled_payment.executed|failed|insufficient_funds` (solo ids y montos). Consume `merchant.activated|suspended|closed` de `pay-merchants` (réplica con inbox).
 

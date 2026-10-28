@@ -3,7 +3,7 @@
 Libro mayor de partida doble de la pasarela. Carril P2 ([`docs/plan/carriles/P2-ledger-y-liquidacion.md`](../../docs/plan/carriles/P2-ledger-y-liquidacion.md)).
 **Es el único servicio que mueve y conoce saldos.** El dinero vive en **TigerBeetle**; Postgres guarda lo que TigerBeetle no tiene.
 
-- **Base propia:** `pay_ledger` (`sql/001_ledger.sql`; a mover a `mantra-core-health-model`, D-18) y TigerBeetle (`TB_ADDRESS`).
+- **Base propia:** `pay_ledger` (`sql/ddl.sql`, **vendorizado** de `mantra-core-health-model` `SQL/pay/72_pay_ledger/ddl.sql`; el modelo es la única fuente, D-18: no se edita a mano, se regenera con `scripts/vendor-model-sql.sh` y se verifica con `--check`) y TigerBeetle (`TB_ADDRESS`).
   Sin ORM: `src/ledger/schema-map.ts` + `test/drift.spec.ts` (deriva, 97.2).
 - **Contratos:** `contracts/openapi/internal-ledger-v1.yaml` y `GET /balance` de `public-v1.yaml`; eventos en `contracts/asyncapi/ledger-settlement.yaml`.
 - **Salud:** `GET /health/live`; `GET /health/ready` (Postgres y TigerBeetle).

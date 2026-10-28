@@ -15,11 +15,8 @@ import type { SimulatedBank } from '../../src/connectors/mock/simulated-bank';
 import { CLOCK, QR_PORT, type Clock } from '../../src/core/tokens';
 
 export const REPO = join(process.cwd(), '../..');
-export const SQL = [
-  join(process.cwd(), 'sql/001_connectors.sql'),
-  join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql'),
-  join(REPO, 'contracts/packages/outbox/sql/001_outbox_inbox.sql'),
-];
+/** El esquema es el del MODELO, vendorizado (D-18): `sql/ddl.sql` ya trae las tablas técnicas (idempotencia, outbox, inbox). */
+export const SQL = [join(process.cwd(), 'sql/ddl.sql')];
 export const SPEC = join(REPO, 'contracts/openapi/internal-connectors-v1.yaml');
 
 /** Reloj de pruebas: avanza solo cuando se le ordena. */
@@ -97,9 +94,11 @@ export async function createTestApp(options: { controllers?: Array<new (...args:
       await db.drop();
     },
     async reset() {
-      await db.pool.query(
-        'TRUNCATE connector_charges, connector_transfers, connector_refunds, connector_callback_events, connector_api_attempts, connector_health, connector_callback_endpoints, bank_transfer_references, statement_exceptions, idempotency_keys, outbox_events, inbox_events CASCADE',
-      );
+      // `DELETE` y no `TRUNCATE`: el modelo prohíbe TRUNCATE en las tablas de dinero (connector_charges/transfers/refunds: append-only para la aplicación).
+      // El orden respeta las FK (hijos primero).
+      for (const table of ['bank_transfer_references', 'connector_refunds', 'connector_callback_events', 'connector_api_attempts', 'connector_charges', 'connector_transfers', 'connector_health', 'connector_callback_endpoints', 'statement_exceptions', 'idempotency_keys', 'outbox_events', 'inbox_events']) {
+        await db.pool.query(`DELETE FROM ${table}`);
+      }
       clock.set(new Date());
       qr.issued.length = 0;
       // Callbacks que el simulador dejó programados por pruebas anteriores: sus cobros ya no existen.

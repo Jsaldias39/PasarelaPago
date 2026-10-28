@@ -10,8 +10,7 @@ import { PG_POOL } from '../src/database.module';
 
 // D-26 (contracts/openapi/common.yaml, `XPayModeSandbox`): en un despliegue sandbox TODA respuesta lleva `X-Pay-Mode: sandbox`; en live, ninguna.
 // Es la cabecera de la RESPUESTA (el despliegue); la de la PETICIÓN (`test|live`, la clave: D-28) es otra y no se toca.
-const REPO = join(process.cwd(), '../..');
-const SQL = [join(process.cwd(), 'sql/001_qr_codes.sql'), join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql')];
+const SQL = [join(process.cwd(), 'sql/ddl.sql')];
 
 let db: IsolatedDatabase;
 let sandbox: INestApplication;

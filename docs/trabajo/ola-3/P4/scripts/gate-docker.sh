@@ -30,7 +30,7 @@ for svc in pay-connectors pay-qr pay-mockbank; do
     # El contenedor corre como `node` contra la base del Compose (red del host), con el rol de SU servicio, en un esquema descartable.
     short=${svc#pay-}; schema="dk_$$_${short}"
     export PGPASSWORD="dev_only_${short}"
-    files=("$ROOT/services/$svc/sql/"*.sql); [ "$svc" != pay-mockbank ] && files+=("$ROOT/contracts/packages/idempotency/sql/001_idempotency_keys.sql" "$ROOT/contracts/packages/outbox/sql/001_outbox_inbox.sql")
+    files=("$ROOT/services/$svc/sql/"*.sql);
     args=(-c "DROP SCHEMA IF EXISTS $schema CASCADE" -c "CREATE SCHEMA $schema" -c "SET search_path TO $schema"); for f in "${files[@]}"; do args+=(-f "$f"); done
     psql -h 127.0.0.1 -p 54321 -U "pay_${short}" -d "pay_${short}" -v ON_ERROR_STOP=1 -q "${args[@]}" >/dev/null 2>&1
     cid=$(docker run -d --rm --network host -e PORT="${PORT[$svc]}" -e DB_HOST=127.0.0.1 -e DB_PORT=54321 -e DB_NAME="pay_${short}" -e DB_USER="pay_${short}" -e DB_PASSWORD="dev_only_${short}" -e PGOPTIONS="-c search_path=$schema" -e PAY_MODE=sandbox -e LOG_LEVEL=warn ${ENVS[$svc]} "p4gate-runtime-${svc}:run")

@@ -8,7 +8,7 @@ import { buildService, freePort, startService, stop, until, type Started } from 
 // Pagador simulado (P4.H4.M4) contra el pay-qr REAL (proceso `dist/main.js` de pay-qr, esquema aislado): se emite un QR de verdad, el banco lo registra,
 // y `mockbank pay <qr>` lo decodifica con pay-qr y lo paga. Nada de stubs en este camino.
 const url = new URL(TEST_DATABASE_URL);
-const QR_SQL = [join(REPO, 'services/pay-qr/sql/001_qr_codes.sql'), join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql')];
+const QR_SQL = [join(REPO, 'services/pay-qr/sql/ddl.sql')];
 let qrDb: IsolatedDatabase;
 let qr: Started;
 let qrBase = '';

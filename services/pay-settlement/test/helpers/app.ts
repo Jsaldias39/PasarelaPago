@@ -106,9 +106,7 @@ export async function createSettlementContext(
   options: { config?: Partial<SettlementConfig>; ledger?: FakeLedger; connectors?: FakeConnectors; connectorsPort?: ConnectorsPort; ledgerPort?: LedgerPort; liveLedgerPort?: LedgerPort } = {},
 ): Promise<SettlementTestContext> {
   const db = await createIsolatedDatabase([
-    repoPath('services/pay-settlement/sql/001_settlement.sql'),
-    repoPath('contracts/packages/outbox/sql/001_outbox_inbox.sql'),
-    repoPath('contracts/packages/idempotency/sql/001_idempotency_keys.sql'),
+    repoPath('services/pay-settlement/sql/ddl.sql'), // vendorizado del modelo (D-18): trae también las tablas de outbox, inbox e idempotencia
   ]);
   const config = testConfig(options.config);
   const ledger = options.ledger ?? new FakeLedger();

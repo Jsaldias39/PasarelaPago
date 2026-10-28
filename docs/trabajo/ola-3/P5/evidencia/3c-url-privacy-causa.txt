@@ -1,0 +1,15 @@
+# causa del fallo de url-privacy.spec.ts (pay-schedules y pay-risk): safeUrl compilado (dist/log-safe.js)
+/mandates/md_razoncentinelaurl                   => /mandates/md_razoncentinelaurl
+/mandates/md_RAZON-CENTINELA-URL                 => /mandates/:x
+/mandates/4111111111111111                       => /mandates/:x
+/RAZON-CENTINELA-URL%20SRL/4111111111111111      => /:x/:x
+
+Causa demostrada (dos pruebas rojas en cada servicio, corridas 1 y 2 de 3b-suites-con-ddl-vendorizado.txt):
+ 1. «nombre en un id»: mi vector era `md_razoncentinelaurl` / `ra_nombrecentinelaurl` (el nombre pasado a minúsculas y sin separadores). Con esa
+    forma —minúsculas, guion bajo, sin 6 dígitos seguidos— es INDISTINGUIBLE de un id de la pasarela, así que safeUrl (mismo criterio que pay-mockbank) lo
+    conserva. No es una regresión del enmascarado: es el límite de la heurística, y la prueba esperaba más de lo que el diseño promete.
+    Con el nombre tal como lo escribiría una persona (mayúsculas, espacios, guiones) SÍ se enmascara (línea 2 y 4 arriba).
+ 2. «razón social y PAN en una ruta inexistente»: falló por contaminación entre pruebas del mismo archivo (`ctx.logs` acumula y el vector 1 ya había
+    dejado `md_razoncentinelaurl` en el log de acceso). Se arregla solo al corregir el vector 1.
+Cierre: el vector 1 pasó a mayúsculas (`md_RAZON-CENTINELA-URL`, `ra_NOMBRE-CENTINELA-URL`) y el límite quedó DECLARADO con su propia prueba
+(«LÍMITE DECLARADO: un segmento con forma de id … se conserva»). Resultado: test/url-privacy.spec.ts 5/5 en pay-risk y 5/5 en pay-schedules.

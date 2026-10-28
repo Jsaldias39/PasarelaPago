@@ -10,8 +10,7 @@ import { PG_POOL } from '../src/database.module';
 import { parsePayMode } from '../src/qr/pay-mode';
 
 // D-28 (X-Pay-Mode) en pay-qr: se exige en toda ruta interna, tiene que coincidir con el despliegue, se guarda y filtra la lectura por (id, modo).
-const REPO = join(process.cwd(), '../..');
-const SQL = [join(process.cwd(), 'sql/001_qr_codes.sql'), join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql')];
+const SQL = [join(process.cwd(), 'sql/ddl.sql')];
 
 let db: IsolatedDatabase;
 let sandbox: INestApplication; // despliegue sandbox: atiende claves `test`

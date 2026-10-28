@@ -9,8 +9,7 @@ import { loadConfig, SERVICE_CONFIG } from '../src/config';
 import { PG_POOL } from '../src/database.module';
 
 // Gate «Fallos»: la base propia se cae a mitad de servicio. Nunca un resultado inventado, nunca un detalle interno en la respuesta, y al volver, reintentar converge.
-const REPO = join(process.cwd(), '../..');
-const SQL = [join(process.cwd(), 'sql/001_qr_codes.sql'), join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql')];
+const SQL = [join(process.cwd(), 'sql/ddl.sql')];
 const LEAK = 'password=SECRETO-DE-LA-BASE host=10.0.0.5 SELECT * FROM qr_codes';
 let broken = false;
 /** [DOBLE] Pool que, mientras `broken`, falla como una conexión caída (con un mensaje que NO debe salir al cliente). */

@@ -1,7 +1,7 @@
 /**
  * Lo que el código de pay-ledger asume de su base (P2.H1.M2): tablas, columnas, tipo de Postgres y nulabilidad.
  * No hay ORM en este servicio (SQL parametrizado con `pg`), así que este mapa es la «capa de entidades» que la verificación de
- * deriva (97.2) compara contra la base aplicada desde `sql/001_ledger.sql`. Si cambia el SQL y no este mapa, `test/drift.spec.ts` falla.
+ * deriva (97.2) compara contra la base aplicada desde `sql/ddl.sql` (vendorizado del modelo, D-18). Si cambia el SQL y no este mapa, `test/drift.spec.ts` falla.
  */
 export type ColumnType = 'text' | 'character' | 'integer' | 'bigint' | 'jsonb' | 'timestamp with time zone';
 export interface ColumnMap {

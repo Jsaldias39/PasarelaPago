@@ -4,8 +4,11 @@ Un adaptador por proveedor detrás de **una sola interfaz** (`Connector`), ruteo
 auténticos, consulta de estado cuando el callback no llega, extractos para conciliar y transferencias salientes. Puerto 3103.
 Contrato: `contracts/openapi/internal-connectors-v1.yaml`; eventos: `contracts/asyncapi/connectors.yaml`.
 
-- **Base propia:** `pay_connectors`. Esquema de referencia: `sql/001_connectors.sql` (+ las tablas técnicas de `@pay/idempotency` y
-  `@pay/outbox`). A mover al modelo (D-18); los índices tienen nombre explícito.
+- **Base propia:** `pay_connectors`. **El esquema es el del MODELO** (D-18): `sql/ddl.sql` es la copia vendorizada de `mantra-core-health-model/SQL/pay/70_pay_connectors/ddl.sql`
+  (generado de los `.puml`; incluye las tablas técnicas de idempotencia, outbox e inbox). No se edita a mano: `scripts/vendor-ddl.sh` la copia y `scripts/vendor-ddl.sh --check`
+  la compara (sin el repo hermano, avisa y sale con 0). **Deriva (97.2):** `src/schema-map.ts` es el mapa de tablas/columnas/tipos/nulabilidad que el CÓDIGO usa (los servicios usan `pg`
+  directo, sin ORM) y `test/drift.spec.ts` lo compara con la base que sale del `ddl.sql`, con controles negativos. Los registros de dinero (`connector_charges/transfers/refunds`) rechazan
+  `TRUNCATE` y `send_claims` no decrece (`test/money-guards.spec.ts`); por eso `reset()` de las pruebas usa `DELETE` en orden de FK.
 - **Modo:** `PAY_MODE=sandbox|live`, obligatorio y sin valor por defecto. En `live` el simulador `mock` **no se carga**
   (`ConnectorRegistry` lo rechaza) y no hay conectores del Mercantil todavía: el servicio arranca sin adaptadores, `GET /connectors/health`
   devuelve `[]` y todo cobro responde `502 connector_unavailable`. Nunca se mueve dinero real (T-03).
@@ -145,3 +148,9 @@ Variables de prueba: `PAY_TEST_DATABASE_URL=postgres://pay_connectors:dev_only_c
 - Límite de velocidad de callbacks en memoria: con varias réplicas el tope efectivo es por réplica.
 - Anular un cobro QR no anula el QR en `pay-qr` (falta el puerto de anulación).
 - Conciliación `late_credit`/`unmatched`/`amount_mismatch` solo registra la excepción; resolverla es de una persona (P2).
+
+## `X-Pay-Mode: sandbox` en las respuestas (D-26)
+
+En un despliegue `sandbox` **toda respuesta** (éxitos, errores del contrato, `401` de callbacks, `403` del guard, `404`, salud, extractos JSON/CSV/XML) lleva `X-Pay-Mode: sandbox` (`contracts/openapi/common.yaml`, `XPayModeSandbox`); en `live` no se envía. Es la
+cabecera de la RESPUESTA (el despliegue); la de la petición (`test|live`) es la del modo de la clave (D-28) y no la cambia. Probado en `test/sandbox-header.spec.ts`. Los spans de OpenTelemetry no guardan la URL cruda (`src/observability/scrub.ts`, regla 90.2).
+`/health/ready` responde `503` (no `500`) si la base propia no contesta, sin el mensaje del error (`test/db-down.spec.ts`).

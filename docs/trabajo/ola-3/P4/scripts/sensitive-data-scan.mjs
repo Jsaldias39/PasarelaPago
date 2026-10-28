@@ -90,7 +90,7 @@ const SERVICES = [
     role: 'pay_qr',
     password: 'dev_only_qr',
     port: 3104,
-    sql: ['services/pay-qr/sql/001_qr_codes.sql', 'contracts/packages/idempotency/sql/001_idempotency_keys.sql', 'contracts/packages/outbox/sql/001_outbox_inbox.sql'],
+    sql: ['services/pay-qr/sql/ddl.sql'],
     env: { QR_ACCOUNT_GUID: 'e2e.sandbox.guid' },
   },
   {
@@ -98,7 +98,7 @@ const SERVICES = [
     role: 'pay_connectors',
     password: 'dev_only_connectors',
     port: 3103,
-    sql: ['services/pay-connectors/sql/001_connectors.sql', 'contracts/packages/idempotency/sql/001_idempotency_keys.sql', 'contracts/packages/outbox/sql/001_outbox_inbox.sql'],
+    sql: ['services/pay-connectors/sql/ddl.sql'],
     env: { PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET: MOCK_SECRET, POLLER_INTERVAL_MS: '0', HEALTH_INTERVAL_MS: '0', RECONCILE_INTERVAL_MS: '0', MOCK_PUMP_INTERVAL_MS: '0' },
   },
   {

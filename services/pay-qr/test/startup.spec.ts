@@ -5,8 +5,7 @@ import { buildService, freePort, startService, stop, until, type Started } from 
 
 // Arranque REAL (`node dist/main.js`, entorno armado desde cero): `PAY_MODE` explícito y sin GUID de pruebas bajo `live` (D-26).
 // Los casos de fallo salen antes de abrir la base; los de éxito usan un esquema aislado de Postgres real (PGOPTIONS).
-const REPO = join(process.cwd(), '../..');
-const SQL = [join(process.cwd(), 'sql/001_qr_codes.sql'), join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql')];
+const SQL = [join(process.cwd(), 'sql/ddl.sql')];
 const url = new URL(TEST_DATABASE_URL);
 const dbEnv = {
   DB_HOST: url.hostname,

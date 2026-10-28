@@ -280,7 +280,7 @@ describe('E1 completo SIN intervención manual: pay-qr real → pay-mockbank rea
 
   beforeAll(async () => {
     buildService('pay-qr');
-    const qrDb = await createIsolatedDatabase([join(REPO, 'services/pay-qr/sql/001_qr_codes.sql'), join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql')]);
+    const qrDb = await createIsolatedDatabase([join(REPO, 'services/pay-qr/sql/ddl.sql')]);
     launcher.track(qrDb);
     const qrPort = await freePort();
     qrBase = `http://127.0.0.1:${qrPort}`;

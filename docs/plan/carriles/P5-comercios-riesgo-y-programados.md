@@ -1,6 +1,6 @@
 # Carril P5 — Comercios, riesgo y pagos programados
 
-> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 14 / 18 — 77,8 %** · **Peldaño:** `TESTED` en lo marcado HECHO (contra Postgres real; el libro mayor, el almacén de objetos y el verificador de operadores son dobles declarados); `UNKNOWN` en el resto. Evidencia: [`../../trabajo/ola-1/P5/`](../../trabajo/ola-1/P5/evidencia/INDICE.md)
+> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 16 / 18 — 88,9 %** (H1.M1 y H3.M1 pasaron a HECHO en la tanda 3b/3c; quedan H2.M1 `BLOQUEADO` externo y H2.M4 `A MEDIAS`) · **Peldaño:** `TESTED` en lo marcado HECHO (contra Postgres real; el libro mayor, el almacén de objetos y el verificador de operadores son dobles declarados); `UNKNOWN` en el resto. Evidencia: [`../../trabajo/ola-1/P5/`](../../trabajo/ola-1/P5/evidencia/INDICE.md)
 > **Predecesor:** P1.H1 (plataforma y plantilla).
 > **Carpetas del monorepo:** `services/pay-merchants/`, `services/pay-risk/`, `services/pay-schedules/` · esquema en `mantra-core-health-model`.
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md)
@@ -48,7 +48,7 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P5.H1.M1 | Esquema `pay_merchants` en el modelo (desde `connected_accounts`, `kyc_verifications` y `fee_schedules`) + **contraste con los 18 puntos del alta legal** de los módulos 3–6 (`procesos-alovida`) | Sin deriva; los 18 puntos mapeados o escalados en un issue | Verificador de deriva + tabla de mapeo | A MEDIAS |
+| P5.H1.M1 | Esquema `pay_merchants` en el modelo (desde `connected_accounts`, `kyc_verifications` y `fee_schedules`) + **contraste con los 18 puntos del alta legal** de los módulos 3–6 (`procesos-alovida`) | Sin deriva; los 18 puntos mapeados o escalados en un issue | Verificador de deriva + tabla de mapeo | HECHO |
 | P5.H1.M2 | Máquina de estados del comercio (`pending → active → suspended → closed`) | REQ-P5-1 | Test pegado | HECHO |
 | P5.H1.M3 | KYC: documentos al almacén de objetos, revisión y nivel de riesgo | REQ-P5-8 | Test pegado | HECHO |
 | P5.H1.M4 | Contratos versionados y aceptación inmutable | REQ-P5-2 | Test pegado | HECHO |
@@ -76,18 +76,22 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P5.H3.M1 | Esquema `pay_schedules` (desde `payment_mandates`, `installment_plans` e `installment_schedules`) | Sin deriva | Verificador de deriva | A MEDIAS |
+| P5.H3.M1 | Esquema `pay_schedules` (desde `payment_mandates`, `installment_plans` e `installment_schedules`) | Sin deriva | Verificador de deriva | HECHO |
 | P5.H3.M2 | Mandatos del médico (7.7): beneficiario, monto, calendario y tope; retención en `schedule:{id}:reserve` | REQ-P5-6 | Test pegado | HECHO |
 | P5.H3.M3 | Ejecutor idempotente por `(mandato, periodo)` + reintentos + evento `scheduled_payment.*` | El job corrido dos veces → una ejecución | Test pegado | HECHO |
 | P5.H3.M4 | Comisiones programadas de proveedores (7.8) | REQ-P5-7 | Test pegado | HECHO |
 | P5.H3.M5 | E5 de punta a punta (fondos insuficientes → reintento → éxito) | E5 en verde | Salida del E2E | HECHO |
 | P5.H3.M6 | Aviso al médico o proveedor (vía webhook o evento para el monolito) sin datos sensibles | Evento emitido con solo ids y montos | Test pegado | HECHO |
 
-### Estado de la ola 1 (a medias, con las cuatro respuestas)
+### Estado de la ola 1 (tanda 3b/3c: P5.H1.M1 y P5.H3.M1 en HECHO)
 
-**P5.H1.M1 — Esquema y los 18 puntos.** *Qué anda:* el esquema (`services/pay-merchants/sql/001_merchants.sql`) aplica sobre Postgres real y la tabla de mapeo de los 18 puntos está en `DECISIONES-TOMADAS.md` D5-01. *Qué no anda:* no hay verificador de deriva porque el pipeline del modelo (D-18) no tiene estas tablas. *Qué falta:* mover el SQL a `mantra-core-health-model` y correr el verificador; resolver Q-22 (¿`directory` se referencia o se recaptura?). *Dónde quedó:* `services/pay-merchants/sql/`, compila.
+> **ORM = mapa del código (schema-map.ts): los servicios usan pg directo, sin ORM; el modelo es la única fuente (D-18)**
 
-**P5.H3.M1 — Esquema de `pay-schedules`.** Igual que arriba: `sql/001_schedules.sql` aplica y se usa en 129 pruebas; falta el modelo y su verificador de deriva.
+**P5.H1.M1 — Esquema `pay_merchants` y los 18 puntos — HECHO.** *Qué anda:* el DDL lo genera el modelo (`mantra-core-health-model`, commit `af60b79`, `SQL/pay/73_pay_merchants/ddl.sql`) y está vendorizado en `services/pay-merchants/sql/ddl.sql` (`node scripts/p5-vendor-model-sql.mjs --check`: idéntico, [`3c-vendor-check.txt`](../../trabajo/ola-3/P5/evidencia/3c-vendor-check.txt)); las suites corren contra él. `src/schema-map.ts` (lo que el código usa, sin ORM) y `test/drift.spec.ts` comparan mapa ↔ base ↔ SQL vendorizado y detectan tabla ausente, columna ausente, columna obligatoria no mapeada, nulabilidad divergente (en los dos sentidos), tipo, tabla sin mapear e índice sin nombre propio, cada una con su control negativo por mutación de la base (14/14), más el cruce código → mapa (todo `INSERT`/`UPDATE`/`FROM` literal de `src/` nombra solo tablas y columnas del mapa). Los 18 puntos del alta legal (registro 3.1, 23 renglones): 9 viven en `pay-merchants` (razón social, tipo societario —lista cerrada de 8 valores—, NIT y los 6 PDF, que son exactamente los tipos que acepta el `CHECK` de la base) y 14 en el `directory` por `merchants.directory_tenant_ref`; **ningún punto quedó sin mapear**, así que no hace falta abrir un issue por esto (`test/alta-legal-18-puntos.spec.ts`, 5/5). *Qué sigue abierto, y no es de este microhito:* Q-22 (¿`directory` se referencia o se recaptura?) y, del lado del `directory`, T-05/issue #96 de la repo de documentación (el tipo societario no es columna de `directory.tenants` y falta `sedes` como documento): son de otros dueños. *Peldaño:* `TESTED` (Postgres real). *Dónde quedó:* `services/pay-merchants/{sql/ddl.sql,src/schema-map.ts,test/drift.spec.ts,test/alta-legal-18-puntos.spec.ts,test/merchants-truncate.spec.ts}`.
+
+**P5.H3.M1 — Esquema de `pay-schedules` — HECHO.** Mismo método: `sql/ddl.sql` vendorizado del modelo (`77_pay_schedules`, `af60b79`), `src/schema-map.ts`, `test/drift.spec.ts` (14/14 con sus controles negativos). *Peldaño:* `TESTED`. Lo mismo vale para `pay-risk` (`76_pay_risk`): `src/schema-map.ts` + `test/drift.spec.ts` (14/14).
+
+> **Reserva sobre P5.H3.M5 (que consta HECHO):** su evidencia es el E5 de `test/executor.spec.ts` contra el [DOBLE] del libro mayor, con Postgres real. El E5 por la API real contra el stack (`e2e/pending/e5.e2e.ts`) está escrito y tipado, **no ejecutado** (lo corre P1). Si el DoD «salida del E2E» se toma al pie de la letra, el microhito pasaría a `A MEDIAS` y el avance sería 15 / 18 — 83,3 %.
 
 **P5.H2.M4 — p99 < 300 ms.** *Qué anda:* `POST /assessments` con Watchman REAL y Postgres real mide p99 52–77 ms en máquina tranquila y 142–209 ms en 3 de 5 corridas completas; el servicio solo (sin Watchman) mide p99 19–55 ms. *Qué no anda:* con la máquina compartida cargada (load average 17–38 en 4 vCPU) el p99 pasó de 300 ms en 2 de 5 corridas, hasta sin Watchman: clasificado `ENVIRONMENT` ([`P5.H2.M4.txt`](../../trabajo/ola-1/P5/evidencia/P5.H2.M4.txt)). *Qué falta:* la prueba de carga real a 2× el volumen objetivo (**T-01, ola 3**) en un runner dedicado; escalar Watchman (satura con > 4 clientes simultáneos, p99 400 ms con 24) o cachear/usar `entity_type` (PR-11). *Dónde quedó:* `services/pay-risk/test/latency.spec.ts`, compila; intermitente bajo carga externa.
 

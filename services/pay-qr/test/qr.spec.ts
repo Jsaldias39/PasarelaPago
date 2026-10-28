@@ -13,7 +13,7 @@ import { QrController } from '../src/qr/qr.controller';
 import { routesOf } from './support/routes';
 
 const REPO = join(process.cwd(), '../..');
-const SQL = [join(process.cwd(), 'sql/001_qr_codes.sql'), join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql')];
+const SQL = [join(process.cwd(), 'sql/ddl.sql')];
 // Contrato OFICIAL en contracts/ (la propuesta de la ola 1 ya se integró).
 const SPEC = join(REPO, 'contracts/openapi/internal-qr-v1.yaml');
 

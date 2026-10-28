@@ -37,9 +37,7 @@ class TestInfrastructure {}
 beforeAll(async () => {
   validators = await loadEventValidators('ledger-settlement.yaml');
   db = await createIsolatedDatabase([
-    repoPath('services/pay-settlement/sql/001_settlement.sql'),
-    repoPath('contracts/packages/outbox/sql/001_outbox_inbox.sql'),
-    repoPath('contracts/packages/idempotency/sql/001_idempotency_keys.sql'),
+    repoPath('services/pay-settlement/sql/ddl.sql'), // vendorizado del modelo (D-18): trae también las tablas de outbox, inbox e idempotencia
   ]);
   nc = await connect({ servers: NATS_URL, name: 'pay-settlement-test' });
   const moduleRef = await Test.createTestingModule({ imports: [TestInfrastructure, EventsModule] }).compile();

@@ -33,9 +33,7 @@ export async function startRealLedger(options: { payMode?: 'sandbox' | 'live' } 
   const entry = repoPath('services/pay-ledger/dist/main.js');
   if (!existsSync(entry)) throw new Error('Falta services/pay-ledger/dist/main.js: corré `yarn build` en services/pay-ledger');
   const db = await createIsolatedDatabase([
-    repoPath('services/pay-ledger/sql/001_ledger.sql'),
-    repoPath('contracts/packages/outbox/sql/001_outbox_inbox.sql'),
-    repoPath('contracts/packages/idempotency/sql/001_idempotency_keys.sql'),
+    repoPath('services/pay-ledger/sql/ddl.sql'), // vendorizado del modelo (D-18): trae también las tablas de outbox, inbox e idempotencia
   ]);
   const port = await freePort();
   const url = new URL(TEST_DATABASE_URL);

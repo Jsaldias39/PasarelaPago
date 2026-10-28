@@ -22,8 +22,8 @@ Toda ruta pasa por `ServiceIdentityGuard` (global, denegado por defecto): solo `
 
 ## Datos
 
-SQL de referencia, a mover a `mantra-core-health-model` (D-18): [`sql/001_qr_codes.sql`](sql/001_qr_codes.sql), más la tabla técnica de idempotencia
-(`contracts/packages/idempotency/sql/001_idempotency_keys.sql`). Sin datos personales: el payload lleva monto, referencia, id y nombre comercial del comercio.
+**El esquema es el del MODELO** (D-18): [`sql/ddl.sql`](sql/ddl.sql) es la copia vendorizada de `mantra-core-health-model/SQL/pay/75_pay_qr/ddl.sql` (con las tablas técnicas incluidas;
+no se edita a mano: `scripts/vendor-ddl.sh` y `scripts/vendor-ddl.sh --check`). Deriva (97.2): `src/schema-map.ts` (lo que el código usa; sin ORM, `pg` directo) y `test/drift.spec.ts`, con controles negativos. Sin datos personales: el payload lleva monto, referencia, id y nombre comercial del comercio.
 
 ## Configuración
 
@@ -39,3 +39,8 @@ valida cada respuesta contra el contrato propuesto, lee el PNG con un decodifica
 
 Toda ruta interna lo exige (`test` o `live`; ausente o inválido ⇒ `403 forbidden` sin efecto) y tiene que coincidir con `PAY_MODE` (`sandbox` ↔ `test`, `live` ↔ `live`; obligatorio, sin valor por defecto). El QR guarda su `pay_mode`; leer, anular o buscar por referencia un QR del otro modo da `404`. La `Idempotency-Key` se guarda por `llamador|modo`, y el QR estático (uno por comercio) y el dinámico (uno por intento) son únicos **por modo**. La referencia del QR es única entre modos porque viaja dentro del código que se escanea.
 
+
+## `X-Pay-Mode: sandbox` en las respuestas (D-26)
+
+En un despliegue `sandbox` **toda respuesta** (éxitos, errores, `403` del guard, `404`, salud, imágenes) lleva `X-Pay-Mode: sandbox` (`contracts/openapi/common.yaml`, `XPayModeSandbox`); en `live` no se envía. Es la cabecera de la RESPUESTA
+(el despliegue); la de la petición (`test|live`) es la del modo de la clave (D-28) y no la cambia. Probado en `test/sandbox-header.spec.ts`. Los spans de OpenTelemetry no guardan la URL cruda (`src/observability/scrub.ts`, regla 90.2).

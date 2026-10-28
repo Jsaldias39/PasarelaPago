@@ -4,7 +4,7 @@ Corte semanal, pagos a comercios, cobros netos (abono y comisiones), conciliaci�
 ([`docs/plan/carriles/P2-ledger-y-liquidacion.md`](../../docs/plan/carriles/P2-ledger-y-liquidacion.md)).
 **Nunca guarda saldos**: los saldos son del [`pay-ledger`](../pay-ledger/README.md); acá vive el estado de los procesos.
 
-- **Base propia:** `pay_settlement` (`sql/001_settlement.sql`; a mover a `mantra-core-health-model`, D-18). Sin ORM: SQL parametrizado con `pg`;
+- **Base propia:** `pay_settlement` (`sql/ddl.sql`, **vendorizado** de `mantra-core-health-model` `SQL/pay/78_pay_settlement/ddl.sql`; el modelo es la única fuente, D-18: no se edita a mano, se regenera con `scripts/vendor-model-sql.sh` y se verifica con `--check`). Sin ORM: SQL parametrizado con `pg`;
   `src/settlement/schema-map.ts` es la capa de entidades y `test/drift.spec.ts` la verificación de deriva (97.2).
 - **Contratos:** `contracts/openapi/internal-settlement-v1.yaml` (+ `GET /payouts` de `public-v1.yaml`, vía `pay-edge`), eventos en
   `contracts/asyncapi/ledger-settlement.yaml`. Dos rutas están **fuera del contrato** y marcadas PROPUESTA: `POST /charges` y
