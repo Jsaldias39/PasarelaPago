@@ -15,5 +15,8 @@ import type { Pool } from 'pg';
 export function guardPool(pool: Pool, context: string): Pool {
   const logger = new Logger(context);
   pool.on('error', (error) => logger.warn({ err: error.name }, 'Conexión ociosa cortada por Postgres; el pool la repone'));
+  pool.on('connect', (client) => {
+    client.on('error', () => undefined);
+  });
   return pool;
 }

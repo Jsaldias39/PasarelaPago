@@ -1,3 +1,27 @@
 # 3a-separacion
 $ bash docs/trabajo/ola-3/P4/scripts/gate-separation.sh
 
+
+══ pay-connectors: rol pay_connectors sobre la base pay_connectors ══
+PASS  DDL aplicado con el rol pay_connectors (esquema sep_1111_connectors): 1 archivo(s)
+      quién soy en la base: pay_connectors|f  (usuario, superusuario)
+PASS  arranca con el rol pay_connectors: GET /health/ready = {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"stat
+PASS  operación real contra la base: GET /connectors/health = 200 (lee connector_health en SU base)
+PASS  pay_connectors NO entra a 13/13 bases ajenas (todas: permission denied). Ejemplo: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_ledger"
+
+══ pay-qr: rol pay_qr sobre la base pay_qr ══
+PASS  DDL aplicado con el rol pay_qr (esquema sep_1111_qr): 1 archivo(s)
+      quién soy en la base: pay_qr|f  (usuario, superusuario)
+PASS  arranca con el rol pay_qr: GET /health/ready = {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"stat
+PASS  operación real contra la base: POST /qr = 201 (escribe qr_codes e idempotency_keys en SU base)
+PASS  pay_qr NO entra a 13/13 bases ajenas (todas: permission denied). Ejemplo: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_ledger"
+
+══ pay-mockbank: rol pay_mockbank sobre la base pay_mockbank ══
+PASS  DDL aplicado con el rol pay_mockbank (esquema sep_1111_mockbank): 1 archivo(s)
+      quién soy en la base: pay_mockbank|f  (usuario, superusuario)
+PASS  arranca con el rol pay_mockbank: GET /health/ready = {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"stat
+PASS  operación real contra la base: POST /sandbox/charges = 201 (escribe mb_charges en SU base)
+PASS  pay_mockbank NO entra a 13/13 bases ajenas (todas: permission denied). Ejemplo: psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_ledger"
+
+RESULTADO: PASS — los tres servicios arrancan y operan con su propio rol, que no entra a ninguna otra base.
+exit=0
