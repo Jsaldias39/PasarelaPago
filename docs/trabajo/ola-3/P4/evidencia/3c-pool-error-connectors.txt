@@ -1,12 +1,21 @@
 # 3c-pool-error-connectors
-$ (cd services/pay-connectors && yarn test --maxWorkers=2 --verbose test/pool-error.spec.ts)
+$ (cd services/pay-connectors && yarn test --maxWorkers=2 test/pool-error.spec.ts --verbose --reporters default)
 (las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
 
-(node:12874) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:25174) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/pool-error.spec.ts (5.734 s)
+  conexión ociosa cortada por Postgres: el proceso sobrevive y el pool se repone
+    ✓ correcto: una conexión ociosa cortada con pg_terminate_backend NO mata el proceso y el servicio sigue operando (630 ms)
+    ✓ correcto: el pool de CANDADOS (LOCK_POOL) también sobrevive al corte y se repone en el siguiente cobro (297 ms)
+    ✓ límite: se cortan TODAS las conexiones ociosas de todos los pools a la vez; las siguientes peticiones, incluso concurrentes, se atienden (694 ms)
+    ✓ límite: corte a MITAD de una consulta de lectura: la petición falla con error del contrato (5xx problem+json, nunca «no existe»), el cobro no se toca y el proceso sigue vivo (185 ms)
+    ✓ límite (regla 11): corte DESPUÉS de enviar al proveedor, en la escritura de «cobro enviado»: 5xx del contrato, el cobro NO se anula ni se da por inexistente y reintentar con la MISMA clave converge en UN cobro (301 ms)
+    ✓ inválido: ni el mensaje del error de Postgres, ni el SQL, ni la cadena de conexión llegan al registro del proceso; sí queda el nombre del error (el control positivo) (6 ms)
+
 Test Suites: 1 passed, 1 total
 Tests:       6 passed, 6 total
 Snapshots:   0 total
-Time:        5.076 s, estimated 14 s
+Time:        5.882 s
 Ran all test suites matching test/pool-error.spec.ts.
 exit=0

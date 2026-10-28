@@ -1,12 +1,20 @@
 # 3c-pool-error-mockbank
-$ (cd services/pay-mockbank && yarn test --maxWorkers=2 --verbose test/pool-error.spec.ts)
+$ (cd services/pay-mockbank && yarn test --maxWorkers=2 test/pool-error.spec.ts --verbose --reporters default)
 (las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
 
-(node:7422) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:24159) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/pool-error.spec.ts
+  conexión cortada por Postgres: el proceso sobrevive y el pool se repone
+    ✓ correcto: una conexión ociosa cortada con pg_terminate_backend NO mata el proceso y el servicio sigue operando (503 ms)
+    ✓ límite: se cortan TODAS las conexiones ociosas a la vez; las siguientes peticiones, incluso concurrentes, se atienden (381 ms)
+    ✓ límite: corte a MITAD de una consulta de lectura: error del contrato (5xx problem+json, nunca «no existe»), el cobro no se toca y el proceso sigue vivo (174 ms)
+    ✓ límite: corte a MITAD de una transacción (cliente PRESTADO, el reembolso): error del contrato, proceso vivo, nada a medias, y reintentar con la MISMA referencia converge en UN reembolso (131 ms)
+    ✓ inválido: ni el mensaje del error de Postgres, ni el SQL, ni la cadena de conexión llegan al registro del proceso; sí queda el nombre del error (control positivo) (11 ms)
+
 Test Suites: 1 passed, 1 total
 Tests:       5 passed, 5 total
 Snapshots:   0 total
-Time:        3.094 s, estimated 7 s
+Time:        3.691 s
 Ran all test suites matching test/pool-error.spec.ts.
 exit=0

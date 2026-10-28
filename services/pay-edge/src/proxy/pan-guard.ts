@@ -10,67 +10,18 @@
  *   (`{"card":"4111…","card":"x"}`) el objeto conserva solo la última, y el servicio de destino podría conservar la otra.
  * - Los nombres de campo son tokens de cadena como cualquier otro, y los números se revisan por su texto (un número de más de
  *   2^53 pierde dígitos al decodificarse).
- * - Se normaliza (NFKC: dígitos de ancho completo; se quitan caracteres de ancho cero) y toda corrida de separadores (espacios,
- *   guiones de toda la familia, punto, barra, guion bajo, de cualquier longitud y mezcla) se colapsa en uno. Recién entonces se
- *   toma cada corrida maximal de dígitos y se prueba con Luhn TODA ventana contigua de 13 a 19 dígitos (un PAN pegado a otros
- *   dígitos no se esconde). COSTO: cuanto más larga la corrida, más ventanas, así que casi todo número de 20 dígitos o más se
+ * - Cada texto se prueba con el núcleo COMPARTIDO `containsCardNumber` de `@pay/idempotency` (`card-number.ts`, donde está razonado): NFKC, dígitos de
+ *   cualquier escritura, caracteres invisibles fuera, TODO carácter que no sea letra o dígito como separador y TODA ventana Luhn de 13 a 19 dígitos. COSTO: cuanto más larga la corrida, más ventanas, así que casi todo número de 20 dígitos o más se
  *   rechaza aunque no sea una tarjeta (tasas medidas en test/pan-guard.spec.ts y docs/cumplimiento/pci-alcance.md).
  *
  * LÍMITE: no detecta un PAN partido en varios campos («4111», «1111», …) ni codificado (base64, hexadecimal). Eso lo cubre la
  * ausencia de cualquier campo de tarjeta en el contrato y el rechazo por forma de los demás controles.
  */
+import { containsCardNumber as hasCardNumber } from '@pay/idempotency';
+
 export type BodyVerdict = 'clean' | 'card_number' | 'invalid_json';
 
-/** Corrida maximal de dígitos con, a lo sumo, un espacio entre dígitos (los separadores ya se colapsaron en uno). */
-const DIGIT_RUN = /[0-9](?: ?[0-9])*/g;
-/** Caracteres que no cambian lo que lee una persona o un sistema: ancho cero, separadores de palabra, guion suave. */
-const INVISIBLE = /[\u00AD\u200B-\u200F\u2060\uFEFF]/g;
-/** Separadores entre grupos de dígitos: espacios (incluido el no separable), guiones de toda la familia, signo menos, punto, barra y guion bajo. */
-const SEPARATOR_RUN = /[\s\u00A0\u2010-\u2015\u2212.\-_/]+/g;
 const NUMBER_CHAR = /[0-9eE+\-.]/;
-
-const MIN_PAN = 13;
-const MAX_PAN = 19;
-
-/**
- * ¿Alguna ventana contigua de 13 a 19 dígitos de esta corrida cumple Luhn? Una corrida maximal puede traer el PAN pegado a otros
- * dígitos («12 / 4111 1111 1111 1111», «4111111111111111 - 7»): decidir solo por la corrida completa lo esquivaría, así que se
- * prueban TODAS las ventanas. Cada una se resuelve en O(1) con sumas de prefijo por paridad de posición, así que el costo total
- * es O(n × 7) aun con millones de dígitos y no hay retroceso de expresión regular.
- */
-function runHasLuhnWindow(digits: string): boolean {
-  const n = digits.length;
-  if (n < MIN_PAN) return false;
-  // plain[x][i]: suma de los dígitos en posiciones j < i con j % 2 == x · doubled[x][i]: lo mismo pero con el dígito duplicado (Luhn)
-  const plain = [new Int32Array(n + 1), new Int32Array(n + 1)];
-  const doubled = [new Int32Array(n + 1), new Int32Array(n + 1)];
-  for (let j = 0; j < n; j += 1) {
-    const d = digits.charCodeAt(j) - 48;
-    const twice = d * 2 > 9 ? d * 2 - 9 : d * 2;
-    for (let x = 0; x < 2; x += 1) {
-      plain[x][j + 1] = plain[x][j] + (j % 2 === x ? d : 0);
-      doubled[x][j + 1] = doubled[x][j] + (j % 2 === x ? twice : 0);
-    }
-  }
-  for (let end = MIN_PAN; end <= n; end += 1) {
-    // En la ventana [start, end) el último dígito pesa 1, el anterior 2, etc.: pesa 1 si j y end-1 tienen la misma paridad.
-    const same = (end - 1) % 2;
-    for (let length = MIN_PAN; length <= MAX_PAN && length <= end; length += 1) {
-      const start = end - length;
-      const sum = plain[same][end] - plain[same][start] + doubled[1 - same][end] - doubled[1 - same][start];
-      if (sum % 10 === 0) return true;
-    }
-  }
-  return false;
-}
-
-function hasCardNumber(text: string): boolean {
-  const normalized = text.normalize('NFKC').replace(INVISIBLE, '').replace(SEPARATOR_RUN, ' ');
-  for (const match of normalized.matchAll(DIGIT_RUN)) {
-    if (runHasLuhnWindow(match[0].replace(/ /g, ''))) return true;
-  }
-  return false;
-}
 
 function numberHasCardNumber(source: string): boolean {
   if (hasCardNumber(source)) return true;

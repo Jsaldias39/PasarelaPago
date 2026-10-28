@@ -1,47 +1,53 @@
 # 3a-fallos-mockbank
-$ (cd services/pay-mockbank && yarn test --maxWorkers=2 --verbose test/faults.spec.ts)
+$ (cd services/pay-mockbank && yarn test --maxWorkers=2 test/faults.spec.ts --verbose --reporters default)
 (las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
 
-(node:11330) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:24947) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
-[31m[Nest] 11330  - [39m10/28/2026, 1:30:39 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 24947  - [39m10/28/2026, 1:42:02 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'e19083e5-f169-4258-8b9e-f8cc08cf99fc'[39m
+  request_id: [32m'5b0ddcb1-1e7d-4cf4-a737-744407fa0644'[39m
 }
 Error no controlado
-[31m[Nest] 11330  - [39m10/28/2026, 1:30:39 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 24947  - [39m10/28/2026, 1:42:02 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'bc070764-bcd4-4fec-bdd3-524c52abd190'[39m
+  request_id: [32m'cf66e388-f31e-4f81-8c9d-96142bed2aa3'[39m
 }
 Error no controlado
-[31m[Nest] 11330  - [39m10/28/2026, 1:30:39 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 24947  - [39m10/28/2026, 1:42:02 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'c18ccd4a-24a1-4d83-9b79-da1d2ea4e514'[39m
+  request_id: [32m'4094c0a0-73f9-41bf-ba8e-50be4cd475d4'[39m
 }
 Error no controlado
-[31m[Nest] 11330  - [39m10/28/2026, 1:30:39 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 24947  - [39m10/28/2026, 1:42:02 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'c7dcec6c-6deb-4920-ae72-b76577715f27'[39m
+  request_id: [32m'46b9c566-0160-470a-a63c-7a570b508710'[39m
 }
 Error no controlado
-[31m[Nest] 11330  - [39m10/28/2026, 1:30:39 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 24947  - [39m10/28/2026, 1:42:02 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'37fe11a6-47e7-4072-9861-985184a43d4e'[39m
+  request_id: [32m'16b71d42-34af-4b10-85aa-25637e06899d'[39m
 }
 Error no controlado
-[31m[Nest] 11330  - [39m10/28/2026, 1:30:39 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 24947  - [39m10/28/2026, 1:42:02 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'ad56bd96-5594-428a-b444-c3f17545ab45'[39m
+  request_id: [32m'5df95d1a-0c09-4712-9230-34421c9caac8'[39m
 }
 Error no controlado
-[31m[Nest] 11330  - [39m10/28/2026, 1:30:39 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 24947  - [39m10/28/2026, 1:42:02 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'Error'[39m,
-  request_id: [32m'2e394607-d711-47b4-a008-d0419b444e52'[39m
+  request_id: [32m'15882b30-fcd6-4815-9aad-8d1c448060d1'[39m
 }
 Error no controlado
+PASS test/faults.spec.ts
+  base propia caída a mitad de servicio
+    ✓ cada operación responde 500 `internal_error` sin filtrar la cadena de conexión, el SQL ni la pila; la salud lo dice (503) y el proceso sigue vivo (132 ms)
+    ✓ al volver la base, REINTENTAR con la misma referencia converge: UN solo cobro, sin duplicados ni residuos (69 ms)
+    ✓ un callback que no se puede entregar porque el receptor está caído NO se pierde: queda pendiente y sale cuando vuelve (ya probado en delivery.spec); aquí, la base caída tampoco rompe el ciclo de entrega (176 ms)
+
 Test Suites: 1 passed, 1 total
 Tests:       3 passed, 3 total
 Snapshots:   0 total
-Time:        1.68 s, estimated 2 s
+Time:        1.601 s, estimated 2 s
 Ran all test suites matching test/faults.spec.ts.
 exit=0

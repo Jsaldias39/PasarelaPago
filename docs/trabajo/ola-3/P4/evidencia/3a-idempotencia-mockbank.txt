@@ -1,12 +1,49 @@
 # 3a-idempotencia-mockbank
-$ (cd services/pay-mockbank && yarn test --maxWorkers=2 --verbose test/idempotency-parallel.spec.ts)
+$ (cd services/pay-mockbank && yarn test --maxWorkers=2 test/idempotency-parallel.spec.ts --verbose --reporters default)
 (las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
 
-(node:10949) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:24489) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/idempotency-parallel.spec.ts (6.78 s)
+  corrida 1
+    ✓ 20 cobros simultáneos con la MISMA referencia ⇒ UN cobro, una sola creación (201), el mismo `bank_reference` y UN callback (551 ms)
+    ✓ 20 reembolsos simultáneos con la MISMA referencia ⇒ UN reembolso (285 ms)
+    ✓ 5 reembolsos DISTINTOS de Bs 30 sobre un cobro de Bs 100 ⇒ exactamente 3 prosperan (nunca se devuelve más de lo cobrado) (113 ms)
+    ✓ 10 transferencias simultáneas con la MISMA referencia ⇒ UNA transferencia (el banco paga una sola vez) (81 ms)
+    ✓ autorización de tarjeta: 10 autorizaciones iguales ⇒ UNA; 10 capturas simultáneas ⇒ UNA captura y UN callback; captura y anulación a la vez ⇒ gana una sola (200 ms)
+    ✓ 20 depósitos del pagador con la MISMA referencia son 20 depósitos distintos (así funciona un banco: no hay idempotencia en el depósito), y el pago de un QR concurrente cobra UNA vez (200 ms)
+  corrida 2
+    ✓ 20 cobros simultáneos con la MISMA referencia ⇒ UN cobro, una sola creación (201), el mismo `bank_reference` y UN callback (391 ms)
+    ✓ 20 reembolsos simultáneos con la MISMA referencia ⇒ UN reembolso (186 ms)
+    ✓ 5 reembolsos DISTINTOS de Bs 30 sobre un cobro de Bs 100 ⇒ exactamente 3 prosperan (nunca se devuelve más de lo cobrado) (136 ms)
+    ✓ 10 transferencias simultáneas con la MISMA referencia ⇒ UNA transferencia (el banco paga una sola vez) (130 ms)
+    ✓ autorización de tarjeta: 10 autorizaciones iguales ⇒ UNA; 10 capturas simultáneas ⇒ UNA captura y UN callback; captura y anulación a la vez ⇒ gana una sola (181 ms)
+    ✓ 20 depósitos del pagador con la MISMA referencia son 20 depósitos distintos (así funciona un banco: no hay idempotencia en el depósito), y el pago de un QR concurrente cobra UNA vez (109 ms)
+  corrida 3
+    ✓ 20 cobros simultáneos con la MISMA referencia ⇒ UN cobro, una sola creación (201), el mismo `bank_reference` y UN callback (87 ms)
+    ✓ 20 reembolsos simultáneos con la MISMA referencia ⇒ UN reembolso (453 ms)
+    ✓ 5 reembolsos DISTINTOS de Bs 30 sobre un cobro de Bs 100 ⇒ exactamente 3 prosperan (nunca se devuelve más de lo cobrado) (96 ms)
+    ✓ 10 transferencias simultáneas con la MISMA referencia ⇒ UNA transferencia (el banco paga una sola vez) (60 ms)
+    ✓ autorización de tarjeta: 10 autorizaciones iguales ⇒ UNA; 10 capturas simultáneas ⇒ UNA captura y UN callback; captura y anulación a la vez ⇒ gana una sola (117 ms)
+    ✓ 20 depósitos del pagador con la MISMA referencia son 20 depósitos distintos (así funciona un banco: no hay idempotencia en el depósito), y el pago de un QR concurrente cobra UNA vez (149 ms)
+  corrida 4
+    ✓ 20 cobros simultáneos con la MISMA referencia ⇒ UN cobro, una sola creación (201), el mismo `bank_reference` y UN callback (217 ms)
+    ✓ 20 reembolsos simultáneos con la MISMA referencia ⇒ UN reembolso (145 ms)
+    ✓ 5 reembolsos DISTINTOS de Bs 30 sobre un cobro de Bs 100 ⇒ exactamente 3 prosperan (nunca se devuelve más de lo cobrado) (242 ms)
+    ✓ 10 transferencias simultáneas con la MISMA referencia ⇒ UNA transferencia (el banco paga una sola vez) (78 ms)
+    ✓ autorización de tarjeta: 10 autorizaciones iguales ⇒ UNA; 10 capturas simultáneas ⇒ UNA captura y UN callback; captura y anulación a la vez ⇒ gana una sola (105 ms)
+    ✓ 20 depósitos del pagador con la MISMA referencia son 20 depósitos distintos (así funciona un banco: no hay idempotencia en el depósito), y el pago de un QR concurrente cobra UNA vez (69 ms)
+  corrida 5
+    ✓ 20 cobros simultáneos con la MISMA referencia ⇒ UN cobro, una sola creación (201), el mismo `bank_reference` y UN callback (160 ms)
+    ✓ 20 reembolsos simultáneos con la MISMA referencia ⇒ UN reembolso (180 ms)
+    ✓ 5 reembolsos DISTINTOS de Bs 30 sobre un cobro de Bs 100 ⇒ exactamente 3 prosperan (nunca se devuelve más de lo cobrado) (65 ms)
+    ✓ 10 transferencias simultáneas con la MISMA referencia ⇒ UNA transferencia (el banco paga una sola vez) (45 ms)
+    ✓ autorización de tarjeta: 10 autorizaciones iguales ⇒ UNA; 10 capturas simultáneas ⇒ UNA captura y UN callback; captura y anulación a la vez ⇒ gana una sola (117 ms)
+    ✓ 20 depósitos del pagador con la MISMA referencia son 20 depósitos distintos (así funciona un banco: no hay idempotencia en el depósito), y el pago de un QR concurrente cobra UNA vez (79 ms)
+
 Test Suites: 1 passed, 1 total
 Tests:       30 passed, 30 total
 Snapshots:   0 total
-Time:        4.592 s, estimated 12 s
+Time:        6.882 s
 Ran all test suites matching test/idempotency-parallel.spec.ts.
 exit=0
