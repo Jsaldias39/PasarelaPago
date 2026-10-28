@@ -9,16 +9,12 @@ PASS  pay-merchants: sin tabla ausente, columna ausente ni columna obligatoria n
 
 ## pay-risk
      base temporal: 3 tablas, 44 columnas
-     sentencias examinadas: 5 INSERT, 6 UPDATE, 11 FROM/JOIN
-     ! contracts/packages/outbox/src/inbox.ts: INSERT en tabla AUSENTE inbox_events
-     ! contracts/packages/outbox/src/outbox.ts: INSERT en tabla AUSENTE outbox_events
-     ! contracts/packages/outbox/src/outbox.ts: UPDATE en tabla AUSENTE outbox_events
-     ! contracts/packages/outbox/src/outbox.ts: FROM/JOIN en tabla AUSENTE outbox_events
-FAIL  pay-risk: sin tabla ausente, columna ausente ni columna obligatoria no mapeada (4 hallazgos)
+     sentencias examinadas: 3 INSERT, 4 UPDATE, 10 FROM/JOIN
+PASS  pay-risk: sin tabla ausente, columna ausente ni columna obligatoria no mapeada (0 hallazgos)
 
 ## pay-schedules
      base temporal: 6 tablas, 62 columnas
      sentencias examinadas: 6 INSERT, 19 UPDATE, 11 FROM/JOIN
 PASS  pay-schedules: sin tabla ausente, columna ausente ni columna obligatoria no mapeada (0 hallazgos)
 
-resultado: FAIL (1)
+resultado: PASS
