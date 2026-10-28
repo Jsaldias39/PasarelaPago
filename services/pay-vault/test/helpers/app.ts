@@ -4,9 +4,10 @@ import { RequestMethod, type INestApplication } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
-import { createIsolatedDatabase, loadContract, type ContractValidator, type IsolatedDatabase } from '@pay/testing';
+import { createIsolatedDatabase, loadContract, TEST_DATABASE_URL, type ContractValidator, type IsolatedDatabase } from '@pay/testing';
 import { ServiceIdentityGuard } from '@pay/service-auth';
 import { FakeVaultBackend } from '../../src/backend/fake-vault-backend';
+import { createPgPool } from '../../src/pg-pool';
 import { ProblemFilter } from '../../src/problem.filter';
 import { VaultController } from '../../src/vault/vault.controller';
 import { VaultService } from '../../src/vault/vault.service';
@@ -22,6 +23,8 @@ export const CONNECTORS = { 'x-service-id': 'pay-connectors' } as const;
 
 export interface VaultTest {
   readonly db: IsolatedDatabase;
+  /** El pool que usa el servicio (nace guardado, como en producción); `db.pool` queda para que la prueba consulte. */
+  readonly servicePool: ReturnType<typeof createPgPool>;
   readonly backend: FakeVaultBackend;
   readonly service: VaultService;
   readonly app: INestApplication;
@@ -34,7 +37,9 @@ export async function startVault(): Promise<VaultTest> {
   const db = await createIsolatedDatabase(SQL_FILES);
   const backend = new FakeVaultBackend();
   const clock = { now: new Date() };
-  const service = new VaultService(db.pool as never, backend, () => clock.now);
+  // El servicio usa SU pool guardado, igual que en producción: una prueba que corta conexiones no debe tumbar al worker de Jest.
+  const servicePool = createPgPool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${db.schema}`, max: 10 });
+  const service = new VaultService(servicePool as never, backend, () => clock.now);
   const moduleRef = await Test.createTestingModule({
     controllers: [VaultController],
     providers: [{ provide: VaultService, useValue: service }, { provide: APP_GUARD, useClass: ServiceIdentityGuard }, { provide: APP_FILTER, useClass: ProblemFilter }],
@@ -42,7 +47,7 @@ export async function startVault(): Promise<VaultTest> {
   const app = moduleRef.createNestApplication();
   await app.init();
   const contract = await loadContract(path.join(root, '../../contracts/openapi/internal-vault-v1.yaml'));
-  return { db, backend, service, app, contract, clock, async close() { await app.close(); await db.drop(); } };
+  return { db, servicePool, backend, service, app, contract, clock, async close() { await app.close(); await servicePool.end(); await db.drop(); } };
 }
 
 export function routesOf(controller: { prototype: Record<string, unknown> }): string[] {
