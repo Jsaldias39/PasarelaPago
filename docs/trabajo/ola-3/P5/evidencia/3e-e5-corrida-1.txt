@@ -1,0 +1,97 @@
+FAIL e2e/pending/e5.e2e.ts
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › SIEMBRA [DOBLE]: el médico tiene Bs 500,00 por un asiento de apertura sintético (idempotente); el proveedor, nada
+
+    Ya hay un stack registrado en /home/user/pasarelapago/e2e/.run/state.json: corré `yarn e2e:down` (un solo stack a la vez).
+
+      122 |   const readyTimeoutMs = options.readyTimeoutMs ?? 90_000;
+      123 |
+    > 124 |   if (existsSync(STATE_FILE)) throw new Error(`Ya hay un stack registrado en ${STATE_FILE}: corré \`yarn e2e:down\` (un solo stack a la vez).`);
+          |                                     ^
+      125 |   const missing = (await checkInfra(infra)).filter((c) => !c.ok);
+      126 |   if (missing.length > 0) throw new Error(`Falta infraestructura del Compose: ${missing.map((m) => `${m.name} (${m.detail})`).join(', ')}. Levantala con \`docker compose -f platform/compose.yml up -d\`.`);
+      127 |
+
+      at startStack (e2e/stack.ts:124:37)
+      at Object.<anonymous> (e2e/pending/e5.e2e.ts:65:29)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › el médico programa Bs 1.000,00 mensuales al proveedor por la API pública, con sk_test_ (el modo lo fija el borde)
+
+    Ya hay un stack registrado en /home/user/pasarelapago/e2e/.run/state.json: corré `yarn e2e:down` (un solo stack a la vez).
+
+      122 |   const readyTimeoutMs = options.readyTimeoutMs ?? 90_000;
+      123 |
+    > 124 |   if (existsSync(STATE_FILE)) throw new Error(`Ya hay un stack registrado en ${STATE_FILE}: corré \`yarn e2e:down\` (un solo stack a la vez).`);
+          |                                     ^
+      125 |   const missing = (await checkInfra(infra)).filter((c) => !c.ok);
+      126 |   if (missing.length > 0) throw new Error(`Falta infraestructura del Compose: ${missing.map((m) => `${m.name} (${m.detail})`).join(', ')}. Levantala con \`docker compose -f platform/compose.yml up -d\`.`);
+      127 |
+
+      at startStack (e2e/stack.ts:124:37)
+      at Object.<anonymous> (e2e/pending/e5.e2e.ts:65:29)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › PRIMER INTENTO: con Bs 500,00 de Bs 1.000,00 espera fondos, avisa UNA vez y no mueve dinero (aunque haya 5 ejecutores)
+
+    Ya hay un stack registrado en /home/user/pasarelapago/e2e/.run/state.json: corré `yarn e2e:down` (un solo stack a la vez).
+
+      122 |   const readyTimeoutMs = options.readyTimeoutMs ?? 90_000;
+      123 |
+    > 124 |   if (existsSync(STATE_FILE)) throw new Error(`Ya hay un stack registrado en ${STATE_FILE}: corré \`yarn e2e:down\` (un solo stack a la vez).`);
+          |                                     ^
+      125 |   const missing = (await checkInfra(infra)).filter((c) => !c.ok);
+      126 |   if (missing.length > 0) throw new Error(`Falta infraestructura del Compose: ${missing.map((m) => `${m.name} (${m.detail})`).join(', ')}. Levantala con \`docker compose -f platform/compose.yml up -d\`.`);
+      127 |
+
+      at startStack (e2e/stack.ts:124:37)
+      at Object.<anonymous> (e2e/pending/e5.e2e.ts:65:29)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › REINTENTO: al llegar los otros Bs 500,00 el pago se ejecuta UNA vez, con asiento tx_ del ledger, y el proveedor cobra Bs 1.000,00
+
+    Ya hay un stack registrado en /home/user/pasarelapago/e2e/.run/state.json: corré `yarn e2e:down` (un solo stack a la vez).
+
+      122 |   const readyTimeoutMs = options.readyTimeoutMs ?? 90_000;
+      123 |
+    > 124 |   if (existsSync(STATE_FILE)) throw new Error(`Ya hay un stack registrado en ${STATE_FILE}: corré \`yarn e2e:down\` (un solo stack a la vez).`);
+          |                                     ^
+      125 |   const missing = (await checkInfra(infra)).filter((c) => !c.ok);
+      126 |   if (missing.length > 0) throw new Error(`Falta infraestructura del Compose: ${missing.map((m) => `${m.name} (${m.detail})`).join(', ')}. Levantala con \`docker compose -f platform/compose.yml up -d\`.`);
+      127 |
+
+      at startStack (e2e/stack.ts:124:37)
+      at Object.<anonymous> (e2e/pending/e5.e2e.ts:65:29)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › REINTENTO SEGURO: repetir la retención y la liberación con la MISMA clave devuelve lo mismo y no mueve dinero otra vez
+
+    Ya hay un stack registrado en /home/user/pasarelapago/e2e/.run/state.json: corré `yarn e2e:down` (un solo stack a la vez).
+
+      122 |   const readyTimeoutMs = options.readyTimeoutMs ?? 90_000;
+      123 |
+    > 124 |   if (existsSync(STATE_FILE)) throw new Error(`Ya hay un stack registrado en ${STATE_FILE}: corré \`yarn e2e:down\` (un solo stack a la vez).`);
+          |                                     ^
+      125 |   const missing = (await checkInfra(infra)).filter((c) => !c.ok);
+      126 |   if (missing.length > 0) throw new Error(`Falta infraestructura del Compose: ${missing.map((m) => `${m.name} (${m.detail})`).join(', ')}. Levantala con \`docker compose -f platform/compose.yml up -d\`.`);
+      127 |
+
+      at startStack (e2e/stack.ts:124:37)
+      at Object.<anonymous> (e2e/pending/e5.e2e.ts:65:29)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › UN SOLO EFECTO con 5 ejecutores en carrera: un solo `executed` en el bus y en el webhook, una sola fila, ningún pago más
+
+    Ya hay un stack registrado en /home/user/pasarelapago/e2e/.run/state.json: corré `yarn e2e:down` (un solo stack a la vez).
+
+      122 |   const readyTimeoutMs = options.readyTimeoutMs ?? 90_000;
+      123 |
+    > 124 |   if (existsSync(STATE_FILE)) throw new Error(`Ya hay un stack registrado en ${STATE_FILE}: corré \`yarn e2e:down\` (un solo stack a la vez).`);
+          |                                     ^
+      125 |   const missing = (await checkInfra(infra)).filter((c) => !c.ok);
+      126 |   if (missing.length > 0) throw new Error(`Falta infraestructura del Compose: ${missing.map((m) => `${m.name} (${m.detail})`).join(', ')}. Levantala con \`docker compose -f platform/compose.yml up -d\`.`);
+      127 |
+
+      at startStack (e2e/stack.ts:124:37)
+      at Object.<anonymous> (e2e/pending/e5.e2e.ts:65:29)
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 6 total
+Snapshots:   0 total
+Time:        0.377 s, estimated 51 s
+Ran all test suites matching e2e/pending/e5.e2e.ts.
+exit=1

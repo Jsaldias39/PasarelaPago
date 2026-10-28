@@ -1,0 +1,29 @@
+# UNA sola imagen para los 12 servicios de la capa sandbox (D-26, P1.H5.M1). Los doce contenedores de platform/compose.mock.yml usan ESTA imagen y se
+# distinguen por `working_dir`/`command`/`PORT`/entorno. Un solo `yarn install` del workspace y un solo `build` de las librerías y los servicios: en disco
+# es UNA imagen (~1 GB) en vez de doce. El contexto es la RAÍZ del repo:
+#   docker build -f platform/Dockerfile.sandbox --build-arg HUB=docker.io -t pay-sandbox:local .
+# SOLO sandbox: lleva `devDependencies` (por defecto) y el conector `mock`; con PAY_MODE=live los servicios se niegan a arrancar con dobles (guardia de modo).
+# `--build-arg PRUNE=1` intenta quitar las devDependencies (`yarn workspaces focus --all --production`): SIN VERIFICAR en esta imagen; si la imagen no arranca, construí sin él.
+ARG HUB=docker.io
+
+FROM ${HUB}/library/node:22-alpine AS build
+ARG PRUNE=0
+WORKDIR /repo
+COPY .yarn ./.yarn
+COPY .yarnrc.yml package.json yarn.lock tsconfig.base.json ./
+COPY contracts/packages ./contracts/packages
+COPY services ./services
+RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
+RUN node .yarn/releases/yarn-4.14.1.cjs build
+RUN if [ "$PRUNE" = "1" ]; then node .yarn/releases/yarn-4.14.1.cjs workspaces focus --all --production; fi
+COPY platform/scripts/sandbox-migrate.mjs ./platform/scripts/sandbox-migrate.mjs
+
+FROM ${HUB}/library/node:22-alpine
+ENV NODE_ENV=production
+WORKDIR /repo
+COPY --from=build /repo /repo
+# Almacén de KYC de pay-merchants (sandbox: sistema de archivos) y datos de TigerBeetle viven en volúmenes montados sobre estas rutas.
+RUN mkdir -p /data/kyc && chown -R node:node /data
+USER node
+# El servicio lo elige cada contenedor con `working_dir: /repo/services/<svc>` y `command: ["node", "dist/main.js"]`.
+CMD ["node", "-e", "console.error('Esta imagen no tiene un servicio por defecto: platform/compose.mock.yml fija working_dir y command'); process.exit(2)"]

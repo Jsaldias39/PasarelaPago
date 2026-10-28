@@ -42,7 +42,7 @@ describe('E8 — transferencia bancaria confirmada por la línea del extracto', 
   }
 
   beforeAll(async () => {
-    stack = await startStack({ tolerateFailures: false });
+    stack = await startStack({ tolerateFailures: false, mockbank: true });
     startedAt = new Date();
     merchant = await seedMerchant(stack, { label: 'COMERCIO E8 (SINTÉTICO)' });
     expect((await waitForEdgeToKnow(stack, merchant)).ok).toBe(true);
@@ -75,7 +75,7 @@ describe('E8 — transferencia bancaria confirmada por la línea del extracto', 
   });
 
   it('CONFIRMACIÓN POR EL EXTRACTO: el crédito con la referencia y el importe exactos captura el cobro; el ledger deja neto en pending y comisión en fees, débitos = créditos', async () => {
-    await payerTransfersToBank({ reference: main.reference, amountMinor: BANK_TRANSFER_GROSS });
+    await payerTransfersToBank(stack, { reference: main.reference, amountMinor: BANK_TRANSFER_GROSS });
     const settled = await api.settle(main.id);
     expect({ status: settled.status, error: settled.last_error }).toEqual({ status: 'succeeded', error: null });
 
@@ -114,7 +114,7 @@ describe('E8 — transferencia bancaria confirmada por la línea del extracto', 
     const created = await createBankTransferIntent(BANK_TRANSFER_GROSS, 'e8-intent-wrong-0001');
     expect(created.status).toBe(201);
     wrong = { id: created.intent.id, reference: created.intent.next_action!.bank_transfer!.reference };
-    await payerTransfersToBank({ reference: wrong.reference, amountMinor: BANK_TRANSFER_WRONG_AMOUNT });
+    await payerTransfersToBank(stack, { reference: wrong.reference, amountMinor: BANK_TRANSFER_WRONG_AMOUNT });
 
     const started = await backoffice(stack, 'POST', '/reconciliation_runs', { json: { connector: CONNECTOR, period_from: new Date(startedAt.getTime() - 60_000).toISOString(), period_to: new Date(Date.now() + 300_000).toISOString() }, idempotencyKey: 'e8-recon-0002' });
     await until('la corrida termina', async () => (await backoffice(stack, 'GET', `/reconciliation_runs/${(started.json as { id: string }).id}`)).json as { status: string }, (r) => r.status !== 'running', 60_000, 250);

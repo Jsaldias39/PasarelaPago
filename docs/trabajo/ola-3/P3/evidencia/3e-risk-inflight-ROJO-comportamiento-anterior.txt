@@ -1,1 +1,17 @@
 # ROJO (comportamiento ANTERIOR de assessRisk: 409 en curso = rechazo nonRetryable, timeout = fail-closed inmediato) · test/ola3.risk-inflight.spec.ts · 3e (2026-10-28T02:28:08Z)
+  ● correcto · la evaluación de riesgo está EN VUELO: se reintenta con la misma clave y el cobro avanza UNA vez › la primera evaluación tarda más que el timeout del cliente: el reintento recibe 409 «en curso», se espera y luego se repite la respuesta guardada ⇒ requires_action, UN cargo, UNA clave
+    Se agotó la espera de: pi_546bde925f9870903472267c → requires_action
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+  ● correcto · la evaluación de riesgo está EN VUELO: se reintenta con la misma clave y el cobro avanza UNA vez › 409 «en curso» dos veces y luego la decisión `allow` ⇒ el intento avanza y cobra UNA vez
+    Se agotó la espera de: pi_30b7c25a9ea588bd327748dc → requires_action
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+  ● límite · la decisión nunca llega: terminal VISIBLE (failed/risk_unavailable), fail-closed, sin cargo; nunca `processing` eterno › 409 «en curso» persistente ⇒ se agotan los intentos de la política (misma clave), el intento queda failed/risk_unavailable, sin cargo ni asiento, con constancia para una persona
+    Se agotó la espera de: pi_4829aca319ae64ed6b0e8941 → failed
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+  ● límite · la decisión nunca llega: terminal VISIBLE (failed/risk_unavailable), fail-closed, sin cargo; nunca `processing` eterno › timeouts persistentes ⇒ mismo desenlace: failed/risk_unavailable, sin cargo, y el workflow TERMINÓ (no queda vivo ni en processing)
+    - Expected  - 3
+    + Received  + 1
+  ● inválido · lo que NO es una decisión de riesgo no se confunde con «rechazo definitivo» ni mata el workflow › un 4xx declarado que no es una decisión (422) es un error de integración: fail-closed enseguida, sin reintentar, con constancia, y el workflow termina
+    Se agotó la espera de: pi_004e54346a4db1e08798b9ca → failed
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+Tests:       5 failed, 3 passed, 8 total

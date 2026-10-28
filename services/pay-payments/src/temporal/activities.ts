@@ -27,7 +27,7 @@ const isRejection = (error: unknown): boolean => error instanceof Error && error
  * la primera llamada con esta misma clave todavía no terminó) o la llamada venció en el cliente (`timeout`). Ninguna prueba que riesgo no evaluó
  * (CLAUDE.md regla 11): se reintenta con la MISMA clave, sin crear otra evaluación. No es un rechazo definitivo.
  */
-const isRiskInFlight = (error: unknown): boolean => false && 
+const isRiskInFlight = (error: unknown): boolean =>
   (isRejection(error) && (error as { status?: number; code?: string }).status === 409 && (error as { code?: string }).code === 'idempotency_request_in_progress') ||
   (isUpstreamError(error) && (error as { kind?: string }).kind === 'timeout');
 
@@ -187,11 +187,18 @@ export function createActivities(deps: Deps) {
         if (inFlight && attemptOfActivity() < config.policy.activity.maxAttempts) {
           throw ApplicationFailure.retryable('pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave', 'RiskInFlight');
         }
-        if (isUpstreamError(error)) {
-          await settle(intentId, 'failed', { failureCode: 'risk_unavailable' });
-          return { proceed: false };
+        if (isUpstreamError(error) || isRejection(error)) {
+          if (inFlight || isRejection(error)) {
+            const kind = inFlight ? 'risk_unresolved' : 'risk_integration_error';
+            await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'ambiguous', sourceEventId: `ambiguous:${kind}`, kind, reason: 'risk_without_decision_fail_closed' }));
+          }
+          const failClosed = BigInt(intent.amountMinor) >= config.policy.riskFailClosedThresholdMinor || !config.policy.riskAllowBelowThreshold;
+          if (failClosed) {
+            await settle(intentId, 'failed', { failureCode: 'risk_unavailable' });
+            return { proceed: false };
+          }
+          return { proceed: true };
         }
-        if (isRejection(error)) throw ApplicationFailure.nonRetryable('pay-risk rechazó la petición', 'RiskRejected');
         throw error;
       }
     },

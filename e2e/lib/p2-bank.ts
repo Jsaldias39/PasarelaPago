@@ -1,8 +1,10 @@
+import type { Stack } from '../stack.ts';
+
 /**
  * Importes que disparan escenarios del banco simulado, para los flujos E4 y E8 (carril P2).
  *
- * HOY son los del conector `mock` (README de pay-connectors, «escenarios deterministas por los CENTAVOS del importe»). Los define de verdad
- * `pay-mockbank` (P4.H4.M3, en construcción): cuando exista, se cambian ACÁ y los flujos no se tocan. Nada de esto es del banco real (Q-11).
+ * Son los de `pay-mockbank` y del conector `mock` (docs/trabajo/ola-2/P4/ESCENARIOS.md, «escenarios deterministas por los CENTAVOS del importe»). Si P4 cambia la tabla,
+ * se cambian ACÁ y los flujos no se tocan. Nada de esto es del banco real (Q-11).
  */
 
 /** Centavos que eligen el escenario de un cobro QR en el conector `mock`. */
@@ -37,14 +39,17 @@ export const BANK_TRANSFER_WRONG_AMOUNT = 19_000;
 /**
  * El pagador transfiere al banco con la referencia de la instrucción (`bank_transfer_instructions.reference`) y el banco la deja en su extracto.
  *
- * NO SE PUEDE HACER HOY contra el stack real: el extracto de `bank_transfer` sale de un banco simulado que vive DENTRO del proceso de
- * `pay-connectors` (`TRANSFER_BANK`, solo `injectStatementLine` en el código) y no expone ningún endpoint para inyectarle un depósito. Lo
- * resuelve `pay-mockbank` (P4.H4.M3). Esta función es el ÚNICO punto a cambiar cuando exista; mientras tanto falla con un mensaje que dice por qué,
- * en lugar de inventar una API que no existe.
+ * Contra el stack con `pay-mockbank` (`startStack({ mockbank: true })`): `POST /sandbox/payer/transfer-in` (docs/trabajo/ola-2/P4/ESCENARIOS.md § E8). El banco NO
+ * avisa a nadie: la línea aparece en el extracto de la cuenta `transfers` y el conector la descubre al conciliar. Falla diciendo por qué si el banco no
+ * contesta 200 (no se inventa un depósito).
  */
-export async function payerTransfersToBank(input: { reference: string; amountMinor: number }): Promise<never> {
-  throw new Error(
-    `E8 necesita pay-mockbank (P4.H4.M3, en construcción): hoy no hay forma de que el pagador deposite ${input.amountMinor} centavos con la referencia ${input.reference} ` +
-      'en el banco simulado del stack (vive dentro del proceso de pay-connectors). Implementar acá la llamada a pay-mockbank cuando exista.',
-  );
+export async function payerTransfersToBank(stack: Stack, input: { reference: string; amountMinor: number }): Promise<{ bankReference: string }> {
+  const res = await stack.callAs('pay-mockbank', 'pay-mockbank', 'POST', '/sandbox/payer/transfer-in', {
+    payMode: 'test',
+    json: { reference: input.reference, amount_minor: input.amountMinor },
+  });
+  if (res.status !== 200) {
+    throw new Error(`pay-mockbank no aceptó el depósito de ${input.amountMinor} centavos con la referencia ${input.reference}: HTTP ${res.status} ${res.text.slice(0, 200)}`);
+  }
+  return { bankReference: (res.json as { bank_reference: string }).bank_reference };
 }
