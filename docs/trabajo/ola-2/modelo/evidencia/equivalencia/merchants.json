@@ -1,7 +1,26 @@
 {
   "label": "merchants",
-  "verdict": "PASS",
-  "problems": [],
+  "verdict": "FAIL",
+  "problems": [
+    {
+      "aspecto": "triggers",
+      "solo_en_referencia": [],
+      "solo_en_modelo": [
+        [
+          "contract_versions",
+          "contract_versions_no_truncate",
+          "CREATE TRIGGER contract_versions_no_truncate BEFORE TRUNCATE ON contract_versions FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation()",
+          "O"
+        ],
+        [
+          "fee_schedule_channels",
+          "fee_schedule_channels_no_truncate",
+          "CREATE TRIGGER fee_schedule_channels_no_truncate BEFORE TRUNCATE ON fee_schedule_channels FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation()",
+          "O"
+        ]
+      ]
+    }
+  ],
   "idempotent": true,
   "nombres_inesperados": {
     "referencia": [],
@@ -199,7 +218,7 @@
     "indices": 19,
     "check": 25,
     "fk": 7,
-    "triggers": 6,
+    "triggers": 8,
     "funciones": 1
   }
 }

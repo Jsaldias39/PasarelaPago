@@ -67,7 +67,9 @@ describe('internal-payments-v1 · cobro por mandato (pay-schedules)', () => {
     // 10 peticiones concurrentes para otro periodo: un solo intento.
     const period = { source: { kind: 'mandate', id: `md_${RUN}000002`, period: '2026-12' } };
     const many = await Promise.all(Array.from({ length: 10 }, () => post(body(period), key())));
-    expect(new Set(many.map((r) => r.body.id)).size).toBe(1);
+    // Diagnóstico (misma aserción): si hay más de un valor, el mensaje trae el estado HTTP y el cuerpo de cada respuesta, para clasificar el fallo.
+    const ids = new Set(many.map((r) => r.body.id));
+    if (ids.size !== 1) throw new Error(`se esperaba UN solo intento y hubo ${ids.size}: ${JSON.stringify(many.map((r) => ({ status: r.status, id: r.body.id, code: r.body.code, detail: r.body.detail })))}`);
     const rows = await stack.db.pool.query(`SELECT count(*)::int AS n FROM payment_intents WHERE source ->> 'id' = 'md_${RUN}000002' AND source ->> 'period' = '2026-12'`);
     expect(rows.rows[0].n).toBe(1);
   });

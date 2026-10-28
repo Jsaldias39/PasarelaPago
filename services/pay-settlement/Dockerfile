@@ -7,9 +7,12 @@ WORKDIR /repo
 COPY .yarn ./.yarn
 COPY .yarnrc.yml package.json yarn.lock tsconfig.base.json ./
 COPY contracts/packages ./contracts/packages
-COPY services/pay-settlement ./services/pay-settlement
+# yarn.lock lista TODOS los workspaces: con `--immutable`, instalar con solo este servicio presente falla («The lockfile would have been modified»).
+# Se copian todos para que el árbol coincida con el lockfile y, tras compilar, se quitan los demás: la imagen lleva solo este servicio.
+COPY services ./services
 RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
-RUN node .yarn/releases/yarn-4.14.1.cjs workspaces foreach -A --topological-dev --from pay-settlement run build
+RUN node .yarn/releases/yarn-4.14.1.cjs workspaces foreach -R --topological-dev --from pay-settlement run build
+RUN find services -mindepth 1 -maxdepth 1 ! -name pay-settlement -exec rm -rf {} +
 
 FROM ${HUB}/library/node:22-alpine
 ENV NODE_ENV=production

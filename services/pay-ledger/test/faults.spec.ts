@@ -108,8 +108,14 @@ describe('TigerBeetle muerto con SIGKILL en medio del servicio (ledger real)', (
 
     // — vuelve TigerBeetle (mismos datos): los MISMOS reintentos, con las MISMAS claves —
     await startTb();
-    const okTx = await waitFor(async () => (await post('/transactions', tx, key(), 'pay-payments')).status === 201, 20_000, 500);
-    expect(okTx).toBe(true); // el cliente de TigerBeetle se reconecta solo
+    // El cliente de TigerBeetle se reconecta solo Y entrega al reiniciar lo que había quedado en su cola aunque el HTTP ya respondió 503: un timeout NO significa que no
+    // se aplicó (H-5). Por eso, justo después de volver, TigerBeetle puede ir POR DELANTE de Postgres (movimiento y retención aplicados, sin fila). Lo que se exige es que
+    // el reintento con los mismos identificadores converja: ni duplica ni pierde, y deja las filas que faltaban.
+    const okTx = await waitFor(async () => [200, 201].includes((await post('/transactions', tx, key(), 'pay-payments')).status), 20_000, 500);
+    expect(okTx).toBe(true);
+    const retriedHold = await post('/holds', newHold, key());
+    expect([200, 201]).toContain(retriedHold.status);
+    expect(await count('SELECT count(*)::int AS n FROM ledger_holds WHERE business_ref = $1', [newHold.business_ref])).toBe(1);
     const posted = await post(`/holds/${hold.body.id}/post`, undefined, postKey);
     expect(posted.status).toBe(200); // el 503 NO quedó guardado como respuesta final de esa clave
     expect(posted.headers['idempotency-replayed']).toBeUndefined();
@@ -120,7 +126,7 @@ describe('TigerBeetle muerto con SIGKILL en medio del servicio (ledger real)', (
 
     expect(await count('SELECT count(*)::int AS n FROM ledger_legs WHERE business_ref = $1', [txRef])).toBe(1);
     expect(await balance(`merchant:${m}:pending`)).toBe(700);
-    expect(await balance(`merchant:${m}:available`)).toBe(3000);
+    expect(await balance(`merchant:${m}:available`)).toBe(2900); // 5000 − 2000 (confirmada) − 100 (la retención nueva, una sola vez)
     expect(await balance('payout:clearing')).toBe(2000);
     const report = await ctx.invariant.check();
     expect(report.ok).toBe(true);

@@ -1,0 +1,20 @@
+# Gate: DERIVA DE ESQUEMA — SQL del servicio ↔ base real ↔ consultas del código
+# Se aplica el DDL de cada servicio a una base temporal y se verifican, contra information_schema, las sentencias INSERT / UPDATE / FROM / JOIN literales del código:
+# tabla ausente, columna ausente y columna obligatoria (NOT NULL sin valor por defecto) no mapeada en un INSERT. La nulabilidad contra el MODELO (.puml) no se puede comprobar: ver GAP.
+
+## pay-merchants
+     base temporal: 11 tablas, 89 columnas
+     sentencias examinadas: 11 INSERT, 13 UPDATE, 28 FROM/JOIN
+PASS  pay-merchants: sin tabla ausente, columna ausente ni columna obligatoria no mapeada (0 hallazgos)
+
+## pay-risk
+     base temporal: 5 tablas, 58 columnas
+     sentencias examinadas: 5 INSERT, 6 UPDATE, 11 FROM/JOIN
+PASS  pay-risk: sin tabla ausente, columna ausente ni columna obligatoria no mapeada (0 hallazgos)
+
+## pay-schedules
+     base temporal: 6 tablas, 62 columnas
+     sentencias examinadas: 6 INSERT, 19 UPDATE, 11 FROM/JOIN
+PASS  pay-schedules: sin tabla ausente, columna ausente ni columna obligatoria no mapeada (0 hallazgos)
+
+resultado: PASS

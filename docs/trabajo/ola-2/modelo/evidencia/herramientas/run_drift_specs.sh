@@ -23,13 +23,16 @@ for x in ${EXTRA:-}; do mkdir -p "$SCRATCH/services/pay-$x"; tar -C "$ROOT/servi
 rc=0
 for s in "${SVCS[@]}"; do
   copy "$ROOT/services/pay-$s" "$SCRATCH/services/pay-$s"
-  f=$(ls "$SCRATCH/services/pay-$s/sql/"*.sql)
-  if [ -z "${BASELINE:-}" ]; then cp "$MODEL/${NUM[$s]}_pay_$s/ddl.sql" "$f"; echo "== $s: drift.spec contra SQL GENERADO ($MODEL/${NUM[$s]}_pay_$s/ddl.sql, sha256 $(sha256sum "$f" | cut -c1-16))";
+  # el servicio puede tener ya un ddl.sql vendorizado (P5 lo hizo después): se reemplazan TODOS los .sql del directorio por el generado
+  f=$(ls "$SCRATCH/services/pay-$s/sql/"*.sql | head -1)
+  if [ -z "${BASELINE:-}" ]; then for g in "$SCRATCH/services/pay-$s/sql/"*.sql; do cp "$MODEL/${NUM[$s]}_pay_$s/ddl.sql" "$g"; done; echo "== $s: drift.spec contra SQL GENERADO ($MODEL/${NUM[$s]}_pay_$s/ddl.sql, sha256 $(sha256sum "$f" | cut -c1-16))";
   else echo "== $s: drift.spec contra SQL de REFERENCIA (control)"; fi
+  # PRE_TEST: comando que se corre DENTRO de la copia del servicio antes de jest (p. ej. adaptar un helper de pruebas); la copia es desechable.
+  [ -n "${PRE_TEST:-}" ] && (cd "$SCRATCH/services/pay-$s" && eval "$PRE_TEST")
   args=(); [ -z "${FULL:-}" ] && args=("${SPEC[$s]}")
   # FULL=1: las specs que compilan y arrancan el servicio (`yarn build` + `node dist/main.js`) no corren en la copia mínima (sin la cadena de build): IGNORE las excluye.
   [ -n "${FULL:-}" ] && [ -n "${ONLY:-}" ] && args+=("$ONLY")
   [ -n "${FULL:-}" ] && [ -n "${IGNORE:-}" ] && args+=(--testPathIgnorePatterns "$IGNORE")
-  (cd "$SCRATCH/services/pay-$s" && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs "${args[@]}" --maxWorkers=1 --colors=false 2>&1 | grep -v "ExperimentalWarning\|--trace-warnings") || rc=1
+  (cd "$SCRATCH/services/pay-$s" && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs "${args[@]}" --maxWorkers=${WORKERS:-1} --colors=false 2>&1 | grep -v "ExperimentalWarning\|--trace-warnings") || rc=1
 done
 exit $rc

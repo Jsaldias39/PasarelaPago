@@ -1,0 +1,62 @@
+# Gate: FALLOS — experimentos de inyección de fallos (cada uno: hipótesis, inyección, observación)
+
+## F1 · pay-risk con Watchman caído
+   Hipótesis: si el cribado no responde, la evaluación termina en `review` (`screening_unavailable`, screened=false) y NUNCA en `allow`; el servicio sigue sano.
+PASS  pay-risk arranca con WATCHMAN_URL inalcanzable (127.0.0.1:1)
+     observado: 201 {"decision":"review","reason_code":"screening_unavailable","screened":false}
+PASS  Watchman caído ⇒ 201 review, screened=false, nunca allow
+PASS  el servicio sigue respondiendo /health/ready 200
+
+## F2 · cada servicio con las conexiones de Postgres cortadas en caliente (pg_terminate_backend)
+   Hipótesis: el proceso NO muere (un `error` del pool sin manejador lo mata: se halló y corrigió en este gate); la siguiente petición reconecta y responde.
+PASS  pay-merchants: antes del corte la petición de prueba responde 404
+     inyección: 1 conexiones de pay-merchants terminadas
+     observado tras el corte: 404; proceso vivo
+PASS  pay-merchants: el proceso sigue vivo y se recupera solo tras el corte
+PASS  pay-merchants: /health/ready vuelve a 200
+PASS  pay-risk: antes del corte la petición de prueba responde 404
+     inyección: 1 conexiones de pay-risk terminadas
+     observado tras el corte: 404; proceso vivo
+PASS  pay-risk: el proceso sigue vivo y se recupera solo tras el corte
+PASS  pay-risk: /health/ready vuelve a 200
+PASS  pay-schedules: antes del corte la petición de prueba responde 200
+     inyección: 1 conexiones de pay-schedules terminadas
+     observado tras el corte: 200; proceso vivo
+PASS  pay-schedules: el proceso sigue vivo y se recupera solo tras el corte
+PASS  pay-schedules: /health/ready vuelve a 200
+
+   (pay-risk, además: la misma clave repetida tras el corte devuelve 200 y deja UN solo rastro)
+PASS  pay-risk: evaluación antes del corte ⇒ 201
+PASS  pay-risk: tras el corte, una evaluación nueva ⇒ 201
+PASS  pay-risk: repetir la misma clave ⇒ 200 (misma decisión), no un duplicado
+PASS  pay-risk: un solo rastro para el intento reintentado (hay 1)
+
+## F3 · pay-merchants con NATS detenido y luego restablecido
+   Hipótesis: con NATS caído el alta responde 201 igual (outbox transaccional); el evento queda pendiente; al volver NATS se publica UNA vez.
+PASS  pay-merchants arranca con NATS arriba
+     inyección: NATS privado detenido
+PASS  con NATS caído el alta responde 201 (observado 201)
+PASS  el evento merchant.created queda PENDIENTE en el outbox (pendientes: 1)
+     restablecimiento: NATS privado reiniciado
+PASS  al volver NATS el relé publica el evento (published_at registrado)
+PASS  el stream PAY_MERCHANTS tiene exactamente 1 mensaje (sin duplicados)
+
+## F4 · pay-schedules con el libro mayor respondiendo 500 (resultado ambiguo, regla 11)
+   Hipótesis: el pago NO se anula ni se marca ejecutado; cada reintento usa la MISMA Idempotency-Key; al agotar la política queda failed `ledger_unavailable` A REVISIÓN y nunca se llama a /void.
+PASS  mandato creado
+     observado: {"status":"failed","attempts":3,"needs_review":true,"last_failure_code":"ledger_unavailable","ledger_transaction_id":null}
+     llamadas al libro mayor: 3 → POST /holds
+PASS  al agotar la política: failed / ledger_unavailable / a revisión, sin asiento
+PASS  jamás se llamó a /void: un 500 no prueba que no se ejecutó
+PASS  los 3 reintentos de la retención usan la MISMA Idempotency-Key (sp_b7tzqhvnbamb3oa5:reserve:1)
+PASS  un solo aviso: scheduled_payment.failed
+
+## F5 · pay-schedules muerto con SIGKILL y reiniciado sobre la misma base
+   Hipótesis: el estado en la base sobrevive; al reiniciar el servicio retoma el pago pendiente sin duplicarlo (UNIQUE mandato+periodo).
+     inyección: SIGKILL a pid 27947; filas antes: [{"id":"sp_7wuaix4dbsbdnx3t","status":"due","attempts":1}]
+PASS  el servicio reiniciado sobre la misma base queda listo
+     filas después del reinicio: [{"id":"sp_7wuaix4dbsbdnx3t","status":"due","attempts":1}]
+PASS  el mismo pago programado sobrevive (una sola fila para el periodo)
+PASS  el pago sigue en un estado conocido (due) y NO ejecutado sin asiento
+
+resultado: PASS

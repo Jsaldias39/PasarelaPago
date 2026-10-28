@@ -1,0 +1,8 @@
+# ledger: suite completa contra el SQL generado con las FK nuevas de ledger_holds + la prueba nueva holds-accounts-fk.spec.ts (IGNORE startup|env-example; TigerBeetle real en 127.0.0.1:54300, --maxWorkers=2)
+== ledger: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/72_pay_ledger/ddl.sql, sha256 db30ce8bacdeca89)
+FAIL test/faults.spec.ts
+  ● TigerBeetle muerto con SIGKILL en medio del servicio (ledger real) › mientras está caído: 503 ledger_unavailable en escrituras y lecturas, sin efectos a medias; al volver, el MISMO reintento termina una sola ve
+  ● TigerBeetle muerto con SIGKILL en medio del servicio (ledger real) › la retención vencida durante la caída se resuelve sola al volver: el monto no se pierde ni se duplica
+Test Suites: 1 failed, 16 passed, 17 total
+Tests:       2 failed, 267 passed, 269 total
+FIN

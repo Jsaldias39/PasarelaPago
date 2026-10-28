@@ -20,3 +20,51 @@ exit=0
 imagen sha256:7335ee6f7f45443834a044daac4ef9c94fd9c06142ea58af77f9a3ad7f2416f4 tamaño 990841995 usuario=node cmd=[node dist/main.js] expose=map[3107/tcp:map[]]
 ### docker build -f services/pay-risk/Dockerfile --build-arg HUB=p5gate.local -t p5gate-pay-risk:local .
 inicio 2026-10-28T00:10:56Z
+exit=0
+#10 DONE 0.4s
+
+#11 exporting to image
+#11 exporting layers
+#11 exporting layers 21.2s done
+#11 exporting manifest sha256:6ff2e429c7d5003987426d0d3a94cc9d29c50ed825e8af4dd0c934850e822058
+#11 exporting manifest sha256:6ff2e429c7d5003987426d0d3a94cc9d29c50ed825e8af4dd0c934850e822058 0.0s done
+#11 exporting config sha256:14f0a09e82bf7e0e133c141111766167aaa3c95d1e7b88db6d0f7b1953596f46 0.0s done
+#11 exporting attestation manifest sha256:a70a7912f013727acaf43f06ce110bc5ccee741e57182e597fa318021ff98842 0.0s done
+#11 exporting manifest list sha256:757746dd4250b6cdeb0465a9df3383e9f4be831e694fc6c26f9f570378e4a6a6
+#11 exporting manifest list sha256:757746dd4250b6cdeb0465a9df3383e9f4be831e694fc6c26f9f570378e4a6a6 0.0s done
+#11 naming to docker.io/library/p5gate-pay-risk:local done
+#11 unpacking to docker.io/library/p5gate-pay-risk:local
+#11 unpacking to docker.io/library/p5gate-pay-risk:local 8.9s done
+#11 DONE 30.2s
+imagen sha256:757746dd4250b6cdeb0465a9df3383e9f4be831e694fc6c26f9f570378e4a6a6 tamaño 990608878 usuario=node cmd=[node dist/main.js] expose=map[3108/tcp:map[]]
+### docker build -f services/pay-schedules/Dockerfile --build-arg HUB=p5gate.local -t p5gate-pay-schedules:local .
+inicio 2026-10-28T00:12:46Z
+exit=0
+
+#10 [stage-1 4/4] WORKDIR /repo/services/pay-schedules
+#10 DONE 0.5s
+
+#11 exporting to image
+#11 exporting layers
+#11 exporting layers 20.9s done
+#11 exporting manifest sha256:fd889053899e9b7e585de5184701b48b86b9fe127fcb2b6c7df51c63ed81bdaa done
+#11 exporting config sha256:ebf5627183146cc5058971e0ad57f252b86ffa8afd34210f7eb753005127e54b 0.0s done
+#11 exporting attestation manifest sha256:7292cd9ea27428e97c28e904ba60076fd74d0c7d11dc1f4deb775b657ef6c229 0.0s done
+#11 exporting manifest list sha256:8845d5be9363ddd1114689e447e040acbb3f5f0e0edb15bb128489dcbb89fbf2 0.0s done
+#11 naming to docker.io/library/p5gate-pay-schedules:local done
+#11 unpacking to docker.io/library/p5gate-pay-schedules:local
+#11 unpacking to docker.io/library/p5gate-pay-schedules:local 7.4s done
+#11 DONE 28.4s
+imagen sha256:8845d5be9363ddd1114689e447e040acbb3f5f0e0edb15bb128489dcbb89fbf2 tamaño 990700293 usuario=node cmd=[node dist/main.js] expose=map[3109/tcp:map[]]
+### limpieza
+Untagged: p5gate.local/library/node:22-alpine
+Deleted: sha256:e304156d99df5312fdc32b632e523b4c36b9301f02d76f5a91f2e07dcdb6348f
+Untagged: p5gate-pay-merchants:local
+Deleted: sha256:7335ee6f7f45443834a044daac4ef9c94fd9c06142ea58af77f9a3ad7f2416f4
+Untagged: p5gate-pay-risk:local
+Deleted: sha256:757746dd4250b6cdeb0465a9df3383e9f4be831e694fc6c26f9f570378e4a6a6
+Untagged: p5gate-pay-schedules:local
+Deleted: sha256:8845d5be9363ddd1114689e447e040acbb3f5f0e0edb15bb128489dcbb89fbf2
+Total reclaimed space: 0B
+sin imágenes p5gate restantes
+DONE

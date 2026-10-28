@@ -1,7 +1,52 @@
 {
   "label": "connectors",
-  "verdict": "PASS",
-  "problems": [],
+  "verdict": "FAIL",
+  "problems": [
+    {
+      "aspecto": "triggers",
+      "solo_en_referencia": [],
+      "solo_en_modelo": [
+        [
+          "connector_charges",
+          "connector_charges_monotone_trg",
+          "CREATE TRIGGER connector_charges_monotone_trg BEFORE UPDATE ON connector_charges FOR EACH ROW EXECUTE FUNCTION connector_charges_send_claims_monotone()",
+          "O"
+        ],
+        [
+          "connector_charges",
+          "connector_charges_no_truncate",
+          "CREATE TRIGGER connector_charges_no_truncate BEFORE TRUNCATE ON connector_charges FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation()",
+          "O"
+        ],
+        [
+          "connector_refunds",
+          "connector_refunds_no_truncate",
+          "CREATE TRIGGER connector_refunds_no_truncate BEFORE TRUNCATE ON connector_refunds FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation()",
+          "O"
+        ],
+        [
+          "connector_transfers",
+          "connector_transfers_no_truncate",
+          "CREATE TRIGGER connector_transfers_no_truncate BEFORE TRUNCATE ON connector_transfers FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation()",
+          "O"
+        ]
+      ]
+    },
+    {
+      "aspecto": "functions",
+      "solo_en_referencia": [],
+      "solo_en_modelo": [
+        [
+          "connector_charges_send_claims_monotone",
+          "CREATE OR REPLACE FUNCTION connector_charges_send_claims_monotone() RETURNS trigger LANGUAGE plpgsql AS $function$ BEGIN IF NEW.send_claims < OLD.send_claims THEN RAISE EXCEPTION 'send_claims es monotono: no puede disminuir' USING ERRCODE = 'check_violation'; END IF; RETURN NEW; END; $function$"
+        ],
+        [
+          "forbid_mutation",
+          "CREATE OR REPLACE FUNCTION forbid_mutation() RETURNS trigger LANGUAGE plpgsql AS $function$ BEGIN RAISE EXCEPTION 'la tabla % es inmutable (%)', TG_TABLE_NAME, TG_OP USING ERRCODE = 'integrity_constraint_violation'; END; $function$"
+        ]
+      ]
+    }
+  ],
   "idempotent": true,
   "nombres_inesperados": {
     "referencia": [],
@@ -174,7 +219,7 @@
     "indices": 31,
     "check": 45,
     "fk": 2,
-    "triggers": 2,
-    "funciones": 1
+    "triggers": 6,
+    "funciones": 3
   }
 }

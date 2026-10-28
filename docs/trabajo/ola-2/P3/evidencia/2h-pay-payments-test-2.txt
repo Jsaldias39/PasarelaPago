@@ -3,3 +3,3068 @@
 (Use `node --trace-warnings ...` to show where the warning was created)
 (node:24730) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
+2026-10-28T00:13:58.355Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-6a4ddb0c',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNTRmOTI4MTVkNzNkY2Q1N2QwNWFhZDViGiRhNzc2ZmY4NS01YzUyLTRkOGUtYjM3My1hMmNjYTg1ZTU1ZmYgJygBMgE2Qg5jb21wbGV0ZUludGVudEoJCAEQsMnAARgB',
+  activityId: '6',
+  activityType: 'completeIntent',
+  workflowId: 'payment-pi_54f92815d73dcd57d05aad5b',
+  workflowRunId: 'a776ff85-5c52-4d8e-b373-a2cca85e55ff',
+  workflowType: 'PaymentWorkflow',
+  error: Error: el worker murió después del commit
+      at Object.tx (/home/user/pasarelapago/services/pay-payments/test/ola2.tanda2g.kill.spec.ts:220:17)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at settle (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:63:15)
+      at completeIntent (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:287:19)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24,
+  durationMs: 6
+}
+2026-10-28T00:15:18.839Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-313005d7',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kMjliNzQwYjhkZTAwNGI3NmE4YWZhYzMaJDQxNzZmMTU2LWYyNjAtNDMyZS1iODNmLTEzYjE1Y2UwZWE3OSBZKAEyAjEwQg1pbnF1aXJlUmVmdW5kSgkIAxClz8ABGAE=',
+  activityId: '10',
+  activityType: 'inquireRefund',
+  workflowId: 'refund-re_d29b740b8de004b76a8afac3',
+  workflowRunId: '4176f156-f260-432e-b83f-13b15ce0ea79',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: timeout
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:145:13)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.getRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:119:22)
+      at inquireRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:78:17)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'timeout',
+    upstream: 'pay-connectors',
+    status: undefined,
+    problemCode: undefined
+  },
+  durationMs: 3116
+}
+2026-10-28T00:15:40.273Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNzBiYjI3N2FkMmYwYjFkNTMzN2VkZWE1GiRiYWRlMDMyZi1hNjZlLTRiYmItODcyNy01ZGRmMmFmZWU4ZDMgESgBMgEzQgxjcmVhdGVDaGFyZ2VKCQgCEJjLwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_70bb277ad2f0b1d5337edea5',
+  workflowRunId: 'bade032f-a66e-4bbb-8727-5ddf2afee8d3',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:195:62)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 58
+}
+2026-10-28T00:15:40.674Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85MWFmOWQ1NGNhNWJjZGQ4NjJiZWQ3MjIaJDA4ODc2NDdlLTZhMDItNDRkZS1iM2U1LTZmY2YzMGFhOWE0NCARKAEyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxCT1cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_91af9d54ca5bcdd862bed722',
+  workflowRunId: '0887647e-6a02-44de-b3e5-6fcf30aa9a44',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 61
+}
+2026-10-28T00:15:41.357Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNzBiYjI3N2FkMmYwYjFkNTMzN2VkZWE1GiRiYWRlMDMyZi1hNjZlLTRiYmItODcyNy01ZGRmMmFmZWU4ZDMgESgCMgEzQgxjcmVhdGVDaGFyZ2VKCQgCEJvLwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_70bb277ad2f0b1d5337edea5',
+  workflowRunId: 'bade032f-a66e-4bbb-8727-5ddf2afee8d3',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:195:62)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 74
+}
+2026-10-28T00:15:41.707Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85MWFmOWQ1NGNhNWJjZGQ4NjJiZWQ3MjIaJDA4ODc2NDdlLTZhMDItNDRkZS1iM2U1LTZmY2YzMGFhOWE0NCARKAIyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxCz1cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_91af9d54ca5bcdd862bed722',
+  workflowRunId: '0887647e-6a02-44de-b3e5-6fcf30aa9a44',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 75
+}
+2026-10-28T00:15:42.245Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85MWFmOWQ1NGNhNWJjZGQ4NjJiZWQ3MjIaJDA4ODc2NDdlLTZhMDItNDRkZS1iM2U1LTZmY2YzMGFhOWE0NCARKAMyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxC21cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_91af9d54ca5bcdd862bed722',
+  workflowRunId: '0887647e-6a02-44de-b3e5-6fcf30aa9a44',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 61
+}
+2026-10-28T00:15:42.332Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNzBiYjI3N2FkMmYwYjFkNTMzN2VkZWE1GiRiYWRlMDMyZi1hNjZlLTRiYmItODcyNy01ZGRmMmFmZWU4ZDMgESgDMgEzQgxjcmVhdGVDaGFyZ2VKCQgCEJ7LwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_70bb277ad2f0b1d5337edea5',
+  workflowRunId: 'bade032f-a66e-4bbb-8727-5ddf2afee8d3',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:195:62)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 62
+}
+2026-10-28T00:15:43.323Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNzBiYjI3N2FkMmYwYjFkNTMzN2VkZWE1GiRiYWRlMDMyZi1hNjZlLTRiYmItODcyNy01ZGRmMmFmZWU4ZDMgESgEMgEzQgxjcmVhdGVDaGFyZ2VKCQgCEKHLwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_70bb277ad2f0b1d5337edea5',
+  workflowRunId: 'bade032f-a66e-4bbb-8727-5ddf2afee8d3',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:195:62)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 56
+}
+2026-10-28T00:15:43.326Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85MWFmOWQ1NGNhNWJjZGQ4NjJiZWQ3MjIaJDA4ODc2NDdlLTZhMDItNDRkZS1iM2U1LTZmY2YzMGFhOWE0NCARKAQyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxDW1cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_91af9d54ca5bcdd862bed722',
+  workflowRunId: '0887647e-6a02-44de-b3e5-6fcf30aa9a44',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 58
+}
+2026-10-28T00:15:43.622Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNjRmNmVkNTRmNjRhMjA2YjBlOGI5MTliGiRkZGZlNTMxZi0wZmViLTQ0NWQtYjk1Yi04OWQwODhiYTEzOWEgESgBMgEzQgxjcmVhdGVDaGFyZ2VKCQgDEMLWwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_64f6ed54f64a206b0e8b919b',
+  workflowRunId: 'ddfe531f-0feb-445d-b95b-89d088ba139a',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 56
+}
+2026-10-28T00:15:44.513Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85MWFmOWQ1NGNhNWJjZGQ4NjJiZWQ3MjIaJDA4ODc2NDdlLTZhMDItNDRkZS1iM2U1LTZmY2YzMGFhOWE0NCAiKAEyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxDv1sABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_91af9d54ca5bcdd862bed722',
+  workflowRunId: '0887647e-6a02-44de-b3e5-6fcf30aa9a44',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 58
+}
+2026-10-28T00:15:44.632Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNjRmNmVkNTRmNjRhMjA2YjBlOGI5MTliGiRkZGZlNTMxZi0wZmViLTQ0NWQtYjk1Yi04OWQwODhiYTEzOWEgESgCMgEzQgxjcmVhdGVDaGFyZ2VKCQgDEPLWwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_64f6ed54f64a206b0e8b919b',
+  workflowRunId: 'ddfe531f-0feb-445d-b95b-89d088ba139a',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 60
+}
+2026-10-28T00:15:45.517Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85MWFmOWQ1NGNhNWJjZGQ4NjJiZWQ3MjIaJDA4ODc2NDdlLTZhMDItNDRkZS1iM2U1LTZmY2YzMGFhOWE0NCAiKAIyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxCN18ABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_91af9d54ca5bcdd862bed722',
+  workflowRunId: '0887647e-6a02-44de-b3e5-6fcf30aa9a44',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 56
+}
+2026-10-28T00:15:45.524Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNjRmNmVkNTRmNjRhMjA2YjBlOGI5MTliGiRkZGZlNTMxZi0wZmViLTQ0NWQtYjk1Yi04OWQwODhiYTEzOWEgESgDMgEzQgxjcmVhdGVDaGFyZ2VKCQgDEI7XwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_64f6ed54f64a206b0e8b919b',
+  workflowRunId: 'ddfe531f-0feb-445d-b95b-89d088ba139a',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 57
+}
+2026-10-28T00:15:46.534Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNjRmNmVkNTRmNjRhMjA2YjBlOGI5MTliGiRkZGZlNTMxZi0wZmViLTQ0NWQtYjk1Yi04OWQwODhiYTEzOWEgESgEMgEzQgxjcmVhdGVDaGFyZ2VKCQgDEJrXwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_64f6ed54f64a206b0e8b919b',
+  workflowRunId: 'ddfe531f-0feb-445d-b95b-89d088ba139a',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 59
+}
+2026-10-28T00:15:47.243Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV84YmMzZTJhZGMwMTNlMjNkZjVhZjBkN2QaJGM0YWI2YWQzLTg1ZDMtNGYyYi04YzJmLWNlNGQxNjg3MGYyNSARKAEyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxCm2MABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_8bc3e2adc013e23df5af0d7d',
+  workflowRunId: 'c4ab6ad3-85d3-4f2b-8c2f-ce4d16870f25',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (502)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 502,
+    problemCode: undefined
+  },
+  durationMs: 62
+}
+2026-10-28T00:15:47.779Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNjRmNmVkNTRmNjRhMjA2YjBlOGI5MTliGiRkZGZlNTMxZi0wZmViLTQ0NWQtYjk1Yi04OWQwODhiYTEzOWEgIigBMgE1QgxjcmVhdGVDaGFyZ2VKCQgDENPYwAEYAQ==',
+  activityId: '5',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_64f6ed54f64a206b0e8b919b',
+  workflowRunId: 'ddfe531f-0feb-445d-b95b-89d088ba139a',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 57
+}
+2026-10-28T00:15:48.246Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV84YmMzZTJhZGMwMTNlMjNkZjVhZjBkN2QaJGM0YWI2YWQzLTg1ZDMtNGYyYi04YzJmLWNlNGQxNjg3MGYyNSARKAIyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxDW2MABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_8bc3e2adc013e23df5af0d7d',
+  workflowRunId: 'c4ab6ad3-85d3-4f2b-8c2f-ce4d16870f25',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (502)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 502,
+    problemCode: undefined
+  },
+  durationMs: 63
+}
+2026-10-28T00:15:48.792Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNjRmNmVkNTRmNjRhMjA2YjBlOGI5MTliGiRkZGZlNTMxZi0wZmViLTQ0NWQtYjk1Yi04OWQwODhiYTEzOWEgIigCMgE1QgxjcmVhdGVDaGFyZ2VKCQgDEPDYwAEYAQ==',
+  activityId: '5',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_64f6ed54f64a206b0e8b919b',
+  workflowRunId: 'ddfe531f-0feb-445d-b95b-89d088ba139a',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 68
+}
+2026-10-28T00:15:49.320Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV84YmMzZTJhZGMwMTNlMjNkZjVhZjBkN2QaJGM0YWI2YWQzLTg1ZDMtNGYyYi04YzJmLWNlNGQxNjg3MGYyNSARKAMyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxD52MABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_8bc3e2adc013e23df5af0d7d',
+  workflowRunId: 'c4ab6ad3-85d3-4f2b-8c2f-ce4d16870f25',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (502)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 502,
+    problemCode: undefined
+  },
+  durationMs: 71
+}
+2026-10-28T00:15:50.200Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV84YmMzZTJhZGMwMTNlMjNkZjVhZjBkN2QaJGM0YWI2YWQzLTg1ZDMtNGYyYi04YzJmLWNlNGQxNjg3MGYyNSARKAQyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxDk2cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_8bc3e2adc013e23df5af0d7d',
+  workflowRunId: 'c4ab6ad3-85d3-4f2b-8c2f-ce4d16870f25',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (502)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 502,
+    problemCode: undefined
+  },
+  durationMs: 63
+}
+2026-10-28T00:15:50.673Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfOTEwMGQzNGY3ZWJjOTJhOGU2OTY2ZjAxGiQ3Yzk2Mjg4Mi1hZTI4LTQ5NWYtOGU4Yy04YjRhMWU5MzI5NzQgIygBMgE1QgxyZWNvcmRMZWRnZXJKCQgCEPzMwAEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_9100d34f7ebc92a8e6966f01',
+  workflowRunId: '7c962882-ae28-495f-8e8c-8b4a1e932974',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 57
+}
+2026-10-28T00:15:51.463Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV84YmMzZTJhZGMwMTNlMjNkZjVhZjBkN2QaJGM0YWI2YWQzLTg1ZDMtNGYyYi04YzJmLWNlNGQxNjg3MGYyNSAiKAEyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxCu2sABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_8bc3e2adc013e23df5af0d7d',
+  workflowRunId: 'c4ab6ad3-85d3-4f2b-8c2f-ce4d16870f25',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (502)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 502,
+    problemCode: undefined
+  },
+  durationMs: 58
+}
+2026-10-28T00:15:52.149Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYWUxNjA2ZDdhNTQ5OGU1NDY2YzIzOGIxGiRiOGI2MTA3OC1jMGJkLTRjZWMtYTFlMi1lOTg0Y2EyYzJmYTEgIygBMgE1QgxyZWNvcmRMZWRnZXJKCQgEEMDxwAEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_ae1606d7a5498e5466c238b1',
+  workflowRunId: 'b8b61078-c0bd-4cec-a1e2-e984ca2c2fa1',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 60
+}
+2026-10-28T00:15:52.472Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV84YmMzZTJhZGMwMTNlMjNkZjVhZjBkN2QaJGM0YWI2YWQzLTg1ZDMtNGYyYi04YzJmLWNlNGQxNjg3MGYyNSAiKAIyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIAxDO2sABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_8bc3e2adc013e23df5af0d7d',
+  workflowRunId: 'c4ab6ad3-85d3-4f2b-8c2f-ce4d16870f25',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (502)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 502,
+    problemCode: undefined
+  },
+  durationMs: 61
+}
+2026-10-28T00:15:53.157Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYWUxNjA2ZDdhNTQ5OGU1NDY2YzIzOGIxGiRiOGI2MTA3OC1jMGJkLTRjZWMtYTFlMi1lOTg0Y2EyYzJmYTEgIygCMgE1QgxyZWNvcmRMZWRnZXJKCQgEEMPxwAEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_ae1606d7a5498e5466c238b1',
+  workflowRunId: 'b8b61078-c0bd-4cec-a1e2-e984ca2c2fa1',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 57
+}
+2026-10-28T00:15:54.073Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYWUxNjA2ZDdhNTQ5OGU1NDY2YzIzOGIxGiRiOGI2MTA3OC1jMGJkLTRjZWMtYTFlMi1lOTg0Y2EyYzJmYTEgIygDMgE1QgxyZWNvcmRMZWRnZXJKCQgEEMbxwAEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_ae1606d7a5498e5466c238b1',
+  workflowRunId: 'b8b61078-c0bd-4cec-a1e2-e984ca2c2fa1',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 58
+}
+2026-10-28T00:15:55.074Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYWUxNjA2ZDdhNTQ5OGU1NDY2YzIzOGIxGiRiOGI2MTA3OC1jMGJkLTRjZWMtYTFlMi1lOTg0Y2EyYzJmYTEgIygEMgE1QgxyZWNvcmRMZWRnZXJKCQgEEMnxwAEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_ae1606d7a5498e5466c238b1',
+  workflowRunId: 'b8b61078-c0bd-4cec-a1e2-e984ca2c2fa1',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 57
+}
+2026-10-28T00:15:56.994Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9mNjBlOTVkZTAwODBhOTk3MWU1NTc4NzAaJGFkZmI2MTUxLTFkMGQtNGZmMy05NDU0LTRjYjczMDE2OTIyNyARKAEyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARCr2cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_f60e95de0080a9971e557870',
+  workflowRunId: 'adfb6151-1d0d-4ff3-9454-4cb730169227',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: timeout
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:145:13)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'timeout',
+    upstream: 'pay-connectors',
+    status: undefined,
+    problemCode: undefined
+  },
+  durationMs: 3056
+}
+2026-10-28T00:15:59.689Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8zMGUyMjc3ZjFhOTQ0MWQ4NmFmNTgwYzUaJGJkN2U2MDgwLWY1MTgtNGEyMi1hYjA0LTg4YjI1N2YwMGJhNiARKAEyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIBBCe9cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_30e2277f1a9441d86af580c5',
+  workflowRunId: 'bd7e6080-f518-4a22-ab04-88b257f00ba6',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 61
+}
+2026-10-28T00:16:00.279Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9mNjBlOTVkZTAwODBhOTk3MWU1NTc4NzAaJGFkZmI2MTUxLTFkMGQtNGZmMy05NDU0LTRjYjczMDE2OTIyNyARKAIyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARCu2cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_f60e95de0080a9971e557870',
+  workflowRunId: 'adfb6151-1d0d-4ff3-9454-4cb730169227',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: timeout
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:145:13)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'timeout',
+    upstream: 'pay-connectors',
+    status: undefined,
+    problemCode: undefined
+  },
+  durationMs: 3064
+}
+2026-10-28T00:16:00.689Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8zMGUyMjc3ZjFhOTQ0MWQ4NmFmNTgwYzUaJGJkN2U2MDgwLWY1MTgtNGEyMi1hYjA0LTg4YjI1N2YwMGJhNiARKAIyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIBBCh9cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_30e2277f1a9441d86af580c5',
+  workflowRunId: 'bd7e6080-f518-4a22-ab04-88b257f00ba6',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 58
+}
+2026-10-28T00:16:01.173Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8zMGUyMjc3ZjFhOTQ0MWQ4NmFmNTgwYzUaJGJkN2U2MDgwLWY1MTgtNGEyMi1hYjA0LTg4YjI1N2YwMGJhNiARKAMyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIBBCk9cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_30e2277f1a9441d86af580c5',
+  workflowRunId: 'bd7e6080-f518-4a22-ab04-88b257f00ba6',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 65
+}
+2026-10-28T00:16:02.160Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8zMGUyMjc3ZjFhOTQ0MWQ4NmFmNTgwYzUaJGJkN2U2MDgwLWY1MTgtNGEyMi1hYjA0LTg4YjI1N2YwMGJhNiARKAQyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIBBCn9cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_30e2277f1a9441d86af580c5',
+  workflowRunId: 'bd7e6080-f518-4a22-ab04-88b257f00ba6',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 57
+}
+2026-10-28T00:16:03.370Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8zMGUyMjc3ZjFhOTQ0MWQ4NmFmNTgwYzUaJGJkN2U2MDgwLWY1MTgtNGEyMi1hYjA0LTg4YjI1N2YwMGJhNiAiKAEyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIBBDU9cABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_30e2277f1a9441d86af580c5',
+  workflowRunId: 'bd7e6080-f518-4a22-ab04-88b257f00ba6',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 59
+}
+2026-10-28T00:16:03.765Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9mNjBlOTVkZTAwODBhOTk3MWU1NTc4NzAaJGFkZmI2MTUxLTFkMGQtNGZmMy05NDU0LTRjYjczMDE2OTIyNyARKAMyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARCx2cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_f60e95de0080a9971e557870',
+  workflowRunId: 'adfb6151-1d0d-4ff3-9454-4cb730169227',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: timeout
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:145:13)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'timeout',
+    upstream: 'pay-connectors',
+    status: undefined,
+    problemCode: undefined
+  },
+  durationMs: 3059
+}
+2026-10-28T00:16:04.379Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8zMGUyMjc3ZjFhOTQ0MWQ4NmFmNTgwYzUaJGJkN2U2MDgwLWY1MTgtNGEyMi1hYjA0LTg4YjI1N2YwMGJhNiAiKAIyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIBBDX9cABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_30e2277f1a9441d86af580c5',
+  workflowRunId: 'bd7e6080-f518-4a22-ab04-88b257f00ba6',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 62
+}
+2026-10-28T00:16:05.425Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8zMGUyMjc3ZjFhOTQ0MWQ4NmFmNTgwYzUaJGJkN2U2MDgwLWY1MTgtNGEyMi1hYjA0LTg4YjI1N2YwMGJhNiAiKAMyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIBBDa9cABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_30e2277f1a9441d86af580c5',
+  workflowRunId: 'bd7e6080-f518-4a22-ab04-88b257f00ba6',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 132
+}
+2026-10-28T00:16:07.215Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85YzM5NGU3MTE1MTQwYzJmM2ZiNDc1YjQaJGU3MWU2OTBiLTk3OTktNDExYy04MTI5LTVjMjZmZTc4OTNlZCALKAEyATJCCmhvbGRSZWZ1bmRKCQgBENTawAEYAQ==',
+  activityId: '2',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_9c394e7115140c2f3fb475b4',
+  workflowRunId: 'e71e690b-9799-411c-8129-5c26fe7893ed',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 61
+}
+2026-10-28T00:16:07.652Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9mNjBlOTVkZTAwODBhOTk3MWU1NTc4NzAaJGFkZmI2MTUxLTFkMGQtNGZmMy05NDU0LTRjYjczMDE2OTIyNyARKAQyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARC02cABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_f60e95de0080a9971e557870',
+  workflowRunId: 'adfb6151-1d0d-4ff3-9454-4cb730169227',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: timeout
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:145:13)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'timeout',
+    upstream: 'pay-connectors',
+    status: undefined,
+    problemCode: undefined
+  },
+  durationMs: 3065
+}
+2026-10-28T00:16:08.241Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85YzM5NGU3MTE1MTQwYzJmM2ZiNDc1YjQaJGU3MWU2OTBiLTk3OTktNDExYy04MTI5LTVjMjZmZTc4OTNlZCALKAIyATJCCmhvbGRSZWZ1bmRKCQgBEPXawAEYAQ==',
+  activityId: '2',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_9c394e7115140c2f3fb475b4',
+  workflowRunId: 'e71e690b-9799-411c-8129-5c26fe7893ed',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 86
+}
+2026-10-28T00:16:08.878Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85YzM5NGU3MTE1MTQwYzJmM2ZiNDc1YjQaJGU3MWU2OTBiLTk3OTktNDExYy04MTI5LTVjMjZmZTc4OTNlZCALKAMyATJCCmhvbGRSZWZ1bmRKCQgBEIXbwAEYAQ==',
+  activityId: '2',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_9c394e7115140c2f3fb475b4',
+  workflowRunId: 'e71e690b-9799-411c-8129-5c26fe7893ed',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 78
+}
+2026-10-28T00:16:09.745Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kYzExZmI3MTRhZmUwZWUzNmM5Y2Q5ZGYaJDc1ZTk4MjliLTlmNjctNDcwZi04MDg1LTk3MTc2MjE4YjZiZCARKAEyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARDZ28ABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_dc11fb714afe0ee36c9cd9df',
+  workflowRunId: '75e9829b-9f67-470f-8085-97176218b6bd',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 59
+}
+2026-10-28T00:16:09.929Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85YzM5NGU3MTE1MTQwYzJmM2ZiNDc1YjQaJGU3MWU2OTBiLTk3OTktNDExYy04MTI5LTVjMjZmZTc4OTNlZCALKAQyATJCCmhvbGRSZWZ1bmRKCQgBENzbwAEYAQ==',
+  activityId: '2',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_9c394e7115140c2f3fb475b4',
+  workflowRunId: 'e71e690b-9799-411c-8129-5c26fe7893ed',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 56
+}
+2026-10-28T00:16:10.756Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kYzExZmI3MTRhZmUwZWUzNmM5Y2Q5ZGYaJDc1ZTk4MjliLTlmNjctNDcwZi04MDg1LTk3MTc2MjE4YjZiZCARKAIyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARD828ABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_dc11fb714afe0ee36c9cd9df',
+  workflowRunId: '75e9829b-9f67-470f-8085-97176218b6bd',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 57
+}
+2026-10-28T00:16:11.189Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85YzM5NGU3MTE1MTQwYzJmM2ZiNDc1YjQaJGU3MWU2OTBiLTk3OTktNDExYy04MTI5LTVjMjZmZTc4OTNlZCAcKAEyATRCCmhvbGRSZWZ1bmRKCQgBEIzcwAEYAQ==',
+  activityId: '4',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_9c394e7115140c2f3fb475b4',
+  workflowRunId: 'e71e690b-9799-411c-8129-5c26fe7893ed',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 61
+}
+2026-10-28T00:16:11.238Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kYzExZmI3MTRhZmUwZWUzNmM5Y2Q5ZGYaJDc1ZTk4MjliLTlmNjctNDcwZi04MDg1LTk3MTc2MjE4YjZiZCARKAMyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARCO3MABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_dc11fb714afe0ee36c9cd9df',
+  workflowRunId: '75e9829b-9f67-470f-8085-97176218b6bd',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 59
+}
+2026-10-28T00:16:12.192Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV85YzM5NGU3MTE1MTQwYzJmM2ZiNDc1YjQaJGU3MWU2OTBiLTk3OTktNDExYy04MTI5LTVjMjZmZTc4OTNlZCAcKAIyATRCCmhvbGRSZWZ1bmRKCQgBEJLcwAEYAQ==',
+  activityId: '4',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_9c394e7115140c2f3fb475b4',
+  workflowRunId: 'e71e690b-9799-411c-8129-5c26fe7893ed',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 57
+}
+2026-10-28T00:16:12.206Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kYzExZmI3MTRhZmUwZWUzNmM5Y2Q5ZGYaJDc1ZTk4MjliLTlmNjctNDcwZi04MDg1LTk3MTc2MjE4YjZiZCARKAQyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARCU3MABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_dc11fb714afe0ee36c9cd9df',
+  workflowRunId: '75e9829b-9f67-470f-8085-97176218b6bd',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 66
+}
+2026-10-28T00:16:13.397Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kYzExZmI3MTRhZmUwZWUzNmM5Y2Q5ZGYaJDc1ZTk4MjliLTlmNjctNDcwZi04MDg1LTk3MTc2MjE4YjZiZCAiKAEyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARD03MABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_dc11fb714afe0ee36c9cd9df',
+  workflowRunId: '75e9829b-9f67-470f-8085-97176218b6bd',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 56
+}
+2026-10-28T00:16:14.397Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kYzExZmI3MTRhZmUwZWUzNmM5Y2Q5ZGYaJDc1ZTk4MjliLTlmNjctNDcwZi04MDg1LTk3MTc2MjE4YjZiZCAiKAIyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARD33MABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_dc11fb714afe0ee36c9cd9df',
+  workflowRunId: '75e9829b-9f67-470f-8085-97176218b6bd',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 57
+}
+2026-10-28T00:16:15.406Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-14d98a0f',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kYzExZmI3MTRhZmUwZWUzNmM5Y2Q5ZGYaJDc1ZTk4MjliLTlmNjctNDcwZi04MDg1LTk3MTc2MjE4YjZiZCAiKAMyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARD63MABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_dc11fb714afe0ee36c9cd9df',
+  workflowRunId: '75e9829b-9f67-470f-8085-97176218b6bd',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 60
+}
+2026-10-28T00:16:20.673Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI2Rpc3B1dGUtZHBfYTQ2MTk1Nzc4ODY5NDg4MDExNjY1OTFhGiQxNzhiYWQyOC0wNmU1LTQyZDAtOWJjYS1iNjAxOTQzYjJiNTUgDygBMgEyQg1zZXR0bGVEaXNwdXRlSgkIBBDT+sABGAE=',
+  activityId: '2',
+  activityType: 'settleDispute',
+  workflowId: 'dispute-dp_a4619577886948801166591a',
+  workflowRunId: '178bad28-06e5-42d0-9bca-b601943b2b55',
+  workflowType: 'DisputeWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at settleDispute (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:149:24)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 86
+}
+2026-10-28T00:16:21.654Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI2Rpc3B1dGUtZHBfYTQ2MTk1Nzc4ODY5NDg4MDExNjY1OTFhGiQxNzhiYWQyOC0wNmU1LTQyZDAtOWJjYS1iNjAxOTQzYjJiNTUgDygCMgEyQg1zZXR0bGVEaXNwdXRlSgkIBBDz+sABGAE=',
+  activityId: '2',
+  activityType: 'settleDispute',
+  workflowId: 'dispute-dp_a4619577886948801166591a',
+  workflowRunId: '178bad28-06e5-42d0-9bca-b601943b2b55',
+  workflowType: 'DisputeWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at settleDispute (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:149:24)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 73
+}
+2026-10-28T00:16:22.537Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI2Rpc3B1dGUtZHBfYTQ2MTk1Nzc4ODY5NDg4MDExNjY1OTFhGiQxNzhiYWQyOC0wNmU1LTQyZDAtOWJjYS1iNjAxOTQzYjJiNTUgDygDMgEyQg1zZXR0bGVEaXNwdXRlSgkIBBD2+sABGAE=',
+  activityId: '2',
+  activityType: 'settleDispute',
+  workflowId: 'dispute-dp_a4619577886948801166591a',
+  workflowRunId: '178bad28-06e5-42d0-9bca-b601943b2b55',
+  workflowType: 'DisputeWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at settleDispute (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:149:24)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 58
+}
+2026-10-28T00:16:23.617Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-eb1aae46',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI2Rpc3B1dGUtZHBfYTQ2MTk1Nzc4ODY5NDg4MDExNjY1OTFhGiQxNzhiYWQyOC0wNmU1LTQyZDAtOWJjYS1iNjAxOTQzYjJiNTUgDygEMgEyQg1zZXR0bGVEaXNwdXRlSgkIBBC3+8ABGAE=',
+  activityId: '2',
+  activityType: 'settleDispute',
+  workflowId: 'dispute-dp_a4619577886948801166591a',
+  workflowRunId: '178bad28-06e5-42d0-9bca-b601943b2b55',
+  workflowType: 'DisputeWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at settleDispute (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:149:24)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 81
+}
+2026-10-28T00:16:39.323Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8yZmIyMDg2YTgyNmY3NGViMWNmZTE0ZmIaJDY2MTg1MGQ1LWNiZmItNDdhMC04MWZiLWZiOTRhMjVmODg1ZCARKAEyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARCi5MABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_2fb2086a826f74eb1cfe14fb',
+  workflowRunId: '661850d5-cbfb-47a0-81fb-fb94a25f885d',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 57
+}
+2026-10-28T00:16:40.325Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8yZmIyMDg2YTgyNmY3NGViMWNmZTE0ZmIaJDY2MTg1MGQ1LWNiZmItNDdhMC04MWZiLWZiOTRhMjVmODg1ZCARKAIyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARDc5MABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_2fb2086a826f74eb1cfe14fb',
+  workflowRunId: '661850d5-cbfb-47a0-81fb-fb94a25f885d',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 60
+}
+2026-10-28T00:16:41.048Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8yZmIyMDg2YTgyNmY3NGViMWNmZTE0ZmIaJDY2MTg1MGQ1LWNiZmItNDdhMC04MWZiLWZiOTRhMjVmODg1ZCARKAMyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARDf5MABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_2fb2086a826f74eb1cfe14fb',
+  workflowRunId: '661850d5-cbfb-47a0-81fb-fb94a25f885d',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 59
+}
+2026-10-28T00:16:42.052Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8yZmIyMDg2YTgyNmY3NGViMWNmZTE0ZmIaJDY2MTg1MGQ1LWNiZmItNDdhMC04MWZiLWZiOTRhMjVmODg1ZCARKAQyATNCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARCg5sABGAE=',
+  activityId: '3',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_2fb2086a826f74eb1cfe14fb',
+  workflowRunId: '661850d5-cbfb-47a0-81fb-fb94a25f885d',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 58
+}
+2026-10-28T00:16:43.440Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8yZmIyMDg2YTgyNmY3NGViMWNmZTE0ZmIaJDY2MTg1MGQ1LWNiZmItNDdhMC04MWZiLWZiOTRhMjVmODg1ZCAiKAEyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARDN5sABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_2fb2086a826f74eb1cfe14fb',
+  workflowRunId: '661850d5-cbfb-47a0-81fb-fb94a25f885d',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 59
+}
+2026-10-28T00:16:44.512Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV8yZmIyMDg2YTgyNmY3NGViMWNmZTE0ZmIaJDY2MTg1MGQ1LWNiZmItNDdhMC04MWZiLWZiOTRhMjVmODg1ZCAiKAIyATVCEXJlZnVuZEF0Q29ubmVjdG9ySgkIARD95sABGAE=',
+  activityId: '5',
+  activityType: 'refundAtConnector',
+  workflowId: 'refund-re_2fb2086a826f74eb1cfe14fb',
+  workflowRunId: '661850d5-cbfb-47a0-81fb-fb94a25f885d',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createRefund (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:104:22)
+      at refundAtConnector (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:61:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 63
+}
+2026-10-28T00:16:46.210Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kZTNjMzg0MmZjMmM2ZmU0MTY0ZTRhZWIaJDA1NjYzOTdjLWNhNDUtNDkwOS04NjQxLTIxOWNiOWM2OTQwYiALKAEyATJCCmhvbGRSZWZ1bmRKCQgBEPvnwAEYAQ==',
+  activityId: '2',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_de3c3842fc2c6fe4164e4aeb',
+  workflowRunId: '0566397c-ca45-4909-8641-219cb9c6940b',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 62
+}
+2026-10-28T00:16:47.201Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kZTNjMzg0MmZjMmM2ZmU0MTY0ZTRhZWIaJDA1NjYzOTdjLWNhNDUtNDkwOS04NjQxLTIxOWNiOWM2OTQwYiALKAIyATJCCmhvbGRSZWZ1bmRKCQgBEJvowAEYAQ==',
+  activityId: '2',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_de3c3842fc2c6fe4164e4aeb',
+  workflowRunId: '0566397c-ca45-4909-8641-219cb9c6940b',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 58
+}
+2026-10-28T00:16:47.919Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kZTNjMzg0MmZjMmM2ZmU0MTY0ZTRhZWIaJDA1NjYzOTdjLWNhNDUtNDkwOS04NjQxLTIxOWNiOWM2OTQwYiALKAMyATJCCmhvbGRSZWZ1bmRKCQgBEJ7owAEYAQ==',
+  activityId: '2',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_de3c3842fc2c6fe4164e4aeb',
+  workflowRunId: '0566397c-ca45-4909-8641-219cb9c6940b',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 62
+}
+2026-10-28T00:16:48.959Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kZTNjMzg0MmZjMmM2ZmU0MTY0ZTRhZWIaJDA1NjYzOTdjLWNhNDUtNDkwOS04NjQxLTIxOWNiOWM2OTQwYiALKAQyATJCCmhvbGRSZWZ1bmRKCQgBENDowAEYAQ==',
+  activityId: '2',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_de3c3842fc2c6fe4164e4aeb',
+  workflowRunId: '0566397c-ca45-4909-8641-219cb9c6940b',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 59
+}
+2026-10-28T00:16:50.138Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kZTNjMzg0MmZjMmM2ZmU0MTY0ZTRhZWIaJDA1NjYzOTdjLWNhNDUtNDkwOS04NjQxLTIxOWNiOWM2OTQwYiAcKAEyATRCCmhvbGRSZWZ1bmRKCQgBEP3owAEYAQ==',
+  activityId: '4',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_de3c3842fc2c6fe4164e4aeb',
+  workflowRunId: '0566397c-ca45-4909-8641-219cb9c6940b',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 65
+}
+2026-10-28T00:16:51.138Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSInJlZnVuZC1yZV9kZTNjMzg0MmZjMmM2ZmU0MTY0ZTRhZWIaJDA1NjYzOTdjLWNhNDUtNDkwOS04NjQxLTIxOWNiOWM2OTQwYiAcKAIyATRCCmhvbGRSZWZ1bmRKCQgBEIDpwAEYAQ==',
+  activityId: '4',
+  activityType: 'holdRefund',
+  workflowId: 'refund-re_de3c3842fc2c6fe4164e4aeb',
+  workflowRunId: '0566397c-ca45-4909-8641-219cb9c6940b',
+  workflowType: 'RefundWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createHold (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:57:22)
+      at holdRefund (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:40:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 65
+}
+2026-10-28T00:17:06.210Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI2Rpc3B1dGUtZHBfODQ4ZTAyNGZjOTVlMTNiZDg3ODJiNmRlGiQ3YmNiMzc2Yi0zNjk0LTQ1M2YtYWI5Ni00NWY5NmIyNGJmMmQgDygBMgEyQg1zZXR0bGVEaXNwdXRlSgkIAhC54cABGAE=',
+  activityId: '2',
+  activityType: 'settleDispute',
+  workflowId: 'dispute-dp_848e024fc95e13bd8782b6de',
+  workflowRunId: '7bcb376b-3694-453f-ab96-45f96b24bf2d',
+  workflowType: 'DisputeWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at settleDispute (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:149:24)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 70
+}
+2026-10-28T00:17:06.232Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-606088ca',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNmViYjlkMjNmMzhiNzZhY2JmYWQ4YjQxGiQ4NTdhOWI0OS02Y2MwLTQ2YjUtOWVkMi0yMzkyYWM1ZDQwNWMgIygBMgE1QgxyZWNvcmRMZWRnZXJKCQgEELWJwQEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_6ebb9d23f38b76acbfad8b41',
+  workflowRunId: '857a9b49-6cc0-46b5-9ed2-2392ac5d405c',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 56
+}
+2026-10-28T00:17:07.211Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI2Rpc3B1dGUtZHBfODQ4ZTAyNGZjOTVlMTNiZDg3ODJiNmRlGiQ3YmNiMzc2Yi0zNjk0LTQ1M2YtYWI5Ni00NWY5NmIyNGJmMmQgDygCMgEyQg1zZXR0bGVEaXNwdXRlSgkIAhC84cABGAE=',
+  activityId: '2',
+  activityType: 'settleDispute',
+  workflowId: 'dispute-dp_848e024fc95e13bd8782b6de',
+  workflowRunId: '7bcb376b-3694-453f-ab96-45f96b24bf2d',
+  workflowType: 'DisputeWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at settleDispute (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:149:24)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 64
+}
+2026-10-28T00:17:07.324Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-606088ca',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNmViYjlkMjNmMzhiNzZhY2JmYWQ4YjQxGiQ4NTdhOWI0OS02Y2MwLTQ2YjUtOWVkMi0yMzkyYWM1ZDQwNWMgIygCMgE1QgxyZWNvcmRMZWRnZXJKCQgEEM2JwQEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_6ebb9d23f38b76acbfad8b41',
+  workflowRunId: '857a9b49-6cc0-46b5-9ed2-2392ac5d405c',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 64
+}
+2026-10-28T00:17:08.129Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI2Rpc3B1dGUtZHBfODQ4ZTAyNGZjOTVlMTNiZDg3ODJiNmRlGiQ3YmNiMzc2Yi0zNjk0LTQ1M2YtYWI5Ni00NWY5NmIyNGJmMmQgDygDMgEyQg1zZXR0bGVEaXNwdXRlSgkIAhC/4cABGAE=',
+  activityId: '2',
+  activityType: 'settleDispute',
+  workflowId: 'dispute-dp_848e024fc95e13bd8782b6de',
+  workflowRunId: '7bcb376b-3694-453f-ab96-45f96b24bf2d',
+  workflowType: 'DisputeWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at settleDispute (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:149:24)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 58
+}
+2026-10-28T00:17:08.358Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-606088ca',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNmViYjlkMjNmMzhiNzZhY2JmYWQ4YjQxGiQ4NTdhOWI0OS02Y2MwLTQ2YjUtOWVkMi0yMzkyYWM1ZDQwNWMgIygDMgE1QgxyZWNvcmRMZWRnZXJKCQgEEO2JwQEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_6ebb9d23f38b76acbfad8b41',
+  workflowRunId: '857a9b49-6cc0-46b5-9ed2-2392ac5d405c',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 57
+}
+2026-10-28T00:17:09.107Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-423cb9ce',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI2Rpc3B1dGUtZHBfODQ4ZTAyNGZjOTVlMTNiZDg3ODJiNmRlGiQ3YmNiMzc2Yi0zNjk0LTQ1M2YtYWI5Ni00NWY5NmIyNGJmMmQgDygEMgEyQg1zZXR0bGVEaXNwdXRlSgkIAhDC4cABGAE=',
+  activityId: '2',
+  activityType: 'settleDispute',
+  workflowId: 'dispute-dp_848e024fc95e13bd8782b6de',
+  workflowRunId: '7bcb376b-3694-453f-ab96-45f96b24bf2d',
+  workflowType: 'DisputeWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at settleDispute (/home/user/pasarelapago/services/pay-payments/src/temporal/activities-money.ts:149:24)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 57
+}
+2026-10-28T00:17:09.364Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-606088ca',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNmViYjlkMjNmMzhiNzZhY2JmYWQ4YjQxGiQ4NTdhOWI0OS02Y2MwLTQ2YjUtOWVkMi0yMzkyYWM1ZDQwNWMgIygEMgE1QgxyZWNvcmRMZWRnZXJKCQgEEI2KwQEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_6ebb9d23f38b76acbfad8b41',
+  workflowRunId: '857a9b49-6cc0-46b5-9ed2-2392ac5d405c',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 57
+}
+2026-10-28T00:17:25.733Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfZGUyOTc2ZGMzOTgwNTdmNWFmZmYzMzExGiQ5NDk2ZGNkMS1mZWQ2LTRlMTktOTBiZi0wMTlkMjhlN2FkNGEgESgBMgEzQgxjcmVhdGVDaGFyZ2VKCQgCEJPkwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_de2976dc398057f5afff3311',
+  workflowRunId: '9496dcd1-fed6-4e19-90bf-019d28e7ad4a',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:195:62)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 66
+}
+2026-10-28T00:17:26.795Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfZGUyOTc2ZGMzOTgwNTdmNWFmZmYzMzExGiQ5NDk2ZGNkMS1mZWQ2LTRlMTktOTBiZi0wMTlkMjhlN2FkNGEgESgCMgEzQgxjcmVhdGVDaGFyZ2VKCQgCELrkwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_de2976dc398057f5afff3311',
+  workflowRunId: '9496dcd1-fed6-4e19-90bf-019d28e7ad4a',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:195:62)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 63
+}
+2026-10-28T00:17:27.789Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfZGUyOTc2ZGMzOTgwNTdmNWFmZmYzMzExGiQ5NDk2ZGNkMS1mZWQ2LTRlMTktOTBiZi0wMTlkMjhlN2FkNGEgESgDMgEzQgxjcmVhdGVDaGFyZ2VKCQgCEP3kwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_de2976dc398057f5afff3311',
+  workflowRunId: '9496dcd1-fed6-4e19-90bf-019d28e7ad4a',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:195:62)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 56
+}
+2026-10-28T00:17:28.798Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfZGUyOTc2ZGMzOTgwNTdmNWFmZmYzMzExGiQ5NDk2ZGNkMS1mZWQ2LTRlMTktOTBiZi0wMTlkMjhlN2FkNGEgESgEMgEzQgxjcmVhdGVDaGFyZ2VKCQgCEIDlwAEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_de2976dc398057f5afff3311',
+  workflowRunId: '9496dcd1-fed6-4e19-90bf-019d28e7ad4a',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: El conector no está disponible (sin efecto)
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:195:62)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'ConnectorUnavailable',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 63
+}
+2026-10-28T00:17:29.373Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYzg4ZjAwYzE3MmI4OWFiMWI0ZWY0NjBmGiQ0MGNmMzJhMy1mMzYwLTQ0NmYtYmE3MC01NThlZmZiYzU0NmMgIygBMgE1QgxyZWNvcmRMZWRnZXJKCQgDELb1wAEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_c88f00c172b89ab1b4ef460f',
+  workflowRunId: '40cf32a3-f360-446f-ba70-558effbc546c',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 61
+}
+2026-10-28T00:17:30.958Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNzFlNjQ5YWU3NzIzMmI2Nzc5YzJlMWVlGiQ4NWM3OTdiOC01OTY1LTQ0NDYtOGE5Mi1kZDQ5M2UzZDhkZDIgIygBMgE1QgxyZWNvcmRMZWRnZXJKCQgEEKCRwQEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_71e649ae77232b6779c2e1ee',
+  workflowRunId: '85c797b8-5965-4446-8a92-dd493e3d8dd2',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 61
+}
+2026-10-28T00:17:31.985Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNzFlNjQ5YWU3NzIzMmI2Nzc5YzJlMWVlGiQ4NWM3OTdiOC01OTY1LTQ0NDYtOGE5Mi1kZDQ5M2UzZDhkZDIgIygCMgE1QgxyZWNvcmRMZWRnZXJKCQgEEKORwQEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_71e649ae77232b6779c2e1ee',
+  workflowRunId: '85c797b8-5965-4446-8a92-dd493e3d8dd2',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 65
+}
+2026-10-28T00:17:32.565Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNzFlNjQ5YWU3NzIzMmI2Nzc5YzJlMWVlGiQ4NWM3OTdiOC01OTY1LTQ0NDYtOGE5Mi1kZDQ5M2UzZDhkZDIgIygDMgE1QgxyZWNvcmRMZWRnZXJKCQgEEKaRwQEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_71e649ae77232b6779c2e1ee',
+  workflowRunId: '85c797b8-5965-4446-8a92-dd493e3d8dd2',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 62
+}
+2026-10-28T00:17:33.575Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfNzFlNjQ5YWU3NzIzMmI2Nzc5YzJlMWVlGiQ4NWM3OTdiOC01OTY1LTQ0NDYtOGE5Mi1kZDQ5M2UzZDhkZDIgIygEMgE1QgxyZWNvcmRMZWRnZXJKCQgEEKmRwQEYAQ==',
+  activityId: '5',
+  activityType: 'recordLedger',
+  workflowId: 'payment-pi_71e649ae77232b6779c2e1ee',
+  workflowRunId: '85c797b8-5965-4446-8a92-dd493e3d8dd2',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-ledger: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at LedgerClient.createTransaction (/home/user/pasarelapago/services/pay-payments/src/clients/ledger.client.ts:42:22)
+      at recordLedger (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:279:22)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+  durationMs: 84
+}
+2026-10-28T00:17:36.267Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYTkzMDdjZTVmYmQwMDkxMjZlNjM1MDFjGiRiZWQyOGQxNC03NDE4LTRiNmEtYTIzZi1kNmViM2JiZDY2MDAgESgBMgEzQgxjcmVhdGVDaGFyZ2VKCQgEEOiSwQEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_a9307ce5fbd009126e63501c',
+  workflowRunId: 'bed28d14-7418-4b6a-a23f-d6eb3bbd6600',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 58
+}
+2026-10-28T00:17:37.286Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYTkzMDdjZTVmYmQwMDkxMjZlNjM1MDFjGiRiZWQyOGQxNC03NDE4LTRiNmEtYTIzZi1kNmViM2JiZDY2MDAgESgCMgEzQgxjcmVhdGVDaGFyZ2VKCQgEEOuSwQEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_a9307ce5fbd009126e63501c',
+  workflowRunId: 'bed28d14-7418-4b6a-a23f-d6eb3bbd6600',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 70
+}
+2026-10-28T00:17:38.281Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYTkzMDdjZTVmYmQwMDkxMjZlNjM1MDFjGiRiZWQyOGQxNC03NDE4LTRiNmEtYTIzZi1kNmViM2JiZDY2MDAgESgDMgEzQgxjcmVhdGVDaGFyZ2VKCQgEEO6SwQEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_a9307ce5fbd009126e63501c',
+  workflowRunId: 'bed28d14-7418-4b6a-a23f-d6eb3bbd6600',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 61
+}
+2026-10-28T00:17:39.298Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 4,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYTkzMDdjZTVmYmQwMDkxMjZlNjM1MDFjGiRiZWQyOGQxNC03NDE4LTRiNmEtYTIzZi1kNmViM2JiZDY2MDAgESgEMgEzQgxjcmVhdGVDaGFyZ2VKCQgEEPGSwQEYAQ==',
+  activityId: '3',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_a9307ce5fbd009126e63501c',
+  workflowRunId: 'bed28d14-7418-4b6a-a23f-d6eb3bbd6600',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 77
+}
+2026-10-28T00:17:40.585Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYTkzMDdjZTVmYmQwMDkxMjZlNjM1MDFjGiRiZWQyOGQxNC03NDE4LTRiNmEtYTIzZi1kNmViM2JiZDY2MDAgIigBMgE1QgxjcmVhdGVDaGFyZ2VKCQgEEJ6TwQEYAQ==',
+  activityId: '5',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_a9307ce5fbd009126e63501c',
+  workflowRunId: 'bed28d14-7418-4b6a-a23f-d6eb3bbd6600',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 81
+}
+2026-10-28T00:17:41.642Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-a4e5eb0c',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfYTkzMDdjZTVmYmQwMDkxMjZlNjM1MDFjGiRiZWQyOGQxNC03NDE4LTRiNmEtYTIzZi1kNmViM2JiZDY2MDAgIigCMgE1QgxjcmVhdGVDaGFyZ2VKCQgEEKGTwQEYAQ==',
+  activityId: '5',
+  activityType: 'createCharge',
+  workflowId: 'payment-pi_a9307ce5fbd009126e63501c',
+  workflowRunId: 'bed28d14-7418-4b6a-a23f-d6eb3bbd6600',
+  workflowType: 'PaymentWorkflow',
+  error: UpstreamError: pay-connectors: server_error (500)
+      at HttpClient.once (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:160:39)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at CircuitBreaker.exec (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:53:22)
+      at HttpClient.request (/home/user/pasarelapago/services/pay-payments/src/clients/http.ts:116:16)
+      at ConnectorsClient.definitive502 (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:134:20)
+      at ConnectorsClient.createCharge (/home/user/pasarelapago/services/pay-payments/src/clients/connectors.client.ts:68:22)
+      at createCharge (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:181:23)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+  durationMs: 93
+}
+[33m[Nest] 24731  - [39m10/28/2026, 12:17:46 AM [33m   WARN[39m [38;5;3m[NatsConsumers] [39mObject(2) {
+  event_id: [32m'524b481d-b281-49db-865a-c8891bd43901'[39m,
+  reason: [32m'version inválida'[39m
+}
+[33m[Nest] 24731  - [39m10/28/2026, 12:17:46 AM [33m   WARN[39m [38;5;3m[NatsConsumers] [39m[33mEvento descartado[39m
+[33m[Nest] 24731  - [39m10/28/2026, 12:17:51 AM [33m   WARN[39m [38;5;3m[NatsConsumers] [39mObject(2) {
+  event_id: [32m'fb340307-5d13-4930-b452-2d0663ba29bf'[39m,
+  err: [32m'Error'[39m
+}
+[33m[Nest] 24731  - [39m10/28/2026, 12:17:51 AM [33m   WARN[39m [38;5;3m[NatsConsumers] [39m[33mEl consumidor falló; se reentrega[39m
+[33m[Nest] 24731  - [39m10/28/2026, 12:17:56 AM [33m   WARN[39m [38;5;3m[NatsConsumers] [39mObject(2) {
+  event_id: [32m'0d50c441-9eb0-40c2-82fa-aa49fa14be4f'[39m,
+  err: [32m'Error'[39m
+}
+[33m[Nest] 24731  - [39m10/28/2026, 12:17:56 AM [33m   WARN[39m [38;5;3m[NatsConsumers] [39m[33mEl consumidor falló; se reentrega[39m
+(node:24730) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:24730) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:24730) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:24731) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:24731) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+[31m[Nest] 24731  - [39m10/28/2026, 12:18:23 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(3) {
+  err: [32m'error'[39m,
+  code: [32m'23505'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+FAIL test/internal.api.spec.ts (8.398 s)
+  ● internal-payments-v1 · cobro por mandato (pay-schedules) › el mismo mandato y periodo, aunque sea con otra Idempotency-Key, devuelve el MISMO intento (200) y no cobra dos veces
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 2
+
+      68 |     const period = { source: { kind: 'mandate', id: `md_${RUN}000002`, period: '2026-12' } };
+      69 |     const many = await Promise.all(Array.from({ length: 10 }, () => post(body(period), key())));
+    > 70 |     expect(new Set(many.map((r) => r.body.id)).size).toBe(1);
+         |                                                      ^
+      71 |     const rows = await stack.db.pool.query(`SELECT count(*)::int AS n FROM payment_intents WHERE source ->> 'id' = 'md_${RUN}000002' AND source ->> 'period' = '2026-12'`);
+      72 |     expect(rows.rows[0].n).toBe(1);
+      73 |   });
+
+      at Object.toBe (test/internal.api.spec.ts:70:54)
+
+{"level":30,"time":1793146710437,"pid":24730,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":2,"msg":"request completed"}
+[31m[Nest] 24730  - [39m10/28/2026, 12:18:30 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(3) {
+  err: [32m'Error'[39m,
+  code: [90mundefined[39m,
+  request_id: [32m'926e3f1c-4216-42e1-9c23-f3e0330bbcff'[39m
+}
+Error no controlado
+{"level":30,"time":1793146710446,"pid":24730,"hostname":"vm","req":{"id":"926e3f1c-4216-42e1-9c23-f3e0330bbcff","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":2,"msg":"request errored"}
+{"level":30,"time":1793146710455,"pid":24730,"hostname":"vm","req":{"id":"3f3d69f1-522e-431f-a89a-28ab599cf4e4","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+
+Summary of all failing tests
+FAIL test/internal.api.spec.ts (8.398 s)
+  ● internal-payments-v1 · cobro por mandato (pay-schedules) › el mismo mandato y periodo, aunque sea con otra Idempotency-Key, devuelve el MISMO intento (200) y no cobra dos veces
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 2
+
+      68 |     const period = { source: { kind: 'mandate', id: `md_${RUN}000002`, period: '2026-12' } };
+      69 |     const many = await Promise.all(Array.from({ length: 10 }, () => post(body(period), key())));
+    > 70 |     expect(new Set(many.map((r) => r.body.id)).size).toBe(1);
+         |                                                      ^
+      71 |     const rows = await stack.db.pool.query(`SELECT count(*)::int AS n FROM payment_intents WHERE source ->> 'id' = 'md_${RUN}000002' AND source ->> 'period' = '2026-12'`);
+      72 |     expect(rows.rows[0].n).toBe(1);
+      73 |   });
+
+      at Object.toBe (test/internal.api.spec.ts:70:54)
+
+
+Test Suites: 1 failed, 23 passed, 24 total
+Tests:       1 failed, 313 passed, 314 total
+Snapshots:   0 total
+Time:        410.018 s
+Ran all test suites.
+exit: 1

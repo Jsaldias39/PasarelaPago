@@ -15,11 +15,8 @@ import { loadEventContract } from './event-contract';
 // En modo ESM no hay __dirname: Jest corre con cwd = la carpeta del servicio.
 const SERVICE = process.cwd();
 const REPO = resolve(SERVICE, '../..');
-export const SQL = [
-  join(REPO, 'contracts/packages/outbox/sql/001_outbox_inbox.sql'),
-  join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql'),
-  join(SERVICE, 'sql/001_merchants.sql'),
-];
+// El DDL lo genera el modelo (D-18) y se vendoriza con `node scripts/p5-vendor-model-sql.mjs`; trae también las tablas técnicas (outbox, inbox, idempotencia).
+export const SQL = [join(SERVICE, 'sql/ddl.sql')];
 export const CONTRACT_PUBLIC = join(REPO, 'contracts/openapi/public-v1.yaml');
 export const CONTRACT_BACKOFFICE = join(REPO, 'contracts/openapi/internal-merchants-v1.yaml');
 export const EVENTS = join(REPO, 'contracts/asyncapi/merchants-schedules.yaml');

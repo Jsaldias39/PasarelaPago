@@ -83,8 +83,9 @@ export class BankService {
     await this.pool.query('UPDATE mb_switches SET down = false WHERE id = 1');
   }
 
-  private async nextBankReference(prefix: string): Promise<string> {
-    const n = (await this.pool.query("SELECT nextval('mb_bank_seq')::int AS n")).rows[0].n as number;
+  /** Con `db` = el cliente de una transacción en curso: pedir otra conexión al pool desde dentro de una transacción agota el pool bajo concurrencia (interbloqueo). */
+  private async nextBankReference(prefix: string, db: Pool | PoolClient = this.pool): Promise<string> {
+    const n = (await db.query("SELECT nextval('mb_bank_seq')::int AS n")).rows[0].n as number;
     return `${prefix}-${String(n).padStart(6, '0')}`;
   }
 
@@ -260,7 +261,7 @@ export class BankService {
         throw new BankProblem(409, 'invalid_state');
       }
       const refunded = BigInt((await client.query('SELECT COALESCE(sum(amount_minor), 0)::text AS total FROM mb_refunds WHERE charge_reference = $1', [locked.reference])).rows[0].total as string);
-      const bankReference = await this.nextBankReference('SIM-R');
+      const bankReference = await this.nextBankReference('SIM-R', client);
       if (refunded + input.amountMinor > BigInt(locked.amount_minor)) {
         // Rechazo explícito del banco: no se reembolsó nada y no se guarda la referencia.
         await client.query('COMMIT');

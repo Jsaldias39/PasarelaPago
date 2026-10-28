@@ -1,0 +1,7 @@
+# control: faults.spec contra el SQL de REFERENCIA en la misma copia (si falla igual, no es del SQL)
+== ledger: drift.spec contra SQL de REFERENCIA (control)
+FAIL test/faults.spec.ts
+  ● TigerBeetle muerto con SIGKILL en medio del servicio (ledger real) › mientras está caído: 503 ledger_unavailable en escrituras y lecturas, sin efectos a medias; al volver, el MISMO reintento
+  ● TigerBeetle muerto con SIGKILL en medio del servicio (ledger real) › la retención vencida durante la caída se resuelve sola al volver: el monto no se pierde ni se duplica
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 2 total

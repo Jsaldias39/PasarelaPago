@@ -1,7 +1,22 @@
 {
   "label": "ledger",
-  "verdict": "PASS",
-  "problems": [],
+  "verdict": "FAIL",
+  "problems": [
+    {
+      "aspecto": "fk",
+      "solo_en_referencia": [],
+      "solo_en_modelo": [
+        [
+          "ledger_holds",
+          "FOREIGN KEY (mode, credit_account) REFERENCES ledger_accounts(mode, account)"
+        ],
+        [
+          "ledger_holds",
+          "FOREIGN KEY (mode, debit_account) REFERENCES ledger_accounts(mode, account)"
+        ]
+      ]
+    }
+  ],
   "idempotent": true,
   "nombres_inesperados": {
     "referencia": [],
@@ -108,6 +123,16 @@
       ],
       [
         "ledger_holds",
+        "f",
+        "ledger_holds_credit_account_fkey"
+      ],
+      [
+        "ledger_holds",
+        "f",
+        "ledger_holds_debit_account_fkey"
+      ],
+      [
+        "ledger_holds",
         "p",
         "pk_ledger_holds"
       ],
@@ -148,7 +173,7 @@
     "columnas": 89,
     "indices": 20,
     "check": 24,
-    "fk": 4,
+    "fk": 6,
     "triggers": 0,
     "funciones": 0
   }

@@ -73,7 +73,7 @@ export interface TestApp {
 }
 
 /** Levanta la app real sobre un esquema aislado de Postgres real, con reloj de pruebas y un receptor de callbacks. */
-export async function createTestApp(options: { config?: Partial<ServiceConfig> } = {}): Promise<TestApp> {
+export async function createTestApp(options: { config?: Partial<ServiceConfig>; wrapPool?: (pool: Pool) => Pool } = {}): Promise<TestApp> {
   const db = await createIsolatedDatabase(SQL);
   const contract = await loadContract(SPEC);
   const receiver = new CallbackReceiver();
@@ -83,7 +83,7 @@ export async function createTestApp(options: { config?: Partial<ServiceConfig> }
   const config: ServiceConfig = { ...loadConfig(), callbackUrl: receiver.url, delayMs: 5000, hangMs: 300, ...options.config };
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(PG_POOL)
-    .useValue(appPool)
+    .useValue(options.wrapPool ? options.wrapPool(appPool) : appPool)
     .overrideProvider(SERVICE_CONFIG)
     .useValue(config)
     .overrideProvider(CLOCK)

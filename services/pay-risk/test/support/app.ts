@@ -14,7 +14,8 @@ import { OperatorAuthenticatorDouble } from '../doubles/operator-auth.double';
 // En modo ESM no hay __dirname: Jest corre con cwd = la carpeta del servicio.
 const SERVICE = process.cwd();
 const REPO = resolve(SERVICE, '../..');
-export const SQL = [join(REPO, 'contracts/packages/idempotency/sql/001_idempotency_keys.sql'), join(SERVICE, 'sql/001_risk.sql')];
+// El DDL lo genera el modelo (D-18) y se vendoriza con `node scripts/p5-vendor-model-sql.mjs`; trae también la tabla de idempotencia.
+export const SQL = [join(SERVICE, 'sql/ddl.sql')];
 export const CONTRACT_RISK = join(REPO, 'contracts/openapi/internal-risk-v1.yaml');
 // La carga de límites (/rule_sets) ya está en internal-risk-v1.yaml: un solo contrato.
 export const CONTRACT_RULE_SETS = CONTRACT_RISK;

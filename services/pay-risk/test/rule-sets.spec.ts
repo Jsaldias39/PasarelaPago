@@ -26,7 +26,7 @@ describe('conjuntos de reglas versionados: sin límites por defecto (D-23, P5.H2
     const limits = Object.entries(all[0]).filter(([k]) => !['version', 'effective_from', 'published_by', 'created_at'].includes(k));
     expect(limits.every(([, v]) => v === null)).toBe(true);
     // Idempotencia del sembrado: aplicar el SQL otra vez no agrega ni cambia nada.
-    const sql = (await import('node:fs')).readFileSync(`${process.cwd()}/sql/001_risk.sql`, 'utf8');
+    const sql = (await import('node:fs')).readFileSync(`${process.cwd()}/sql/ddl.sql`, 'utf8');
     const seed = sql.split('\n').find((l) => l.startsWith('INSERT INTO risk_rule_sets')) as string;
     await ctx.db.pool.query(seed);
     expect(await rows(ctx, 'SELECT 1 FROM risk_rule_sets')).toHaveLength(1);
