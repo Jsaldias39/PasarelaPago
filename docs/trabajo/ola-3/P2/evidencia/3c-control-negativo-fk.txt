@@ -1,0 +1,4 @@
+  ● ledger_holds → ledger_accounts (FK compuestas por modo) › correcto: el servicio registra las dos cuentas ANTES de la retención, aceptada o rechazada
+  ● ledger_holds → ledger_accounts (FK compuestas por modo) › límite: las cuentas existen solo en `test`; una retención en `live` o con una sola de las dos registrada se rechaza
+  ● ledger_holds → ledger_accounts (FK compuestas por modo) › inválido: una retención con cuentas que no existen en ninguna parte no entra
+Tests:       3 failed, 3 passed, 6 total
