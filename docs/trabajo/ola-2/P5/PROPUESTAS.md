@@ -19,3 +19,10 @@ PR-16, PR-17, PR-21 y PR-22 las aplicó el coordinador en `contracts/`. `pay-ris
 ## Decisión abierta (no se migra ahora)
 
 - **PR-18 — pagos programados vía `POST /intents`:** el coordinador pidió NO migrar en esta tanda. Queda registrada como decisión abierta: `pay-schedules` sigue ejecutando directo contra el ledger (opción B de hecho), con las consecuencias descritas arriba (sin riesgo/sanciones ni eventos `payment_intent.*` en los pagos programados). Recomendación sin cambios: opción A en la ola 3.
+
+## Tanda 3e (ola 3): idempotencia de `POST /assessments` con cribado incompleto
+
+| ID | Propuesta | Dueño | Qué hace el código hoy |
+|---|---|---|---|
+| PR-23 | **`internal-risk-v1.yaml` `POST /assessments`, sección de idempotencia:** documentar que una respuesta `201` con `reason_code: screening_unavailable` y `screened: false` es una decisión **NO definitiva** (el cribado no pudo completarse: timeout, caída o respuesta inválida de Watchman; un resultado sobre el cribado, no sobre la persona). La `Idempotency-Key` queda libre: repetir la MISMA clave con el MISMO cuerpo **vuelve a cribar** y responde `201` con otra evaluación (no `200`); solo una evaluación con `screened: true` —o `screening_not_provided`, que depende de la petición y no del cribado— queda congelada y se repite con `200`. El cuerpo distinto con la misma clave sigue siendo `422 idempotency_key_reused`. Cada intento tiene su `id` y su rastro inmutable (`GET /assessments/{id}` los devuelve). Sin cambio de esquema ni de umbrales. | P1 (OpenAPI) + P3 (el cliente de `pay-payments` reintenta con la misma clave ante `screened: false`) | Hecho en `pay-risk` (D5-53): `test/incomplete-screening.spec.ts` (11 pruebas, Watchman doble y real). |
+

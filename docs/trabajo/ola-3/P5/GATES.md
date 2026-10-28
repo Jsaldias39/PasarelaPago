@@ -32,6 +32,8 @@
 4. **`pay-risk` arrancaba un relé de outbox sin tabla** (`42P01` en cada sondeo) cuando su base sale del modelo: el servicio no publica eventos y el `pay_risk` del modelo no tiene `outbox_events`. Se quitó `EventsModule` (código muerto). Prueba: [`3c-risk-sin-relay.txt`](evidencia/3c-risk-sin-relay.txt).
 5. **Compatibilidad con el arnés e2e de P1**: `e2e/lib/infra.ts` aplica TODO `sql/*.sql` del servicio; `001_*.sql` + `ddl.sql` juntos fallaban (`relation "merchants" already exists`). Con el `001_*.sql` ya retirado se aplican limpios en los tres escenarios ([`3b-ddl-escenarios.txt`](evidencia/3b-ddl-escenarios.txt)).
 
+6. **PRODUCT_BUG de idempotencia en `pay-risk` (tanda 3e, hallado por el arnés de P1):** un timeout de Watchman daba `review`/`screening_unavailable` y esa decisión quedaba guardada bajo la `Idempotency-Key`: un comercio limpio no podía reintentar aunque Watchman se recuperara. Corregido (D5-53, PR-23): un cribado incompleto se responde igual pero no congela la clave; el reintento con la MISMA clave vuelve a cribar; solo lo cribado queda definitivo; ambos intentos quedan en el rastro. `test/incomplete-screening.spec.ts` (11, Watchman doble y real) y su control negativo (sin el arreglo fallan 8): [`3e-control-negativo-sin-arreglo.txt`](evidencia/3e-control-negativo-sin-arreglo.txt). pay-risk completo, máquina quieta: 18 suites / **243 verdes ×2, incluida la latencia** ([`3e-test-2-corridas.txt`](evidencia/3e-test-2-corridas.txt)); typecheck + build `exit=0`, `yarn lint` raíz `exit=0`, `contracts:lint` 13 válidos.
+
 ## 1 · Typecheck, lint y unitarios — PASS
 
 | Qué | Comando | Salida literal / archivo |

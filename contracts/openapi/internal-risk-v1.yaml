@@ -53,7 +53,7 @@ paths:
       tags: [Assessments]
       x-owner: P5
       summary: Evalúa un cobro
-      description: 'Idempotente por `Idempotency-Key`: reevaluar el mismo intento devuelve la misma decisión (y la misma `rule_version`). `payment_intent_id` es la clave de AGRUPACIÓN: varias evaluaciones del mismo intento no cuentan doble en la velocidad ni en los límites diarios.'
+      description: 'Idempotente por `Idempotency-Key`: reevaluar el mismo intento devuelve la misma decisión (y la misma `rule_version`). `payment_intent_id` es la clave de AGRUPACIÓN: varias evaluaciones del mismo intento no cuentan doble en la velocidad ni en los límites diarios. Si el cribado NO pudo completarse (timeout, caída o respuesta inválida del proveedor) la respuesta es `201` con `decision: review`, `reason_code: screening_unavailable` y `screened: false`, y esa evaluación NO queda congelada bajo la `Idempotency-Key`: un reintento con la MISMA clave y el MISMO cuerpo vuelve a cribar. Solo una evaluación con `screened: true` (o `screening_not_provided`) queda definitiva y se repite con `200`.'
       x-open-question: 'El umbral de coincidencia aproximada para sanciones lo fija cumplimiento: en el spike de Watchman, una coincidencia exacta puntuó 0,812 y un nombre con una letra cambiada 0,602 (`docs/spikes/watchman.md`). Hasta que se defina, `screening.min_score` es obligatorio en la configuración del servicio y no tiene valor por defecto.'
       parameters:
         - $ref: '#/components/parameters/ServiceId'

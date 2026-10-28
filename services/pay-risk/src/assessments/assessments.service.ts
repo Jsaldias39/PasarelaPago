@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { Inject, Injectable } from '@nestjs/common';
 import { IdempotencyStore } from '@pay/idempotency';
@@ -57,6 +57,17 @@ function toView(row: Record<string, unknown>): AssessmentView {
 /** La Paz es UTC-4 todo el año (Bolivia no usa horario de verano). */
 const localHour = (now: Date): number => (now.getUTCHours() + 20) % 24;
 
+/**
+ * El cribado no pudo completarse (timeout, caída, respuesta inválida): eso NO es un resultado sobre la persona, es un resultado sobre el cribado.
+ * La evaluación se responde igual (fail-closed: `review`/`screening_unavailable`, `screened: false`) pero NO queda congelada bajo la Idempotency-Key:
+ * el almacén de idempotencia suelta la clave (no es un error de negocio ni se completa) y un reintento con la MISMA clave y el MISMO cuerpo vuelve a cribar.
+ */
+class IncompleteScreening extends Error {
+  constructor(readonly view: AssessmentView) {
+    super('screening_incomplete');
+  }
+}
+
 @Injectable()
 export class AssessmentsService {
   private readonly idempotency: IdempotencyStore;
@@ -81,7 +92,20 @@ export class AssessmentsService {
    * de reglas sin volver a cribar. El nombre se usa en memoria para el cribado y no se guarda ni se registra.
    */
   async create(callerService: string, idempotencyKey: string, requestHash: string, input: AssessmentInput): Promise<{ status: 200 | 201; body: AssessmentView }> {
-    const result = await this.idempotency.execute({ scope: callerService, key: idempotencyKey, requestHash }, async (ctx) => {
+    let result;
+    try {
+      result = await this.runOnce(callerService, idempotencyKey, requestHash, input);
+    } catch (error) {
+      // Decisión NO definitiva: se responde, pero la clave quedó libre (ver `IncompleteScreening`). Cada intento deja su propio rastro.
+      if (error instanceof IncompleteScreening) return { status: 201, body: error.view };
+      throw error;
+    }
+    rethrowStoredProblem(result);
+    return { status: result.replayed ? 200 : 201, body: result.body };
+  }
+
+  private async runOnce(callerService: string, idempotencyKey: string, requestHash: string, input: AssessmentInput) {
+    return this.idempotency.execute({ scope: callerService, key: idempotencyKey, requestHash }, async (ctx) => {
       if (ctx.recoveryPoint !== 'started') {
         // La evaluación ya se escribió pero no se guardó la respuesta: se reconstruye desde el rastro.
         const { rows } = await this.pool.query(`SELECT ${VIEW_COLUMNS} FROM risk_assessments WHERE caller_service = $1 AND request_key = $2`, [callerService, idempotencyKey]);
@@ -106,11 +130,30 @@ export class AssessmentsService {
         // Falta el nombre del comercio (review), pero una coincidencia fuerte del pagador ya es un `deny`: no se oculta.
         screening = { ...payerResult, party: 'payer' };
       }
+      if (screening !== 'not_provided' && screening.outcome === 'unavailable') {
+        // Rastro del intento fallido SIN avanzar el punto de recuperación de la clave (no `ctx.atomic`) y con una clave de rastro propia: el índice único
+        // `(caller_service, request_key)` sigue reservado para la evaluación DEFINITIVA, que llega con el reintento.
+        throw new IncompleteScreening(await this.recordAttempt(callerService, `${idempotencyKey}~sin-cribar~${randomUUID().slice(0, 8)}`, input, screening, started));
+      }
       const view = await ctx.atomic('evaluated', (client) => this.decideAndRecord(client, callerService, idempotencyKey, input, screening, started));
       return { status: 201, body: view };
     });
-    rethrowStoredProblem(result);
-    return { status: result.replayed ? 200 : 201, body: result.body };
+  }
+
+  /** Una transacción propia para el rastro de una evaluación no definitiva (los candados por comercio y pagador se toman igual). */
+  private async recordAttempt(callerService: string, traceKey: string, input: AssessmentInput, screening: ScreeningResult, started: number): Promise<AssessmentView> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const view = await this.decideAndRecord(client, callerService, traceKey, input, screening, started);
+      await client.query('COMMIT');
+      return view;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   private async lock(client: Queryable, key: string): Promise<void> {

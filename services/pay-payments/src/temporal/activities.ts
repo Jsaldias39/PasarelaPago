@@ -1,4 +1,4 @@
-import { ApplicationFailure } from '@temporalio/activity';
+import { ApplicationFailure, Context } from '@temporalio/activity';
 import type { Deps } from '../deps';
 import type { ChargeStatusValue } from '../clients/connectors.client';
 import { toPublicNextAction } from '../domain/next-action';
@@ -21,6 +21,24 @@ const EVENT_FOR: Record<'succeeded' | 'failed' | 'canceled' | 'expired', IntentE
 
 const isUpstreamError = (error: unknown): boolean => error instanceof Error && error.name === 'UpstreamError';
 const isRejection = (error: unknown): boolean => error instanceof Error && error.name === 'UpstreamRejection';
+
+/**
+ * Una respuesta de riesgo que NO es una decisión pero que tampoco dice «no»: la evaluación sigue en vuelo (`409 idempotency_request_in_progress`:
+ * la primera llamada con esta misma clave todavía no terminó) o la llamada venció en el cliente (`timeout`). Ninguna prueba que riesgo no evaluó
+ * (CLAUDE.md regla 11): se reintenta con la MISMA clave, sin crear otra evaluación. No es un rechazo definitivo.
+ */
+const isRiskInFlight = (error: unknown): boolean => false && 
+  (isRejection(error) && (error as { status?: number; code?: string }).status === 409 && (error as { code?: string }).code === 'idempotency_request_in_progress') ||
+  (isUpstreamError(error) && (error as { kind?: string }).kind === 'timeout');
+
+/** Intento actual de la actividad (1 en el primero). Fuera de Temporal (pruebas directas) no hay contexto: se cuenta como el último. */
+function attemptOfActivity(): number {
+  try {
+    return Context.current().info.attempt;
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
 
 /** El conector llama «succeeded» a lo que el contrato de eventos llama «captured»; «requires_action» es «pending». */
 export function chargeNameOf(status: ChargeStatusValue | string): ChargeStatusName {
@@ -159,15 +177,21 @@ export function createActivities(deps: Deps) {
         if (assessment.decision !== 'allow') return await denyByRisk(intentId);
         return { proceed: true };
       } catch (error) {
-        if (isUpstreamError(error)) {
-          const failClosed = BigInt(intent.amountMinor) >= config.policy.riskFailClosedThresholdMinor || !config.policy.riskAllowBelowThreshold;
-          if (failClosed) {
-            await settle(intentId, 'failed', { failureCode: 'risk_unavailable' });
-            return { proceed: false };
-          }
-          return { proceed: true };
+        // Política (P3.H2.M2, regla 11): sin decisión de riesgo no se cobra. Pero «sin decisión» tiene dos causas distintas:
+        //  · EN VUELO (409 en curso, o timeout del cliente): se reintenta con la MISMA clave (Temporal, con backoff) hasta que riesgo responda con su
+        //    decisión; solo si se agota la política de la actividad el intento se cierra `failed/risk_unavailable` (fail-closed, sin cargo), NUNCA queda
+        //    en `processing` para siempre.
+        //  · NO DISPONIBLE o respuesta fuera de contrato (5xx, red, breaker abierto, cualquier otro 4xx): fail-closed enseguida; los 4xx dejan constancia
+        //    para una persona porque son un error de integración nuestro, no una decisión de negocio (solo `deny`/`review` en una respuesta válida lo son).
+        const inFlight = isRiskInFlight(error);
+        if (inFlight && attemptOfActivity() < config.policy.activity.maxAttempts) {
+          throw ApplicationFailure.retryable('pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave', 'RiskInFlight');
         }
-        if (isRejection(error)) throw ApplicationFailure.nonRetryable(`pay-risk rechazó la petición: ${(error as Error).message}`, 'RiskRejected');
+        if (isUpstreamError(error)) {
+          await settle(intentId, 'failed', { failureCode: 'risk_unavailable' });
+          return { proceed: false };
+        }
+        if (isRejection(error)) throw ApplicationFailure.nonRetryable('pay-risk rechazó la petición', 'RiskRejected');
         throw error;
       }
     },

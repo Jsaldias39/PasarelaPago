@@ -2,7 +2,19 @@ import { createHash } from 'node:crypto';
 import { CONTRACTS } from './contracts';
 import { DoubleServer, problem, type DoubleRequest, type DoubleResponse } from './server';
 
-export type RiskMode = 'allow' | 'deny' | 'review' | 'down' | 'hang' | { slowMs: number };
+export type RiskMode =
+  | 'allow' | 'deny' | 'review' | 'down' | 'hang'
+  | { slowMs: number }
+  /** La PRIMERA llamada de cada clave tarda `firstSlowMs` (más que el timeout del cliente) y mientras sigue en curso otra con la MISMA clave recibe `409 idempotency_request_in_progress`; después se repite la respuesta guardada. Es lo que hace el pay-risk real. */
+  | { firstSlowMs: number }
+  /** Las primeras `hangFirst` llamadas no responden (el cliente vence por timeout) y las siguientes evalúan normal. */
+  | { hangFirst: number }
+  /** Las primeras `inProgressFirst` llamadas reciben `409 idempotency_request_in_progress` y las siguientes evalúan normal. */
+  | { inProgressFirst: number }
+  /** TODA llamada recibe `409 idempotency_request_in_progress` (la evaluación nunca termina). */
+  | 'in_progress'
+  /** TODA llamada recibe un 4xx declarado que NO es una decisión (`422 validation_failed`): un error de integración nuestro. */
+  | 'rejects';
 
 const idOf = (prefix: string, seed: string) => `${prefix}_${createHash('sha1').update(seed).digest('hex').slice(0, 14)}`;
 
@@ -27,6 +39,20 @@ export class RiskDouble {
   readonly sanctions = new Set<string>();
   readonly server: DoubleServer;
   private readonly seen = new Map<string, { status: number; assessment: unknown }>();
+  private readonly inFlightUntil = new Map<string, number>();
+  private calls = 0;
+  /** Cuántas llamadas recibió desde el último `reset()` (todas, incluidas las que dieron 409 o colgaron). */
+  get callCount(): number {
+    return this.calls;
+  }
+
+  /** Vuelve al estado inicial: modo `allow`, sin respuestas guardadas ni evaluaciones en curso, contador en cero. */
+  reset(): void {
+    this.mode = 'allow';
+    this.seen.clear();
+    this.inFlightUntil.clear();
+    this.calls = 0;
+  }
 
   constructor() {
     this.server = new DoubleServer(CONTRACTS.risk, (req) => this.handle(req));
@@ -37,13 +63,21 @@ export class RiskDouble {
 
   private handle(req: DoubleRequest): DoubleResponse {
     if (req.method !== 'POST' || req.path !== '/assessments') return problem('resource_not_found', 404);
+    this.calls += 1;
     if (this.mode === 'down') return problem('risk_unavailable', 503);
     if (this.mode === 'hang') return { status: 200, hang: true };
+    if (this.mode === 'in_progress') return problem('idempotency_request_in_progress', 409);
+    if (this.mode === 'rejects') return problem('validation_failed', 422);
+    if (typeof this.mode === 'object' && 'hangFirst' in this.mode && this.calls <= this.mode.hangFirst) return { status: 200, hang: true };
+    if (typeof this.mode === 'object' && 'inProgressFirst' in this.mode && this.calls <= this.mode.inProgressFirst) return problem('idempotency_request_in_progress', 409);
     const key = String(req.headers['idempotency-key'] ?? '');
     const body = req.body as AssessmentBody;
+    const until = this.inFlightUntil.get(key);
+    if (until !== undefined && Date.now() < until) return problem('idempotency_request_in_progress', 409);
     const replayed = this.seen.get(key);
     if (replayed) return { status: 200, body: replayed.assessment };
-    const delayMs = typeof this.mode === 'object' ? this.mode.slowMs : undefined;
+    const delayMs = typeof this.mode === 'object' ? ('slowMs' in this.mode ? this.mode.slowMs : 'firstSlowMs' in this.mode ? this.mode.firstSlowMs : undefined) : undefined;
+    if (typeof this.mode === 'object' && 'firstSlowMs' in this.mode) this.inFlightUntil.set(key, Date.now() + this.mode.firstSlowMs);
     let decision: 'allow' | 'review' | 'deny';
     let reason: string;
     let screened = false;

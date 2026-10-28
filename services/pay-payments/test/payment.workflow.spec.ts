@@ -126,12 +126,16 @@ describe('P3.H2.M2 · política de llamadas síncronas', () => {
     expect(stack.ledger.postedCount(`${intent.id}:capture`)).toBe(0);
   });
 
-  it('riesgo colgado: el timeout de 300 ms corta y el cobro falla rápido, no espera sin límite', async () => {
+  it('riesgo colgado: el timeout de 300 ms corta, se reintenta con la MISMA clave hasta agotar la política de la actividad y el cobro termina failed risk_unavailable; no espera sin límite', async () => {
     stack.risk.mode = 'hang';
     const started = Date.now();
     const intent = await create();
     expect(intent).toMatchObject({ status: 'failed', last_error: { code: 'risk_unavailable' } });
-    expect(Date.now() - started).toBeLessThan(4000);
+    // Antes (fail-closed inmediato) bastaban 4 s. Ahora un timeout es AMBIGUO (regla 11): ACTIVITY_MAX_ATTEMPTS=4 intentos de 2 llamadas de 300 ms con espera creciente. Sigue siendo acotado.
+    expect(Date.now() - started).toBeLessThan(10_000);
+    const mine = stack.risk.server.calls.filter((c) => (c.body as { payment_intent_id?: string }).payment_intent_id === intent.id);
+    expect(mine.length).toBeGreaterThan(1); // se reintentó
+    expect([...new Set(mine.map((c) => c.headers['idempotency-key']))]).toEqual([`${intent.id}:risk`]); // siempre con la MISMA clave
   });
 
   it('conector caído: se reintenta con espera creciente y, agotados los reintentos, el cobro termina failed connector_unavailable', async () => {
