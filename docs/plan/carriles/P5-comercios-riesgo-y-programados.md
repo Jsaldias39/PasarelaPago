@@ -66,7 +66,7 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 | P5.H2.M1 | **Spike** Watchman: cargar listas, latencia de búsqueda, licencia en su `LICENSE` | Responde sí o no con criterio | `evidencia/spike-watchman.md` | BLOQUEADO (externo; ver abajo) |
 | P5.H2.M2 | Motor de reglas versionado (monto, velocidad por comercio y pagador, horario) | REQ-P5-5 (velocidad) | Test pegado | HECHO |
 | P5.H2.M3 | Cribado de sanciones integrado | REQ-P5-5 (sanciones) | Test con nombres sintéticos de la lista de prueba | HECHO |
-| P5.H2.M4 | `POST /assessments` con p99 < 300 ms | Latencia medida | Salida de la prueba de carga | A MEDIAS |
+| P5.H2.M4 | `POST /assessments` con p99 < 300 ms | Latencia medida | Salida de la prueba de carga | HECHO |
 | P5.H2.M5 | Registro auditable de cada decisión (sin datos personales en claro) | Toda decisión tiene su rastro | Consulta pegada | HECHO |
 
 ## H3 — `pay-schedules` (olas 1 y 2)
@@ -93,7 +93,16 @@ ejecuta dos veces cuando el job corre dos veces, tampoco.
 
 > **Reserva sobre P5.H3.M5 (que consta HECHO):** su evidencia es el E5 de `test/executor.spec.ts` contra el [DOBLE] del libro mayor, con Postgres real. El E5 por la API real contra el stack (`e2e/pending/e5.e2e.ts`) está escrito y tipado, **no ejecutado** (lo corre P1). Si el DoD «salida del E2E» se toma al pie de la letra, el microhito pasaría a `A MEDIAS` y el avance sería 15 / 18 — 83,3 %.
 
-**P5.H2.M4 — p99 < 300 ms.** *Qué anda:* `POST /assessments` con Watchman REAL y Postgres real mide p99 52–77 ms en máquina tranquila y 142–209 ms en 3 de 5 corridas completas; el servicio solo (sin Watchman) mide p99 19–55 ms. *Qué no anda:* con la máquina compartida cargada (load average 17–38 en 4 vCPU) el p99 pasó de 300 ms en 2 de 5 corridas, hasta sin Watchman: clasificado `ENVIRONMENT` ([`P5.H2.M4.txt`](../../trabajo/ola-1/P5/evidencia/P5.H2.M4.txt)). *Qué falta:* la prueba de carga real a 2× el volumen objetivo (**T-01, ola 3**) en un runner dedicado; escalar Watchman (satura con > 4 clientes simultáneos, p99 400 ms con 24) o cachear/usar `entity_type` (PR-11). *Dónde quedó:* `services/pay-risk/test/latency.spec.ts`, compila; intermitente bajo carga externa.
+**P5.H2.M4 — p99 < 300 ms — HECHO (tanda 3e).** `test/latency.spec.ts` aislada, 3 corridas, una suite a la vez, Watchman REAL (`v2-static`, solo sandbox) y Postgres real, 4 vCPU ([`3e-latencia-3-corridas.txt`](../../trabajo/ola-3/P5/evidencia/3e-latencia-3-corridas.txt)); p99 de las tres corridas ≤ 208 ms en TODAS las líneas:
+
+| Línea | p50 (ms) | p95 (ms) | p99 (ms) |
+|---|---|---|---|
+| 1 búsqueda (solo el comercio) | 40,9 · 45,6 · 35,2 | 71,8 · 81,9 · 54,1 | 83,8 · 102,4 · 66,3 |
+| 3 búsquedas (comercio + pagador sin tipo) | 79,8 · 76,3 · 62,4 | 126,1 · 147,7 · 92,0 | 154,3 · 170,9 · 136,2 |
+| 4 clientes en paralelo (400 llamadas) | 89,4 · 91,8 · 109,4 | 161,5 · 147,3 · 175,2 | 205,0 · 185,1 · 208,0 |
+| servicio solo, sin Watchman | 12,9 · 13,6 · 12,0 | 28,9 · 21,9 · 20,2 | 40,1 · 26,1 · 25,2 |
+
+Rastro: 810 llamadas por corrida, 0 con duración interna ≥ 300 ms; 1–2 por corrida sin cribar por timeout de 200 ms (< 1 %, decisión `review`, nunca `allow`; con D5-53 son intentos no definitivos que se reintentan). Contexto honesto: load average 2,1 / 5,0 / 7,0 al empezar cada corrida, con un stack de otro agente presente en la tercera (13 procesos node ajenos): la cifra es conservadora respecto de una máquina totalmente quieta. Nota: «p99 medido en una máquina de 4 vCPU sin carga ajena; la prueba de carga global T-01 es del carril P1 (e2e/load)». *Antes:* en ola 1 el p99 pasaba de 300 ms bajo carga externa (load 17–38, `ENVIRONMENT`); ya no se reproduce con la máquina libre (pay-risk completo 243/243 ×2, `3e-test-2-corridas.txt`).
 
 **P5.H2.M1** pasó en la tanda 4a de `A MEDIAS` a `BLOQUEADO` por causa **externa** (sin cambio de código): ver «Estado de P5.H2.M1» más abajo.
 

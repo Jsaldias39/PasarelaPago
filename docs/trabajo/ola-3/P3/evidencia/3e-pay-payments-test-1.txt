@@ -163,3 +163,165 @@
   },
   durationMs: 17
 }
+2026-10-28T02:33:49.092Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-0e90f9f2',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfZmY1OWY3N2ExY2Y5ZmQ4OGVhZGVhMGVkGiQ3ZWFmZTc3Ni0xMjQ4LTQ5YTQtOGY4Zi02MzYyNDcyNGMyZTIgCygCMgEyQgphc3Nlc3NSaXNrSgkIAhD33sQBGAE=',
+  activityId: '2',
+  activityType: 'assessRisk',
+  workflowId: 'payment-pi_ff59f77a1cf9fd88eadea0ed',
+  workflowRunId: '7eafe776-1248-49a4-8f8f-63624724c2e2',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:188:36)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:370:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'RiskInFlight',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 10
+}
+2026-10-28T02:33:49.564Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-0e90f9f2',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfZmY1OWY3N2ExY2Y5ZmQ4OGVhZGVhMGVkGiQ3ZWFmZTc3Ni0xMjQ4LTQ5YTQtOGY4Zi02MzYyNDcyNGMyZTIgCygDMgEyQgphc3Nlc3NSaXNrSgkIAhCX38QBGAE=',
+  activityId: '2',
+  activityType: 'assessRisk',
+  workflowId: 'payment-pi_ff59f77a1cf9fd88eadea0ed',
+  workflowRunId: '7eafe776-1248-49a4-8f8f-63624724c2e2',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:188:36)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:370:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'RiskInFlight',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 25
+}
+2026-10-28T02:33:51.468Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-0e90f9f2',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfMzU5NGIyZDA3MGRkZWY3ZjQwNTEzMDhkGiRhMDY2NzA2Ny05ZWZjLTQ3NDMtOTYxZC0zMTcxNGE4ZWNkNTkgCygBMgEyQgphc3Nlc3NSaXNrSgkIBBCpvsUBGAE=',
+  activityId: '2',
+  activityType: 'assessRisk',
+  workflowId: 'payment-pi_3594b2d070ddef7f4051308d',
+  workflowRunId: 'a0667067-9efc-4743-961d-31714a8ecd59',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:188:36)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:370:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'RiskInFlight',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 678
+}
+2026-10-28T02:33:52.444Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-0e90f9f2',
+  isLocal: false,
+  attempt: 2,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfMzU5NGIyZDA3MGRkZWY3ZjQwNTEzMDhkGiRhMDY2NzA2Ny05ZWZjLTQ3NDMtOTYxZC0zMTcxNGE4ZWNkNTkgCygCMgEyQgphc3Nlc3NSaXNrSgkIBBCsvsUBGAE=',
+  activityId: '2',
+  activityType: 'assessRisk',
+  workflowId: 'payment-pi_3594b2d070ddef7f4051308d',
+  workflowRunId: 'a0667067-9efc-4743-961d-31714a8ecd59',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:188:36)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at runNextTicks (node:internal/process/task_queues:69:3)
+      at processTimers (node:internal/timers:520:9)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:370:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'RiskInFlight',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 660
+}
+2026-10-28T02:33:53.537Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-0e90f9f2',
+  isLocal: false,
+  attempt: 3,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfMzU5NGIyZDA3MGRkZWY3ZjQwNTEzMDhkGiRhMDY2NzA2Ny05ZWZjLTQ3NDMtOTYxZC0zMTcxNGE4ZWNkNTkgCygDMgEyQgphc3Nlc3NSaXNrSgkIBBCvvsUBGAE=',
+  activityId: '2',
+  activityType: 'assessRisk',
+  workflowId: 'payment-pi_3594b2d070ddef7f4051308d',
+  workflowRunId: 'a0667067-9efc-4743-961d-31714a8ecd59',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave
+      at Function.retryable (/home/user/pasarelapago/node_modules/@temporalio/common/src/failure.ts:240:12)
+      at retryable (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:188:36)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:370:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24 {
+    cause: undefined,
+    failure: undefined,
+    type: 'RiskInFlight',
+    nonRetryable: false,
+    details: [],
+    nextRetryDelay: undefined,
+    category: undefined
+  },
+  durationMs: 668
+}

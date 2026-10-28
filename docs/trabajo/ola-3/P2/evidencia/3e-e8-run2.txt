@@ -1,0 +1,75 @@
+FAIL e2e/pending/e8.e2e.ts (59.248 s)
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › CONFIRMACIÓN POR EL EXTRACTO: el crédito con la referencia y el importe exactos captura el cobro; el ledger deja neto en pending y comisión en fees, débitos = créditos
+
+    pay-mockbank no aceptó el depósito de 20000 centavos con la referencia TRVEAKPBJVYB: HTTP 201 {"bank_reference":"SIM-X-000001","reference":"TRVEAKPBJVYB","amount_minor":20000,"account":"transfers"}
+
+      50 |   });
+      51 |   if (res.status !== 200) {
+    > 52 |     throw new Error(`pay-mockbank no aceptó el depósito de ${input.amountMinor} centavos con la referencia ${input.reference}: HTTP ${res.status} ${res.text.slice(0, 200)}`);
+         |           ^
+      53 |   }
+      54 |   return { bankReference: (res.json as { bank_reference: string }).bank_reference };
+      55 | }
+
+      at payerTransfersToBank (e2e/lib/p2-bank.ts:52:11)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:78:5)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › UNA SOLA VEZ: el conector vuelve a leer la misma línea en cada ciclo y NO captura dos veces: un evento captured, una captura en el ledger
+
+    No se cumplió «el conector publicó la captura» en 30000 ms; último valor: []
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:90:20)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › CONCILIACIÓN (P2): la línea del extracto cruza con el asiento de la captura; la corrida termina sin excepciones y no mueve el ledger
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "exception_count": 0,
+    +   "exception_count": 1,
+        "status": "completed",
+      }
+
+      105 |     const run = await until('la corrida termina', async () => (await backoffice(stack, 'GET', `/reconciliation_runs/${(started.json as { id: string }).id}`)).json as { status: string; matched_count: number; exception_count: number }, (r) => r.status !== 'running', 60_000, 250);
+      106 |     // Con `payment_intent_id` en la línea: 1 cruzada, 0 excepciones. Sin el campo, la línea trae la referencia de la TRANSFERENCIA, no cruza y sale una excepción (FLUJOS-E4-E8.md).
+    > 107 |     expect(run).toMatchObject({ status: 'completed', exception_count: 0 });
+          |                 ^
+      108 |     expect(run.matched_count).toBeGreaterThanOrEqual(1);
+      109 |     expect(await Promise.all([`merchant:${merchant.merchantId}:pending`, 'platform:fees', `connector:${CONNECTOR}:clearing`].map((a) => view.balance(a)))).toEqual(before);
+      110 |     expect(((await backoffice(stack, 'GET', '/reconciliation_exceptions?status=open')).json as { data: unknown[] }).data).toEqual([]);
+
+      at Object.toMatchObject (e2e/pending/e8.e2e.ts:107:17)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › IMPORTE DISTINTO: un crédito con la referencia correcta pero otro importe NO captura el cobro; queda a la vista como excepción para una persona
+
+    pay-mockbank no aceptó el depósito de 19000 centavos con la referencia TR4PRGH2GTL3: HTTP 201 {"bank_reference":"SIM-X-000002","reference":"TR4PRGH2GTL3","amount_minor":19000,"account":"transfers"}
+
+      50 |   });
+      51 |   if (res.status !== 200) {
+    > 52 |     throw new Error(`pay-mockbank no aceptó el depósito de ${input.amountMinor} centavos con la referencia ${input.reference}: HTTP ${res.status} ${res.text.slice(0, 200)}`);
+         |           ^
+      53 |   }
+      54 |   return { bankReference: (res.json as { bank_reference: string }).bank_reference };
+      55 | }
+
+      at payerTransfersToBank (e2e/lib/p2-bank.ts:52:11)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:117:5)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 2 passed, 6 total
+Snapshots:   0 total
+Time:        59.318 s
+Ran all test suites matching e2e/pending/e8.e2e.ts.
+rc=1

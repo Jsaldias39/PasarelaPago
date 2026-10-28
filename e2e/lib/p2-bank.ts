@@ -48,7 +48,8 @@ export async function payerTransfersToBank(stack: Stack, input: { reference: str
     payMode: 'test',
     json: { reference: input.reference, amount_minor: input.amountMinor },
   });
-  if (res.status !== 200) {
+  if (res.status !== 200 && res.status !== 201) {
+    // La respuesta real es 201 (Nest, POST sin @HttpCode); ESCENARIOS.md dice 200: se aceptan ambas y se avisa a P4.
     throw new Error(`pay-mockbank no aceptó el depósito de ${input.amountMinor} centavos con la referencia ${input.reference}: HTTP ${res.status} ${res.text.slice(0, 200)}`);
   }
   return { bankReference: (res.json as { bank_reference: string }).bank_reference };

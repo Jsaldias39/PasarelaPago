@@ -4,7 +4,17 @@ import { generateApiKey } from '@pay/api-key';
 import { enqueue, newCloudEvent } from '@pay/outbox';
 import type { Stack } from '../stack.ts';
 import { waitFor } from './process.ts';
-import { OPERATOR_ISSUER } from './services.ts';
+import { OPERATOR_ISSUER, type RunSecrets } from './services.ts';
+
+/**
+ * Lo mínimo que necesita el alta de un comercio de «el sistema contra el que se siembra»: el arnés (`Stack`, procesos locales) o la capa sandbox en Compose
+ * (`yarn seed:sandbox`, contenedores en 127.0.0.1). Un `Stack` cumple esta interfaz tal cual.
+ */
+export interface OnboardingTarget {
+  url(name: 'pay-merchants' | 'pay-edge' | 'pay-ledger'): string;
+  readonly secrets: Pick<RunSecrets, 'operatorPrivateKeyPem'>;
+  callAs: Stack['callAs'];
+}
 
 export interface SeededMerchant {
   readonly merchantId: string;
@@ -78,15 +88,21 @@ export async function seedMerchantDirect(stack: Stack, options: { label?: string
 export interface SeedOptions {
   readonly label?: string;
   readonly legalName?: string;
+  /** NIT sintético fijo (por defecto uno aleatorio por alta). La siembra de sandbox lo fija para poder reconocer su comercio. */
+  readonly taxId?: string;
+  /** Emisor de la credencial de operador (por defecto el del arnés). */
+  readonly operatorIssuer?: string;
+  /** Prefijo de las `Idempotency-Key` del alta; con uno fijo, repetir el alta dentro de las 24 h devuelve el mismo comercio. */
+  readonly idempotencyPrefix?: string;
   /** `api` (por defecto): alta por la API real de pay-merchants. `sql`: el respaldo directo en la base (DOBLE). */
   readonly mode?: 'api' | 'sql';
 }
 
 /** Emite un JWT RS256 de operador SINTÉTICO de sandbox, con la misma forma que `scripts/sandbox-operator-token.mjs` de pay-merchants. */
-export function mintOperatorToken(stack: Stack, roles: readonly string[], options: { sub?: string; ttlSeconds?: number } = {}): string {
+export function mintOperatorToken(stack: Pick<OnboardingTarget, 'secrets'>, roles: readonly string[], options: { sub?: string; ttlSeconds?: number; issuer?: string } = {}): string {
   const now = Math.floor(Date.now() / 1000);
   const b64 = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const unsigned = `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64({ iss: OPERATOR_ISSUER, aud: 'pay-merchants', sub: options.sub ?? 'operador_e2e_01', roles, mode: 'sandbox', iat: now, exp: now + (options.ttlSeconds ?? 600) })}`;
+  const unsigned = `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64({ iss: options.issuer ?? OPERATOR_ISSUER, aud: 'pay-merchants', sub: options.sub ?? 'operador_e2e_01', roles, mode: 'sandbox', iat: now, exp: now + (options.ttlSeconds ?? 600) })}`;
   return `${unsigned}.${createSign('RSA-SHA256').update(unsigned).sign(createPrivateKey(stack.secrets.operatorPrivateKeyPem)).toString('base64url')}`;
 }
 
@@ -112,8 +128,8 @@ const FEE_CHANNELS = [
  * `X-Merchant-Id` del comercio (lo que el borde reenviaría), porque el borde exige una clave para llegar a esa ruta y no hay otro camino para la primera
  * (hallazgo para P5/P1 en ARNES.md: ¿quién emite la primera clave de un comercio?).
  */
-export async function onboardMerchant(stack: Stack, options: SeedOptions = {}): Promise<SeededMerchant> {
-  const bearer = `Bearer ${mintOperatorToken(stack, OPERATOR_ROLES)}`;
+export async function onboardMerchant(stack: OnboardingTarget, options: SeedOptions = {}): Promise<SeededMerchant> {
+  const bearer = `Bearer ${mintOperatorToken(stack, OPERATOR_ROLES, options.operatorIssuer ? { issuer: options.operatorIssuer } : {})}`;
   const backoffice = async (method: string, path: string, init: { json?: unknown; idempotencyKey?: string; form?: FormData } = {}) => {
     const res = await fetch(`${stack.url('pay-merchants')}${path}`, {
       method,
