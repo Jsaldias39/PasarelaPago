@@ -1,0 +1,27 @@
+### corrida 1 pay-merchants
+FAIL test/operator-credential.spec.ts (7.644 s)
+  ● alta del PRIMER comercio con una credencial de operador real (sin la siembra del arnés ni el [DOBLE]) › camino completo con una credencial por rol (mínimo privilegio): alta → documentos → KYC → contrato → activación → tarifario → clave de API
+  ● alta del PRIMER comercio con una credencial de operador real (sin la siembra del arnés ni el [DOBLE]) › negativa: CREDENCIAL DE OTRO MODO (emitida para live) en un despliegue sandbox ⇒ 401; y la de sandbox en un despliegue live ⇒ 401
+FAIL test/authz.spec.ts (5.982 s)
+  ● matriz de autorización negativa (REQ-P5-5, regla 80.2.3) › las rutas públicas solo las abre pay-edge: cualquier otro servicio, o ninguno, es rechazado
+  ● matriz de autorización negativa (REQ-P5-5, regla 80.2.3) › un operador autenticado pero sin llamar por pay-backoffice no entra (la credencial sola no basta)
+  ● privacidad: nombres, NIT y documentos no salen por logs, eventos ni errores (regla 90.2) › con datos sintéticos centinela recorriendo todo el flujo, ningún canal de salida los contiene
+FAIL test/api-keys.spec.ts
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › el secreto se muestra UNA vez, tiene la forma de D-27 y la base guarda solo el hash que lo verifica
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › publica api_key.created con el hash (D-27), el modo y los últimos 4, válido contra el AsyncAPI y sin el secreto
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › modos: `test` para comercios pending/active; `live` solo activo; suspendido ⇒ merchant_suspended; cerrado ⇒ forbidden
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › idempotencia: repetir la misma petición NO crea otra clave ni devuelve el secreto (200); con otro cuerpo es 422
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › concurrencia ×5 con la misma Idempotency-Key: una sola clave y un solo evento
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › concurrencia ×5 con claves distintas respeta el tope de claves activas (5 en la prueba)
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › una clave test no crea claves live y una live no crea test: 403 forbidden y no se escribe nada
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › una clave de un modo no lista, rota ni revoca claves del otro: 404 (no 403), y nada cambia
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › sin X-Pay-Mode o con un valor inválido, TODAS las rutas públicas responden 403 (seguro por defecto)
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › el modo nunca sale del cuerpo: el cuerpo no puede traer otro campo de modo ni sobreescribir el de la cabecera
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › el back-office de seguridad sí revoca una clave comprometida de cualquier modo
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › multi-tenant (BOLA) › otro comercio no ve, no rota ni revoca mis claves: 404 igual que si no existieran
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › revocación › DELETE revoca (204), es idempotente y publica un solo api_key.revoked con motivo revoked_by_merchant
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › revocación › revocar libera cupo del tope y una clave revocada no se puede rotar (409)
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › revocación › back-office: security_operator revoca una clave comprometida (motivo compromised); otros roles 403; ajena 404
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › revocación › revocar con concurrencia ×5 produce un solo evento
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › rotación con periodo de gracia › la clave nueva trae su secreto; la anterior sigue válida (sin revocar) y muestra cuándo vence
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › rotación con periodo de gracia › rotar la misma clave dos veces es 409; repetir la MISMA petición de rotación es 200 sin
