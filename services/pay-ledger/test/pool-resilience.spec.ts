@@ -5,7 +5,7 @@ import { Test } from '@nestjs/testing';
 import { MikroORM } from '@mikro-orm/core';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { Client, type Pool } from 'pg';
+import { Pool } from 'pg';
 import { IdempotencyStore } from '@pay/idempotency';
 import { OutboxRelay, processOnce, type CloudEvent, type EventPublisher } from '@pay/outbox';
 import { TEST_DATABASE_URL, createIsolatedDatabase, type IsolatedDatabase } from '@pay/testing';
@@ -40,7 +40,9 @@ class ProbeController {
 let app: INestApplication;
 let pool: Pool;
 let orm: MikroORM;
-let admin: Client;
+// Las conexiones de «control» de la prueba también son un `Pool` envuelto: en un Postgres compartido otras suites cortan conexiones (por base o por rol) y un
+// `Client` suelto sin manejador tumbaría la suite entera por una conexión que no es la que se está probando.
+let admin: Pool;
 let url: string;
 /** Con el rol del propio servicio (un rol puede cortar sus propias conexiones; no necesita superusuario). */
 const dbUrl = `postgres://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
@@ -55,8 +57,7 @@ beforeAll(async () => {
   url = await app.getUrl();
   pool = moduleRef.get<Pool>(PG_POOL);
   orm = moduleRef.get(MikroORM);
-  admin = new Client({ connectionString: dbUrl });
-  await admin.connect();
+  admin = guardPool(new Pool({ connectionString: dbUrl, max: 1 }), 'PgAdmin');
 });
 afterAll(async () => {
   await admin.end();
@@ -175,7 +176,7 @@ describe('el pool de la aplicación sobrevive a que Postgres corte conexiones', 
  */
 describe('las librerías que prestan conexión: corte con pg_terminate_backend EN MEDIO de una transacción', () => {
   let db: IsolatedDatabase;
-  let killer: Client;
+  let killer: Pool;
   const rand = () => Math.random().toString(36).slice(2, 12);
   const effects = async () => Number((await db.pool.query("SELECT count(*)::int AS n FROM outbox_events WHERE aggregate_type = 'prueba-corte'")).rows[0].n);
   const effect = (client: { query: Pool['query'] } | { query: (t: string, p?: unknown[]) => Promise<unknown> }, id: string) =>
@@ -193,8 +194,7 @@ describe('las librerías que prestan conexión: corte con pg_terminate_backend E
   beforeAll(async () => {
     db = await createIsolatedDatabase([resolve(process.cwd(), 'sql/ddl.sql')]);
     guardPool(db.pool, 'PgPool');
-    killer = new Client({ connectionString: TEST_DATABASE_URL });
-    await killer.connect();
+    killer = guardPool(new Pool({ connectionString: TEST_DATABASE_URL, max: 1 }), 'PgKiller');
   });
   afterAll(async () => {
     await killer.end();

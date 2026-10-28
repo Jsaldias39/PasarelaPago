@@ -1,3 +1,83 @@
 ### base de build: node:22-alpine + la CA del proxy de este entorno (NODE_EXTRA_CA_CERTS); el Dockerfile de producción no cambia (HUB=p5gate.local)
 ### docker build -f services/pay-merchants/Dockerfile --build-arg HUB=p5gate.local -t p5gate-pay-merchants:local .
 inicio 2026-10-28T01:53:41Z
+exit=0
+
+#10 [stage-1 4/4] WORKDIR /repo/services/pay-merchants
+#10 DONE 0.4s
+
+#11 exporting to image
+#11 exporting layers
+#11 exporting layers 19.8s done
+#11 exporting manifest sha256:1e76bef81d9f41639a7d802ec8e072b587224858c5d0d4b9a86dd30f1e6413f9 0.0s done
+#11 exporting config sha256:fc967e0a4eb54fbd146611f2410746d0e65cdba2931facdfebc8e8eca3eab041 0.0s done
+#11 exporting attestation manifest sha256:c3d955850bd5ce002ec7eb2032f52498c14dd16f1d9d67cfee7310584242268c 0.0s done
+#11 exporting manifest list sha256:83a84c36309f1fee50b80cb0333c22f34cbdee234615a85c31d89573e8c5d093 0.0s done
+#11 naming to docker.io/library/p5gate-pay-merchants:local done
+#11 unpacking to docker.io/library/p5gate-pay-merchants:local
+#11 unpacking to docker.io/library/p5gate-pay-merchants:local 5.8s done
+#11 DONE 25.7s
+--- humo del contenedor: sin variables de entorno el servicio debe negarse a arrancar con un mensaje claro (config validada al arrancar, 90.3.4)
+/repo/services/pay-merchants/dist/config.js:10
+        throw new Error('Falta la variable de entorno PAY_MODE (sandbox | live)');
+        ^
+
+Error: Falta la variable de entorno PAY_MODE (sandbox | live)
+    at payModeOf (/repo/services/pay-merchants/dist/config.js:10:15)
+    at loadConfig (/repo/services/pay-merchants/dist/config.js:29:21)
+    at Object.<anonymous> (/repo/services/pay-merchants/dist/database.module.js:24:40)
+    at Module._compile (node:internal/modules/cjs/loader:1781:14)
+    at Object..js (node:internal/modules/cjs/loader:1913:10)
+    at Module.load (node:internal/modules/cjs/loader:1505:32)
+    at Function._load (node:internal/modules/cjs/loader:1309:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+    at Module.require (node:internal/modules/cjs/loader:1527:12)
+    at require (node:internal/modules/helpers:147:16)
+
+Node.js v22.23.4
+docker run sin entorno: exit=1
+--- usuario efectivo dentro de la imagen:
+uid=1000(node) gid=1000(node) groups=1000(node),1000(node)
+imagen sha256:83a84c36309f1fee50b80cb0333c22f34cbdee234615a85c31d89573e8c5d093 tamaño 991090286 usuario=node cmd=[node dist/main.js] expose=map[3107/tcp:map[]]
+### docker build -f services/pay-risk/Dockerfile --build-arg HUB=p5gate.local -t p5gate-pay-risk:local .
+inicio 2026-10-28T01:55:31Z
+exit=0
+
+#10 [stage-1 4/4] WORKDIR /repo/services/pay-risk
+#10 DONE 0.4s
+
+#11 exporting to image
+#11 exporting layers
+#11 exporting layers 21.8s done
+#11 exporting manifest sha256:0fe709720c6866fabab51672304410da889fb69e75d25d0d2d8b8ef8d63ba2e2 0.0s done
+#11 exporting config sha256:45ef6ff5cf0c34f53fc4e7ef01252e59e9f4a27a0e8e8ef54ea036b4814b42d5 done
+#11 exporting attestation manifest sha256:3d703b2cfa8ff5148c5b300b209ebcff184e0ea3cbcf2a59100b32d434f07360 done
+#11 exporting manifest list sha256:5724415753e90170263313ca3ae8b21cebd9e3e5f3c23107bc90f16d209b4c68 done
+#11 naming to docker.io/library/p5gate-pay-risk:local done
+#11 unpacking to docker.io/library/p5gate-pay-risk:local
+#11 unpacking to docker.io/library/p5gate-pay-risk:local 6.0s done
+#11 DONE 27.9s
+--- humo del contenedor: sin variables de entorno el servicio debe negarse a arrancar con un mensaje claro (config validada al arrancar, 90.3.4)
+/repo/services/pay-risk/dist/config.js:10
+        throw new Error('Falta la variable de entorno PAY_MODE (sandbox | live)');
+        ^
+
+Error: Falta la variable de entorno PAY_MODE (sandbox | live)
+    at payModeOf (/repo/services/pay-risk/dist/config.js:10:15)
+    at loadConfig (/repo/services/pay-risk/dist/config.js:29:21)
+    at Object.<anonymous> (/repo/services/pay-risk/dist/database.module.js:24:40)
+    at Module._compile (node:internal/modules/cjs/loader:1781:14)
+    at Object..js (node:internal/modules/cjs/loader:1913:10)
+    at Module.load (node:internal/modules/cjs/loader:1505:32)
+    at Function._load (node:internal/modules/cjs/loader:1309:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+    at Module.require (node:internal/modules/cjs/loader:1527:12)
+    at require (node:internal/modules/helpers:147:16)
+
+Node.js v22.23.4
+docker run sin entorno: exit=1
+--- usuario efectivo dentro de la imagen:
+uid=1000(node) gid=1000(node) groups=1000(node),1000(node)
+imagen sha256:5724415753e90170263313ca3ae8b21cebd9e3e5f3c23107bc90f16d209b4c68 tamaño 990832468 usuario=node cmd=[node dist/main.js] expose=map[3108/tcp:map[]]
+### docker build -f services/pay-schedules/Dockerfile --build-arg HUB=p5gate.local -t p5gate-pay-schedules:local .
+inicio 2026-10-28T01:57:15Z

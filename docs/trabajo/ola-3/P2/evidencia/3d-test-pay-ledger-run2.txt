@@ -1,108 +1,72 @@
-(node:23720) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:13432) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
-(node:23718) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(node:13433) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
 (Use `node --trace-warnings ...` to show where the warning was created)
-[31m[Nest] 23718  - [39m10/28/2026, 1:50:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:14 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'error'[39m,
   request_id: [90mundefined[39m
 }
 Error no controlado
-FAIL test/pool-resilience.spec.ts
+FAIL test/pool-resilience.spec.ts (5.943 s)
 
 
   ● Test suite failed to run
 
-    Unhandled error. (error: terminating connection due to administrator command
-        at parseErrorMessage (/home/user/pasarelapago/node_modules/pg-protocol/src/parser.ts:395:9)
-        at Parser.handlePacket (/home/user/pasarelapago/node_modules/pg-protocol/src/parser.ts:212:19)
-        at Parser.parse (/home/user/pasarelapago/node_modules/pg-protocol/src/parser.ts:105:30)
-        at Socket.<anonymous> (/home/user/pasarelapago/node_modules/pg-protocol/src/index.ts:7:48)
+    Unhandled error. (Error: Connection terminated unexpectedly
+        at Connection.<anonymous> (/home/user/pasarelapago/node_modules/pg/lib/client.js:204:73)
+        at Object.onceWrapper (node:events:633:28)
+        at Connection.emit (node:events:519:28)
+        at Socket.<anonymous> (/home/user/pasarelapago/node_modules/pg/lib/connection.js:64:12)
         at Socket.emit (node:events:519:28)
-        at addChunk (node:internal/streams/readable:561:12)
-        at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
-        at Socket.Readable.push (node:internal/streams/readable:392:5)
-        at TCP.onStreamRead (node:internal/stream_base_commons:189:23)
-        at TCP.callbackTrampoline (node:internal/async_hooks:130:17) {
-      length: 116,
-      severity: 'FATAL',
-      code: '57P01',
-      detail: undefined,
-      hint: undefined,
-      position: undefined,
-      internalPosition: undefined,
-      internalQuery: undefined,
-      where: undefined,
-      schema: undefined,
-      table: undefined,
-      column: undefined,
-      dataType: undefined,
-      constraint: undefined,
-      file: 'postgres.c',
-      line: '3286',
-      routine: 'ProcessInterrupts'
-    })
+        at TCP.<anonymous> (node:net:346:12)
+        at TCP.callbackTrampoline (node:internal/async_hooks:130:17))
 
-      at parseErrorMessage (../../node_modules/pg-protocol/src/parser.ts:395:9)
-      at Parser.handlePacket (../../node_modules/pg-protocol/src/parser.ts:212:19)
-      at Parser.parse (../../node_modules/pg-protocol/src/parser.ts:105:30)
-      at Socket.<anonymous> (../../node_modules/pg-protocol/src/index.ts:7:48)
-      at TCP.callbackTrampoline (node:internal/async_hooks:130:17) {
-        length: 116,
-        severity: 'FATAL',
-        code: '57P01',
-        detail: undefined,
-        hint: undefined,
-        position: undefined,
-        internalPosition: undefined,
-        internalQuery: undefined,
-        where: undefined,
-        schema: undefined,
-        table: undefined,
-        column: undefined,
-        dataType: undefined,
-        constraint: undefined,
-        file: 'postgres.c',
-        line: '3286',
-        routine: 'ProcessInterrupts'
-      })
+      at Connection.<anonymous> (../../node_modules/pg/lib/client.js:204:73)
+      at Socket.<anonymous> (../../node_modules/pg/lib/connection.js:64:12)
+      at TCP.callbackTrampoline (node:internal/async_hooks:130:17))
       at Client._handleErrorEvent (../../node_modules/pg/lib/client.js:422:10)
-      at Client._handleErrorMessage (../../node_modules/pg/lib/client.js:433:12)
-      at ../../node_modules/pg/lib/connection.js:143:12
-      at Parser.parse (../../node_modules/pg-protocol/src/parser.ts:106:9)
-      at Socket.<anonymous> (../../node_modules/pg-protocol/src/index.ts:7:48)
+      at Connection.<anonymous> (../../node_modules/pg/lib/client.js:222:16)
+      at Socket.<anonymous> (../../node_modules/pg/lib/connection.js:64:12)
 
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:03 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'error'[39m,
   request_id: [90mundefined[39m
 }
 Error no controlado
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:03 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:42 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
   event: [32m'ledger.reconciliation.diverged'[39m,
   mode: [32m'test'[39m,
   trigger: [32m'manual'[39m,
@@ -114,26 +78,26 @@ Error no controlado
   orphans: [
     {
       mode: [32m'test'[39m,
-      groupId: [32m'5e56dfadbe2256dbe7c0c85c00f53ce7'[39m,
+      groupId: [32m'28727ed298e1775d28b86b5ef4ebf086'[39m,
       kind: [32m'transaction'[39m,
       legs: [
         {
-          transferId: [32m'6ff268da484d425f4e70a45b24c55232'[39m,
+          transferId: [32m'988e598e4db6d33e2881587121bdb3b3'[39m,
           debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
-          creditAccount: [32m'merchant:mc_b24866e589b9k3m9:pending'[39m,
+          creditAccount: [32m'merchant:mc_702673352bf9k3m9:pending'[39m,
           amountMinor: [32m'970'[39m,
           code: [32m'charge'[39m,
           step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:03.506Z'[39m
+          appliedAt: [32m'2026-10-28T01:57:42.847Z'[39m
         },
         {
-          transferId: [32m'2829c7fc78aa3ebae4e66a336e8fd691'[39m,
+          transferId: [32m'64efdc29083101cc824f92d6fa39738d'[39m,
           debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
           creditAccount: [32m'platform:fees'[39m,
           amountMinor: [32m'30'[39m,
           code: [32m'fee'[39m,
           step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:03.506Z'[39m
+          appliedAt: [32m'2026-10-28T01:57:42.847Z'[39m
         }
       ],
       totalMinor: [32m'1000'[39m,
@@ -143,12 +107,12 @@ Error no controlado
   resolutionAhead: []
 }
 TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:03 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:42 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'error'[39m,
   request_id: [90mundefined[39m
 }
 Error no controlado
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:03 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:42 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
   event: [32m'ledger.reconciliation.diverged'[39m,
   mode: [32m'test'[39m,
   trigger: [32m'manual'[39m,
@@ -160,26 +124,26 @@ Error no controlado
   orphans: [
     {
       mode: [32m'test'[39m,
-      groupId: [32m'a1053ca8657058e5898a9b2599fb5730'[39m,
+      groupId: [32m'00895e10118dd4c070dcf1e0721e0034'[39m,
       kind: [32m'transaction'[39m,
       legs: [
         {
-          transferId: [32m'ad7e26cbaba28fc5089fc1140f4864ec'[39m,
-          debitAccount: [32m'merchant:mc_73dda844f5f6k3m9:pending'[39m,
+          transferId: [32m'0a58da9c81a30983017ba915c39f4ed2'[39m,
+          debitAccount: [32m'merchant:mc_3e68a9fd67e1k3m9:pending'[39m,
           creditAccount: [32m'connector:mercantil_qr:clearing'[39m,
           amountMinor: [32m'100'[39m,
           code: [32m'adjustment'[39m,
           step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:03.584Z'[39m
+          appliedAt: [32m'2026-10-28T01:57:42.950Z'[39m
         },
         {
-          transferId: [32m'00b621ca46c3a4aa83e4d38d725cbbcb'[39m,
-          debitAccount: [32m'tb:d69d34978821e94eeb77527b2ec19375'[39m,
+          transferId: [32m'f48ed8c0efd75f1957bdc614da4138a8'[39m,
+          debitAccount: [32m'tb:40d9121c9dde40de69abb64c9877f5bf'[39m,
           creditAccount: [32m'connector:mercantil_qr:clearing'[39m,
           amountMinor: [32m'50'[39m,
           code: [32m'adjustment'[39m,
           step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:03.584Z'[39m
+          appliedAt: [32m'2026-10-28T01:57:42.950Z'[39m
         }
       ],
       totalMinor: [32m'150'[39m,
@@ -189,12 +153,12 @@ Error no controlado
   resolutionAhead: []
 }
 TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:03 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'error'[39m,
   request_id: [90mundefined[39m
 }
 Error no controlado
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:03 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:43 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
   event: [32m'ledger.reconciliation.diverged'[39m,
   mode: [32m'test'[39m,
   trigger: [32m'manual'[39m,
@@ -206,17 +170,17 @@ Error no controlado
   orphans: [
     {
       mode: [32m'test'[39m,
-      groupId: [32m'3e14c0e4cdba3bb46b3e9d59eb4b6236'[39m,
+      groupId: [32m'1b27cbf54fc747aeb05ff1683bc98bff'[39m,
       kind: [32m'hold'[39m,
       legs: [
         {
-          transferId: [32m'8792e6b55f655a1e5152b1183c4a92a5'[39m,
-          debitAccount: [32m'merchant:mc_6c67eae423b7k3m9:available'[39m,
+          transferId: [32m'0a57660e4f59900707d53de5e70e42da'[39m,
+          debitAccount: [32m'merchant:mc_66e7d77c542ak3m9:available'[39m,
           creditAccount: [32m'payout:clearing'[39m,
           amountMinor: [32m'400'[39m,
           code: [32m'payout'[39m,
           step: [32m'pending'[39m,
-          appliedAt: [32m'2026-10-28T01:51:03.657Z'[39m
+          appliedAt: [32m'2026-10-28T01:57:43.052Z'[39m
         }
       ],
       totalMinor: [32m'400'[39m,
@@ -226,12 +190,12 @@ Error no controlado
   resolutionAhead: []
 }
 TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:03 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:43 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'error'[39m,
   request_id: [90mundefined[39m
 }
 Error no controlado
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:03 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:43 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
   event: [32m'ledger.reconciliation.diverged'[39m,
   mode: [32m'test'[39m,
   trigger: [32m'manual'[39m,
@@ -243,17 +207,17 @@ Error no controlado
   orphans: [
     {
       mode: [32m'test'[39m,
-      groupId: [32m'89a2988f4070e0c652e913ffc01473c1'[39m,
+      groupId: [32m'269f4b6d5b0d195d1cafd23fbacfe9a4'[39m,
       kind: [32m'hold'[39m,
       legs: [
         {
-          transferId: [32m'3753a072ae4940063acf30ef19e88e6c'[39m,
-          debitAccount: [32m'merchant:mc_1c32434c7615k3m9:available'[39m,
+          transferId: [32m'48b112dcf20d78f8bfff22ce68155912'[39m,
+          debitAccount: [32m'merchant:mc_4a3b41dcf9ebk3m9:available'[39m,
           creditAccount: [32m'payout:clearing'[39m,
           amountMinor: [32m'300'[39m,
           code: [32m'payout'[39m,
           step: [32m'pending'[39m,
-          appliedAt: [32m'2026-10-28T01:51:03.741Z'[39m
+          appliedAt: [32m'2026-10-28T01:57:43.123Z'[39m
         }
       ],
       totalMinor: [32m'300'[39m,
@@ -263,16 +227,15 @@ Error no controlado
   resolutionAhead: []
 }
 TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:05 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'error'[39m,
   request_id: [90mundefined[39m
 }
 Error no controlado
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:05 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:44 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
   event: [32m'ledger.reconciliation.diverged'[39m,
   mode: [32m'test'[39m,
   trigger: [32m'manual'[39m,
@@ -285,20 +248,21 @@ Error no controlado
   resolutionAhead: [
     {
       mode: [32m'test'[39m,
-      holdId: [32m'hd_jcwho6axl3xuj2bngfno'[39m,
+      holdId: [32m'hd_6fyycmlv6tk5dw445imq'[39m,
       action: [32m'post'[39m,
-      transferId: [32m'ffb11d384acc93747f6a7ee2bae8f81f'[39m,
+      transferId: [32m'3350288f798371280f8a2e62b826afd4'[39m,
       amountMinor: [32m'400'[39m
     }
   ]
 }
 TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:05 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
   err: [32m'error'[39m,
   request_id: [90mundefined[39m
 }
 Error no controlado
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:05 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
+[31m[Nest] 13432  - [39m10/28/2026, 1:57:44 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
   event: [32m'ledger.reconciliation.diverged'[39m,
   mode: [32m'test'[39m,
   trigger: [32m'manual'[39m,
@@ -310,17 +274,17 @@ Error no controlado
   orphans: [
     {
       mode: [32m'test'[39m,
-      groupId: [32m'd1480d4d700e9dd8691c7702269b348c'[39m,
+      groupId: [32m'cb9bc754c18156a75a2296fc72365fa8'[39m,
       kind: [32m'transaction'[39m,
       legs: [
         {
-          transferId: [32m'116dfc4313644c69a7394a579a628b55'[39m,
+          transferId: [32m'e1eb6448601b2fd9bbc2ff75ad83bb4d'[39m,
           debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
-          creditAccount: [32m'merchant:mc_3362535ff2b3k3m9:pending'[39m,
+          creditAccount: [32m'merchant:mc_9f4e23a30728k3m9:pending'[39m,
           amountMinor: [32m'5'[39m,
           code: [32m'charge'[39m,
           step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:05.170Z'[39m
+          appliedAt: [32m'2026-10-28T01:57:44.532Z'[39m
         }
       ],
       totalMinor: [32m'5'[39m,
@@ -330,380 +294,4 @@ Error no controlado
   resolutionAhead: []
 }
 TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:05 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
-  event: [32m'ledger.reconciliation.diverged'[39m,
-  mode: [32m'live'[39m,
-  trigger: [32m'manual'[39m,
-  metric: {
-    orphan_groups: [33m1[39m,
-    orphan_amount_minor: [32m'42'[39m,
-    resolution_ahead: [33m0[39m
-  },
-  orphans: [
-    {
-      mode: [32m'live'[39m,
-      groupId: [32m'e9fd0b563b3a46f8230a2cfdc9735025'[39m,
-      kind: [32m'transaction'[39m,
-      legs: [
-        {
-          transferId: [32m'f371609d5d3133a31cf6650ca98c51ca'[39m,
-          debitAccount: [32m'tb:5fdf128a41298ec818335278b1ce0a4c'[39m,
-          creditAccount: [32m'tb:a113ea3f9daba1992b26928965d514c2'[39m,
-          amountMinor: [32m'42'[39m,
-          code: [32m'charge'[39m,
-          step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:05.905Z'[39m
-        }
-      ],
-      totalMinor: [32m'42'[39m,
-      recoverable: [33mfalse[39m
-    }
-  ],
-  resolutionAhead: []
-}
-TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:05 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'error'[39m,
-  request_id: [90mundefined[39m
-}
-Error no controlado
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:05 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
-  event: [32m'ledger.reconciliation.diverged'[39m,
-  mode: [32m'test'[39m,
-  trigger: [32m'manual'[39m,
-  metric: {
-    orphan_groups: [33m1[39m,
-    orphan_amount_minor: [32m'33'[39m,
-    resolution_ahead: [33m0[39m
-  },
-  orphans: [
-    {
-      mode: [32m'test'[39m,
-      groupId: [32m'400723cae8abed0c706fb74f711db892'[39m,
-      kind: [32m'transaction'[39m,
-      legs: [
-        {
-          transferId: [32m'c59bd6c2538b400c887e98eeb5d7758f'[39m,
-          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
-          creditAccount: [32m'merchant:mc_95cbf9ba53f7k3m9:pending'[39m,
-          amountMinor: [32m'33'[39m,
-          code: [32m'charge'[39m,
-          step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:05.953Z'[39m
-        }
-      ],
-      totalMinor: [32m'33'[39m,
-      recoverable: [33mfalse[39m
-    }
-  ],
-  resolutionAhead: []
-}
-TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:05 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
-  event: [32m'ledger.reconciliation.diverged'[39m,
-  mode: [32m'test'[39m,
-  trigger: [32m'manual'[39m,
-  metric: {
-    orphan_groups: [33m1[39m,
-    orphan_amount_minor: [32m'33'[39m,
-    resolution_ahead: [33m0[39m
-  },
-  orphans: [
-    {
-      mode: [32m'test'[39m,
-      groupId: [32m'400723cae8abed0c706fb74f711db892'[39m,
-      kind: [32m'transaction'[39m,
-      legs: [
-        {
-          transferId: [32m'c59bd6c2538b400c887e98eeb5d7758f'[39m,
-          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
-          creditAccount: [32m'merchant:mc_95cbf9ba53f7k3m9:pending'[39m,
-          amountMinor: [32m'33'[39m,
-          code: [32m'charge'[39m,
-          step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:05.953Z'[39m
-        }
-      ],
-      totalMinor: [32m'33'[39m,
-      recoverable: [33mfalse[39m
-    }
-  ],
-  resolutionAhead: []
-}
-TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:05 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
-  event: [32m'ledger.reconciliation.diverged'[39m,
-  mode: [32m'test'[39m,
-  trigger: [32m'manual'[39m,
-  metric: {
-    orphan_groups: [33m1[39m,
-    orphan_amount_minor: [32m'33'[39m,
-    resolution_ahead: [33m0[39m
-  },
-  orphans: [
-    {
-      mode: [32m'test'[39m,
-      groupId: [32m'400723cae8abed0c706fb74f711db892'[39m,
-      kind: [32m'transaction'[39m,
-      legs: [
-        {
-          transferId: [32m'c59bd6c2538b400c887e98eeb5d7758f'[39m,
-          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
-          creditAccount: [32m'merchant:mc_95cbf9ba53f7k3m9:pending'[39m,
-          amountMinor: [32m'33'[39m,
-          code: [32m'charge'[39m,
-          step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:05.953Z'[39m
-        }
-      ],
-      totalMinor: [32m'33'[39m,
-      recoverable: [33mfalse[39m
-    }
-  ],
-  resolutionAhead: []
-}
-TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:06 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'error'[39m,
-  request_id: [90mundefined[39m
-}
-Error no controlado
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:06 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
-  event: [32m'ledger.reconciliation.diverged'[39m,
-  mode: [32m'test'[39m,
-  trigger: [32m'manual'[39m,
-  metric: {
-    orphan_groups: [33m1[39m,
-    orphan_amount_minor: [32m'8'[39m,
-    resolution_ahead: [33m0[39m
-  },
-  orphans: [
-    {
-      mode: [32m'test'[39m,
-      groupId: [32m'98c1460a25733e935b0c05b9c22cea6b'[39m,
-      kind: [32m'transaction'[39m,
-      legs: [
-        {
-          transferId: [32m'27099247c631198e6bff741e0fad787b'[39m,
-          debitAccount: [32m'connector:mercantil_qr:clearing'[39m,
-          creditAccount: [32m'merchant:mc_0eb98659ee46k3m9:pending'[39m,
-          amountMinor: [32m'8'[39m,
-          code: [32m'charge'[39m,
-          step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:06.098Z'[39m
-        }
-      ],
-      totalMinor: [32m'8'[39m,
-      recoverable: [33mfalse[39m
-    }
-  ],
-  resolutionAhead: []
-}
-TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:06 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(6) {
-  event: [32m'ledger.reconciliation.diverged'[39m,
-  mode: [32m'live'[39m,
-  trigger: [32m'manual'[39m,
-  metric: {
-    orphan_groups: [33m1[39m,
-    orphan_amount_minor: [32m'42'[39m,
-    resolution_ahead: [33m0[39m
-  },
-  orphans: [
-    {
-      mode: [32m'live'[39m,
-      groupId: [32m'e9fd0b563b3a46f8230a2cfdc9735025'[39m,
-      kind: [32m'transaction'[39m,
-      legs: [
-        {
-          transferId: [32m'f371609d5d3133a31cf6650ca98c51ca'[39m,
-          debitAccount: [32m'tb:5fdf128a41298ec818335278b1ce0a4c'[39m,
-          creditAccount: [32m'tb:a113ea3f9daba1992b26928965d514c2'[39m,
-          amountMinor: [32m'42'[39m,
-          code: [32m'charge'[39m,
-          step: [32m'plain'[39m,
-          appliedAt: [32m'2026-10-28T01:51:05.905Z'[39m
-        }
-      ],
-      totalMinor: [32m'42'[39m,
-      recoverable: [33mfalse[39m
-    }
-  ],
-  resolutionAhead: []
-}
-TigerBeetle tiene operaciones que Postgres no registró: el reintento del llamador con la misma clave las adopta; si nadie reintenta, requieren a una persona
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 19156415154729812275474252034363758008: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:20 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:21 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:21 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(4) {
-  event: [32m'ledger.reconciliation.failed'[39m,
-  mode: [32m'test'[39m,
-  trigger: [32m'startup'[39m,
-  detail: [32m'error: relation "ledger_transactions" does not exist'[39m
-}
-No se pudo reconciliar TigerBeetle con Postgres: no se concluyó nada de este recorrido
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:21 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:21 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:21 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(4) {
-  event: [32m'ledger.reconciliation.failed'[39m,
-  mode: [32m'live'[39m,
-  trigger: [32m'startup'[39m,
-  detail: [32m'error: relation "ledger_transactions" does not exist'[39m
-}
-No se pudo reconciliar TigerBeetle con Postgres: no se concluyó nada de este recorrido
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:22 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(4) {
-  event: [32m'ledger.reconciliation.failed'[39m,
-  mode: [32m'test'[39m,
-  trigger: [32m'startup'[39m,
-  detail: [32m'TypeError: this.tb.scanMarkedTransfers is not a function'[39m
-}
-No se pudo reconciliar TigerBeetle con Postgres: no se concluyó nada de este recorrido
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:22 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:22 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:22 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:23 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:25 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:25 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [90mundefined[39m
-}
-Error no controlado
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:27 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:27 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(4) {
-  event: [32m'ledger.reconciliation.failed'[39m,
-  mode: [32m'test'[39m,
-  trigger: [32m'startup'[39m,
-  detail: [32m'error: relation "ledger_transactions" does not exist'[39m
-}
-No se pudo reconciliar TigerBeetle con Postgres: no se concluyó nada de este recorrido
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23720  - [39m10/28/2026, 1:51:28 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:28 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:29 AM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
-  err: [32m'error'[39m,
-  code: [32m'42P01'[39m,
-  event_id: [90mundefined[39m
-}
-El relé del outbox falló
-{"level":30,"time":1793152289404,"pid":23718,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":2,"msg":"request completed"}
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:29 AM [31m  ERROR[39m [38;5;3m[ReconcilerService] [39mObject(4) {
-  event: [32m'ledger.reconciliation.failed'[39m,
-  mode: [32m'test'[39m,
-  trigger: [32m'startup'[39m,
-  detail: [32m'error: relation "ledger_transactions" does not exist'[39m
-}
-No se pudo reconciliar TigerBeetle con Postgres: no se concluyó nada de este recorrido
-[31m[Nest] 23718  - [39m10/28/2026, 1:51:29 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
-  err: [32m'Error'[39m,
-  request_id: [32m'e6b84ba5-8164-4cdc-9659-80bbf62d5bdd'[39m
-}
-Error no controlado
-{"level":30,"time":1793152289442,"pid":23718,"hostname":"vm","req":{"id":"e6b84ba5-8164-4cdc-9659-80bbf62d5bdd","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":2,"msg":"request errored"}
-{"level":30,"time":1793152289449,"pid":23718,"hostname":"vm","req":{"id":"5aa580d4-bef4-4fcf-afa7-b51264d3b2c0","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 27100554969265739969393706962723244367: on_connect: error to=0 error.ConnectionRefused
-A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
-
-Test Suites: 1 failed, 19 passed, 20 total
-Tests:       299 passed, 299 total
-Snapshots:   0 total
-Time:        48.875 s, estimated 49 s
-Ran all test suites.
-Test results written to: ../../../../../tmp/claude-0/-home-user/e2a1ca80-8ad4-54a7-8e83-0b9ce0655bff/scratchpad/3d-pay-ledger-run2.json
-rc=1
+warning(message_bus): 184313634569584706817666430122687190970: on_connect: error to=0 error.ConnectionRefused

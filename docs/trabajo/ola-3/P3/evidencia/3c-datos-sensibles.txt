@@ -1,0 +1,22 @@
+# scripts/check-sensitive-data-p3.sh (estática + dinámica) · 3c (2026-10-28T01:55:42Z)
+== Etapa estática ==
+PASS  ningún console.* en el código desplegado (src)
+PASS  ningún log vuelca cuerpos, DTO, nombre del pagador ni razón social (logger.*(… body|dto|payload|request|payerName|legalName …))
+PASS  ningún literal de 15 a 19 dígitos (con forma de PAN) en el código ni en el SQL
+PASS  pay-payments no tiene campos de tarjeta, titular ni CVV (card_number, cvv, cvc, holder_name)
+PASS  el SQL de pay-vault no tiene columnas de PAN, CVV ni titular (solo metadatos del token)
+PASS  la telemetría no activa captura de sentencias con valores ni ganchos que copien cuerpos
+PASS  payer_name/legal_name solo aparecen en los 8 archivos permitidos
+PASS  services/pay-payments enmascara la ruta (log de acceso, instance, spans)
+PASS  services/pay-vault enmascara la ruta (log de acceso, instance, spans)
+
+== Etapa dinámica (canarios en logs, respuestas de error, eventos, llamadas salientes, filas y bytes OTLP) ==
+-- services/pay-payments: sensitive-data pan-leak path-sensitive redact
+Test Suites: 4 passed, 4 total
+Tests:       40 passed, 40 total
+-- services/pay-vault: pan-leak path-sensitive redact
+Test Suites: 3 passed, 3 total
+Tests:       44 passed, 44 total
+
+datos sensibles: LIMPIO (0 fallas)
+exit: 0

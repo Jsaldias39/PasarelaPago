@@ -1,0 +1,37 @@
+# pay-payments yarn test --maxWorkers=2 (corrida 1) · 3c (2026-10-28T01:56:49Z)
+(node:12411) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 12411  - [39m10/28/2026, 1:56:59 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(3) {
+  err: [32m'Error'[39m,
+  code: [90mundefined[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+2026-10-28T01:57:02.397Z [WARN] Activity failed {
+  sdkComponent: 'worker',
+  taskQueue: 'p3-ec11a2f8',
+  isLocal: false,
+  attempt: 1,
+  namespace: 'default',
+  taskToken: 'CiQ4MTFlYjNkMS0wZmFhLTRjZGEtYTM3Yi1mOTVlNzM4YjRkOTUSI3BheW1lbnQtcGlfOTdkM2MxYzE1OTcyYzAxNDAzOGJiODY5GiRkMmZjZDllMS00YmRlLTQzYjctYTE5ZC01NTNjMmJmODYxMjIgKSgBMgE2Qg5jb21wbGV0ZUludGVudEoJCAEQ5ODDARgB',
+  activityId: '6',
+  activityType: 'completeIntent',
+  workflowId: 'payment-pi_97d3c1c15972c014038bb869',
+  workflowRunId: 'd2fcd9e1-4bde-43b7-a19d-553c2bf86122',
+  workflowType: 'PaymentWorkflow',
+  error: Error: Connection terminated unexpectedly
+      at /home/user/pasarelapago/node_modules/pg/lib/client.js:694:17
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at Object.tx (/home/user/pasarelapago/services/pay-payments/src/persistence/db.ts:22:7)
+      at settle (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:63:15)
+      at completeIntent (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:287:19)
+      at wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/src/temporal/activities.ts:339:16)
+      at Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:145:14)
+      at NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/src/connection.ts:219:12)
+      at Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/src/base-client.ts:105:12)
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/activity.ts:199:24
+      at /home/user/pasarelapago/node_modules/@temporalio/worker/src/worker.ts:1252:24,
+  durationMs: 105
+}
+(node:12412) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

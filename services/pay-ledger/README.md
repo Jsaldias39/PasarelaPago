@@ -45,6 +45,15 @@ Cómo se separa, sin reglas de negocio nuevas:
 Con `PAY_MODE=live` el servicio **se niega a arrancar con cualquier doble** (`src/ledger/deployment.ts`): el motor de TigerBeetle tiene que declararse real (`isReal`). Cada despliegue
 tiene su propio ledger y su propia base; las columnas `mode` y los ids por modo siguen garantizando que, si algún día compartieran almacenamiento, no se mezclarían.
 
+## Reconciliador de recuperación TigerBeetle → Postgres (`src/ledger/reconciler.service.ts`)
+
+TigerBeetle aplica primero y Postgres registra después: si el proceso muere entre los dos, TigerBeetle queda **por delante**. El reintento del llamador con la misma clave lo adopta solo
+(ids deterministas ⇒ `exists`), pero si nadie reintenta queda dinero movido sin fila. Cada transferencia lleva una **marca** en `user_data` (grupo de la operación, despliegue, modo) y un job
+(al arrancar y cada `LEDGER_RECONCILE_INTERVAL_MS`; un candado de Postgres deja correr a una sola réplica) busca lo que TigerBeetle tiene y Postgres no. **Solo lee y avisa**: log
+`ledger.reconciliation.diverged` (nivel error, sin `business_ref` ni datos de personas) y gauges en `ReconcilerService.metrics`; **no reconstruye ni borra nada** (los registros de dinero son de
+solo-agregar; un huérfano que nadie reintenta lo resuelve una persona). Falla cerrado: ante un error de lectura el recorrido es `failed`, nunca «sin divergencias». Reconstruir la fila
+exige esquema nuevo del modelo (`docs/trabajo/ola-3/P2/PROPUESTAS.md` #27). Una transferencia creada antes de la marca no se ve ni se adopta por reintento (#28).
+
 ## Cambiar la derivación de ids (migración obligatoria)
 
 Los ids de TigerBeetle (cuentas y transferencias) y los públicos (`tx_`, `hd_`, `tf_`, `sl_`) **no se guardan como un contador: se derivan** con SHA-256 de
