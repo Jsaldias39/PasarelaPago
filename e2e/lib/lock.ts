@@ -18,10 +18,13 @@ export interface LockInfo {
 }
 
 export class StackBusyError extends Error {
-  constructor(readonly holder: LockInfo) {
+  readonly holder: LockInfo;
+  // Sin «parameter properties»: el CLI corre con `node` en modo «strip types», que no admite esa sintaxis de TypeScript.
+  constructor(holder: LockInfo) {
     const at = new Date(holder.startedAt);
     const hhmm = Number.isNaN(at.getTime()) ? holder.startedAt : `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
     super(`stack en uso por runId ${holder.runId} pid ${holder.pid} desde ${hhmm}. Un solo stack a la vez: esperá a que termine (o, si ese proceso está colgado, matalo; un candado de un proceso muerto se reclama solo).`);
+    this.holder = holder;
     this.name = 'StackBusyError';
   }
 }

@@ -450,3 +450,110 @@ SyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript parameter property i
 }
 
 Node.js v22.22.0
+[e2e] candado huérfano reclamado: ilegible
+[e2e] candado huérfano reclamado: ilegible
+FAIL e2e/lib/lock.spec.ts (360.66 s)
+  ● candado del stack — nivel LÍMITE: carreras y huérfanos › DOS arranques simultáneos ⇒ exactamente UNO gana; los otros fallan claro (8 procesos reales a la vez)
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      86 |   });
+      87 | });
+    > 88 |
+         | ^
+      89 | describe('candado del stack — nivel LÍMITE: carreras y huérfanos', () => {
+      90 |   it('DOS arranques simultáneos ⇒ exactamente UNO gana; los otros fallan claro (8 procesos reales a la vez)', async () => {
+      91 |     const results = await race(8, 1500);
+
+      at Object.toHaveLength (e2e/lib/lock.spec.ts:88:17)
+
+  ● candado del stack — nivel LÍMITE: carreras y huérfanos › VARIOS procesos reclamando el MISMO huérfano a la vez ⇒ exactamente uno gana
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      117 |   it('el instante de inicio de este proceso se lee de /proc y el dueño real SÍ está vivo', () => {
+      118 |     expect(processStartTime(process.pid)).toMatch(/^\d+$/);
+    > 119 |     expect(isHolderAlive({ pid: process.pid, startTime: processStartTime(process.pid), runId: 'x', startedAt: new Date().toISOString() })).toBe(true);
+          |                                                        ^
+      120 |   });
+      121 |
+      122 |   it('VARIOS procesos reclamando el MISMO huérfano a la vez ⇒ exactamente uno gana', async () => {
+
+      at Object.toHaveLength (e2e/lib/lock.spec.ts:119:56)
+
+  ● candado del stack — nivel LÍMITE: carreras y huérfanos › el dueño muere con SIGKILL (no pudo soltar nada) ⇒ el candado queda y el siguiente lo reclama
+
+    thrown: "Exceeded timeout of 180000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      at _getError (node_modules/jest-circus/build/jestAdapterInit.js:1985:12)
+          at Array.map (<anonymous>)
+
+    Cause:
+        thrown: "Exceeded timeout of 180000 ms for a test.
+        Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+          122 |   it('VARIOS procesos reclamando el MISMO huérfano a la vez ⇒ exactamente uno gana', async () => {
+          123 |     writeOrphan({ pid: deadPid(), startTime: '123', runId: 'huerfano', startedAt: new Date().toISOString() });
+        > 124 |     const results = await race(8, 1500);
+              |   ^
+          125 |     expect(results.filter((r) => r.startsWith('WON'))).toHaveLength(1);
+          126 |     expect(results.filter((r) => r.startsWith('WON'))[0]).toContain('RECLAIMED huerfano');
+          127 |     expect(results.filter((r) => r.startsWith('LOST'))).toHaveLength(7);
+
+          at it (e2e/lib/lock.spec.ts:124:3)
+          at Object.describe (e2e/lib/lock.spec.ts:83:1)
+
+  ● candado del stack — nivel LÍMITE: carreras y huérfanos › SIGTERM al dueño (sin otros escuchas) ⇒ suelta el candado y el proceso muere por la señal
+
+    thrown: "Exceeded timeout of 180000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      at _getError (node_modules/jest-circus/build/jestAdapterInit.js:1985:12)
+          at Array.map (<anonymous>)
+
+    Cause:
+        thrown: "Exceeded timeout of 180000 ms for a test.
+        Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+          134 |     child.kill('SIGKILL');
+          135 |     await new Promise((resolve) => child.once('exit', resolve));
+        > 136 |     expect(peekLock(root)).toMatchObject({ alive: false });
+              |   ^
+          137 |     const lock = acquireStackLock(root, 'despues');
+          138 |     expect(lock.reclaimed?.pid).toBe(child.pid);
+          139 |     lock.release();
+
+          at it (e2e/lib/lock.spec.ts:136:3)
+          at Object.describe (e2e/lib/lock.spec.ts:83:1)
+
+FAIL e2e/flows/degraded.e2e.ts (28.959 s)
+  ● arnés — arranques degradados › un segundo stack mientras hay uno registrado se rechaza (un solo stack a la vez)
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /Ya hay un stack registrado/
+    Received message: "stack en uso por runId e2emvrimm30w1x pid 9801 desde 02:48. Un solo stack a la vez: esperá a que termine (o, si ese proceso está colgado, matalo; un candado de un proceso muerto se reclama solo)."
+
+          103 |       }
+          104 |       const holder = readLock(path);
+        > 105 |       if (holder && isHolderAlive(holder)) throw new StackBusyError(holder);
+              |                                                  ^
+          106 |       // Huérfano (o ilegible): se aparta con rename; si otro lo reclamó primero, el rename falla con ENOENT y se reintenta la creación exclusiva.
+          107 |       const aside = `${path}.stale.${pid}.${Math.random().toString(36).slice(2, 10)}`;
+          108 |       try {
+
+      at acquireStackLock (e2e/lib/lock.ts:105:50)
+      at startStack (e2e/stack.ts:131:32)
+      at Object.<anonymous> (e2e/flows/degraded.e2e.ts:38:30)
+      at Object.toThrow (node_modules/expect/build/index.js:2155:20)
+      at Object.toThrow (e2e/flows/degraded.e2e.ts:38:62)
+

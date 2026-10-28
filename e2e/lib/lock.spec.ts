@@ -46,6 +46,12 @@ const deadPid = (): number => {
   const child = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' });
   return Number(child.stdout);
 };
+/** Espera la primera línea del hijo; si el hijo muere antes (p. ej. no pudo cargar el módulo), falla en vez de colgar la prueba. */
+const firstLine = (child: ReturnType<typeof spawn>) =>
+  new Promise<void>((resolve, reject) => {
+    child.stdout!.once('data', () => resolve());
+    child.once('exit', (code) => reject(new Error(`el proceso hijo terminó (código ${String(code)}) antes de adquirir el candado`)));
+  });
 const writeOrphan = (info: Record<string, unknown>) => writeFileSync(lockPathOf(root), JSON.stringify(info));
 
 describe('candado del stack — nivel CORRECTO', () => {
@@ -123,7 +129,7 @@ describe('candado del stack — nivel LÍMITE: carreras y huérfanos', () => {
 
   it('el dueño muere con SIGKILL (no pudo soltar nada) ⇒ el candado queda y el siguiente lo reclama', async () => {
     const child = spawn(process.execPath, ['--no-warnings', '-e', RACER, '--', LOCK_TS, root, '60000'], { stdio: ['ignore', 'pipe', 'inherit'] });
-    await new Promise<void>((resolve) => child.stdout.once('data', () => resolve()));
+    await firstLine(child);
     expect(peekLock(root)).toMatchObject({ alive: true, info: { pid: child.pid } });
     child.kill('SIGKILL');
     await new Promise((resolve) => child.once('exit', resolve));
@@ -137,7 +143,7 @@ describe('candado del stack — nivel LÍMITE: carreras y huérfanos', () => {
     const script = `
       import(process.argv[1]).then((m) => { m.acquireStackLock(process.argv[2], 'conSenal'); console.log('LISTO'); setInterval(() => undefined, 1000); });`;
     const child = spawn(process.execPath, ['--no-warnings', '-e', script, '--', LOCK_TS, root], { stdio: ['ignore', 'pipe', 'inherit'] });
-    await new Promise<void>((resolve) => child.stdout.once('data', () => resolve()));
+    await firstLine(child);
     expect(existsSync(lockPathOf(root))).toBe(true);
     child.kill('SIGTERM');
     const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => child.once('exit', (code, signal) => resolve({ code, signal })));
