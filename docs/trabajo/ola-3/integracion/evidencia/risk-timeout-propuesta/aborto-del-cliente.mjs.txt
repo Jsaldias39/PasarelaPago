@@ -1,0 +1,49 @@
+import { createRequire } from 'node:module';
+import { execSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+const require = createRequire('/home/user/pasarelapago/services/pay-payments/package.json');
+const { HttpClient } = require('/home/user/pasarelapago/services/pay-payments/dist/clients/http.js');
+const { RiskClient } = require('/home/user/pasarelapago/services/pay-payments/dist/clients/risk.client.js');
+const { startStack, stopStack } = await import('/home/user/pasarelapago/e2e/stack.ts');
+const id = (p) => `${p}_${randomBytes(8).toString('hex')}`;
+const T0 = performance.now();
+const ms = () => (performance.now() - T0).toFixed(0).padStart(6);
+const stack = await startStack({ only: ['pay-risk'], warmUp: false, tolerateFailures: false });
+const url = stack.url('pay-risk');
+const body = (pi, mc) => ({ merchant_id: mc, payment_intent_id: pi, amount_minor: 10000, currency: 'BOB', method: 'qr', screening: { merchant_name: 'COMERCIO RIESGO-TIMEOUT (SINTETICO)' } });
+const hdr = (key) => ({ 'x-service-id': 'pay-payments', 'x-pay-mode': 'test', 'content-type': 'application/json', 'idempotency-key': key });
+const post = async (key, b, timeout) => { const t = performance.now(); try { const r = await fetch(`${url}/assessments`, { method: 'POST', headers: hdr(key), body: JSON.stringify(b), signal: timeout ? AbortSignal.timeout(timeout) : undefined }); const j = await r.json(); return { s: r.status, d: j.decision ?? j.code, screened: j.screened, ms: +(performance.now() - t).toFixed(0), replay: r.headers.get('idempotency-replayed') }; } catch (e) { return { s: e.name, ms: +(performance.now() - t).toFixed(0) }; } };
+const psql = (q) => execSync(`docker exec pay-postgres-1 psql -U postgres -d pay_risk -AtF'|' -c "${q}"`).toString().trim();
+const out = [];
+const log = (...a) => { const l = a.join(' '); out.push(l); console.log(l); };
+try {
+  log('== E2b cliente aborta a los 5 ms (antes de que termine la evaluación); luego mismos pi/clave');
+  const pi = id('pi'), mc = id('mc'), key = `${pi}:risk`;
+  const first = await post(key, body(pi, mc), 5);
+  log('intento 1 (5ms):', JSON.stringify(first), '@', ms());
+  for (let i = 0; i < 40; i++) { const r = await post(key, body(pi, mc), 1000); log('reintento', i + 1, JSON.stringify(r)); if (r.s !== 409) break; await new Promise(r => setTimeout(r, 10)); }
+  log('filas risk_assessments con esa clave:', psql(`select count(*), string_agg(decision||'/'||reason_code||'/screened='||screened||'/'||duration_ms||'ms', ',') from risk_assessments where request_key = '${key}'`));
+  log('idempotency:', psql(`select state, response_status from idempotency_keys where key = '${key}'`));
+  log('trazas ~sin-cribar~:', psql(`select count(*) from risk_assessments where request_key like '${key}~%'`));
+  // E4: el cliente REAL de pay-payments (HttpClient+breaker+RiskClient, dist/) con la política de la actividad (6 intentos, backoff 0,5·2^n tope 5 s).
+  for (const timeoutMs of [40]) {
+    log(`== E4 4 cobros concurrentes, RISK_TIMEOUT_MS=${timeoutMs}, cliente real (retries:1, breaker 5/10000), 6 intentos con backoff de Temporal`);
+    const http = new HttpClient({ name: 'pay-risk', baseUrl: url, serviceId: 'pay-payments', timeoutMs, retries: 1, breaker: { failureThreshold: 5, resetAfterMs: 10000 } });
+    const risk = new RiskClient(http);
+    const t0 = performance.now();
+    const run = async (n) => {
+      const p = { pi: id('pi'), mc: id('mc') }; const trail = []; let final = 'agotado';
+      let delay = 500;
+      for (let attempt = 1; attempt <= 6; attempt++) {
+        const t = performance.now();
+        try { const a = await risk.assess({ merchantId: p.mc, paymentIntentId: p.pi, amountMinor: 10000, currency: 'BOB', method: 'qr', screening: { merchantName: 'COMERCIO RIESGO-TIMEOUT (SINTETICO)' } }); trail.push(`a${attempt}@${((t - t0) / 1000).toFixed(1)}s:${a.decision}(${(performance.now() - t).toFixed(0)}ms)`); final = a.decision; break; }
+        catch (e) { trail.push(`a${attempt}@${((t - t0) / 1000).toFixed(1)}s:${e.kind ?? e.code ?? e.name}${e.status ? '/' + e.status : ''}(${(performance.now() - t).toFixed(0)}ms)`); }
+        if (attempt < 6) { await new Promise(r => setTimeout(r, delay)); delay = Math.min(delay * 2, 5000); }
+      }
+      return `cobro${n} => ${final} | ${trail.join(' ')}`;
+    };
+    const res = await Promise.all([1,2,3,4].map(run)); res.forEach((r) => log(r)); log('estado del breaker al final:', http.breaker.state);
+  }
+} finally { await stopStack(stack, { keepLogs: true }); }
+import { writeFileSync } from 'node:fs';
+writeFileSync('/tmp/claude-0/-home-user/e2a1ca80-8ad4-54a7-8e83-0b9ce0655bff/scratchpad/probe2-out.txt', out.join('\n'));

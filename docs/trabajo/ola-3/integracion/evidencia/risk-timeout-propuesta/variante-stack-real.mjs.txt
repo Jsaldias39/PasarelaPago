@@ -1,0 +1,19 @@
+import { readFileSync, readdirSync } from 'node:fs';
+const [label, envJson = '{}'] = process.argv.slice(2);
+const env = JSON.parse(envJson);
+const { publicApi } = await import('/home/user/pasarelapago/e2e/lib/flow.ts');
+const { seedMerchant, waitForEdgeToKnow } = await import('/home/user/pasarelapago/e2e/lib/seed.ts');
+const { startStack, stopStack } = await import('/home/user/pasarelapago/e2e/stack.ts');
+const t0 = Date.now();
+const stack = await startStack({ tolerateFailures: false, warmUp: false, envOverrides: { 'pay-payments': env } });
+try {
+  const merchant = await seedMerchant(stack, { label: 'COMERCIO RIESGO-TIMEOUT (SINTÉTICO)' });
+  await waitForEdgeToKnow(stack, merchant);
+  const api = publicApi(stack, merchant);
+  const t1 = Date.now();
+  const created = await Promise.all([1, 2, 3, 4].map((n) => api.createQrIntent(10_000, `risk-timeout-${n}-key-${Date.now()}`)));
+  const settled = await Promise.all(created.map((c) => api.settle(c.intent.id, 40_000)));
+  const lines = readFileSync(`${stack.runDir}/pay-risk.log`, 'utf8').split('\n').filter((l) => l.includes('"url":"/assessments"')).map((l) => JSON.parse(l));
+  const aborted = lines.filter((l) => l.msg === 'request aborted').length;
+  console.log(`RESULT ${label} env=${envJson} statuses=${settled.map((s) => s.status + (s.failure_code ? ":" + s.failure_code : "") + (s.status === "failed" ? ":" + JSON.stringify(Object.keys(s).filter(k=>/fail/.test(k)).map(k=>s[k])) : "")).join(",")} settle_ms=${Date.now() - t1} total_ms=${Date.now() - t0} risk_requests_seen=${lines.length} aborted=${aborted} run=${stack.runId}`);
+} finally { await stopStack(stack, { keepLogs: true }); }

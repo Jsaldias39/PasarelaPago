@@ -19,6 +19,13 @@ export class UpstreamError extends Error {
 export interface BreakerOptions {
   readonly failureThreshold: number;
   readonly resetAfterMs: number;
+  /**
+   * `true`: un `timeout` NO cuenta como falla de la dependencia. Para llamadas idempotentes cuya operación sigue viva en el servidor cuando el cliente
+   * se va (riesgo: la evaluación continúa y el reintento con la misma clave recibe el 409 «en curso» y luego la respuesta guardada). Un timeout ahí es un
+   * resultado AMBIGUO, no un fallo (CLAUDE.md regla 11); contarlo abre el breaker con los propios reintentos y corta el paso hacia un servicio sano.
+   * La red y los 5xx siguen contando.
+   */
+  readonly ignoreTimeouts?: boolean;
   readonly now?: () => number;
 }
 
@@ -55,7 +62,7 @@ export class CircuitBreaker {
       this.openedAt = null;
       return result;
     } catch (error) {
-      if (error instanceof UpstreamError) {
+      if (error instanceof UpstreamError && !(this.options.ignoreTimeouts && error.kind === 'timeout')) {
         this.failures += 1;
         if (this.openedAt !== null || this.failures >= this.options.failureThreshold) this.openedAt = this.now();
       }

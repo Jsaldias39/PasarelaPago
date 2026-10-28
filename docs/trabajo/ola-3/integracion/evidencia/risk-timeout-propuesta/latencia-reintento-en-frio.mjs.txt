@@ -1,0 +1,22 @@
+import { randomBytes } from 'node:crypto';
+const { startStack, stopStack } = await import('/home/user/pasarelapago/e2e/stack.ts');
+const id = (p) => `${p}_${randomBytes(8).toString('hex')}`;
+const sleep = (n) => new Promise((r) => setTimeout(r, n));
+async function round(url, label) {
+  const calls = [1, 2, 3, 4].map(async () => {
+    const pi = id('pi'), mc = id('mc'); const h = { 'x-service-id': 'pay-payments', 'x-pay-mode': 'test', 'content-type': 'application/json', 'idempotency-key': `${pi}:risk` };
+    const b = JSON.stringify({ merchant_id: mc, payment_intent_id: pi, amount_minor: 10000, currency: 'BOB', method: 'qr', screening: { merchant_name: 'COMERCIO RIESGO-TIMEOUT (SINTETICO)' } });
+    const one = async () => { const t = performance.now(); try { const r = await fetch(`${url}/assessments`, { method: 'POST', headers: h, body: b, signal: AbortSignal.timeout(40) }); await r.text(); return [r.status, performance.now() - t]; } catch { return ['T', performance.now() - t]; } };
+    const a1 = await one(); await sleep(50); const a2 = await one(); return { a1, a2 };
+  });
+  const res = await Promise.all(calls);
+  return res.map((r) => `${r.a1[0]}/${r.a1[1].toFixed(0)}ms->${r.a2[0]}/${r.a2[1].toFixed(0)}ms`).join('  ') + (res.some((r) => r.a2[0] === 'T') ? '   <== REINTENTO VENCE (cuenta como 5.ª falla consecutiva)' : '');
+}
+const lines = [];
+for (let i = 1; i <= 6; i++) {
+  const stack = await startStack({ only: ['pay-risk'], warmUp: false, tolerateFailures: false });
+  try {
+    const l = `pay-risk en frío #${i}, 1.ª ronda: ${await round(stack.url('pay-risk'), 'cold')}`; console.log(l); lines.push(l);
+    if (i === 6) { let bad = 0; for (let k = 0; k < 20; k++) { const r = await round(stack.url('pay-risk')); if (r.includes('<==')) bad++; if (k < 3) console.log(`  caliente ronda ${k + 2}: ${r}`); } console.log(`  20 rondas en caliente: ${bad} con reintento vencido`); }
+  } finally { await stopStack(stack, { keepLogs: false }); }
+}
