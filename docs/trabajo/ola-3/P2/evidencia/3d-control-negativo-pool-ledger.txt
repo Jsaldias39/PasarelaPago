@@ -1,1 +1,15 @@
 ## Control negativo A: guardPool SIN el manejador del pool (conexiones ociosas)
+      1     Unhandled error. (Error: Connection terminated unexpectedly
+     10     Unhandled error. (error: terminating connection due to administrator command
+      1 Tests:       6 failed, 4 passed, 10 total
+
+## Control negativo B: guardPool SIN el manejador de cada cliente prestado (pool.on("connect"))
+      4     Unhandled error. (Error: Connection terminated unexpectedly
+      3     Unhandled error. (error: terminating connection due to administrator command
+      2   ● el pool de la aplicación sobrevive a que Postgres corte conexiones › límite: se cortan TODAS las ociosas a la vez (y la del ORM) y todo sigue funcionando
+      1   ● las librerías que prestan conexión: corte con pg_terminate_backend EN MEDIO de una transacción › @pay/idempotency: cortar DENTRO de `atomic` ⇒ el proceso sigue, la operación falla, el efecto NO queda, y reintentar co
+      2   ● las librerías que prestan conexión: corte con pg_terminate_backend EN MEDIO de una transacción › @pay/outbox (inbox): cortar dentro de `processOnce` ⇒ ni el efecto ni la marca del evento quedan; el reintento lo proces
+      1 Tests:       3 failed, 7 passed, 10 total
+
+## Restaurado:
+Tests:       10 passed, 10 total

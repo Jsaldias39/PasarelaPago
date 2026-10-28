@@ -5,3 +5,28 @@ $ ... -d pay_ledger
 psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_ledger"
 DETAIL:  User does not have CONNECT privilege.
 $ ... -d pay_edge
+psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_edge"
+DETAIL:  User does not have CONNECT privilege.
+$ ... -d pay_test
+psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_test"
+DETAIL:  User does not have CONNECT privilege.
+$ ... -d postgres
+psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "postgres"
+DETAIL:  User does not have CONNECT privilege.
+$ PGPASSWORD=dev_only_vault psql -h 127.0.0.1 -p 54321 -U pay_vault -d pay_vault -c 'select current_user, current_database()'
+pay_vault|pay_vault
+$ ... -d pay_ledger
+psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_ledger"
+DETAIL:  User does not have CONNECT privilege.
+$ ... -d pay_edge
+psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_edge"
+DETAIL:  User does not have CONNECT privilege.
+$ ... -d pay_test
+psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "pay_test"
+DETAIL:  User does not have CONNECT privilege.
+$ ... -d postgres
+psql: error: connection to server at "127.0.0.1", port 54321 failed: FATAL:  permission denied for database "postgres"
+DETAIL:  User does not have CONNECT privilege.
+
+$ platform/scripts/check-db-separation.sh
+separación: 168 comprobaciones correctas, 0 fallas
