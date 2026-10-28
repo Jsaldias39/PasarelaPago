@@ -1,7 +1,7 @@
 import { SERVICE_CONFIG, type ServiceConfig } from '../src/config';
 import { MockConnector } from '../src/connectors/mock/mock.connector';
 import { REGISTRY } from '../src/core/tokens';
-import { ConnectorTimeoutError, ConnectorUnavailableError, type ProviderRefundRequest } from '../src/domain/connector';
+import { ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError, type ProviderRefundRequest } from '../src/domain/connector';
 import type { ConnectorRegistry } from '../src/domain/registry';
 import { SIMULATED_BANK, MockPumpService } from '../src/core/mock-pump.service';
 import type { SimulatedBank } from '../src/connectors/mock/simulated-bank';
@@ -376,6 +376,148 @@ describe('POST /charges/{id}/refunds', () => {
     expect(retry.status).toBe(201);
     expect(retry.body.status).toBe('succeeded');
     expect((await t.db.pool.query('SELECT count(*)::int AS n FROM connector_refunds')).rows[0].n).toBe(1);
+  });
+
+  // ───────── Hallazgo 13 (docs/trabajo/ola-2/P1/ARNES.md): reintentar con la MISMA clave un reembolso `failed` DEFINITIVO ─────────
+  // `502 connector_unavailable` = «el conector garantiza que no envió nada» (internal-connectors-v1.yaml). Reintentar con la misma clave mientras el
+  // proveedor sigue caído es otra orden que tampoco sale: debe responder lo mismo (502), no un 500 ambiguo. Un timeout o un corte SÍ la vuelven ambigua.
+  describe('reintento con la misma clave de un reembolso que quedó `failed` por proveedor caído (hallazgo 13)', () => {
+    const refundRows = async () =>
+      (await t.db.pool.query('SELECT status, failure_code, may_have_reached_provider AS flag, send_claims AS claims, provider_reference FROM connector_refunds')).rows as Array<Record<string, unknown>>;
+    const refundEvents = async () => (await outboxEvents(t.db.pool, 'connector.transaction.status_changed')).filter((e) => (e.envelope.data as Record<string, unknown>).kind === 'refund');
+    const refund = (id: string, key: string, amount = 10000) => post(t.app, `/charges/${id}/refunds`, { amount_minor: amount }, asPayments, key);
+
+    it('correcto: con el proveedor AÚN caído, cada reintento vuelve a dar 502 connector_unavailable (cuerpo del contrato), la fila sigue `failed`, no sale ningún evento y al volver la misma clave lo completa con UN solo reembolso', async () => {
+      const id = await paid();
+      const key = uniqueKey();
+      bank.setDown(true);
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        const down = await refund(id, key);
+        expect([attempt, down.status, down.body.code]).toEqual([attempt, 502, 'connector_unavailable']);
+        t.contract.assertResponse({ method: 'POST', path: `/charges/${id}/refunds`, status: 502, body: down.body });
+        expect(await refundRows()).toEqual([{ status: 'failed', failure_code: 'connector_unavailable', flag: true, claims: attempt, provider_reference: null }]);
+      }
+      expect(await refundEvents()).toHaveLength(0); // «sin efecto» no se anuncia: nada que informar al ledger
+      // La reserva está liberada: lo `failed` no cuenta contra lo reembolsable.
+      expect((await t.db.pool.query("SELECT COALESCE(SUM(amount_minor), 0)::int AS n FROM connector_refunds WHERE status <> 'failed'")).rows[0].n).toBe(0);
+
+      bank.setDown(false);
+      const resumed = await refund(id, key);
+      expect(resumed.status).toBe(201);
+      expect(resumed.body.status).toBe('succeeded');
+      const rows = await refundRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ status: 'succeeded', flag: true, claims: 4 });
+      expect(bank.refundStatus(resumed.body.id)).toMatchObject({ status: 'captured' }); // el banco lo ejecutó, una vez (su referencia es idempotente)
+      expect(await refundEvents()).toHaveLength(1);
+      // Y repetir otra vez la misma clave es una repetición, no otro reembolso.
+      const again = await refund(id, key);
+      expect(again.body).toEqual(resumed.body);
+      expect(again.headers['idempotency-replayed']).toBe('true');
+    });
+
+    it('límite: un 502 definitivo seguido de un TIMEOUT (la respuesta se pierde) y después de un Unavailable ⇒ 500 ambiguo, la reserva se mantiene y la misma clave lo completa sin reembolsar dos veces', async () => {
+      const id = await paid();
+      const key = uniqueKey();
+      const connector = t.app.get<ConnectorRegistry>(REGISTRY).get('mock') as MockConnector;
+      const original = connector.refund.bind(connector);
+      bank.setDown(true);
+      expect((await refund(id, key)).status).toBe(502); // definitivo: no se envió nada
+      bank.setDown(false);
+      let calls = 0;
+      connector.refund = async (request: ProviderRefundRequest, now: Date) => {
+        calls += 1;
+        if (calls === 1) {
+          await original(request, now); // el proveedor reembolsa…
+          throw new ConnectorTimeoutError(); // …y la respuesta se pierde
+        }
+        throw new ConnectorUnavailableError('unreachable');
+      };
+      try {
+        const lost = await refund(id, key);
+        expect([lost.status, lost.body.code]).toEqual([500, 'internal_error']);
+        expect(await refundRows()).toEqual([{ status: 'pending', failure_code: null, flag: true, claims: 2, provider_reference: null }]);
+        // Ahora el proveedor «cae» otra vez: tras un intento ambiguo, un Unavailable ya NO prueba «sin efecto».
+        const unsure = await refund(id, key);
+        expect([unsure.status, unsure.body.code]).toEqual([500, 'internal_error']);
+        expect((await refundRows())[0]).toMatchObject({ status: 'pending', claims: 3 });
+        expect(await refundEvents()).toHaveLength(0);
+      } finally {
+        connector.refund = original;
+      }
+      const resumed = await refund(id, key);
+      expect(resumed.status).toBe(201);
+      expect(resumed.body.status).toBe('succeeded');
+      expect(await refundRows()).toHaveLength(1);
+      expect(await refundEvents()).toHaveLength(1);
+    });
+
+    it('límite: el proceso cayó entre reabrir la fila y reclamar el envío (fila `pending` con la marca puesta) ⇒ el siguiente Unavailable es AMBIGUO (500), no 502', async () => {
+      const id = await paid();
+      const key = uniqueKey();
+      bank.setDown(true);
+      expect((await refund(id, key)).status).toBe(502);
+      // Estado que dejaría ese corte: reabierta (`pending`, sin código) con la marca y el contador que ya tenía.
+      await t.db.pool.query("UPDATE connector_refunds SET status = 'pending', failure_code = NULL");
+      const unsure = await refund(id, key);
+      expect([unsure.status, unsure.body.code]).toEqual([500, 'internal_error']);
+      expect(await refundRows()).toEqual([{ status: 'pending', failure_code: null, flag: true, claims: 2, provider_reference: null }]);
+    });
+
+    it('límite: tras un 502 definitivo, el proveedor vuelve y RECHAZA explícitamente la orden ⇒ el rechazo es definitivo (4xx, `failed` con su código), igual que en el primer envío', async () => {
+      const id = await paid();
+      const key = uniqueKey();
+      const connector = t.app.get<ConnectorRegistry>(REGISTRY).get('mock') as MockConnector;
+      const original = connector.refund.bind(connector);
+      bank.setDown(true);
+      expect((await refund(id, key)).status).toBe(502);
+      bank.setDown(false);
+      connector.refund = async () => {
+        throw new ConnectorRejectedError('validation_failed');
+      };
+      try {
+        const rejected = await refund(id, key);
+        expect([rejected.status, rejected.body.code]).toEqual([422, 'validation_failed']);
+        expect(await refundRows()).toEqual([{ status: 'failed', failure_code: 'validation_failed', flag: true, claims: 2, provider_reference: null }]);
+        expect(await refundEvents()).toHaveLength(1); // un rechazo del proveedor SÍ se anuncia
+      } finally {
+        connector.refund = original;
+      }
+    });
+
+    it.each([1, 2, 3])('corrida %i: tras dos 502 definitivos, 6 reintentos SIMULTÁNEOS de la misma clave con el proveedor de vuelta ⇒ un solo reembolso, ejecutado una vez, y ninguna respuesta de «sin efecto»', async () => {
+      await t.reset();
+      const id = await paid();
+      const key = uniqueKey();
+      bank.setDown(true);
+      expect((await refund(id, key)).status).toBe(502);
+      expect((await refund(id, key)).status).toBe(502);
+      bank.setDown(false);
+      const responses = await Promise.all(Array.from({ length: 6 }, () => refund(id, key)));
+      // La clave en vuelo la tiene UNA petición; las demás reciben 409 (clave en uso), nunca un 502 «sin efecto» ni un segundo envío.
+      for (const r of responses) expect([201, 409]).toContain(r.status);
+      const done = responses.filter((r) => r.status === 201);
+      expect(done.length).toBeGreaterThanOrEqual(1);
+      for (const r of done) expect(r.body.status).toBe('succeeded');
+      expect(responses.filter((r) => r.body.code === 'connector_unavailable')).toEqual([]);
+      const rows = await refundRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ status: 'succeeded' });
+      expect(new Set(done.map((r) => r.body.id)).size).toBe(1); // las respuestas completas son del MISMO reembolso
+      expect(bank.refundStatus(done[0]!.body.id)).toMatchObject({ status: 'captured' });
+      expect(await refundEvents()).toHaveLength(1);
+    });
+
+    it('inválido: una fila `failed` con `connector_unavailable` pero CON referencia del proveedor (no la dejó la rama «sin efecto») no prueba nada ⇒ 500 ambiguo, nunca 502', async () => {
+      const id = await paid();
+      const key = uniqueKey();
+      bank.setDown(true);
+      expect((await refund(id, key)).status).toBe(502);
+      await t.db.pool.query("UPDATE connector_refunds SET provider_reference = 'SIM-R-FORGED'");
+      const unsure = await refund(id, key);
+      expect([unsure.status, unsure.body.code]).toEqual([500, 'internal_error']);
+      expect((await refundRows())[0]).toMatchObject({ status: 'pending', provider_reference: 'SIM-R-FORGED' });
+    });
   });
 
   it('timeout y DESPUÉS Unavailable en el reintento ⇒ 500 ambiguo (jamás «sin efecto»): la reserva se mantiene y la misma clave lo completa sin reembolsar dos veces', async () => {

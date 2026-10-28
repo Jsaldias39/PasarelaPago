@@ -118,9 +118,14 @@ export class RefundsService {
       if (refund.status === 'succeeded' || (refund.status === 'failed' && refund.failure_code !== 'connector_unavailable')) return refund; // ya lo resolvió otro envío
       const charge = await this.charges.byId(refund.charge_id, refund.pay_mode);
       if (!charge.provider_reference) throw new ProblemError('invalid_state_transition');
+      // `failed` + `connector_unavailable` + sin referencia del proveedor es el estado que SOLO deja la rama «sin efecto» de más abajo, y esa rama
+      // se alcanza únicamente si todos los envíos anteriores terminaron en `ConnectorUnavailableError` (el conector garantiza que no salió nada:
+      // un timeout o un corte los vuelve ambiguos y la fila queda `pending`, nunca `failed`). Es la prueba de que NINGUNA orden previa pudo llegar al
+      // proveedor, aunque el flag `may_have_reached_provider` (monótono; también lo exige un trigger del modelo) siga en `true` desde el reclamo.
+      const provenUnsent = refund.status === 'failed' && refund.failure_code === 'connector_unavailable' && refund.provider_reference === null;
       if (refund.status === 'failed') {
         // Reintento de un reembolso que quedó sin efecto por un proveedor caído: se vuelve a reservar el importe, revalidando.
-        // El flag `may_have_reached_provider` NO se baja (es monótono): el próximo fallo de disponibilidad se tratará como ambiguo.
+        // El flag NO se baja: `provenUnsent` es lo que, en este envío, impide que lo ya probado «sin efecto» se tome por ambiguo.
         const failed = refund;
         refund = await ctx.atomic('refund_recorded', async (client) => {
           await client.query('SELECT 1 FROM connector_charges WHERE id = $1 FOR UPDATE', [charge.id]);
@@ -139,7 +144,10 @@ export class RefundsService {
            FROM old WHERE r.id = $1 RETURNING old.prior AS prior, r.send_claims AS mine`,
         [refund.id, this.clock.now()],
       );
-      const { prior, mine } = claim.rows[0] as { prior: boolean; mine: number };
+      const { prior: flagged, mine } = claim.rows[0] as { prior: boolean; mine: number };
+      // Una orden anterior pudo haber llegado si el flag estaba puesto y NO se probó que todos los reclamos previos quedaron sin efecto.
+      // Si el proceso cayó entre reabrir la fila y reclamar, la fila queda `pending` con el flag: `provenUnsent` es falso y el envío es ambiguo (regla 11).
+      const prior = flagged && !provenUnsent;
       const current = refund;
       try {
         const result = await this.gateway.callIdempotent(charge.connector, current.id, 'refund', (c) =>
@@ -149,8 +157,9 @@ export class RefundsService {
         return await ctx.atomic('refund_sent', (client) => this.settle(client, current, charge, status, result.providerReference, result.failureCode ?? null));
       } catch (error) {
         if (error instanceof ConnectorUnavailableError && !prior) {
-          // «Sin efecto» solo si este envío fue el único que reclamó (send_claims = mine) y ningún intento previo pudo llegar, en la misma
-          // sentencia que el cambio de estado. Se libera la reserva (sin evento); el flag no se toca.
+          // «Sin efecto» solo si este envío fue el único que reclamó (send_claims = mine) y ningún intento previo pudo llegar (ni el flag lo
+          // contradice, ni `provenUnsent` lo desmiente), en la misma sentencia que el cambio de estado. Se libera la reserva (sin evento); el flag
+          // no se toca. Es lo que permite repetir con la misma Idempotency-Key mientras el proveedor sigue caído y recibir otra vez el 502.
           const released = await this.pool.query(
             `UPDATE connector_refunds SET status = 'failed', failure_code = 'connector_unavailable', updated_at = $3
               WHERE id = $1 AND status = 'pending' AND provider_reference IS NULL AND send_claims = $2`,

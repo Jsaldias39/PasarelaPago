@@ -1,0 +1,48 @@
+# 3d-h13-rojo: hallazgo 13 (lado del conector) ANTES del arreglo: reintento con la misma clave de un reembolso failed/connector_unavailable con el proveedor aun caido
+$ (cd services/pay-connectors && yarn test --maxWorkers=1 test/charges.spec.ts -t 'hallazgo 13' --verbose --reporters default)
+(las lineas JSON de pino y los casos omitidos (skipped) se quitan; todo lo demas es literal)
+
+(node:15578) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/charges.spec.ts
+  POST /charges
+  timeout ambiguo (centavos 07) y caída (centavos 06)
+  GET /charges/{id} y /status
+  POST /charges/{id}/cancel
+  POST /charges/{id}/refunds
+    reintento con la misma clave de un reembolso que quedó `failed` por proveedor caído (hallazgo 13)
+      ✕ correcto: con el proveedor AÚN caído, cada reintento vuelve a dar 502 connector_unavailable (cuerpo del contrato), la fila sigue `failed`, no sale ningún evento y al volver la misma clave lo completa con UN solo reembolso (230 ms)
+      ✓ límite: un 502 definitivo seguido de un TIMEOUT (la respuesta se pierde) y después de un Unavailable ⇒ 500 ambiguo, la reserva se mantiene y la misma clave lo completa sin reembolsar dos veces (140 ms)
+      ✓ límite: el proceso cayó entre reabrir la fila y reclamar el envío (fila `pending` con la marca puesta) ⇒ el siguiente Unavailable es AMBIGUO (500), no 502 (93 ms)
+      ✓ inválido: una fila `failed` con `connector_unavailable` pero CON referencia del proveedor (no la dejó la rama «sin efecto») no prueba nada ⇒ 500 ambiguo, nunca 502 (104 ms)
+
+  ● POST /charges/{id}/refunds › reintento con la misma clave de un reembolso que quedó `failed` por proveedor caído (hallazgo 13) › correcto: con el proveedor AÚN caído, cada reintento vuelve a dar 502 connector_unavailable (cuerpo del contrato), la fila sigue `failed`, no sale ningún evento y al volver la misma clave lo completa con UN solo reembolso
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+        2,
+    -   502,
+    -   "connector_unavailable",
+    +   500,
+    +   "internal_error",
+      ]
+
+      394 |       for (let attempt = 1; attempt <= 3; attempt += 1) {
+      395 |         const down = await refund(id, key);
+    > 396 |         expect([attempt, down.status, down.body.code]).toEqual([attempt, 502, 'connector_unavailable']);
+          |                                                        ^
+      397 |         t.contract.assertResponse({ method: 'POST', path: `/charges/${id}/refunds`, status: 502, body: down.body });
+      398 |         expect(await refundRows()).toEqual([{ status: 'failed', failure_code: 'connector_unavailable', flag: true, claims: attempt, provider_reference: null }]);
+      399 |       }
+
+      at Object.toEqual (test/charges.spec.ts:396:56)
+
+Test Suites: 1 failed, 1 total
+Snapshots:   0 total
+Time:        2.728 s, estimated 3 s
+Ran all test suites matching test/charges.spec.ts with tests matching "hallazgo 13".
+exit=1

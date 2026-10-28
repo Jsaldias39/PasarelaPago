@@ -1,7 +1,7 @@
 import { startStack, stopStack, type Stack } from '../stack.ts';
 
 /**
- * PENDIENTE (falla a propósito) — hallazgo 14 de docs/trabajo/ola-2/P1/ARNES.md. `pay-mockbank` rechaza (422) un `card_token` legítimo de la bóveda.
+ * REGRESIÓN del hallazgo 14 (corregido en pay-mockbank, ola 3, P4; era un reproductor en pending/) — de docs/trabajo/ola-2/P1/ARNES.md. `pay-mockbank` rechaza (422) un `card_token` legítimo de la bóveda.
  *
  * `services/pay-mockbank/src/sandbox/dto.ts` (`parseCardAuthorization`) trata como «con forma de PAN» cualquier `card_token` que contenga 12 dígitos decimales seguidos
  * (`PAN_LIKE = /(?:\d[ -]?){12,19}/`, sin anclar). Un token de la bóveda es `tok_` + 24 hexadecimales: el 1,99 % tiene esa racha (3981 de 200000 medidos, evidencia/e7-hallazgo-token-mockbank.txt),

@@ -24,8 +24,8 @@ import { startStack, stopStack, type Stack } from '../stack.ts';
  *  - límite (regla 11): el banco ejecuta el reembolso y la respuesta se pierde (corte). El reembolso sigue `pending`, la retención NO se anula, se deja constancia para una
  *    persona, y todos los reintentos usan la MISMA referencia `cr_…`. Al volver la red termina `succeeded` con UNA fila en el conector, UNA en el banco y UN asiento.
  *  - fallo DEFINITIVO del conector (`502 connector_unavailable`, banco caído), en el contrato de pay-connectors: la 1ª orden no tiene efecto (fila `failed`, el banco sin nada), repetirla con la
- *    misma clave es AMBIGUA y, vuelto el banco, se ejecuta UNA vez. El mismo fallo de punta a punta por la API pública (`failed` + retención anulada) HOY NO se cumple: hallazgo abierto,
- *    reproducido a propósito en e2e/pending/e3-fallo-definitivo.e2e.ts (pay-payments reintenta el 502 definitivo y lo convierte en ambiguo).
+ *    misma clave mientras el banco sigue caído devuelve el MISMO 502 y, vuelto el banco, se ejecuta UNA vez. El mismo fallo de punta a punta por la API pública (`failed` + retención anulada)
+ *    está en e2e/flows/e3-fallo-definitivo.e2e.ts (hallazgo 13, corregido en pay-connectors).
  *  - inválido: sin fondos (`insufficient_funds`) el conector ni se toca; más de lo cobrado y sobre un cobro no pagado se rechazan sin mover nada.
  */
 describe('E3 — reembolso parcial con retención y fallo del conector', () => {
@@ -184,11 +184,11 @@ describe('E3 — reembolso parcial con retención y fallo del conector', () => {
     expect(await busRefundEvents('created', refundId)).toHaveLength(1);
   });
 
-  it('FALLO DEFINITIVO DEL CONECTOR (contrato de pay-connectors, banco caído): la primera orden responde 502 connector_unavailable SIN efecto; repetirla con la misma clave pasa a AMBIGUA (500) y, vuelto el banco, se ejecuta UNA vez', async () => {
+  it('FALLO DEFINITIVO DEL CONECTOR (contrato de pay-connectors, banco caído): la primera orden responde 502 connector_unavailable SIN efecto; repetirla con la misma clave (banco aún caído) devuelve el MISMO 502 y, vuelto el banco, se ejecuta UNA vez', async () => {
     const { intentId, available } = await chargedMerchant('conector', 20_000);
     const chargeId = (await serviceDb(stack, 'connectors', (db) => db.query('SELECT id FROM connector_charges WHERE payment_intent_id = $1', [intentId]))).rows[0]!.id as string;
     // Se habla con el conector DIRECTO, con la identidad de pay-payments (la única que admite), y con un `re_…` sintético: acá se prueba el contrato del conector,
-    // el de pay-payments sobre él está en e2e/pending/e3-fallo-definitivo.e2e.ts (hallazgo abierto, ver README).
+    // el de pay-payments sobre él está en e2e/flows/e3-fallo-definitivo.e2e.ts (hallazgo 13, corregido en pay-connectors).
     const refundId = 're_e3conector00000000000001';
     const send = () => stack.callAs('pay-payments', 'pay-connectors', 'POST', `/charges/${chargeId}/refunds`, { payMode: 'test', headers: { 'idempotency-key': `${refundId}:refund` }, json: { amount_minor: 4_000, refund_id: refundId }, timeoutMs: 30_000 });
     const rowsOf = () => refundRows(stack, refundId);
@@ -204,12 +204,13 @@ describe('E3 — reembolso parcial con retención y fallo del conector', () => {
       expect(afterFirst.connector[0]).toMatchObject({ status: 'failed', failure_code: 'connector_unavailable', idempotency_key: `${refundId}:refund`, may_have_reached_provider: true });
       expect(afterFirst.bank).toEqual([]);
       connectorRefundId = afterFirst.connector[0]!.id;
-      // 2ª orden con la MISMA clave: el conector no baja la marca (es monótona a propósito) ⇒ el próximo fallo de disponibilidad es AMBIGUO (500), no un segundo «sin efecto».
+      // 2ª orden con la MISMA clave y el banco aún caído: la marca `may_have_reached_provider` sigue puesta (es monótona a propósito), pero la fila `failed` +
+      // `connector_unavailable` + sin referencia del proveedor PRUEBA que ningún envío previo salió ⇒ el contrato manda el MISMO 502 «sin efecto» (hallazgo 13, ola 3).
       const second = await send();
-      expect([second.status, (second.json as { code?: string }).code]).toEqual([500, 'internal_error']);
+      expect([second.status, (second.json as { code?: string }).code]).toEqual([502, 'connector_unavailable']);
       const afterSecond = await rowsOf();
       expect(afterSecond.connector).toHaveLength(1); // la misma fila, nunca un segundo `cr_…`
-      expect(afterSecond.connector[0]).toMatchObject({ id: connectorRefundId, status: 'pending' }); // el importe vuelve a quedar reservado: puede haberse ejecutado
+      expect(afterSecond.connector[0]).toMatchObject({ id: connectorRefundId, status: 'failed', failure_code: 'connector_unavailable', may_have_reached_provider: true });
       expect(afterSecond.bank).toEqual([]);
     } finally {
       expect((await bank().down(false)).status).toBe(200);

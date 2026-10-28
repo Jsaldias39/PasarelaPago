@@ -46,7 +46,7 @@ constantes de E4/E8, está en `docs/trabajo/ola-2/P4/ESCENARIOS.md` (y `test/esc
 | `POST charges` · `GET charges/{ref}` · `PUT charges/{ref}/qr` · `POST charges/{ref}/cancel` | cobro QR / tarjeta de un paso / transferencia entrante; el QR que emitió la pasarela se registra para que el pagador lo pueda pagar |
 | `POST refunds` · `GET refunds/{ref}` | reembolsos idempotentes; `404 refund_not_found` es la respuesta explícita de «no lo tengo» |
 | `POST transfers` · `GET transfers/{ref}` | transferencia saliente; `404 transfer_not_found` explícito |
-| `POST card-authorizations` · `…/{ref}/capture` · `…/{ref}/void` | ciclo de tarjeta. **Solo un token de prueba `tok_…`: un PAN (12 a 19 dígitos) se rechaza con 422 sin repetirlo en la respuesta, en logs ni en ningún lado** |
+| `POST card-authorizations` · `…/{ref}/capture` · `…/{ref}/void` | ciclo de tarjeta. **Solo un token de prueba `tok_…`: un PAN (una ventana de 13 a 19 dígitos que pase Luhn, sola o dentro del valor) se rechaza con 422 sin repetirlo en la respuesta, en logs ni en ningún lado. Un token de la bóveda (`tok_` + 24 hexadecimales) nunca se toma por un PAN** |
 | `GET statement?from&to&format=json\|csv\|camt053&account=collections\|transfers` | extracto; `camt053` usa la estructura **pública** de ISO 20022 `camt.053.001.02` (el perfil real del banco no se conoce y no se inventa); el CSV neutraliza fórmulas |
 | `GET probe` | sonda de salud del banco |
 

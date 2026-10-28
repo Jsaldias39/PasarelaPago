@@ -139,9 +139,24 @@ export function parseCreateTransfer(body: unknown): { reference: string; amountM
   return { reference: ref as string, amountMinor, destinationRef: destination as string };
 }
 
-/** `tok_…` de prueba. Un PAN (12 a 19 dígitos, con o sin separadores) se rechaza SIN repetirlo en ningún mensaje. */
+/** `tok_…` de prueba. Un PAN (con o sin separadores, solo o dentro del token) se rechaza SIN repetirlo en ningún mensaje. */
 const CARD_TOKEN = /^tok_[A-Za-z0-9]{8,64}$/;
-const PAN_LIKE = /(?:\d[ -]?){12,19}/;
+/**
+ * La forma EXACTA de un token que mina la bóveda: `tok_` + 24 hexadecimales en minúscula (`randomBytes(12).toString('hex')`,
+ * `services/pay-vault/src/backend/fake-vault-backend.ts`). Es un identificador opaco al azar: nada lo hace un PAN, y una racha de dígitos
+ * decimales dentro de él es casualidad (hallazgo 14: 12 o más dígitos seguidos aparecen en ≈2 % de ellos, y una ventana Luhn de 13 a 19, en ≈0,4 %).
+ */
+const VAULT_TOKEN = /^tok_[0-9a-f]{24}$/;
+
+/**
+ * ¿El `card_token` esconde un número de tarjeta? Un token de la bóveda no (ver `VAULT_TOKEN`). Cualquier otro valor con la forma `tok_…` se
+ * evalúa como el resto de los campos libres (`looksLikePan`: una ventana Luhn de 13 a 19 dígitos), de modo que `tok_4111111111111111` o
+ * `tok_prueba4111111111111111` se siguen rechazando. Antes se rechazaba toda racha de 12 dígitos, sin mirar Luhn ni la forma.
+ * El token no se guarda ni se repite: el parser solo devuelve la referencia y el importe.
+ */
+export function cardTokenLooksLikePan(token: string): boolean {
+  return !VAULT_TOKEN.test(token) && looksLikePan(token);
+}
 
 export function parseCardAuthorization(body: unknown): { reference: string; amountMinor: bigint } {
   const f = new Fields(object(body));
@@ -149,7 +164,7 @@ export function parseCardAuthorization(body: unknown): { reference: string; amou
   const ref = reference(f, 'reference', CHARGE_REF);
   const amountMinor = amount(f, 'amount_minor') ?? 0n;
   const token = f.body.card_token;
-  if (typeof token !== 'string' || !CARD_TOKEN.test(token) || PAN_LIKE.test(token)) f.fail('card_token', 'invalid');
+  if (typeof token !== 'string' || !CARD_TOKEN.test(token) || cardTokenLooksLikePan(token)) f.fail('card_token', 'invalid');
   f.done();
   return { reference: ref, amountMinor };
 }

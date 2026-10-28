@@ -1,0 +1,11 @@
+FAIL e2e/flows/e3.e2e.ts (48.223 s)
+  ● E3 — reembolso parcial con retención y fallo del conector › FALLO DEFINITIVO DEL CONECTOR (contrato de pay-connectors, banco caído): la primera orden responde 502 connector_unavailable SIN efecto; repetirla con la misma clave pasa a AMBIGUA (500) y, vuelto el banco, se ejecuta UNA vez
+FAIL e2e/flows/risk-timeout.e2e.ts (25.75 s)
+  ● REPRODUCTOR — timeout del cliente de riesgo + 409 idempotency_request_in_progress › un cobro cuya primera evaluación de riesgo vence en el cliente NO queda en processing para siempre
+FAIL e2e/flows/e3.e2e.ts (48.223 s)
+  ● E3 — reembolso parcial con retención y fallo del conector › FALLO DEFINITIVO DEL CONECTOR (contrato de pay-connectors, banco caído): la primera orden responde 502 connector_unavailable SIN efecto; repetirla con la misma clave pasa a AMBIGUA (500) y, vuelto el banco, se ejecuta UNA vez
+FAIL e2e/flows/risk-timeout.e2e.ts (25.75 s)
+  ● REPRODUCTOR — timeout del cliente de riesgo + 409 idempotency_request_in_progress › un cobro cuya primera evaluación de riesgo vence en el cliente NO queda en processing para siempre
+Test Suites: 2 failed, 28 passed, 30 total
+Tests:       2 failed, 216 passed, 218 total
+Time:        470.756 s

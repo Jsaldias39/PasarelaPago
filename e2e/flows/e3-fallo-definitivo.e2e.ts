@@ -5,7 +5,7 @@ import { seedMerchant, waitForEdgeToKnow } from '../lib/seed.ts';
 import { startStack, stopStack, type Stack } from '../stack.ts';
 
 /**
- * PENDIENTE (falla a propósito) — E3, fallo DEFINITIVO del conector de punta a punta. Reproductor del hallazgo 13 de docs/trabajo/ola-2/P1/ARNES.md.
+ * REGRESIÓN del hallazgo 13 (corregido en pay-connectors, ola 3, P4; era un reproductor en pending/) — E3, fallo DEFINITIVO del conector de punta a punta. Reproductor del hallazgo 13 de docs/trabajo/ola-2/P1/ARNES.md.
  *
  * Contrato que se espera (workflows.ts `RefundWorkflow` y connectors.client.ts `definitive502`): con el banco caído, `pay-connectors` responde `502 connector_unavailable`
  * (sin efecto garantizado); `pay-payments` lo toma como rechazo DEFINITIVO, anula la retención del ledger y deja el reembolso `failed`.
