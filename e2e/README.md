@@ -6,7 +6,7 @@ TigerBeetle privado, en `PAY_MODE=sandbox` con el conector `mock`. Matriz, halla
 
 ```bash
 yarn e2e:up | e2e:down | e2e:boot | e2e:smoke
-yarn e2e            # jest, 1 worker: humo, degradado, E1, E2, E3, E4, E5, E6, E7, E8, seed:sandbox, D-32, ledger, callbacks, guardia de modo, capa sandbox (pay-mockbank), candado y unitarias del arnés
+yarn e2e            # jest, 1 worker: humo, degradado, E1, E1 con pagador simulado, E2, E3, E4, E5, E6, E7, E8, seed:sandbox, D-32, ledger, callbacks, guardia de modo, capa sandbox (pay-mockbank), candado y unitarias del arnés
 yarn e2e:pending    # solo lo que hoy no puede pasar (falla a propósito); hoy `pending/` está vacío: los hallazgos 13 y 14 se corrigieron y sus reproductores pasaron a flows/
 yarn e2e:typecheck
 yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo proceso (docs/trabajo/ola-3/P1/CARGA.md)
@@ -36,3 +36,4 @@ yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo
 - `yarn test:parity` (`e2e/parity.ts`, `lib/parity.ts`): PARIDAD = mismo conjunto de pruebas y MISMO estado en el enlace en proceso y en el de `pay-mockbank`. El sufijo « — NO APLICA: …» de la suite se ignora al emparejar títulos, pero la inaplicabilidad tiene que estar DECLARADA en `DECLARED_NOT_APPLICABLE` (par, lado, prueba, motivo y referencia); un NO APLICA no declarado, un `failed` en cualquier lado o un estado distinto es DIFERENCIA (exit 1). `todo`/`skipped` sin sufijo solo valen si son idénticos en ambos lados y se imprimen con su cuenta. Los conectores del Mercantil se informan BLOQUEADOS (Q-01, Q-11).
 - `flows/seed-sandbox.e2e.ts`: corre `e2e/seed-sandbox.ts` (la entrada real de `yarn seed:sandbox`) DOS veces contra el stack de 12 servicios del arnés, con `SANDBOX_*_URL` y un `SANDBOX_DIR` temporal.
 - Lo que no se puede probar aquí (Compose de la capa sandbox: ghcr 403, Docker Hub 429, TLS interceptado): `docs/trabajo/ola-4/P1/BLOQUEOS.md`.
+- `flows/e1-payer.e2e.ts` (P4.H4.M4, E1 sin intervención manual): `pay-mockbank` en `MOCKBANK_PAYER_MODE=manual` (único ajuste del arnés; en `auto` el banco paga solo); el QR de la API pública lo paga `POST /sandbox/payer/pay` y el cobro termina `succeeded` por el callback firmado banco→pay-connectors. Límites: pago repetido, QR con otro importe (404/422), QR vencido (409). Inválidos: QR desconocido o no EMV, identidad ajena (403). El importe del QR no se puede forzar distinto del cobro por el pagador (el banco busca el QR por texto exacto): la rama `amount_mismatch` de `payByQr` es inalcanzable por esta vía.

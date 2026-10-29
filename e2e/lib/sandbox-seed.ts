@@ -195,7 +195,7 @@ export function remoteTarget(endpoints: SandboxEndpoints, operatorPrivateKeyPem:
   };
 }
 
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function realDeps(target: OnboardingTarget, issuer: string): SeedDeps {
   const edge = (token: string, method: string, path: string, init: { json?: unknown; idempotencyKey?: string } = {}) =>
@@ -238,16 +238,41 @@ export function realDeps(target: OnboardingTarget, issuer: string): SeedDeps {
     },
     async createMandate(token, body, idempotencyKey) {
       // La réplica de comercios de pay-schedules aprende que el comercio está activo por NATS: puede tardar unos segundos tras el alta.
-      const deadline = Date.now() + 45_000;
-      for (;;) {
-        const res = await edge(token, 'POST', '/mandates', { json: body, idempotencyKey });
-        if (res.status === 201 || res.status === 200) return (res.json as { id: string }).id;
-        const retryable = res.status === 401 || res.status === 404 || res.status === 409 || res.status === 422 || res.status >= 500;
-        if (!retryable || Date.now() > deadline) throw new Error(`POST /v1/mandates respondió ${res.status}: ${JSON.stringify(res.json).slice(0, 200)}`);
-        await pause(1000);
-      }
+      return createWithRetry({ send: (key) => edge(token, 'POST', '/mandates', { json: body, idempotencyKey: key }), idempotencyKey, pause, timeoutMs: 45_000 });
     },
   };
+}
+
+export interface RetryResponse {
+  readonly status: number;
+  readonly json: unknown;
+}
+
+/**
+ * Crea un recurso reintentando mientras el sistema converge (réplicas por NATS). La clave de idempotencia NO se cambia ante un resultado ambiguo (401/404/409/5xx):
+ * se reintenta con la MISMA (regla 11). Pero un 422 es un rechazo determinista que la librería de idempotencia GUARDA Y REPITE 24 h bajo esa clave
+ * (contracts/packages/idempotency/src/index.ts, líneas 20-22): reintentarlo con la misma clave devuelve el mismo 422 para siempre. Como un 422 no creó nada,
+ * el siguiente intento usa una clave derivada (`<clave>~r<n>`); la siembra sigue siendo idempotente porque `findMandate` busca por descripción antes de crear.
+ */
+export async function createWithRetry(options: {
+  send(idempotencyKey: string): Promise<RetryResponse>;
+  idempotencyKey: string;
+  pause(ms: number): Promise<void>;
+  timeoutMs: number;
+  now?: () => number;
+}): Promise<string> {
+  const now = options.now ?? Date.now;
+  const deadline = now() + options.timeoutMs;
+  let key = options.idempotencyKey;
+  for (let attempt = 1; ; attempt += 1) {
+    const res = await options.send(key);
+    if (res.status === 201 || res.status === 200) return (res.json as { id: string }).id;
+    const rejected = res.status === 422;
+    const retryable = rejected || res.status === 401 || res.status === 404 || res.status === 409 || res.status >= 500;
+    if (!retryable || now() > deadline) throw new Error(`POST respondió ${res.status}: ${JSON.stringify(res.json).slice(0, 1200)}`);
+    if (rejected) key = `${options.idempotencyKey}~r${attempt}`;
+    await options.pause(1000);
+  }
 }
 
 function operatorBearer(target: OnboardingTarget, issuer: string): string {
