@@ -42,7 +42,7 @@ const neverReached = (error: unknown): boolean => isUpstreamError(error) && (err
 const isRiskInFlight = (error: unknown): boolean =>
   (error instanceof Error && error.name === 'RiskScreeningUnavailable') ||
   (isRejection(error) && (error as { status?: number; code?: string }).status === 409 && (error as { code?: string }).code === 'idempotency_request_in_progress') ||
-  (isUpstreamError(error) && (error as { kind?: string }).kind === 'timeout')/* MUT-M3 */;
+  (isUpstreamError(error) && !neverReached(error));
 
 /**
  * `201 review` con `screened:false` y `reason_code: screening_unavailable`: pay-risk no pudo cribar (Watchman caído o lento). El contrato (`POST /assessments`)
