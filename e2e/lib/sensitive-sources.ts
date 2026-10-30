@@ -81,6 +81,21 @@ export async function databaseSources(stack: Stack): Promise<CollectedSource[]> 
   return out;
 }
 
+/**
+ * Campos del historial que identifican al WORKER (hash de su bundle), no son datos: un hash hexadecimal de 64 caracteres puede llevar, por azar, una tira de 13 a 19 dígitos que
+ * cumple Luhn y empieza como una marca, y el detector la tomaría por un PAN (pasó cuando se recompiló el workflow: 15 dígitos «3529…» dentro de `buildId`). Los PAYLOADS
+ * (entradas, resultados, memo, cabeceras, detalles de fallo) se siguen leyendo enteros.
+ */
+export const WORKER_IDENTITY_KEYS: ReadonlySet<string> = new Set(['buildId', 'binaryChecksum']);
+
+/** El historial como texto para el escaneo: los bytes de cada payload como texto, sin las claves de identidad del worker. */
+export function historyText(history: unknown): string {
+  return JSON.stringify(history, (key, value: unknown) => {
+    if (WORKER_IDENTITY_KEYS.has(key)) return '[identidad-del-worker]';
+    return value instanceof Uint8Array ? Buffer.from(value).toString('latin1') : value;
+  });
+}
+
 /** Historiales de los workflows de Temporal indicados (los payloads de las actividades). Los bytes de cada payload se leen como texto. */
 export async function temporalSources(stack: Stack, workflowIds: readonly string[]): Promise<CollectedSource[]> {
   const { Client: TemporalClient, Connection } = await import('@temporalio/client');
@@ -90,7 +105,7 @@ export async function temporalSources(stack: Stack, workflowIds: readonly string
     const out: CollectedSource[] = [];
     for (const id of workflowIds) {
       const history = await client.workflow.getHandle(id).fetchHistory();
-      const text = JSON.stringify(history, (_key, value: unknown) => (value instanceof Uint8Array ? Buffer.from(value).toString('latin1') : value));
+      const text = historyText(history);
       out.push({ source: `temporal:${id}`, text, items: history.events?.length ?? 0 });
     }
     return out;
