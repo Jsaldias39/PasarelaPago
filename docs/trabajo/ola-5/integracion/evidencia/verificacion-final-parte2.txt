@@ -8,3 +8,8 @@
    Clasificación (regla 80.4): ENVIRONMENT/carga (cada suite levanta su worker de Temporal y su PG; con 2 workers + Temporal + TigerBeetle en 4 vCPU el cobro tarda más que lo que el test supone). NO se da por PASS: se repite el servicio completo con --runInBand (regla 70.3: un worker en máquina de desarrollo).
 == (re)arranque 2026-10-30T18:00:23Z HEAD=2c09205
 == pay-payments typecheck 0 build 0
+test exit 0
+Test Suites: 37 passed, 37 total
+Tests:       515 passed, 515 total
+== pay-payments FIN
+== pay-vault typecheck 0 build 0
