@@ -48,10 +48,8 @@ describe('SvixEngine: errores definitivos, deriva de la aplicación y compensaci
       const merchant = newMerchantId();
       await s.createEndpoint(merchant, await s.receiver());
       const wrongToken = new SvixEngine(new SvixClient({ baseUrl: process.env.PAY_TEST_SVIX_URL ?? 'http://127.0.0.1:54800', authToken: 'aaa.bbb.ccc', timeoutMs: 5_000, maxAttempts: 4, sleep: async () => undefined }), { rotationGraceSeconds: 60 });
-      const original = s.engine.publishDetailed?.bind(s.engine);
       const originalPublish = s.engine.publish.bind(s.engine);
-      s.engine.publishDetailed = (db, m) => wrongToken.publishDetailed(db, m);
-      s.engine.publish = (db, m) => wrongToken.publish(db, m);
+      s.engine.publish = (db, m, report) => wrongToken.publish(db, m, report);
       const event = cloudEvent(TYPE, merchant);
       const before = { engine: s.h.ingest.metrics.engineMisconfigured, rejected: s.h.ingest.metrics.rejectedEngine };
       try {
@@ -60,7 +58,6 @@ describe('SvixEngine: errores definitivos, deriva de la aplicación y compensaci
         expect(error).toBeInstanceOf(engineErrors.EngineMisconfiguredError);
         expect(String((error as Error).message) + String((error as Error).stack)).not.toContain('aaa.bbb.ccc');
       } finally {
-        if (original) s.engine.publishDetailed = original;
         s.engine.publish = originalPublish;
       }
       expect(s.h.ingest.metrics.engineMisconfigured).toBe(before.engine + 1);

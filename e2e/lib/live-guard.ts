@@ -16,7 +16,8 @@ export interface LiveGuardResult {
  * con un mensaje que nombra el modo; un servicio que queda sano está sirviendo `live` con dobles.
  */
 export async function bootUnderLive(only: readonly ServiceName[] = SERVICES, extraEnv: Partial<Record<ServiceName, Record<string, string | null>>> = {}): Promise<LiveGuardResult[]> {
-  const envOverrides = Object.fromEntries(only.map((name) => [name, { PAY_MODE: 'live', ...extraEnv[name] }]));
+  // IDEMPOTENCY_MASK_KEY (≥32 bytes, S-02) es obligatoria bajo live: se le da una SINTÉTICA a todos para que cada caso mida SU guardia y no la falta de esta; un caso puede quitarla con `null`.
+  const envOverrides = Object.fromEntries(only.map((name) => [name, { PAY_MODE: 'live', IDEMPOTENCY_MASK_KEY: 'clave-sintetica-de-prueba-0123456789abcdef', ...extraEnv[name] }]));
   const stack = await startStack({ only, envOverrides, readyTimeoutMs: 25_000 });
   let results: LiveGuardResult[] = [];
   let leftover: readonly number[] = [];

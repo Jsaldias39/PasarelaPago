@@ -13,7 +13,9 @@ import { FakeConnectors, FakeLedger } from './helpers/fakes';
  * `PAY_MODE` (D-26, decisión de la ola 2): pay-settlement lo lee EXPLÍCITO (sandbox|live), sin valor por defecto, y bajo `live` se niega a arrancar con
  * cualquier doble o con el conector mock. Relación con `X-Pay-Mode` (D-28): una clave `test` solo opera contra sandbox; una `live`, contra live.
  */
-const KEYS = ['PAY_MODE', 'SETTLEMENT_MODE', 'SETTLEMENT_TRANSFER_CONNECTOR'] as const;
+const KEYS = ['PAY_MODE', 'SETTLEMENT_MODE', 'SETTLEMENT_TRANSFER_CONNECTOR', 'IDEMPOTENCY_MASK_KEY'] as const;
+// Bajo live el almacén de idempotencia exige IDEMPOTENCY_MASK_KEY (≥32 bytes, S-02). Valor sintético de prueba.
+const MASK_KEY = 'clave-sintetica-de-prueba-0123456789abcdef';
 const saved: Record<string, string | undefined> = {};
 beforeEach(() => KEYS.forEach((k) => (saved[k] = process.env[k])));
 afterEach(() => KEYS.forEach((k) => (saved[k] === undefined ? delete process.env[k] : (process.env[k] = saved[k]))));
@@ -90,7 +92,7 @@ describe('arranque de la aplicación', () => {
   });
 
   it('live con colaboradores reales (clientes HTTP, riel bancario, conector de verdad): arranca', async () => {
-    const app = await boot({ PAY_MODE: 'live', SETTLEMENT_MODE: 'bank', SETTLEMENT_TRANSFER_CONNECTOR: null });
+    const app = await boot({ PAY_MODE: 'live', SETTLEMENT_MODE: 'bank', SETTLEMENT_TRANSFER_CONNECTOR: null, IDEMPOTENCY_MASK_KEY: MASK_KEY });
     try {
       const res = await request(app.getHttpServer()).get('/health/ready').expect(200);
       expect(res.body.info.settlement).toMatchObject({ payMode: 'live', mode: 'bank', rail: 'bank_transfer', simulated: false });
@@ -99,11 +101,17 @@ describe('arranque de la aplicación', () => {
     }
   });
 
+  it('live SIN IDEMPOTENCY_MASK_KEY (o con una corta): NO arranca y dice qué falta (S-02)', async () => {
+    const env = { PAY_MODE: 'live', SETTLEMENT_MODE: 'bank', SETTLEMENT_TRANSFER_CONNECTOR: null };
+    await expect(boot({ ...env, IDEMPOTENCY_MASK_KEY: null })).rejects.toThrow(/IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live/);
+    await expect(boot({ ...env, IDEMPOTENCY_MASK_KEY: 'corta' })).rejects.toThrow(/IDEMPOTENCY_MASK_KEY inválida/);
+  });
+
   it.each([
     ['con un ledger doble', { ledger: true }, /cliente del ledger/],
     ['con un conector doble', { connectors: true }, /cliente de conectores/],
   ])('live %s: NO arranca', async (_n, doubles, message) => {
-    await expect(boot({ PAY_MODE: 'live', SETTLEMENT_MODE: 'bank', SETTLEMENT_TRANSFER_CONNECTOR: null }, doubles)).rejects.toThrow(message);
+    await expect(boot({ PAY_MODE: 'live', SETTLEMENT_MODE: 'bank', SETTLEMENT_TRANSFER_CONNECTOR: null, IDEMPOTENCY_MASK_KEY: MASK_KEY }, doubles)).rejects.toThrow(message);
   });
 
   it('sandbox con dobles: arranca (los dobles son de sandbox)', async () => {

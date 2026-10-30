@@ -6,6 +6,9 @@ import { loadConfig } from '../src/config';
 const DB = { DB_HOST: '127.0.0.1', DB_NAME: 'pay_risk', DB_USER: 'pay_risk', DB_PASSWORD: 'dev_only_risk', DB_PORT: '54321' };
 const RISK = { WATCHMAN_URL: 'http://127.0.0.1:54084', SANCTIONS_DENY_SCORE: '0.80', SANCTIONS_REVIEW_SCORE: '0.60', PAYER_HASH_KEY: 'clave-de-prueba-no-es-un-secreto' };
 
+// Bajo live el almacén de idempotencia exige IDEMPOTENCY_MASK_KEY (≥32 bytes, S-02). Valor sintético de prueba.
+const MASK_KEY = 'clave-sintetica-de-prueba-0123456789abcdef';
+
 describe('PAY_MODE (configuración de la plantilla)', () => {
   it('es obligatorio, SIN valor por defecto, y solo admite sandbox | live', () => {
     expect(() => loadConfig({ ...DB })).toThrow(/PAY_MODE/);
@@ -70,9 +73,19 @@ describe('arranque real del proceso (dist/main.js)', () => {
     expect(end.code === 0 || end.signal === 'SIGTERM').toBe(true);
   }, 40000);
 
+  it('live SIN IDEMPOTENCY_MASK_KEY (o con una corta) NO arranca y lo dice (S-02)', async () => {
+    for (const key of [undefined, 'corta']) {
+      const { child, output, ended } = boot({ PORT: String(3300 + Math.floor(Math.random() * 600)), PAY_MODE: 'live', WATCHMAN_LISTS: 'current', ...(key ? { IDEMPOTENCY_MASK_KEY: key } : {}), ...RISK });
+      const end = await Promise.race([ended, new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 30000))]);
+      child.kill('SIGTERM');
+      expect(end).not.toBe('timeout');
+      expect(output()).toMatch(key ? /IDEMPOTENCY_MASK_KEY inválida/ : /IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live/);
+    }
+  }, 70000);
+
   it('live con las listas vigentes declaradas ARRANCA (no hay otro doble en este servicio)', async () => {
     const port = 3300 + Math.floor(Math.random() * 600);
-    const { child, ended } = boot({ PORT: String(port), PAY_MODE: 'live', WATCHMAN_LISTS: 'current', ...RISK });
+    const { child, ended } = boot({ PORT: String(port), PAY_MODE: 'live', WATCHMAN_LISTS: 'current', IDEMPOTENCY_MASK_KEY: MASK_KEY, ...RISK });
     try {
       expect(await healthy(port, 20000)).toBe(true);
     } finally {

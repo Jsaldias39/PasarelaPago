@@ -120,3 +120,24 @@ Las pruebas de `test/svix/` **fallan, no se saltean**, si Svix no está (o no ti
 
 Nuevos: `services/pay-webhooks/src/engine/svix/{svix-client,svix-engine,svix-reconciler,svix-reconcile.runner}.ts`; `services/pay-webhooks/test/svix/{svix-client.spec,svix-engine-contract.spec,svix-integration.spec,svix-e6.spec}.ts`, `svix-env.ts`, `svix-harness.ts`; `services/pay-webhooks/test/doubles/https-receiver.ts`; `docs/trabajo/ola-5/P1/{INFORME,PROPUESTAS,DECISIONES-TOMADAS}.md` y `evidencia/`.
 Modificados: `services/pay-webhooks/src/{config,webhooks.module,health.controller}.ts`, `src/engine/{delivery-engine,worker.runner}.ts`, `src/events/event-ingest.ts`, `.env.example`, `README.md`, `test/{harness,health.spec,engine-contract}.ts`; `platform/compose.yml` (servicio `svix`: etiqueta fijada `v1.104.0`, `SVIX_WHITELABEL_HEADERS`, `SVIX_ENDPOINT_HTTPS_ONLY`, `extra_hosts`, y tres perillas de prueba cerradas por defecto).
+
+## 9. Correcciones de la revisión independiente (REVISION-DINERO F2, F5, F8)
+
+Decisiones DT-41 a DT-45 en `DECISIONES-TOMADAS.md`. Evidencia: `evidencia/f2f5f8-rojo.txt` (los specs nuevos contra el `src` anterior: 36 pruebas en rojo) y `evidencia/f2f5f8-verde.txt` (mismas pruebas en verde; `yarn eslint services/pay-webhooks`, `typecheck`, `build` con código 0; `yarn test` completo dos veces: 20 suites, 543 pruebas, 0 fallos). Todo contra Svix 1.104.0 y Postgres reales.
+
+| Hallazgo | Corrección | Prueba |
+|---|---|---|
+| F2 | `metadata.pay_owner = WEBHOOKS_SVIX_NAMESPACE` en cada endpoint nuevo; el reconciliador solo trata como huérfano el que lleva SU marca; tope de borrados por pasada (defecto 5, suma de comercios): al superarlo no borra ninguno, avisa y expone `orphan_guard` en `/health/ready` | `test/svix/svix-reconciler-guards.spec.ts`, `test/health.spec.ts` |
+| F5 | gracia efectiva = gracia + margen de reloj; gracia mínima = peor caso de un alta, validada al arrancar; borrado compensatorio del endpoint si el alta falla de forma definitiva después de crearlo | ídem + `test/svix/svix-engine-errors.spec.ts` |
+| F8 | 413 ⇒ rechazo definitivo; 401/403 ⇒ `EngineMisconfiguredError` (evento pendiente, lote detenido, alerta); 404 de aplicación ⇒ recrear una vez y reintentar, salvo deriva ⇒ `EngineDriftError`; el 409 cuenta como `alreadyPublished` | `test/svix/svix-engine-errors.spec.ts` |
+
+Cambió el arreglo (no la aserción) de una prueba existente: el huérfano de `svix-integration.spec.ts` ahora nace con la marca del entorno (sin ella, por diseño, no se borra) y el reconciliador «estricto» fija `clockMarginMs: 0`. Y la aserción de `health.spec.ts` sobre `config.svix` se amplió con los tres campos nuevos. Ninguna prueba se borró, se saltó ni se debilitó.
+
+No cubierto de esta corrección:
+- **Restauración con pocos huérfanos:** si una base restaurada deja ≤ tope endpoints propios sin fila, se borran tras la gracia (la marca distingue entornos, no «alta revertida» de «alta posterior al punto de restauración»). El tope y el aviso lo acotan, no lo eliminan.
+- **Endpoints anteriores a la marca** (si los hay en algún Svix): nunca se borran; si quedaran huérfanos se limpian a mano.
+- **Dos entornos con el MISMO `WEBHOOKS_SVIX_NAMESPACE`** sobre un Svix compartido: no se detecta (solo se exige que live ≠ `sandbox`).
+- **`max_deliver: 20` del consumidor NATS:** con 401/403 sostenido, tras ~20 reentregas NATS deja de entregar el evento. El nak de 60 s, la pausa de 30 s y la alerta lo retrasan; subir `max_deliver` o publicar un aviso de agotamiento es un cambio de consumidor durable fuera de este alcance. El consumidor real contra NATS no se ejerció (se probó `handle` con un mensaje de mentira).
+- **413 real de Svix:** no se provocó (400 KB no lo dispara en 1.104.0); se probó con un `fetch` que devuelve 413.
+- **COMMIT realmente dudoso:** el caso ambiguo se probó terminando el backend de la transacción (`pg_terminate_backend`); no se probó una pérdida de red exactamente entre el `COMMIT` enviado y su respuesta.
+- E2E del repo (`e2e/`) y la CLI `envprobe`: no se corrieron; ningún flujo de e2e arranca `pay-webhooks` en live con `svix`, así que `WEBHOOKS_SVIX_NAMESPACE` obligatorio en live no los afecta hoy (grep sin coincidencias fuera de logs antiguos).

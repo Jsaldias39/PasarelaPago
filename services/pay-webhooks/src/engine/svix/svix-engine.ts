@@ -4,7 +4,7 @@ import { generateKeyPair, generateSecret } from '@pay/webhook-signature';
 import { enabledEndpointsFor } from '../../endpoints/endpoint.repository';
 import type { EndpointRecord } from '../../endpoints/endpoint.types';
 import { PUBLIC_EVENT_TYPES } from '../../events/public-events';
-import { EngineDriftError, EngineMisconfiguredError, EngineRejectedError, type DeliveryEngine, type OutboundMessage, type PublishResult, type SecretDisclosure } from '../delivery-engine';
+import { EngineDriftError, EngineMisconfiguredError, EngineRejectedError, type DeliveryEngine, type OutboundMessage, type PublishOutcome, type SecretDisclosure } from '../delivery-engine';
 import { SvixApiError, SvixUnavailableError, type SvixClient } from './svix-client';
 import { DEFAULT_SANDBOX_NAMESPACE, SVIX_OWNER_KEY, assertValidNamespace } from './svix-namespace';
 
@@ -138,14 +138,13 @@ export class SvixEngine implements DeliveryEngine {
     }
   }
 
-  async publish(db: Queryable, message: OutboundMessage): Promise<number> {
-    return (await this.publishDetailed(db, message)).deliveries;
-  }
-
-  async publishDetailed(db: Queryable, message: OutboundMessage): Promise<PublishResult> {
+  async publish(db: Queryable, message: OutboundMessage, report?: (outcome: PublishOutcome) => void): Promise<number> {
     // Los suscriptores se deciden con NUESTRA tabla (la autoridad de qué endpoints están habilitados); Svix filtra por tipo con lo mismo.
     const endpoints = await enabledEndpointsFor(db, message.merchantId, message.eventType);
-    if (endpoints.length === 0) return { deliveries: 0, outcome: 'no_subscribers' };
+    if (endpoints.length === 0) {
+      report?.('no_subscribers');
+      return 0;
+    }
 
     const payload = parsePayloadObject(message.payload);
     let outcome: 'created' | 'exists';
@@ -154,7 +153,10 @@ export class SvixEngine implements DeliveryEngine {
     } catch (error) {
       throw this.classify(error, message);
     }
-    if (outcome === 'created') return { deliveries: endpoints.length, outcome: 'queued' };
+    if (outcome === 'created') {
+      report?.('queued');
+      return endpoints.length;
+    }
 
     // 409: ¿es este mismo evento (ya creado, p. ej. tras una caída entre Svix y el commit del inbox) o un `eventId` ajeno?
     let existing;
@@ -163,7 +165,10 @@ export class SvixEngine implements DeliveryEngine {
     } catch (error) {
       throw this.classify(error, message);
     }
-    if (existing && existing.eventId === message.eventId) return { deliveries: 0, outcome: 'already_published' };
+    if (existing && existing.eventId === message.eventId) {
+      report?.('already_published');
+      return 0;
+    }
     this.logger.error({ event_id: message.eventId, type: message.eventType }, 'Svix respondió 409 pero el mensaje no está en la aplicación del comercio');
     throw new EngineRejectedError('event_id_conflict');
   }

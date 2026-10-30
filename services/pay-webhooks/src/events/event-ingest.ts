@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { processOnce } from '@pay/outbox';
 import { PG_POOL } from '../database.module';
-import { DELIVERY_ENGINE, EngineMisconfiguredError, EngineRejectedError, type DeliveryEngine, type PublishResult } from '../engine/delivery-engine';
+import { DELIVERY_ENGINE, EngineMisconfiguredError, EngineRejectedError, type DeliveryEngine, type PublishOutcome } from '../engine/delivery-engine';
 import { PayloadPolicyError, buildPublicPayload } from './payload-policy';
 import { isPublicEventType } from './public-events';
 
@@ -79,11 +79,14 @@ export class EventIngest {
       throw error;
     }
 
-    let published: PublishResult = { deliveries: 0, outcome: 'no_subscribers' };
+    let deliveries = 0;
+    const published: { outcome?: PublishOutcome } = {};
     let result;
     try {
       result = await processOnce(this.pool, `pay-webhooks.${raw.type}`, raw.id, async (client) => {
-        published = this.engine.publishDetailed ? await this.engine.publishDetailed(client, message) : await this.publishCounting(client, message);
+        deliveries = await this.engine.publish(client, message, (reported) => {
+          published.outcome = reported;
+        });
       });
     } catch (error) {
       // El motor dijo que este mensaje no se entregará NUNCA: reintentar no sirve. Se descarta (la transacción ya se revirtió) y se cuenta.
@@ -99,16 +102,11 @@ export class EventIngest {
       this.metrics.duplicates += 1;
       return { kind: 'duplicate' };
     }
+    // Un motor que no informa el motivo se interpreta por el número: cero ⇒ sin suscriptores.
     if (published.outcome === 'already_published') this.metrics.alreadyPublished += 1;
-    else if (published.deliveries === 0) this.metrics.noEndpoints += 1;
-    else this.metrics.queued += published.deliveries;
-    return { kind: 'queued', deliveries: published.deliveries };
-  }
-
-  /** Motor sin `publishDetailed`: solo se sabe cuántas entregas creó; cero se interpreta como «sin suscriptores». */
-  private async publishCounting(client: Parameters<DeliveryEngine['publish']>[0], message: Parameters<DeliveryEngine['publish']>[1]): Promise<PublishResult> {
-    const deliveries = await this.engine.publish(client, message);
-    return { deliveries, outcome: deliveries === 0 ? 'no_subscribers' : 'queued' };
+    else if (deliveries === 0) this.metrics.noEndpoints += 1;
+    else this.metrics.queued += deliveries;
+    return { kind: 'queued', deliveries };
   }
 
   private reject(reason: 'malformed' | 'payload_policy', detail: string): IngestOutcome {

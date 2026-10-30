@@ -35,6 +35,14 @@ describe('guardia de modo — PAY_MODE=live con el conector mock y los dobles de
     expect({ healthy: withSwitch!.healthy, refusedByMode: refusedLive(withSwitch!) }).toEqual({ healthy: false, refusedByMode: true });
   });
 
+  it('S-02: sin IDEMPOTENCY_MASK_KEY ningún servicio que usa el almacén de idempotencia arranca en live, y el registro dice qué falta', async () => {
+    const services = ['pay-ledger', 'pay-schedules'] as const;
+    const results = await bootUnderLive(services, Object.fromEntries(services.map((name) => [name, { IDEMPOTENCY_MASK_KEY: null }])));
+    for (const result of results) {
+      expect({ service: result.service, healthy: result.healthy, named: /IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live/.test(result.log) }).toEqual({ service: result.service, healthy: false, named: true });
+    }
+  });
+
   it('pay-ledger tampoco: el arnés le da un TigerBeetle REAL (privado), así que en live arranca; un doble del motor lo haría negarse (assertDeploymentSafe, probado en su carril)', async () => {
     const [ledger] = await bootUnderLive(['pay-ledger']);
     expect(ledger!.healthy).toBe(true);

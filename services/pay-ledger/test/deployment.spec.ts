@@ -12,9 +12,14 @@ import { TB_ENGINE, TigerBeetleEngine } from '../src/ledger/tb-engine';
  * cualquier doble. Relación con `X-Pay-Mode` (D-28): una clave `test` solo opera contra sandbox; una `live`, contra live.
  */
 const saved = process.env.PAY_MODE;
+const savedMaskKey = process.env.IDEMPOTENCY_MASK_KEY;
+// Bajo live el almacén de idempotencia exige IDEMPOTENCY_MASK_KEY (≥32 bytes, S-02). Valor sintético de prueba.
+const MASK_KEY = 'clave-sintetica-de-prueba-0123456789abcdef';
 afterEach(() => {
   if (saved === undefined) delete process.env.PAY_MODE;
   else process.env.PAY_MODE = saved;
+  if (savedMaskKey === undefined) delete process.env.IDEMPOTENCY_MASK_KEY;
+  else process.env.IDEMPOTENCY_MASK_KEY = savedMaskKey;
 });
 
 const BASE = { TB_ADDRESS: '127.0.0.1:54300' };
@@ -58,9 +63,11 @@ describe('guardia de despliegue: live no acepta dobles', () => {
 });
 
 describe('arranque de la aplicación', () => {
-  async function boot(payMode: string | undefined, fakeEngine = false): Promise<INestApplication> {
+  async function boot(payMode: string | undefined, fakeEngine = false, maskKey: string | undefined = MASK_KEY): Promise<INestApplication> {
     if (payMode === undefined) delete process.env.PAY_MODE;
     else process.env.PAY_MODE = payMode;
+    if (maskKey === undefined) delete process.env.IDEMPOTENCY_MASK_KEY;
+    else process.env.IDEMPOTENCY_MASK_KEY = maskKey;
     let builder = Test.createTestingModule({ imports: [AppModule] });
     if (fakeEngine) builder = builder.overrideProvider(TB_ENGINE).useValue({ destroy: () => undefined });
     const app = (await builder.compile()).createNestApplication();
@@ -87,6 +94,11 @@ describe('arranque de la aplicación', () => {
 
   it('PAY_MODE=live con un motor que es un doble: NO arranca', async () => {
     await expect(boot('live', true)).rejects.toThrow(/PAY_MODE=live se niega a arrancar con dobles: motor de TigerBeetle/);
+  });
+
+  it('PAY_MODE=live SIN IDEMPOTENCY_MASK_KEY (o con una corta): NO arranca y dice qué falta (S-02)', async () => {
+    await expect(boot('live', false, undefined)).rejects.toThrow(/IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live/);
+    await expect(boot('live', false, 'corta')).rejects.toThrow(/IDEMPOTENCY_MASK_KEY inválida/);
   });
 
   it('PAY_MODE=sandbox con un doble: arranca (los dobles son de sandbox)', async () => {

@@ -37,14 +37,11 @@ export interface DeliveryEngine {
   removeEndpoint(db: Queryable, endpoint: EndpointRecord): Promise<void>;
   /**
    * Encola el mensaje para los endpoints suscriptos del comercio. Repetirlo no duplica nada. Devuelve cuántas entregas nuevas creó.
+   * `report` (opcional) recibe POR QUÉ se creó o no alguna entrega (sin suscriptores vs. el mensaje ya estaba publicado), para que la métrica `noEndpoints`
+   * no cuente como «sin endpoints» un evento que Svix ya tenía (REVISION-DINERO F8). Un motor que no lo informa se interpreta por el número devuelto.
    * @throws EngineRejectedError si el mensaje NUNCA se podrá entregar (reintentar no sirve); cualquier otro error es transitorio.
    */
-  publish(db: Queryable, message: OutboundMessage): Promise<number>;
-  /**
-   * Opcional. Igual que `publish` pero distingue POR QUÉ no se creó ninguna entrega (sin suscriptores vs. el mensaje ya estaba publicado), para que la
-   * métrica `noEndpoints` no cuente como «sin endpoints» un evento que Svix ya tenía (REVISION-DINERO F8). `publish` devuelve `deliveries` de este resultado.
-   */
-  publishDetailed?(db: Queryable, message: OutboundMessage): Promise<PublishResult>;
+  publish(db: Queryable, message: OutboundMessage, report?: (outcome: PublishOutcome) => void): Promise<number>;
   /**
    * Opcional. Deshace en el motor lo que `provisionEndpoint` dejó FUERA de la transacción del alta (un endpoint de Svix) cuando el alta falló de forma
    * definitiva después de aprovisionar. Nunca lanza: si no puede, lo registra y la reconciliación lo resolverá. El motor en proceso no lo necesita
@@ -55,10 +52,6 @@ export interface DeliveryEngine {
 
 export type PublishOutcome = 'queued' | 'no_subscribers' | 'already_published';
 
-export interface PublishResult {
-  readonly deliveries: number;
-  readonly outcome: PublishOutcome;
-}
 
 export type EngineRejection = 'payload_invalid' | 'event_id_conflict' | 'rejected_by_engine';
 
