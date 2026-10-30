@@ -183,6 +183,13 @@ describe('HttpClient — traceparent del contexto activo y x-request-id de la pe
     expect(seen[0]!['x-request-id']).toBe('traza-pend-aaaa1111');
     expect(seen[0]!['idempotency-key']).toBe('k-0000000001');
     expect(seen[0]!['x-service-id']).toBe('pay-payments');
+    // El cuerpo JSON viaja con su content-type (sin él el servicio de destino no lo interpreta y responde 422).
+    expect(seen[0]!['content-type']).toBe('application/json');
+  });
+
+  it('LÍMITE: una llamada sin cuerpo (GET) no declara content-type', async () => {
+    await client().request({ method: 'GET', path: '/a' });
+    expect(seen[0]!['content-type']).toBeUndefined();
   });
 
   it('CORRECTO: los REINTENTOS de una llamada llevan el mismo x-request-id y el mismo idempotency-key (cada intento tiene su propio span)', async () => {

@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { EngineMisconfiguredError, EngineRejectedError, type OutboundMessage } from '../../src/engine/delivery-engine';
+import * as engineErrors from '../../src/engine/delivery-engine';
+import type { OutboundMessage } from '../../src/engine/delivery-engine';
 import { SvixEngine } from '../../src/engine/svix/svix-engine';
 import { SvixClient } from '../../src/engine/svix/svix-client';
 import { insertEndpoint } from '../../src/endpoints/endpoint.repository';
@@ -56,7 +57,7 @@ describe('SvixEngine: errores definitivos, deriva de la aplicación y compensaci
       try {
         const error = await s.h.ingest.ingest(event).catch((e: unknown) => e);
         expect(error).toMatchObject({ name: 'EngineMisconfiguredError', status: 401 });
-        expect(error).toBeInstanceOf(EngineMisconfiguredError);
+        expect(error).toBeInstanceOf(engineErrors.EngineMisconfiguredError);
         expect(String((error as Error).message) + String((error as Error).stack)).not.toContain('aaa.bbb.ccc');
       } finally {
         if (original) s.engine.publishDetailed = original;
@@ -76,7 +77,7 @@ describe('SvixEngine: errores definitivos, deriva de la aplicación y compensaci
       const handle = (s.h.consumer as unknown as { handle(message: unknown): Promise<string> }).handle.bind(s.h.consumer);
       try {
         s.h.ingest.ingest = async () => {
-          throw new EngineMisconfiguredError(403);
+          throw new engineErrors.EngineMisconfiguredError(403);
         };
         expect(await handle(fake())).toBe('halt');
         s.h.ingest.ingest = async () => {
@@ -121,7 +122,7 @@ describe('SvixEngine: errores definitivos, deriva de la aplicación y compensaci
       const msg = message(merchant);
       const error = await s.engine.publish(s.h.db.pool, msg).catch((e: unknown) => e);
       expect(error).toMatchObject({ name: 'EngineDriftError', missingEndpoints: 1 });
-      expect(error).not.toBeInstanceOf(EngineRejectedError); // no se descarta: se reintenta
+      expect(error).not.toBeInstanceOf(engineErrors.EngineRejectedError); // no se descarta: se reintenta
       expect(await s.client.listEndpoints(merchant)).toEqual([]); // la aplicación sí quedó recreada
       expect(await s.messages(merchant)).toEqual([]); // y NADA se publicó «con éxito» a una aplicación sin endpoints
     });

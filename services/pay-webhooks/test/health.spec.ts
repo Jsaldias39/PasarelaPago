@@ -140,7 +140,8 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
       });
 
       it('INVÁLIDO: live SIN WEBHOOKS_SVIX_NAMESPACE ⇒ no arranca (no hay valor por defecto en live)', () => {
-        const { WEBHOOKS_SVIX_NAMESPACE: _omit, ...withoutNamespace } = liveSvix;
+        const withoutNamespace: Record<string, string | undefined> = { ...liveSvix };
+        delete withoutNamespace.WEBHOOKS_SVIX_NAMESPACE;
         expect(() => loadConfig(withoutNamespace)).toThrow(/exige declarar WEBHOOKS_SVIX_NAMESPACE/);
         expect(() => loadConfig({ ...withoutNamespace, WEBHOOKS_SVIX_NAMESPACE: '' })).toThrow(/exige declarar WEBHOOKS_SVIX_NAMESPACE/);
       });

@@ -1,0 +1,34 @@
+FAIL e2e/flows/risk-timeout.e2e.ts (16.028 s)
+  ● REPRODUCTOR — timeout del cliente de riesgo + 409 idempotency_request_in_progress › un cobro cuya primera evaluación de riesgo vence en el cliente NO queda en processing para siempre
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Array [
+    -   "succeeded",
+    -   "succeeded",
+    -   "succeeded",
+    -   "succeeded",
+    +   "failed",
+    +   "failed",
+    +   "failed",
+    +   "failed",
+      ]
+
+      33 |     expect(created.map((c) => c.status)).toEqual([201, 201, 201, 201]);
+      34 |     const settled = await Promise.all(created.map((c) => api.settle(c.intent.id, 30_000)));
+    > 35 |     expect(settled.map((s) => s.status)).toEqual(['succeeded', 'succeeded', 'succeeded', 'succeeded']);
+         |                                          ^
+      36 |   });
+      37 | });
+      38 |
+
+      at Object.toEqual (e2e/flows/risk-timeout.e2e.ts:35:42)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        16.11 s
+Ran all test suites matching flows/risk-timeout.

@@ -1,5 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 import { containsCardNumber, isAcceptableRequestId, resolveRequestId, safeIdempotencyKey } from './card-number';
+import { IdempotencyStore } from './index';
 import { assertIdempotencyMaskConfig, DEV_MASK_KEY, MASK_KEY_ENV, resolveMaskKey } from './mask-key';
 
 /** Número de PRUEBA público de la marca (pasa Luhn). Sintético. */
@@ -91,6 +92,36 @@ describe('S-02 · safeIdempotencyKey enmascara con HMAC y clave de servidor: el 
  * El ataque de S-02: quien lee `idempotency_keys` (o un volcado) conoce el BIN y enumera los candidatos que cumplen Luhn. Acá se acota a 10^4 candidatos (varían 4 dígitos
  * del prefijo de 15; control Luhn calculado) para que la prueba sea rápida; el espacio completo con BIN conocido (~10^9) solo cambia el tiempo, no el resultado.
  */
+describe('S-02 · el almacén de idempotencia valida la clave al CONSTRUIRSE (arranque), no en la primera petición con un PAN', () => {
+  const pool = { query: async () => ({ rows: [], rowCount: 0 }) } as never;
+  const saved = { mode: process.env.PAY_MODE, key: process.env[MASK_KEY_ENV] };
+  afterEach(() => {
+    for (const [name, value] of [['PAY_MODE', saved.mode], [MASK_KEY_ENV, saved.key]] as const) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  it('INVÁLIDO: bajo live sin clave, con una corta o con la de desarrollo, new IdempotencyStore lanza', () => {
+    process.env.PAY_MODE = 'live';
+    delete process.env[MASK_KEY_ENV];
+    expect(() => new IdempotencyStore(pool)).toThrow(/obligatoria bajo PAY_MODE=live/);
+    process.env[MASK_KEY_ENV] = 'corta';
+    expect(() => new IdempotencyStore(pool)).toThrow(/mide 5 bytes/);
+    process.env[MASK_KEY_ENV] = DEV_MASK_KEY;
+    expect(() => new IdempotencyStore(pool)).toThrow(/desarrollo/);
+  });
+
+  it('CORRECTO / LÍMITE: live con 32 bytes y sandbox sin clave se construyen', () => {
+    process.env.PAY_MODE = 'live';
+    process.env[MASK_KEY_ENV] = 'k'.repeat(32);
+    expect(() => new IdempotencyStore(pool)).not.toThrow();
+    process.env.PAY_MODE = 'sandbox';
+    delete process.env[MASK_KEY_ENV];
+    expect(() => new IdempotencyStore(pool)).not.toThrow();
+  });
+});
+
 function bruteForceFrom(start: string, count: number, stored: string, hashOf: (candidate: string) => string): string | undefined {
   for (let n = 0; n < count; n += 1) {
     const prefix = start.slice(0, 11) + String(n).padStart(4, '0');

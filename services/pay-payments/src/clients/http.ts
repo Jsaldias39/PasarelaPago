@@ -146,6 +146,7 @@ export class HttpClient {
     // El id de la petición de origen se conserva de extremo a extremo; sin petición de origen (un timer, un consumidor) esta llamada abre el suyo.
     const requestId = isValidRequestId(base['x-request-id']) ? base['x-request-id'] : (currentRequestId() ?? randomUUID());
     const headers: Record<string, string> = withActiveTraceparent({ ...base, 'x-request-id': requestId });
+    if (request.body !== undefined) headers['content-type'] = 'application/json';
     let response: Response;
     try {
       response = await fetch(`${this.options.baseUrl}${request.path}`, {
