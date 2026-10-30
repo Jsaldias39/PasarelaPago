@@ -1,0 +1,318 @@
+# mut23 — 22 mutaciones de F-B1/F-B2/F-D1/F-B3 ejecutadas en un git worktree aparte (nunca en el árbol principal)
+# Fecha: 2026-10-30 · HEAD del worktree: 49124fa (detached) · Postgres/NATS/Redis/Svix 1.104.0 reales del compose · cada jest tras `flock /tmp/pay-heavy.lock`, de a uno.
+# MUERTA = la prueba dirigida FALLÓ con la mutación (bien). SOBREVIVE = la prueba dirigida PASÓ con la mutación (hueco de cobertura).
+# NOTA: el encargo habla de 23 mutaciones; fb-mut.py define 22 (F-B1.a–e = 5, F-B2.a–k = 11, F-D1.a–d = 4, F-B3.a–b = 2). No se inventó una 23ª.
+
+## Bases sin mutar (todas verdes antes de mutar)
+BASE pay-edge_replica-redelivery.spec.ts                     # exit=0 t=22s | 6 passed, 6 total
+BASE pay-payments_events.redelivery.spec.ts                  # exit=0 t=125s | 5 passed, 5 total
+BASE pay-schedules_nats-redelivery.spec.ts                   # exit=0 t=48s | 6 passed, 6 total
+BASE pay-settlement_nats.spec.ts                             # exit=0 t=47s | 7 passed, 7 total
+BASE pay-webhooks_append-only-guards.spec.ts                 # exit=0 t=26s | 8 passed, 8 total
+BASE pay-webhooks_definite-database-error.spec.ts            # exit=0 t=25s | 36 passed, 36 total
+BASE pay-webhooks_event-redelivery.spec.ts                   # exit=0 t=158s | 10 passed, 10 total
+BASE pay-webhooks_health.spec.ts                             # exit=0 t=70s | 89 passed, 89 total
+BASE pay-webhooks_svix-reconciler-orphan-action.spec.ts      # exit=0 t=99s | 8 passed, 8 total
+
+## Tabla de las 22 mutaciones
+F-B1.a el defecto vuelve a ser borrar
+   -> MUERTA | 4 failed, 4 passed, 8 total | # exit=1 t=60s
+      ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › CORRECTO (el procedimiento): reactivar con la marca de liberado restablece la entrega; el reconciliador lo respeta y, al re-adoptar la fila, queda gest
+      ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › CORRECTO (la sonda B de la revisión): tras la restauración ningún endpoint posterior se borra; se deshabilitan, su secreto sigue en Svix y los anterior
+      ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › CORRECTO: un huérfano deshabilitado ya no recibe eventos del comercio, y las pasadas siguientes no lo vuelven a tocar (ni cuentan como nuevo)
+F-B1.b el reconciliador ignora la marca de liberado
+   -> MUERTA | 2 failed, 6 passed, 8 total | # exit=1 t=72s
+      ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › CORRECTO (el procedimiento): reactivar con la marca de liberado restablece la entrega; el reconciliador lo respeta y, al re-adoptar la fila, queda gest
+      ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › INVÁLIDO: un huérfano liberado NUNCA se borra, ni siquiera con orphanAction=delete
+F-B1.c no se relee la base antes de actuar
+   -> SOBREVIVE | 8 passed, 8 total | # exit=0 t=13s
+F-B1.d desaparece la confirmación deliberada en live
+   -> MUERTA | 1 failed, 88 passed, 89 total | # exit=1 t=7s
+      ● loadConfig — falla al arrancar con configuración inválida (regla 90.3.4) › WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble) › REVISION-DINERO F2/F5: espacio de nombres, tope de borrados, margen de reloj y gracia míni
+F-B1.e sobre el tope en modo delete no se deshabilita (queda vivo)
+   -> MUERTA | 1 failed, 7 passed, 8 total | # exit=1 t=26s
+      ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › LÍMITE: con orphanAction=delete EXPLÍCITO y dentro del tope sí se borra (el comportamiento anterior, ahora opt-in); con más candidatos que el tope no s
+F-B2.a (webhooks) vuelve max_deliver 20
+   -> MUERTA | 4 failed, 6 passed, 10 total | # exit=1 t=43s
+      ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › el consumidor real de pay-webhooks › CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver se entrega y el efecto ocurre UN
+      ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › el consumidor real de pay-webhooks › el durable viejo se migró al arrancar el servicio
+      ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › migración del durable (ensureUnlimitedDurable) › CORRECTO: sin durable lo crea sin tope y sin `backoff` del servidor; repetirlo no cambia nada
+F-B2.b (webhooks) nak sin retardo (reentrega en caliente)
+   -> MUERTA | 2 failed, 8 passed, 10 total | # exit=1 t=30s
+      ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › el consumidor real de pay-webhooks › CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver se entrega y el efecto ocurre UN
+      ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › el consumidor real de pay-webhooks › INVÁLIDO: lo que nunca se podrá procesar se descarta (term) y NO gira para siempre aunque no haya tope
+F-B2.c (webhooks) no se migra un durable existente
+   -> MUERTA | 4 failed, 6 passed, 10 total | # exit=1 t=77s
+      ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › el consumidor real de pay-webhooks › CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver se entrega y el efecto ocurre UN
+      ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › el consumidor real de pay-webhooks › el durable viejo se migró al arrancar el servicio
+      ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › migración del durable (ensureUnlimitedDurable) › INVÁLIDO: si el durable viejo ya dejó eventos varados por el tope, la migración lo avisa (alert) en vez de callar
+F-B2.d (payments) vuelve max_deliver 20
+   -> MUERTA | 2 failed, 3 passed, 5 total | # exit=1 t=116s
+      ● F-B2 · consumidores durables de pay-payments sin tope de entregas (NATS JetStream real) › CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver el efecto ocurre UNA vez, y repetirlo no lo duplic
+      ● F-B2 · consumidores durables de pay-payments sin tope de entregas (NATS JetStream real) › el durable viejo se migró al arrancar el servicio; los que no existían se crearon sin tope
+F-B2.e (payments) nak sin retardo
+   -> MUERTA | 1 failed, 4 passed, 5 total | # exit=1 t=141s
+      ● F-B2 · consumidores durables de pay-payments sin tope de entregas (NATS JetStream real) › CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver el efecto ocurre UNA vez, y repetirlo no lo duplic
+F-B2.f (settlement) vuelve max_deliver 20
+   -> MUERTA | 2 failed, 5 passed, 7 total | # exit=1 t=70s
+      ● F-B2 · entrega sin tope de los consumidores durables › CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver el efecto ocurre UNA vez, y repetirlo no lo duplica
+      ● F-B2 · entrega sin tope de los consumidores durables › los tres durables quedan sin tope (los que existían con max_deliver 20 de corridas anteriores se migran al arrancar)
+F-B2.g (settlement) nak sin retardo
+   -> MUERTA | 2 failed, 5 passed, 7 total | # exit=1 t=35s
+      ● F-B2 · entrega sin tope de los consumidores durables › CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver el efecto ocurre UNA vez, y repetirlo no lo duplica
+      ● consumidores durables sobre NATS JetStream real › basura, JSON inválido, sobres inválidos y eventos ajenos no traban el consumidor ni se reintentan sin fin; el siguiente evento válido pasa
+F-B2.h (edge) vuelve max_deliver 20
+   -> MUERTA | 2 failed, 4 passed, 6 total | # exit=1 t=69s
+      ● F-B2 · réplica de claves sin tope de entregas (NATS JetStream real) › CORRECTO/LÍMITE: una revocación que no se pudo aplicar durante MÁS de 20 entregas (25) se aplica al volver la base: la clave deja de valer y el efecto ocurre UNA vez
+      ● F-B2 · réplica de claves sin tope de entregas (NATS JetStream real) › el durable viejo se migró al arrancar el servicio
+F-B2.i (edge) nak sin retardo
+   -> MUERTA | 2 failed, 4 passed, 6 total | # exit=1 t=51s
+      ● F-B2 · réplica de claves sin tope de entregas (NATS JetStream real) › CORRECTO/LÍMITE: una revocación que no se pudo aplicar durante MÁS de 20 entregas (25) se aplica al volver la base: la clave deja de valer y el efecto ocurre UNA vez
+      ● F-B2 · réplica de claves sin tope de entregas (NATS JetStream real) › INVÁLIDO: JSON ilegible y un sobre que rompe el contrato se descartan (term) y NO giran para siempre aunque no haya tope
+F-B2.j (schedules) vuelve max_deliver 20
+   -> MUERTA | 2 failed, 4 passed, 6 total | # exit=1 t=52s
+      ● F-B2 · réplica de comercios sin tope de entregas (NATS JetStream real) › CORRECTO/LÍMITE: una suspensión que no se pudo aplicar durante MÁS de 20 entregas (25) se aplica al volver la base; el efecto ocurre UNA vez y repetirla no lo duplic
+      ● F-B2 · réplica de comercios sin tope de entregas (NATS JetStream real) › el durable viejo se migró al arrancar el servicio
+F-B2.k (schedules) nak sin retardo
+   -> MUERTA | 2 failed, 4 passed, 6 total | # exit=1 t=37s
+      ● F-B2 · réplica de comercios sin tope de entregas (NATS JetStream real) › CORRECTO/LÍMITE: una suspensión que no se pudo aplicar durante MÁS de 20 entregas (25) se aplica al volver la base; el efecto ocurre UNA vez y repetirla no lo duplic
+      ● F-B2 · réplica de comercios sin tope de entregas (NATS JetStream real) › INVÁLIDO: JSON ilegible y un evento que rompe el contrato se descartan (term) y NO giran para siempre aunque no haya tope
+F-D1.a el live ya no bloquea la readiness
+   -> MUERTA | 1 failed, 7 passed, 8 total | # exit=1 t=31s
+      ● GET /health/ready con PAY_MODE=live y una base SIN guardianes (DDL anterior) › responde 503 y expone checks.append_only_guards con el mismo nombre y forma
+F-D1.b un trigger deshabilitado cuenta como presente
+   -> MUERTA | 1 failed, 7 passed, 8 total | # exit=1 t=9s
+      ● checkAppendOnlyGuards (pg_trigger real) › LÍMITE: uno solo ausente ⇒ falta ese; uno deshabilitado (DISABLE TRIGGER) cuenta como ausente; reaplicar el DDL idempotente lo repone
+F-D1.c el chequeo ya no es fail-closed
+   -> MUERTA | 1 failed, 7 passed, 8 total | # exit=1 t=30s
+      ● checkAppendOnlyGuards (pg_trigger real) › INVÁLIDO: si la consulta no puede hacerse (base inaccesible) es fail-closed: ok:false con todo faltante, no un verde falso
+F-D1.d la readiness no expone checks
+   -> MUERTA | 2 failed, 6 passed, 8 total | # exit=1 t=99s
+      ● GET /health/ready con PAY_MODE=sandbox y una base SIN guardianes (DDL anterior) › responde 200 y expone checks.append_only_guards con el mismo nombre y forma
+      ● GET /health/ready con la base y el DDL vigentes › CORRECTO: ok:true, missing vacío, 200; reaplicando el DDL a una base sin guardianes vuelve a ok sin reiniciar el servicio
+F-B3.a vuelve la regex de 5 caracteres
+   -> MUERTA | 4 failed, 32 passed, 36 total | # exit=1 t=111s
+      ● isDefiniteDatabaseError › INVÁLIDO: el código de Node EBADF (aunque tenga 5 caracteres) NO es un SQLSTATE ⇒ ambiguo
+      ● isDefiniteDatabaseError › INVÁLIDO: el código de Node ELOOP (aunque tenga 5 caracteres) NO es un SQLSTATE ⇒ ambiguo
+      ● isDefiniteDatabaseError › INVÁLIDO: el código de Node EPIPE (aunque tenga 5 caracteres) NO es un SQLSTATE ⇒ ambiguo
+F-B3.b se ignora la severidad (FATAL cuenta como definitivo)
+   -> MUERTA | 2 failed, 34 passed, 36 total | # exit=1 t=54s
+      ● isDefiniteDatabaseError › INVÁLIDO: un SQLSTATE válido con severidad FATAL o PANIC (puede llegar tras un COMMIT aplicado: 57P01) o sin severidad ⇒ ambiguo
+      ● isDefiniteDatabaseError › contra Postgres real (errores de verdad del driver) › una terminación administrativa de la conexión (57P01, FATAL) NO es definitiva
+
+## Evidencia literal de las corridas (salida de jest, recortada a resumen y fallos)
+----- MUT_F-B1.a.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/svix/svix-reconciler-orphan-action.spec.ts
+# exit=1 t=60s
+FAIL test/svix/svix-reconciler-orphan-action.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 4 passed, 8 total
+----- MUT_F-B1.b.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/svix/svix-reconciler-orphan-action.spec.ts
+# exit=1 t=72s
+FAIL test/svix/svix-reconciler-orphan-action.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 6 passed, 8 total
+----- MUT_F-B1.c.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/svix/svix-reconciler-orphan-action.spec.ts
+# exit=0 t=13s
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+----- MUT_F-B1.d.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/health.spec.ts
+# exit=1 t=7s
+FAIL test/health.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 88 passed, 89 total
+----- MUT_F-B1.e.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/svix/svix-reconciler-orphan-action.spec.ts
+# exit=1 t=26s
+FAIL test/svix/svix-reconciler-orphan-action.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 7 passed, 8 total
+----- MUT_F-B2.a.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/event-redelivery.spec.ts
+# exit=1 t=43s
+FAIL test/event-redelivery.spec.ts (17.393 s)
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 6 passed, 10 total
+----- MUT_F-B2.b.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/event-redelivery.spec.ts
+# exit=1 t=30s
+FAIL test/event-redelivery.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 8 passed, 10 total
+----- MUT_F-B2.c.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/event-redelivery.spec.ts
+# exit=1 t=77s
+FAIL test/event-redelivery.spec.ts (17.244 s)
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 6 passed, 10 total
+----- MUT_F-B2.d.txt
+$ cd services/pay-payments && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/events.redelivery.spec.ts
+# exit=1 t=116s
+FAIL test/events.redelivery.spec.ts (24.305 s)
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 3 passed, 5 total
+----- MUT_F-B2.e.txt
+$ cd services/pay-payments && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/events.redelivery.spec.ts
+# exit=1 t=141s
+FAIL test/events.redelivery.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 4 passed, 5 total
+----- MUT_F-B2.f.txt
+$ cd services/pay-settlement && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/nats.spec.ts
+# exit=1 t=70s
+FAIL test/nats.spec.ts (23.63 s)
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 5 passed, 7 total
+----- MUT_F-B2.g.txt
+$ cd services/pay-settlement && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/nats.spec.ts
+# exit=1 t=35s
+FAIL test/nats.spec.ts (23.826 s)
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 5 passed, 7 total
+----- MUT_F-B2.h.txt
+$ cd services/pay-edge && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/replica-redelivery.spec.ts
+# exit=1 t=69s
+FAIL test/replica-redelivery.spec.ts (22.372 s)
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 4 passed, 6 total
+----- MUT_F-B2.i.txt
+$ cd services/pay-edge && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/replica-redelivery.spec.ts
+# exit=1 t=51s
+FAIL test/replica-redelivery.spec.ts (22.101 s)
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 4 passed, 6 total
+----- MUT_F-B2.j.txt
+$ cd services/pay-schedules && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/nats-redelivery.spec.ts
+# exit=1 t=52s
+FAIL test/nats-redelivery.spec.ts (22.575 s)
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 4 passed, 6 total
+----- MUT_F-B2.k.txt
+$ cd services/pay-schedules && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/nats-redelivery.spec.ts
+# exit=1 t=37s
+FAIL test/nats-redelivery.spec.ts (22.672 s)
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 4 passed, 6 total
+----- MUT_F-D1.a.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/append-only-guards.spec.ts
+# exit=1 t=31s
+FAIL test/append-only-guards.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 7 passed, 8 total
+----- MUT_F-D1.b.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/append-only-guards.spec.ts
+# exit=1 t=9s
+FAIL test/append-only-guards.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 7 passed, 8 total
+----- MUT_F-D1.c.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/append-only-guards.spec.ts
+# exit=1 t=30s
+FAIL test/append-only-guards.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 7 passed, 8 total
+----- MUT_F-D1.d.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/append-only-guards.spec.ts
+# exit=1 t=99s
+FAIL test/append-only-guards.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 6 passed, 8 total
+----- MUT_F-B3.a.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/definite-database-error.spec.ts
+# exit=1 t=111s
+FAIL test/definite-database-error.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 32 passed, 36 total
+----- MUT_F-B3.b.txt
+$ cd services/pay-webhooks && node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs test/definite-database-error.spec.ts
+# exit=1 t=54s
+FAIL test/definite-database-error.spec.ts
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 34 passed, 36 total
+
+## Sobrevivientes
+F-B1.c (no se relee la base antes de actuar) — SOBREVIVE, severidad MAYOR (hueco de cobertura; el código de producto es correcto).
+  Causa: el caso existente «la fila aparece entre el ciclo y la acción» inserta la fila ANTES de runOnce(); la consulta del ciclo ya la ve, el endpoint nunca es candidato
+  y la relectura de handleOrphans (svix-reconciler.ts: «SELECT 1 FROM webhook_endpoints WHERE id = $1 AND deleted_at IS NULL») no se ejercita.
+  Sin la relectura, un alta confirmada tras reunir candidatos se deshabilita (defecto) o se BORRA de Svix (orphanAction=delete, irreversible).
+  Propuesta (archivo nuevo, no toca el árbol principal): docs/trabajo/ola-5/P1/evidencia/mut23-propuestas/svix-reconciler-orphan-reread.spec.ts
+  (destino sugerido: services/pay-webhooks/test/svix/). Un cliente Proxy confirma la fila justo cuando listEndpoints devuelve; se prueba disable y delete.
+
+## Propuesta contra F-B1.c — evidencia (worktree)
+$ BASE sin mutar: jest test/svix/svix-reconciler-orphan-reread.spec.ts
+Tests:       2 passed, 2 total
+$ MUTADO F-B1.c: jest test/svix/svix-reconciler-orphan-reread.spec.ts
+FAIL test/svix/svix-reconciler-orphan-reread.spec.ts
+    - Expected  - 1
+    + Received  + 1
+        "orphansDeleted": 0,
+    -   "orphansDisabled": 0,
+    +   "orphansDisabled": 1,
+    - Expected  - 1
+    + Received  + 1
+    -   "orphansDeleted": 0,
+    +   "orphansDeleted": 1,
+        "orphansDisabled": 0,
+Tests:       2 failed, 2 total
+restaurado: 0 cambios en src/engine/svix/svix-reconciler.ts
+$ BASE tras restaurar
+Tests:       10 passed, 10 total
+
+--- salida literal del rojo (primera corrida, antes de quitar el parámetro 'receiver' sin usar; la aserción es la misma) ---
+$ MUTADO F-B1.c (sin la relectura de la base)
+FAIL test/svix/svix-reconciler-orphan-reread.spec.ts
+  ● F-B1 · la fila confirmada entre la reunión de candidatos y la acción NO se toca (relectura de la base) › INVÁLIDO (disable): la fila se confirma tras reunir al candidato ⇒ ni se deshabil
+    expect(received).toMatchObject(expected)
+    - Expected  - 1
+    + Received  + 1
+      Object {
+        "errors": 0,
+        "orphansDeleted": 0,
+    -   "orphansDisabled": 0,
+    +   "orphansDisabled": 1,
+        "orphansHeldDisabled": 0,
+      }
+      57 |       const summary = await reconciler.runOnce();
+      58 |
+    > 59 |       expect(summary).toMatchObject({ orphansDisabled: 0, orphansDeleted: 0, orphansHeldDisabled: 0, errors: 0 });
+         |                       ^
+      60 |       const remote = new Map(((await s.client.listEndpoints(merchant)) ?? []).map((e) => [e.uid as string, e]));
+      61 |       expect(remote.get(b.id)).toMatchObject({ disabled: false }); // sigue vivo y habilitado
+      62 |       expect((await s.h.db.pool.query('SELECT 1 FROM webhook_endpoints WHERE id = $1', [b.id])).rowCount).toBe(1);
+  ● F-B1 · la fila confirmada entre la reunión de candidatos y la acción NO se toca (relectura de la base) › INVÁLIDO (delete): la fila se confirma tras reunir al candidato ⇒ ni se deshabili
+    expect(received).toMatchObject(expected)
+    - Expected  - 1
+    + Received  + 1
+      Object {
+        "errors": 0,
+    -   "orphansDeleted": 0,
+    +   "orphansDeleted": 1,
+        "orphansDisabled": 0,
+        "orphansHeldDisabled": 0,
+      }
+      57 |       const summary = await reconciler.runOnce();
+      58 |
+    > 59 |       expect(summary).toMatchObject({ orphansDisabled: 0, orphansDeleted: 0, orphansHeldDisabled: 0, errors: 0 });
+         |                       ^
+      60 |       const remote = new Map(((await s.client.listEndpoints(merchant)) ?? []).map((e) => [e.uid as string, e]));
+      61 |       expect(remote.get(b.id)).toMatchObject({ disabled: false }); // sigue vivo y habilitado
+      62 |       expect((await s.h.db.pool.query('SELECT 1 FROM webhook_endpoints WHERE id = $1', [b.id])).rowCount).toBe(1);
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 2 total
+Snapshots:   0 total
+Time:        1.69 s, estimated 2 s
+Ran all test suites matching test/svix/svix-reconciler-orphan-reread.spec.ts.
+
+--- gates de la propuesta (en el worktree) ---
+$ eslint
+eslint exit=0
+$ tsc -p tsconfig.json --noEmit
+tsc exit=0
+
+## Observaciones
+- 21 de 22 mutaciones muertas, 1 sobreviviente. Varias muertas de F-B2 (a, b, c, d, e, f, g, h, i, j, k) se detectan también/solo por «Exceeded timeout of 20000 ms» de la prueba que espera
+  que el evento se aplique: sigue siendo detección por comportamiento (el evento no se aplica en el plazo), pero la señal es un timeout, no un expect con diferencia.
+- El worktree se creó con git worktree add --detach en HEAD 49124fa y node_modules enlazado desde el árbol principal; las mutaciones se aplicaron solo ahí y se restauraron en un finally.

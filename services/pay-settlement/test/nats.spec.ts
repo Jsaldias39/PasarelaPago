@@ -110,6 +110,9 @@ describe('consumidores durables sobre NATS JetStream real', () => {
 
   it('basura, JSON inválido, sobres inválidos y eventos ajenos no traban el consumidor ni se reintentan sin fin; el siguiente evento válido pasa', async () => {
     const js = nc.jetstream();
+    // `num_redelivered` es un contador HISTÓRICO del durable (persiste entre corridas y entre pruebas: la de «25 entregas» provoca reentregas en este mismo
+    // durable). Lo que se afirma es que la basura NO añade reentregas: se mide contra la línea base, no contra 0 absoluto.
+    const redeliveredBefore = (await nc.jetstreamManager().then((jsm) => jsm.consumers.info('PAY_LEDGER', 'pay-settlement_ledger-transfer-posted'))).num_redelivered;
     const bytes = (value: unknown) => new TextEncoder().encode(typeof value === 'string' ? value : JSON.stringify(value));
     await js.publish('pay-ledger.ledger.transfer.posted', bytes('esto no es json {{{'));
     await js.publish('pay-ledger.ledger.transfer.posted', bytes({ nada: true }));
@@ -120,7 +123,7 @@ describe('consumidores durables sobre NATS JetStream real', () => {
     await waitFor(async () => (await merchantRow(good)).length > 0, 30_000, 100);
     const info = await waitFor(async () => {
       const i = await nc.jetstreamManager().then((jsm) => jsm.consumers.info('PAY_LEDGER', 'pay-settlement_ledger-transfer-posted'));
-      return i.num_ack_pending === 0 && i.num_redelivered === 0 ? i : false;
+      return i.num_ack_pending === 0 && i.num_redelivered === redeliveredBefore ? i : false;
     }, 30_000, 100);
     expect(info.num_ack_pending).toBe(0);
   });

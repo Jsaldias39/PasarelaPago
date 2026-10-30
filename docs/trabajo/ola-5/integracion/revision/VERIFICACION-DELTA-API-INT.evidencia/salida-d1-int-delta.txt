@@ -1,0 +1,63 @@
+(node:3536) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+DDL real aplicado: 6 tablas, 67 índices, 6 FK internas; FK omitidas: fk_payment_intents_gateway_connection_id -> gateway_connections, fk_payment_intents_payment_method_id -> payment_methods, fk_payment_debts_gateway_connection_id -> gateway_connections, fk_payment_checkout_sessions_gateway_connection_id -> gateway_connections, fk_payment_checkout_sessions_callback_endpoint_id -> provider_callback_endpoints
+createIntent x6 misma clave: 6 resueltas, rechazadas: 
+(2) máximo de POST a la pasarela en una ronda de 2 concurrentes: 2 (siempre la misma clave; creación única)
+(14) pool 4 x 3: {"503 PAYMENT_GATEWAY_BUSY":2,"ok":1} en 140 ms
+(14) pool 4 x 4: {"503 PAYMENT_GATEWAY_BUSY":3,"ok":1} en 117 ms
+(14) pool 4 x 8: {"503 PAYMENT_GATEWAY_BUSY":7,"ok":1} en 113 ms
+(14) pool 10 x 9: {"ok":4,"503 PAYMENT_GATEWAY_BUSY":5} en 188 ms
+(14) pool 10 x 10: {"ok":4,"503 PAYMENT_GATEWAY_BUSY":6} en 286 ms
+(14) pool 10 x 25: {"503 PAYMENT_GATEWAY_BUSY":21,"ok":4} en 150 ms
+R3D> P1 pool=4 (limite 1): K=1: {"ok":1} en 861ms; cobros creados=1
+R3D> P1 pool=4 (limite 1): K=4 (=pool): {"ok":1,"e503:PAYMENT_GATEWAY_BUSY":3} en 346ms; cobros creados=1
+R3D> P1 pool=4 (limite 1): K=8 (>pool): {"e503:PAYMENT_GATEWAY_BUSY":7,"ok":1} en 360ms; cobros creados=1
+R3D> P1 pool=10 (limite 4): K=4: {"ok":4} en 423ms; cobros creados=4
+R3D> P1 pool=10 (limite 4): K=10 (=pool): {"e503:PAYMENT_GATEWAY_BUSY":6,"ok":4} en 435ms; cobros creados=4
+R3D> P1 pool=10 (limite 4): K=25 (>pool): {"e503:PAYMENT_GATEWAY_BUSY":21,"ok":4} en 403ms; cobros creados=4
+R3D> P1 mixto-a (6 ajenas x1.5s + 4 despachos): {"ok":4} en 1423ms
+R3D> P1 mixto-b (6 ajenas x9s + 4 despachos): {"eError:timeout exceeded when trying to connect":4} en 6006ms; marcas dejadas=[null,null,null,null]; cobros creados=0
+R3D> P1 mixto-b tras liberar: reintento de la primera=ok
+R3D> P1 mixto-c (9 ajenas + 4 despachos): {"ok":4} en 1418ms
+R3D> P1 fuga de cupo (limite 1): e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e422:PAYMENT_INTENT_RISK_ASSESSMENT_MISSING | e422:PAYMENT_INTENT_RISK_ASSESSMENT_MISSING | e422:PAYMENT_INTENT_RISK_ASSESSMENT_MISSING | e422:PAYMENT_GATEWAY_REJECTED | ok
+R3D> P1 sin RLS pool=4 x8: {"ok":8}
+R3D> P2 doble clic: marca de A durante la ventana=dispatching:; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE; A1/A2=e503:PAYMENT_GATEWAY_UNAVAILABLE,ok; cobros vivos=1; marca final A=pi_db
+R3D> P3 404 sin cuerpo: respuesta=e504:PAYMENT_GATEWAY_RESULT_AMBIGUOUS; marca=RETENIDA; otra intencion de la deuda=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE
+R3D> P3 400 sin cuerpo: respuesta=e504:PAYMENT_GATEWAY_RESULT_AMBIGUOUS; marca=RETENIDA; otra intencion de la deuda=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE
+R3D> P3 408 sin cuerpo: respuesta=e504:PAYMENT_GATEWAY_RESULT_AMBIGUOUS; marca=RETENIDA; otra intencion de la deuda=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE
+R3D> P3 413 sin cuerpo: respuesta=e504:PAYMENT_GATEWAY_RESULT_AMBIGUOUS; marca=RETENIDA; otra intencion de la deuda=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE
+R3D> P3 499 sin cuerpo: respuesta=e504:PAYMENT_GATEWAY_RESULT_AMBIGUOUS; marca=RETENIDA; otra intencion de la deuda=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE
+R3D> P3 422 con problema del contrato (validation_failed): respuesta=e422:PAYMENT_GATEWAY_REJECTED; marca=LIBERADA; otra intencion de la deuda=ok
+R3D> P3 400 con problema del contrato: respuesta=e422:PAYMENT_GATEWAY_REJECTED; marca=LIBERADA; otra intencion de la deuda=ok
+R3D> P3 401 con problema del contrato: respuesta=e503:PAYMENT_GATEWAY_UNAVAILABLE; marca=LIBERADA; otra intencion de la deuda=ok
+R3D> P3 403 con problema del contrato: respuesta=e503:PAYMENT_GATEWAY_UNAVAILABLE; marca=LIBERADA; otra intencion de la deuda=ok
+R3D> P3 404 con problema del contrato: respuesta=e503:PAYMENT_GATEWAY_UNAVAILABLE; marca=LIBERADA; otra intencion de la deuda=ok
+R3D> P3 409 invalid_state_transition: respuesta=e422:PAYMENT_GATEWAY_REJECTED; marca=LIBERADA; otra intencion de la deuda=ok
+R3D> P3 422 idempotency_key_reused: respuesta=e409:PAYMENT_GATEWAY_RECONCILIATION_REQUIRED; marca=RETENIDA; otra intencion de la deuda=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE
+R3D> P3 429x3: e503:PAYMENT_GATEWAY_UNAVAILABLE; marca=LIBERADA; B=ok
+R3D> P3 JSON ajeno con code string, 404: isAmbiguous=false ambiguity=rejected
+R3D> F1A F1-A: ambiguo (el cobro SI se ejecuto) y luego 422 definitivo: A=e504:PAYMENT_GATEWAY_RESULT_AMBIGUOUS; marca=RETENIDA; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE; creados=1
+R3D> F1A F1-A: ambiguo (nunca llego) y luego 422 definitivo: A=e504:PAYMENT_GATEWAY_RESULT_AMBIGUOUS; marca=RETENIDA; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE; creados=0
+R3D> F1A F1-A: 5xx y luego 400 definitivo: A=e504:PAYMENT_GATEWAY_RESULT_AMBIGUOUS; marca=RETENIDA; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE; creados=0
+R3D> EXP-a vencida: B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE(reconciliationRequired); POST nuevos=0; list antes=false despues=true
+R3D> CONC-existe: pi=pi_dbl0000000044 creados=1 filaA=pi_dbl0000000044 B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE claves=1
+R3D> CONC-nunca-llego: pi=pi_dbl0000000045 2a=pi_dbl0000000045 creados=1 claves=1
+R3D> CONC-24h: propio=e409:PAYMENT_GATEWAY_RECONCILIATION_REQUIRED; reconcile=e409:PAYMENT_GATEWAY_RECONCILIATION_REQUIRED; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE(reconciliationRequired); POST nuevos=0
+R3D> MARCA-formato-antiguo: propio=e409:PAYMENT_GATEWAY_RECONCILIATION_REQUIRED; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE(reconciliationRequired)
+R3D> MARCA-futura: listada para conciliar=false; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE
+R3D> CONC-sin-marca (sin riesgo previo ni despacho): e409:PAYMENT_GATEWAY_NOTHING_TO_RECONCILE
+R3D> CONC-otro-medio (card tras qr): e409:PAYMENT_GATEWAY_RECONCILIATION_REQUIRED; marca=dispatching:
+R3D> CONC-otro-tenant: e404:PAYMENT_INTENT_NOT_FOUND
+R3D> RIESGO previo: e422:PAYMENT_INTENT_RISK_ASSESSMENT_MISSING | e422:PAYMENT_INTENT_RISK_REVIEW_PENDING | e422:PAYMENT_INTENT_RISK_DECLINED; marcas=[null,null,null]
+R3D> RIESGO-despues-de-marca REVIEW: registrar=ok; reintento=ok; POST nuevos=1; cobros creados=1; estado=otro; ref=pi_db
+R3D> RIESGO-despues-de-marca DECLINE: registrar=e409:PAYMENT_INTENT_VIA_GATEWAY; reintento=ok; POST nuevos=1; cobros creados=2; estado=otro; ref=pi_db
+R3D> RIESGO marca-SQL sin evaluacion: ok; creados=1
+R3D> CARRERA DECLINE: {"dispatch=ok | DECLINE=e409:PAYMENT_INTENT_VIA_GATEWAY":25,"dispatch=e422:PAYMENT_INTENT_RISK_DECLINED | DECLINE=ok":5}; (dispatch ok y DECLINE ok a la vez)=0
+R3D> CARRERA REVIEW: {"dispatch=ok | REVIEW=ok":26,"dispatch=e422:PAYMENT_INTENT_RISK_REVIEW_PENDING | REVIEW=ok":4}; (dispatch ok y DECLINE ok a la vez)=0
+
+Test Suites: 2 passed, 2 total
+Tests:       123 passed, 123 total
+Snapshots:   0 total
+Time:        47.3 s
+Ran all test suites matching rev3d-charge|payments-gateway-charge.
+EXIT 0
