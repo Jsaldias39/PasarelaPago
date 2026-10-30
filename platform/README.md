@@ -20,7 +20,8 @@ Todos los puertos publicados escuchan solo en `127.0.0.1` (revisión de segurida
 | temporal + temporal-db | 54233 | sí, `healthy` |
 | jaeger (UI 54686, OTLP 54317/54318) | 54686 | sí, `healthy` |
 | watchman `v2-static` — **solo sandbox, listas OFAC de 2019** | 54084 | sí, `healthy` |
-| `--profile full`: tigerbeetle (54300), openbao (54200), svix (54800) | — | **no**: las imágenes no se pudieron bajar donde se escribió |
+| `--profile full`: openbao (54200), svix (54800) | — | **sí** (por `HUB=mirror.gcr.io`): OpenBao 2.7.2 y svix-server 1.104.0 verificados con sus suites (ver `docs/COMO-CONTINUAR.md`); svix necesita 3 perillas de prueba |
+| tigerbeetle (54300) | — | **sí, por binario** con `platform/scripts/tigerbeetle-dev.sh`; la imagen de ghcr.io no se pudo bajar |
 
 ## Servicios nuevos
 

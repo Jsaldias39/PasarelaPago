@@ -1,11 +1,11 @@
 # PasarelaPago — Pasarela de pagos ALOVIDA
 
-Plataforma de pagos de ALOVIDA en **microservicios backend**: 11 servicios NestJS, cada uno con su
+Plataforma de pagos de ALOVIDA en **microservicios backend**: 12 servicios NestJS, cada uno con su
 propia base de datos, imagen y despliegue, que solo se hablan por contratos (HTTP con OpenAPI o
 eventos sobre NATS JetStream con AsyncAPI).
 
 > **Estado:** ola 3 cerrada en esta máquina. **AVANCE: 91 / 109 microtareas (83,5 %)**: los 12 servicios, el stack de pruebas E2E y el arnés de carga existen; el detalle y lo bloqueado están en [`docs/plan/PLAN-MAESTRO.md`](docs/plan/PLAN-MAESTRO.md).
-> Empezá por [`docs/plan/PLAN-MAESTRO.md`](docs/plan/PLAN-MAESTRO.md).
+> Para clonar y seguir en local: [`docs/COMO-CONTINUAR.md`](docs/COMO-CONTINUAR.md). Estado y plan: [`docs/plan/PLAN-MAESTRO.md`](docs/plan/PLAN-MAESTRO.md).
 
 ## Qué resuelve
 
@@ -28,7 +28,7 @@ recaudadora y el visto bueno legal (T-03).
 | `services/pay-edge`, `services/pay-webhooks` | Borde público y webhooks salientes | P1 |
 | `services/pay-ledger`, `services/pay-settlement` | Libro mayor y liquidación | P2 |
 | `services/pay-payments`, `services/pay-vault` | Núcleo de pagos y bóveda de tarjetas | P3 |
-| `services/pay-connectors`, `services/pay-qr` | Conectores, ruteo y QR | P4 |
+| `services/pay-connectors`, `services/pay-qr`, `services/pay-mockbank` | Conectores, ruteo, QR y banco simulado (doble de sandbox) | P4 |
 | `services/pay-merchants`, `services/pay-risk`, `services/pay-schedules` | Comercios, riesgo y programados | P5 |
 
 ## Stack
