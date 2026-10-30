@@ -1,0 +1,39 @@
+  console.log
+    SECUENCIA SQL del receptor (primeras 14):
+    0: begin
+    1: select set_config('app.system_context', 'true', true)
+    2: select id, tenant_id from payments.payment_intents where gateway_intent_ref = ? limit 2
+    3: select set_config('app.system_context', 'false', true)
+    4: select set_config('app.current_tenant_id', ?, true)
+    5: select "p0".* from "payments"."payment_intents" as "p0" where "p0"."gateway_intent_ref" = ? and "p0"."tenant_id" = ? limit ? for update
+    6: select "p0".* from "payments"."payment_webhook_events" as "p0" where "p0"."gateway_event_ref" = ? limit ?
+    7: select "p0".* from "payments"."payment_checkout_sessions" as "p0" where "p0"."payment_intent_id" = ? for update
+    8: select "p0".* from "payments"."payment_debts" as "p0" where "p0"."id" = ? limit ? for update
+    9: insert into "payments"."payment_webhook_events" ("id", "gateway_id", "event_type", "gateway_event_ref", "payload_json", "signature", "is_verified", "p
+    10: update "payments"."payment_debts" set "outstanding_amount" = ?, "status_concept_id" = ?, "settled_at" = ?, "updated_at" = ?, "row_version" = ? where "
+    11: update "payments"."payment_checkout_sessions" set "status_concept_id" = ?, "completed_at" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and 
+    12: update "payments"."payment_intents" set "status_concept_id" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and "row_version" = ? returning "r
+    13: commit
+
+
+  console.log
+    REV-5 conexiones distintas observadas tras fallo en ventana: 18; contaminadas: 0
+
+
+  console.log
+    REV-9 resultados: [{"received":true,"eventId":"3f086de7-4334-4235-9765-e76ead641e12","applied":true,"duplicate":false,"ignored":false,"reconciliationRequired":false,"decision":"aplicar"},{"received":true,"eventId":"acd75eba-693c-4d13-b6a9-256a2aa5fbc0","applied":true,"duplicate":false,"ignored":false,"reconciliationRequired":true,"decision":"aplicar"}]
+
+
+  console.log
+    REV-10 errores observados en la 1a pasada concurrente: {}
+
+
+  console.log
+    REV-11 errores en 40 rondas: {"40P01":30}
+
+
+Test Suites: 1 passed, 1 total
+Tests:       17 passed, 17 total
+Snapshots:   0 total
+Time:        39.128 s
+Ran all test suites matching rev-b1-rls.

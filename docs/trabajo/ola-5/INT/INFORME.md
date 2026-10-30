@@ -47,3 +47,20 @@
 8. Falta el índice `ix_payment_intents_gateway_intent_ref` (propuesta para `mantra-core-health-model`; no se hizo).
 9. Nada impide configurar una `sk_live_` con el flag encendido → P1.
 10. Un cobro ambiguo se retoma solo si el cliente repite la operación; no hay job de reconciliación → decidir quién lo hace y cuándo se escala a una persona.
+
+## 10 · Re-revisión independiente de las correcciones (ola 5)
+
+Informe completo: [RE-REVISION-API-INT.md](../integracion/revision/RE-REVISION-API-INT.md). Conclusión del revisor: **B1 (RLS) quedó cerrado de verdad** (17/17 con rol `NOBYPASSRLS` y la política real; la elevación a contexto SYSTEM no se alcanza antes de verificar la firma, 0 sentencias SQL con firma inválida; 18 conexiones del pool inspeccionadas, 0 contaminadas). **Aun así no recomienda encender el flag** hasta cerrar:
+
+| # | Severidad | Qué | Estado |
+|---|---|---|---|
+| N1 | MAYOR (afecta con el flag APAGADO) | `.replace(/\/+$/u,'')` cuadrático en `payments-gateway-raw-body.ts:20`, corre antes de autenticar: 15 000 `/` ≈ 240 ms de event loop por petición (lo introdujo la corrección de m1) | corrección en curso |
+| N2 | MAYOR | La compuerta de M2 no reserva la deuda antes de llamar a la pasarela: 8/8 rondas con 2 `pi_` vivos si `RLS_ENFORCE=false` | corrección en curso (reserva previa solo-aplicación, o precondición `RLS_ENFORCE=true`) |
+| N3 | MENOR | La compuerta se esquiva si `sourceRefType` ≠ `'payment_debt'` exacto y no hay sesión | en curso |
+| N4 | MENOR | Tras un 504 la deuda no queda reservada ⇒ 2 `pi_` vivos | con N2 |
+| N5 | MENOR | Con `RLS_ENFORCE=true` el lock de la deuda y una conexión del pool se sostienen durante la llamada HTTP (el comentario dice lo contrario) | en curso |
+| N6 | MENOR | Interbloqueo 40P01 entre dos webhooks sobre la misma deuda (20–30 de 40 rondas) | en curso |
+| N7 | MENOR | Oráculo de existencia por tiempo (~700 ms vs 5 ms) por bloquear la intención ajena antes de comparar tenant | en curso |
+| N8 | MENOR | Intención de factura cobrada: `processed=true` y nada llega a billing | abierto (dueño de billing) |
+
+`INT.H1.M3` y `INT.H1.M2` siguen `A MEDIAS` hasta cerrar N1/N2/N6/N7 y volver a verificar. Siguen abiertos m2 (`sk_live_`/`http://` con el flag), m3, m4, m7, m8 y m9 de la primera revisión.
