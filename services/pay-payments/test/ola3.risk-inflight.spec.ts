@@ -177,11 +177,11 @@ describe('inválido · lo que NO es una decisión de riesgo no se confunde con �
 });
 
 /**
- * Revisión de seguridad (3e): la franquicia «bajo el umbral pasa» (RISK_ALLOW_BELOW_THRESHOLD, apagada por defecto) solo vale para una INDISPONIBILIDAD pura
- * (5xx, red, breaker abierto), nunca para una evaluación EN VUELO agotada (puede volver como `deny`) ni para un 4xx de integración.
+ * Revisión de seguridad (3e): la franquicia «bajo el umbral pasa» (RISK_ALLOW_BELOW_THRESHOLD, apagada por defecto) solo vale para una indisponibilidad PROBADA
+ * (ola 5: conexión rechazada, DNS, breaker abierto; un 5xx ya no, ver `ola5.risk-franchise.spec.ts`), nunca para una evaluación EN VUELO agotada (puede volver como `deny`) ni para un 4xx de integración.
  * Se prueba con la política ENCENDIDA y un umbral alto (el cobro de 10000 está muy por debajo).
  */
-describe('franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000): solo la indisponibilidad pura pasa', () => {
+describe('franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000): un 5xx, un timeout o una respuesta ilegible NO la activan (ola 5: solo «no llegó» probado)', () => {
   let lenient: Stack;
   beforeAll(async () => {
     lenient = await startStack({ env: { ACTIVITY_MAX_ATTEMPTS: String(ATTEMPTS), RISK_ALLOW_BELOW_THRESHOLD: 'true', RISK_FAIL_CLOSED_THRESHOLD_MINOR: '1000000' } });
@@ -194,11 +194,16 @@ describe('franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, 
   const lenientStatus = (id: string, ...statuses: string[]) => waitFor(async () => ((await statusOf(lenient, id)) && statuses.includes((await statusOf(lenient, id)) as string) ? ((await statusOf(lenient, id)) as string) : undefined), 60_000, `${id} → ${statuses.join('|')}`);
   const lenientEscalations = async (id: string) => (await lenient.db.pool.query('SELECT kind FROM intent_contradictions WHERE payment_intent_id = $1 ORDER BY id', [id])).rows.map((r: { kind: string }) => r.kind);
 
-  it('correcto (comportamiento previo, documentado) · riesgo caído con un 5xx puro ⇒ el cobro bajo el umbral PASA: requires_action y un cargo', async () => {
+  // Ola 5 (REVISION-DINERO F1, escenario B): hasta la ola 4 este caso afirmaba que un 5xx puro dejaba PASAR el cobro bajo el umbral («comportamiento previo, documentado»). Un 5xx NO prueba que
+  // pay-risk no evaluó (pudo caerse después de escribir el `deny`): contradice la regla 11. La franquicia ahora exige PRUEBA de que ninguna llamada llegó (conexión rechazada, DNS, breaker
+  // abierto): su caso positivo vive en `ola5.risk-franchise.spec.ts`. Este caso pasa a afirmar lo contrario, que es más estricto (fail-closed, sin cargo, con constancia).
+  it('límite (cambió en la ola 5) · riesgo caído con un 5xx puro NO es prueba de que no evaluó ⇒ NO pasa por la franquicia: se reintenta con la MISMA clave y, agotada la política, failed/risk_unavailable, SIN cargo, con constancia', async () => {
     lenient.risk.mode = 'down';
     const id = await make();
-    await lenientStatus(id, 'requires_action');
-    expect(lenient.connectors.chargeCreations.get(id)).toBe(1);
+    await lenientStatus(id, 'failed');
+    expect(lenient.connectors.chargeFor(id)).toBeUndefined();
+    expect(await lenientEscalations(id)).toEqual(['risk_unresolved']);
+    expect(lenient.risk.server.calls.filter((c) => (c.body as { payment_intent_id?: string }).payment_intent_id === id).length).toBeGreaterThanOrEqual(ATTEMPTS);
   });
 
   it('límite · 409 «en curso» persistente hasta agotar ⇒ failed/risk_unavailable, SIN cargo, con constancia, aunque el monto esté bajo el umbral', async () => {

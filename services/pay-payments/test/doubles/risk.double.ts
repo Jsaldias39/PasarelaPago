@@ -18,7 +18,15 @@ export type RiskMode =
   /** TODA llamada recibe `201 review / screening_unavailable / screened:false`. */
   | 'screening_unavailable'
   /** TODA llamada recibe un 4xx declarado que NO es una decisión (`422 validation_failed`): un error de integración nuestro. */
-  | 'rejects';
+  | 'rejects'
+  /** TODA llamada recibe un 4xx SIN el cuerpo de error del contrato (lo que devolvería un proxy o un service-auth mal configurado): el cliente lo ve como `unexpected_response`. */
+  | 'unexpected'
+  /** Guion por llamada (la n-ésima llamada hace `script[n-1]`: `hang` = no responde, `down` = 503); agotado el guion, evalúa como `then` (por defecto `allow`). Sirve para «timeout y luego 503 dentro del MISMO intento». */
+  | { script: ('hang' | 'down')[]; then?: 'allow' | 'deny' }
+  /** DEFECTO DECLARADO del doble (el contrato de `internal-risk-v1` dice que NO ocurre): TODA llamada recibe `allow` con `screened:false`. Prueba la defensa en profundidad de quien llama. */
+  | 'allow_unscreened'
+  /** Como `allow_unscreened` pero solo las primeras `unscreenedAllowFirst` llamadas; después evalúa normal. */
+  | { unscreenedAllowFirst: number };
 
 const idOf = (prefix: string, seed: string) => `${prefix}_${createHash('sha1').update(seed).digest('hex').slice(0, 14)}`;
 
@@ -68,6 +76,17 @@ export class RiskDouble {
   private handle(req: DoubleRequest): DoubleResponse {
     if (req.method !== 'POST' || req.path !== '/assessments') return problem('resource_not_found', 404);
     this.calls += 1;
+    if (typeof this.mode === 'object' && 'script' in this.mode) {
+      const step = this.mode.script[this.calls - 1];
+      if (step === 'hang') return { status: 200, hang: true };
+      if (step === 'down') return problem('risk_unavailable', 503);
+      return this.evaluate(req, this.mode.then ?? 'allow');
+    }
+    if (this.mode === 'unexpected') return { status: 403 };
+    if (this.mode === 'allow_unscreened' || (typeof this.mode === 'object' && 'unscreenedAllowFirst' in this.mode && this.calls <= this.mode.unscreenedAllowFirst)) {
+      const unscreenedAllow = { id: idOf('ra', `${String(req.headers['idempotency-key'] ?? '')}:${this.calls}`), object: 'risk_assessment', payment_intent_id: (req.body as AssessmentBody).payment_intent_id, decision: 'allow', reason_code: 'ok', rule_version: 1, screened: false, created_at: new Date().toISOString() };
+      return { status: 201, body: unscreenedAllow };
+    }
     if (this.mode === 'down') return problem('risk_unavailable', 503);
     if (this.mode === 'hang') return { status: 200, hang: true };
     if (this.mode === 'in_progress') return problem('idempotency_request_in_progress', 409);
@@ -79,24 +98,29 @@ export class RiskDouble {
     if (typeof this.mode === 'object' && 'hangFirst' in this.mode && this.calls <= this.mode.hangFirst) return { status: 200, hang: true };
     if (typeof this.mode === 'object' && 'hangFirst' in this.mode && this.mode.then === 'down') return problem('risk_unavailable', 503);
     if (typeof this.mode === 'object' && 'inProgressFirst' in this.mode && this.calls <= this.mode.inProgressFirst) return problem('idempotency_request_in_progress', 409);
+    return this.evaluate(req, this.mode);
+  }
+
+  /** La evaluación normal (idempotente por clave) según `mode`. */
+  private evaluate(req: DoubleRequest, mode: RiskMode): DoubleResponse {
     const key = String(req.headers['idempotency-key'] ?? '');
     const body = req.body as AssessmentBody;
     const until = this.inFlightUntil.get(key);
     if (until !== undefined && Date.now() < until) return problem('idempotency_request_in_progress', 409);
     const replayed = this.seen.get(key);
     if (replayed) return { status: 200, body: replayed.assessment };
-    const delayMs = typeof this.mode === 'object' ? ('slowMs' in this.mode ? this.mode.slowMs : 'firstSlowMs' in this.mode ? this.mode.firstSlowMs : undefined) : undefined;
-    if (typeof this.mode === 'object' && 'firstSlowMs' in this.mode) this.inFlightUntil.set(key, Date.now() + this.mode.firstSlowMs);
+    const delayMs = typeof mode === 'object' ? ('slowMs' in mode ? mode.slowMs : 'firstSlowMs' in mode ? mode.firstSlowMs : undefined) : undefined;
+    if (typeof mode === 'object' && 'firstSlowMs' in mode) this.inFlightUntil.set(key, Date.now() + mode.firstSlowMs);
     let decision: 'allow' | 'review' | 'deny';
     let reason: string;
     let screened = false;
-    if (this.mode === 'deny') [decision, reason] = ['deny', 'amount_over_limit'];
-    else if (this.mode === 'review') [decision, reason, screened] = ['review', 'sanctions_possible_match', true];
+    if (mode === 'deny') [decision, reason] = ['deny', 'amount_over_limit'];
+    else if (mode === 'review') [decision, reason, screened] = ['review', 'sanctions_possible_match', true];
     else {
       const listed = (name: string | undefined) => name !== undefined && this.sanctions.has(normalize(name));
       const screening = body.screening;
       if (listed(screening?.merchant_name) || listed(screening?.name)) [decision, reason, screened] = ['deny', 'sanctions_match', true];
-      else if (!screening?.merchant_name) [decision, reason] = this.requireScreening ? ['review', 'screening_not_provided'] : ['allow', 'no_limits_configured'];
+      else if (!screening?.merchant_name) [decision, reason, screened] = this.requireScreening ? ['review', 'screening_not_provided', false] : ['allow', 'no_limits_configured', true]; // `internal-risk-v1`: un `allow` SIEMPRE trae `screened:true`
       else [decision, reason, screened] = ['allow', 'ok', true];
     }
     const assessment = {

@@ -1,5 +1,5 @@
-import { createHash, createHmac } from 'node:crypto';
-import { containsCardNumber, isAcceptableRequestId, resolveRequestId, safeIdempotencyKey } from './card-number';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
+import { containsCardNumber, generateRequestId, isAcceptableRequestId, resolveRequestId, safeIdempotencyKey } from './card-number';
 import { IdempotencyStore } from './index';
 import { assertIdempotencyMaskConfig, DEV_MASK_KEY, MASK_KEY_ENV, resolveMaskKey } from './mask-key';
 
@@ -155,5 +155,44 @@ describe('S-03 · resolveRequestId: un X-Request-Id con forma de PAN se descarta
 
   it('INVÁLIDO: ausente, no-cadena, vacío, con espacio o símbolo se reemplazan', () => {
     for (const id of [undefined, null, 42, ['a'.repeat(10)], '', 'con espacio 12345', 'a'.repeat(10) + '$']) expect(resolveRequestId(id)).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+describe('S-03 · consistencia de la cadena: un id GENERADO nunca es rechazado por otro servicio; uno del cliente con corrida PAN-like se descarta siempre', () => {
+  // UUID v4 real cuya corrida de dígitos con guiones cumple Luhn por azar (medido por el agente de trazas: ~0,9 % de los UUID v4).
+  const LUHN_BY_CHANCE = '0ebff702-5185-4350-8802-cb20d183f879';
+  const SAMPLE = 20_000;
+
+  it('CORRECTO: el instrumento — un UUID v4 al azar SÍ es rechazado por el validador en ~1 % de los casos (por eso el id generado se regenera)', () => {
+    let rejected = 0;
+    for (let i = 0; i < SAMPLE; i += 1) if (!isAcceptableRequestId(randomUUID())) rejected += 1;
+    expect(rejected).toBeGreaterThan(SAMPLE * 0.002); // >0,2 %: sin la regeneración habría cientos de inconsistencias
+    expect(rejected).toBeLessThan(SAMPLE * 0.03);
+    expect(isAcceptableRequestId(LUHN_BY_CHANCE)).toBe(false);
+  });
+
+  it('LÍMITE (estadística): 20 000 ids generados por un servicio ⇒ 0 rechazados por el validador compartido (el que usa cada servicio y los clientes internos)', () => {
+    let inconsistent = 0;
+    for (let i = 0; i < SAMPLE; i += 1) {
+      if (!isAcceptableRequestId(generateRequestId())) inconsistent += 1;
+      if (!isAcceptableRequestId(resolveRequestId(undefined))) inconsistent += 1;
+      if (!isAcceptableRequestId(resolveRequestId(LUHN_BY_CHANCE))) inconsistent += 1; // el cliente mandó uno rechazable ⇒ el reemplazo sí pasa
+    }
+    expect(inconsistent).toBe(0);
+  });
+
+  it('LÍMITE: un id generado conserva la forma de UUID y es distinto cada vez', () => {
+    const ids = new Set(Array.from({ length: 1000 }, () => generateRequestId()));
+    expect(ids.size).toBe(1000);
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it('INVÁLIDO: un id del cliente con forma de UUID que CONTIENE un PAN se descarta y se reemplaza (no se exentan los UUID canónicos); el reemplazo es aceptable', () => {
+    for (const id of ['41111111-1111-1111-1111-111111111111', LUHN_BY_CHANCE, '4111111111111111', '00000000-4111-1111-1111-111111111111']) {
+      expect(isAcceptableRequestId(id)).toBe(false);
+      const resolved = resolveRequestId(id);
+      expect(resolved).not.toBe(id);
+      expect(isAcceptableRequestId(resolved)).toBe(true);
+    }
   });
 });

@@ -3,7 +3,7 @@ import { ProblemError, type ProblemDetails } from '@pay/problem';
 import { safeIdempotencyKey } from './card-number';
 import { assertIdempotencyMaskConfig } from './mask-key';
 
-export { containsCardNumber, isAcceptableRequestId, resolveRequestId, safeIdempotencyKey } from './card-number';
+export { containsCardNumber, generateRequestId, isAcceptableRequestId, resolveRequestId, safeIdempotencyKey } from './card-number';
 export { assertIdempotencyMaskConfig, DEV_MASK_KEY, MASK_KEY_ENV, MIN_MASK_KEY_BYTES, resolveMaskKey } from './mask-key';
 export { guardPool } from './pool-guard';
 export { maskSpanAttributes, maskUrl, safeUrl, URL_PATH_ATTRIBUTES, URL_QUERY_ATTRIBUTES } from './url-mask';

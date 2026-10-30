@@ -1,4 +1,5 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { generateRequestId, resolveRequestId } from '@pay/idempotency';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { firstValueFrom, of } from 'rxjs';
@@ -293,5 +294,31 @@ describe('RequestScopeInterceptor', () => {
     expect(await run({})).toBeUndefined();
     expect(await run({ id: 42 })).toBeUndefined();
     expect(await run({ id: 'traza-pend-cccc3333' }, 'rpc')).toBeUndefined();
+  });
+});
+
+describe('S-03 · pay-payments valida el id de petición con la MISMA función que el borde y los demás servicios', () => {
+  const LUHN_BY_CHANCE = '0ebff702-5185-4350-8802-cb20d183f879'; // UUID v4 cuya corrida de dígitos cumple Luhn por azar
+
+  it('CORRECTO: un id generado por el borde (resolveRequestId) o por un cliente interno (generateRequestId) NUNCA lo descarta pay-payments: 20 000 muestras, 0 inconsistencias', () => {
+    let inconsistent = 0;
+    for (let i = 0; i < 20_000; i += 1) {
+      if (!isValidRequestId(resolveRequestId(undefined))) inconsistent += 1;
+      if (!isValidRequestId(generateRequestId())) inconsistent += 1;
+    }
+    expect(inconsistent).toBe(0);
+  });
+
+  it('LÍMITE: los UUID v4 al azar que el validador rechaza existen (instrumento), y un id del cliente así se reemplaza por uno que pay-payments acepta', () => {
+    let rejected = 0;
+    for (let i = 0; i < 5_000; i += 1) if (!isValidRequestId(randomUUID())) rejected += 1;
+    expect(rejected).toBeGreaterThan(0);
+    expect(isValidRequestId(LUHN_BY_CHANCE)).toBe(false);
+    expect(isValidRequestId(resolveRequestId(LUHN_BY_CHANCE))).toBe(true);
+  });
+
+  it('INVÁLIDO: un id con forma de UUID que contiene un PAN se descarta también acá (sin exención de UUID canónicos)', () => {
+    expect(isValidRequestId('41111111-1111-1111-1111-111111111111')).toBe(false);
+    expect(runWithRequestId('41111111-1111-1111-1111-111111111111', () => currentRequestId())).toBeUndefined();
   });
 });

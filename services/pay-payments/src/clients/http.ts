@@ -1,10 +1,30 @@
-import { randomUUID } from 'node:crypto';
 import type { Span } from '@opentelemetry/api';
 import { serviceHeaders } from '@pay/service-auth';
+import { generateRequestId } from '@pay/idempotency';
 import { currentRequestId, inClientSpan, isValidRequestId, withActiveTraceparent } from '../observability/trace-propagation';
+
+/**
+ * Lo que se SABE de si la llamada que falló llegó a la dependencia (CLAUDE.md regla 11: un resultado ambiguo no prueba que la orden no se ejecutó).
+ * Por defecto todo es ambiguo; solo se declara «no llegó» cuando se PRUEBA (`notReached`).
+ */
+export interface UpstreamEvidence {
+  /** Se PRUEBA que esta llamada no salió hacia la dependencia: la conexión no se estableció (rechazada, DNS, red inalcanzable) o el breaker estaba abierto. */
+  readonly notReached?: boolean;
+  /** Una llamada ANTERIOR del mismo `request()` (el reintento interno del cliente) pudo llegar: el error que se ve es solo el último. */
+  readonly earlierAttemptMayHaveReached?: boolean;
+}
 
 /** Falla de la dependencia (no una respuesta de negocio): sirve para decidir reintento y circuit breaker. */
 export class UpstreamError extends Error {
+  /**
+   * `true` SOLO si se prueba que NINGUNA llamada de este `request()` llegó a la dependencia: conexión rechazada, DNS que no resuelve, red inalcanzable o
+   * breaker abierto, y ninguna llamada anterior ambigua. Un timeout, un corte de socket, un 5xx, un 4xx sin el cuerpo del contrato o un 2xx ilegible son
+   * AMBIGUOS: la orden pudo ejecutarse. Quien llama a una operación idempotente que sigue viva en el servidor (riesgo) no puede tratar un error ambiguo como «no hay evaluación».
+   */
+  readonly provenNotReached: boolean;
+  /** Una llamada anterior del mismo `request()` pudo llegar a la dependencia (p. ej. un timeout y, dentro del mismo intento, un 503): este error la enmascara. */
+  readonly earlierAttemptMayHaveReached: boolean;
+
   constructor(
     /** `unexpected_response`: llegó algo que el contrato no declara (un 4xx sin el cuerpo de error exacto, un cuerpo ilegible). */
     readonly kind: 'timeout' | 'network' | 'circuit_open' | 'server_error' | 'unexpected_response',
@@ -12,10 +32,33 @@ export class UpstreamError extends Error {
     readonly status?: number,
     /** `code` del cuerpo problem+json si venía bien formado; con él se reconoce un error DEFINITIVO declarado por el contrato. */
     readonly problemCode?: string,
+    evidence: UpstreamEvidence = {},
   ) {
     super(`${upstream}: ${kind}${status ? ` (${status})` : ''}`);
     this.name = 'UpstreamError';
+    this.earlierAttemptMayHaveReached = evidence.earlierAttemptMayHaveReached === true;
+    this.provenNotReached = (evidence.notReached ?? kind === 'circuit_open') && !this.earlierAttemptMayHaveReached;
   }
+
+  /** El mismo error, marcado como visto DESPUÉS de una llamada anterior que pudo llegar (ya no prueba «no llegó»). */
+  withEarlierAttempt(): UpstreamError {
+    return new UpstreamError(this.kind, this.upstream, this.status, this.problemCode, { notReached: false, earlierAttemptMayHaveReached: true });
+  }
+}
+
+/** Códigos de `fetch` que prueban que la conexión NUNCA se estableció (no se envió ni un byte de la petición). Un corte posterior (ECONNRESET, UND_ERR_SOCKET, EPIPE) NO está aquí. */
+const CONNECTION_NEVER_ESTABLISHED: ReadonlySet<string> = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH']);
+
+/**
+ * ¿El fallo de `fetch` prueba que la petición no salió? Se lee la causa por propiedades (sin `instanceof`: bajo Jest los errores vienen de otro realm).
+ * Con varias direcciones (happy eyeballs) la causa es un `AggregateError`: solo prueba «no llegó» si TODAS fallaron al conectar.
+ */
+export function connectionNeverEstablished(error: unknown): boolean {
+  const cause = (error as { cause?: { code?: unknown; errors?: unknown } } | null)?.cause;
+  if (cause === null || typeof cause !== 'object') return false;
+  const nested = Array.isArray(cause.errors) ? (cause.errors as { code?: unknown }[]) : [];
+  if (nested.length > 0) return nested.every((e) => typeof e?.code === 'string' && CONNECTION_NEVER_ESTABLISHED.has(e.code));
+  return typeof cause.code === 'string' && CONNECTION_NEVER_ESTABLISHED.has(cause.code);
 }
 
 export interface BreakerOptions {
@@ -40,6 +83,13 @@ export class CircuitBreaker {
   private failures = 0;
   private openedAt: number | null = null;
   private probing = false;
+  /**
+   * La última sonda del semiabierto VENCIÓ por timeout con `ignoreTimeouts`: no es concluyente (la dependencia no dijo ni sí ni no). Mientras dure, el semiabierto
+   * deja pasar las llamadas en vez de admitir UNA sola sonda cuyo timeout rechazaría a todas las demás con `circuit_open` sin que lleguen a la dependencia (REVISION-DINERO F3).
+   * Termina con la primera respuesta concluyente: un éxito cierra el breaker; una falla real (red, 5xx) lo reabre. Un timeout nunca abre ni cuenta, así que esto no
+   * reintroduce el defecto que `ignoreTimeouts` corrige (los propios timeouts abriendo el breaker).
+   */
+  private probeInconclusive = false;
   private readonly now: () => number;
 
   constructor(
@@ -56,21 +106,32 @@ export class CircuitBreaker {
 
   async exec<T>(fn: () => Promise<T>): Promise<T> {
     const state = this.state;
-    if (state === 'open' || (state === 'half_open' && this.probing)) throw new UpstreamError('circuit_open', this.name);
-    if (state === 'half_open') this.probing = true;
+    if (state === 'open' || (state === 'half_open' && this.probing && !this.probeInconclusive)) throw new UpstreamError('circuit_open', this.name);
+    const asProbe = state === 'half_open';
+    const openedAtStart = this.openedAt;
+    if (asProbe) this.probing = true;
     try {
       const result = await fn();
       this.failures = 0;
       this.openedAt = null;
+      this.probeInconclusive = false;
       return result;
     } catch (error) {
-      if (error instanceof UpstreamError && !(this.options.ignoreTimeouts && error.kind === 'timeout')) {
-        this.failures += 1;
-        if (this.openedAt !== null || this.failures >= this.options.failureThreshold) this.openedAt = this.now();
+      if (error instanceof UpstreamError) {
+        if (this.options.ignoreTimeouts && error.kind === 'timeout') {
+          // Ni cuenta ni abre. Si era una sonda del MISMO semiabierto (no se reabrió ni cerró mientras tanto), queda «no concluyente».
+          if (asProbe && this.openedAt !== null && this.openedAt === openedAtStart) this.probeInconclusive = true;
+        } else {
+          this.failures += 1;
+          if (this.openedAt !== null || this.failures >= this.options.failureThreshold) {
+            this.openedAt = this.now();
+            this.probeInconclusive = false;
+          }
+        }
       }
       throw error;
     } finally {
-      this.probing = false;
+      if (asProbe) this.probing = false;
     }
   }
 }
@@ -120,13 +181,17 @@ export class HttpClient {
     const retryable = request.method === 'GET' || request.idempotencyKey !== undefined;
     const attempts = 1 + (retryable ? (this.options.retries ?? 1) : 0);
     let last: unknown;
+    // Una llamada anterior de ESTE request pudo llegar a la dependencia (timeout, corte, 5xx…): el error final es solo el último y no puede borrarla (regla 11).
+    let earlierMayHaveReached = false;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       try {
         return await this.breaker.exec(() => this.once<T>(request));
       } catch (error) {
-        last = error;
+        const surfaced = earlierMayHaveReached && error instanceof UpstreamError ? error.withEarlierAttempt() : error;
+        if (error instanceof UpstreamError && !error.provenNotReached) earlierMayHaveReached = true;
+        last = surfaced;
         // Con el breaker abierto reintentar no sirve: se corta.
-        if (!(error instanceof UpstreamError) || error.kind === 'circuit_open') throw error;
+        if (!(error instanceof UpstreamError) || error.kind === 'circuit_open') throw surfaced;
         if (attempt < attempts - 1) await sleep(50 * 2 ** attempt);
       }
     }
@@ -144,7 +209,7 @@ export class HttpClient {
   private async exchange<T>(request: HttpRequest, span: Span): Promise<HttpResponse<T>> {
     const base = serviceHeaders(this.options.serviceId, { ...request.headers, 'idempotency-key': request.idempotencyKey });
     // El id de la petición de origen se conserva de extremo a extremo; sin petición de origen (un timer, un consumidor) esta llamada abre el suyo.
-    const requestId = isValidRequestId(base['x-request-id']) ? base['x-request-id'] : (currentRequestId() ?? randomUUID());
+    const requestId = isValidRequestId(base['x-request-id']) ? base['x-request-id'] : (currentRequestId() ?? generateRequestId());
     const headers: Record<string, string> = withActiveTraceparent({ ...base, 'x-request-id': requestId });
     if (request.body !== undefined) headers['content-type'] = 'application/json';
     let response: Response;
@@ -159,7 +224,8 @@ export class HttpClient {
       // Sin `instanceof Error`: bajo Jest (vm) los errores de fetch vienen de otro realm y el instanceof da falso.
       const name = (error as { name?: string } | null)?.name ?? '';
       const timedOut = name === 'TimeoutError' || name === 'AbortError';
-      throw new UpstreamError(timedOut ? 'timeout' : 'network', this.options.name);
+      // `network` es AMBIGUO salvo que se pruebe que la conexión nunca se estableció (rechazada, DNS, inalcanzable): un corte posterior pudo haber llevado la orden.
+      throw new UpstreamError(timedOut ? 'timeout' : 'network', this.options.name, undefined, undefined, { notReached: !timedOut && connectionNeverEstablished(error) });
     }
     // Un resultado ambiguo no es un fallo (CLAUDE.md regla 11): un 5xx, un timeout o un 4xx sin el cuerpo de error exacto del
     // contrato NO prueban que la orden no se ejecutó. Se lanza UpstreamError; solo `connector_unavailable` (502) es definitivo y

@@ -15,7 +15,7 @@
  * fecha y un correlativo de 14 a 17 dígitos separados por guiones) se marca aunque no sea una tarjeta. Una clave legítima recomendada (UUID, ULID, texto con letras)
  * no lo sufre. LÍMITE: no detecta un PAN partido por LETRAS ni codificado (base64, hexadecimal). No lanza nunca y no devuelve ni conserva ningún fragmento del texto.
  */
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { maskDigest } from './mask-key';
 
 const MIN_PAN = 13;
@@ -95,9 +95,25 @@ export function isAcceptableRequestId(value: unknown): value is string {
 }
 
 /**
- * Id de correlación de una petición: el del cliente si viene bien formado y sin forma de PAN; si no, un UUID nuevo (S-03). El id se registra como `req.id`, se devuelve en
- * la respuesta y se reenvía, así que un PAN pegado ahí acabaría en los logs de todos los servicios. Lo usa el `genReqId` de pino-http de TODOS los servicios.
+ * Un id de correlación NUEVO que {@link isAcceptableRequestId} acepta. Un UUID v4 al azar lleva por casualidad una corrida de dígitos que cumple Luhn en ~0,9 % de los
+ * casos (medido: 176 de 20 000): si el id GENERADO por un servicio fuera rechazado por el siguiente, se rompería la correlación de una petición legítima. Por eso un
+ * id generado se regenera hasta que pase la MISMA validación que aplican todos los servicios; así un id propio nunca es rechazado aguas abajo.
+ * El respaldo (tras 64 intentos, probabilidad ~10^-130) es un id solo de letras: no tiene dígitos, no puede tener forma de PAN.
+ */
+export function generateRequestId(): string {
+  for (let attempt = 0; attempt < 64; attempt += 1) {
+    const id = randomUUID();
+    if (isAcceptableRequestId(id)) return id;
+  }
+  return `req-${randomBytes(18).toString('base64url').replace(/[^A-Za-z]/g, 'x')}`;
+}
+
+/**
+ * Id de correlación de una petición: el del cliente si viene bien formado y sin forma de PAN; si no, uno generado (S-03). El id se registra como `req.id`, se devuelve en
+ * la respuesta y se reenvía, así que un PAN pegado ahí acabaría en los logs de todos los servicios. Lo usa el `genReqId` de pino-http de TODOS los servicios, y los clientes
+ * HTTP internos validan con la misma {@link isAcceptableRequestId}. Un id del cliente con una corrida PAN-like se descarta SIEMPRE (también uno con forma de UUID, como
+ * `41111111-1111-1111-1111-111111111111`, que el cliente controla): es el comportamiento buscado y es idéntico en toda la cadena.
  */
 export function resolveRequestId(incoming: unknown): string {
-  return isAcceptableRequestId(incoming) ? incoming : randomUUID();
+  return isAcceptableRequestId(incoming) ? incoming : generateRequestId();
 }

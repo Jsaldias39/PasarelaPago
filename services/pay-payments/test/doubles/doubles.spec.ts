@@ -68,7 +68,7 @@ describe('[DOBLE] pay-risk (internal-risk-v1)', () => {
     expect((await c.risk.assess({ ...fresh(), screening: { merchantName: 'Comercio de Prueba S.R.L.', payerName: 'Persona Sintetica' } })).decision).toBe('allow');
   });
 
-  it('inválido: SIN merchant_name el doble responde review/screening_not_provided (nunca allow, como el contrato) y screened=false — también si solo viene el pagador sin coincidencia; con requireScreening=false, allow', async () => {
+  it('inválido: SIN merchant_name el doble responde review/screening_not_provided (nunca allow, como el contrato) y screened=false — también si solo viene el pagador sin coincidencia; con requireScreening=false, allow con screened=true', async () => {
     const base = fresh();
     const withoutScreening = { merchantId: base.merchantId, paymentIntentId: base.paymentIntentId, amountMinor: base.amountMinor, currency: base.currency, method: base.method };
     expect(await c.risk.assess(withoutScreening)).toMatchObject({ decision: 'review', reason_code: 'screening_not_provided', screened: false });
@@ -76,7 +76,8 @@ describe('[DOBLE] pay-risk (internal-risk-v1)', () => {
     risk.sanctions.add('persona sancionada');
     expect(await c.risk.assess({ ...fresh(), screening: { payerName: 'Persona Sancionada' } })).toMatchObject({ decision: 'deny', reason_code: 'sanctions_match' }); // una coincidencia fuerte no se oculta
     risk.requireScreening = false;
-    expect(await c.risk.assess({ ...withoutScreening, paymentIntentId: 'pi_risknoscr001' })).toMatchObject({ decision: 'allow', screened: false });
+    // Ola 5 (F7): el doble devolvía `allow` con `screened:false`, que `internal-risk-v1` descarta ("si es `false`, la decisión nunca es `allow`"; pay-risk `evaluate()` lo sostiene). Con la exigencia apagada responde `allow` CON cribado hecho.
+    expect(await c.risk.assess({ ...withoutScreening, paymentIntentId: 'pi_risknoscr001' })).toMatchObject({ decision: 'allow', screened: true });
     risk.requireScreening = true;
   });
 
