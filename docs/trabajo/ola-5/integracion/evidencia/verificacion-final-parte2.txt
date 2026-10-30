@@ -1,3 +1,10 @@
 == reanudación tras reinicio del contenedor 2026-10-30T13:54:03Z HEAD=b11909b (parte 1: verificacion-final.txt, llegó hasta pay-payments)
 == (re)arranque 2026-10-30T14:59:44Z HEAD=b11909b
 == pay-payments typecheck 0 build 0
+== pay-payments, corrida con --maxWorkers=2 (17:40Z): Test Suites 2 failed / 35 passed; Tests 2 failed / 513 passed (JEST_EXIT=1)
+   FAIL test/payment.kill.spec.ts › corrida 4: createIntent devolvió status 'processing' en vez de 'requires_action' (assessRisk reintentó: RiskInFlight)
+   FAIL test/ola2.tanda2g.refund.spec.ts › E3 502 sin cuerpo exacto: stack.connectors.chargeFor(id) undefined (el cargo aún no existía)
+   Aislados con --runInBand (mismo commit): refund 10/10 PASS exit 0; kill 7/7 PASS exit 0.
+   Clasificación (regla 80.4): ENVIRONMENT/carga (cada suite levanta su worker de Temporal y su PG; con 2 workers + Temporal + TigerBeetle en 4 vCPU el cobro tarda más que lo que el test supone). NO se da por PASS: se repite el servicio completo con --runInBand (regla 70.3: un worker en máquina de desarrollo).
+== (re)arranque 2026-10-30T18:00:23Z HEAD=2c09205
+== pay-payments typecheck 0 build 0
