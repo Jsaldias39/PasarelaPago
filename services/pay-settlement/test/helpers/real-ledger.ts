@@ -45,6 +45,8 @@ export async function startRealLedger(options: { payMode?: 'sandbox' | 'live' } 
       PORT: String(port),
       LOG_LEVEL: 'warn',
       PAY_MODE: options.payMode ?? 'sandbox',
+      // Bajo live el almacén de idempotencia del ledger exige IDEMPOTENCY_MASK_KEY (≥32 bytes, S-02). Valor sintético de prueba.
+      IDEMPOTENCY_MASK_KEY: 'clave-sintetica-de-prueba-0123456789abcdef',
       DB_HOST: url.hostname,
       DB_PORT: url.port || '5432',
       DB_NAME: url.pathname.slice(1),
