@@ -73,7 +73,13 @@ describe('arranque de la aplicación', () => {
     let builder = Test.createTestingModule({ imports: [AppModule] });
     if (fakeEngine) builder = builder.overrideProvider(TB_ENGINE).useValue({ destroy: () => undefined });
     const app = (await builder.compile()).createNestApplication();
-    await app.init();
+    try {
+      await app.init();
+    } catch (error) {
+      // Un arranque rechazado no debe dejar vivo el relé del outbox: retiene el proceso de Jest y la suite no termina.
+      await app.close().catch(() => undefined);
+      throw error;
+    }
     return app;
   }
 
