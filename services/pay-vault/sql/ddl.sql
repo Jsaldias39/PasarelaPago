@@ -87,6 +87,12 @@ CREATE INDEX IF NOT EXISTS "idempotency_keys_expires_at_idx" ON "idempotency_key
 -- Complementos del perfil pay (gen_ddl_pay.py): funciones, CHECK, FK compuestas y triggers.
 -- Aplicar DESPUÉS de 04_indexes.sql. Idempotente.
 
+CREATE OR REPLACE FUNCTION forbid_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'la tabla % es inmutable (%)', TG_TABLE_NAME, TG_OP USING ERRCODE = 'integrity_constraint_violation';
+END;
+$$;
+
 ALTER TABLE "capture_sessions" DROP CONSTRAINT IF EXISTS "capture_sessions_status_chk";
 ALTER TABLE "capture_sessions" ADD CONSTRAINT "capture_sessions_status_chk" CHECK (status IN ('open', 'completed', 'expired', 'canceled'));
 
@@ -107,3 +113,11 @@ ALTER TABLE "reveal_audit" ADD CONSTRAINT "reveal_audit_outcome_chk" CHECK (outc
 
 ALTER TABLE "idempotency_keys" DROP CONSTRAINT IF EXISTS "idempotency_keys_state_check";
 ALTER TABLE "idempotency_keys" ADD CONSTRAINT "idempotency_keys_state_check" CHECK (state IN ('started', 'completed'));
+
+-- Rastro de auditoría de cada revelado del PAN (granted / denied_*), de SOLO-AGREGAR: vault.repo.ts es el único que escribe (INSERT) y no hay UPDATE/DELETE/TRUNCATE sobre ella en
+-- services/*/src, test/ ni e2e/. Borrarla o editarla permitiría esconder quién vio un PAN.
+DROP TRIGGER IF EXISTS "reveal_audit_immutable" ON "reveal_audit";
+CREATE TRIGGER reveal_audit_immutable BEFORE UPDATE OR DELETE ON reveal_audit FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "reveal_audit_no_truncate" ON "reveal_audit";
+CREATE TRIGGER reveal_audit_no_truncate BEFORE TRUNCATE ON reveal_audit FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();

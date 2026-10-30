@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import type { Span } from '@opentelemetry/api';
 import { serviceHeaders } from '@pay/service-auth';
+import { currentRequestId, inClientSpan, isValidRequestId, withActiveTraceparent } from '../observability/trace-propagation';
 
 /** Falla de la dependencia (no una respuesta de negocio): sirve para decidir reintento y circuit breaker. */
 export class UpstreamError extends Error {
@@ -131,12 +133,19 @@ export class HttpClient {
     throw last;
   }
 
-  private async once<T>(request: HttpRequest): Promise<HttpResponse<T>> {
-    const headers: Record<string, string> = {
-      ...serviceHeaders(this.options.serviceId, { ...request.headers, 'idempotency-key': request.idempotencyKey }),
-      'x-request-id': randomUUID(),
-    };
-    if (request.body !== undefined) headers['content-type'] = 'application/json';
+  /**
+   * Una llamada: un span CLIENTE (el `fetch` global no se instrumenta solo) y, en las cabeceras, el `traceparent` de ese span y el `x-request-id` de la petición de
+   * origen (P1.H2.M3). Los reintentos de `request` reutilizan el mismo id: los distingue el span de cada intento, no la cabecera.
+   */
+  private once<T>(request: HttpRequest): Promise<HttpResponse<T>> {
+    return inClientSpan(`${request.method} ${this.options.name}`, { 'peer.service': this.options.name, 'http.request.method': request.method }, (span) => this.exchange<T>(request, span));
+  }
+
+  private async exchange<T>(request: HttpRequest, span: Span): Promise<HttpResponse<T>> {
+    const base = serviceHeaders(this.options.serviceId, { ...request.headers, 'idempotency-key': request.idempotencyKey });
+    // El id de la petición de origen se conserva de extremo a extremo; sin petición de origen (un timer, un consumidor) esta llamada abre el suyo.
+    const requestId = isValidRequestId(base['x-request-id']) ? base['x-request-id'] : (currentRequestId() ?? randomUUID());
+    const headers: Record<string, string> = withActiveTraceparent({ ...base, 'x-request-id': requestId });
     let response: Response;
     try {
       response = await fetch(`${this.options.baseUrl}${request.path}`, {
@@ -154,6 +163,7 @@ export class HttpClient {
     // Un resultado ambiguo no es un fallo (CLAUDE.md regla 11): un 5xx, un timeout o un 4xx sin el cuerpo de error exacto del
     // contrato NO prueban que la orden no se ejecutó. Se lanza UpstreamError; solo `connector_unavailable` (502) es definitivo y
     // lo reconoce quien llama mirando `problemCode`.
+    span.setAttribute('http.response.status_code', response.status);
     const text = await response.text();
     let body: unknown = null;
     if (text) {

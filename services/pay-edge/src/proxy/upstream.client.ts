@@ -1,5 +1,6 @@
 import type { UpstreamName } from '../config';
 import { fail } from '../edge-problem';
+import { inClientSpan, withActiveTraceparent } from '../observability/trace-propagation';
 import { CircuitBreaker } from './circuit-breaker';
 
 export interface ForwardRequest {
@@ -95,6 +96,9 @@ export class UpstreamClient {
    * - Un 5xx que trae un problema RFC 9457 válido cuenta como respuesta deliberada del servicio (no abre el cortacircuitos); un
    *   5xx sin cuerpo válido, un error de red o un tiempo agotado sí.
    *
+   * - Trazas (P1.H2.M3): `fetch` global no se instrumenta solo, así que el reenvío abre un span CLIENTE propio y el `traceparent` que viaja es el del contexto activo
+   *   (el de ese span): el span servidor del destino cuelga de un span que se exporta. Un `traceparent` de `request.headers` se descarta; el `x-request-id` se respeta.
+   *
    * @throws EdgeProblemError con 502/503/504 sin detalle del destino.
    */
   async forward(request: ForwardRequest): Promise<ForwardResponse> {
@@ -102,13 +106,21 @@ export class UpstreamClient {
     if (!breaker.tryAcquire()) {
       throw fail('upstream_unavailable', { headers: { 'Retry-After': String(Math.max(1, Math.ceil(breaker.retryAfterMs() / 1000))) } });
     }
+    // Atributos de una lista cerrada: nunca la ruta, la consulta, las cabeceras ni el cuerpo (los escribe el cliente y pueden traer un PAN o una clave).
+    return inClientSpan(`forward ${request.upstream}`, { 'peer.service': request.upstream, 'http.request.method': request.method }, async (span) => {
+      const response = await this.exchange(request, breaker);
+      span.setAttribute('http.response.status_code', response.status);
+      return response;
+    });
+  }
 
+  private async exchange(request: ForwardRequest, breaker: CircuitBreaker): Promise<ForwardResponse> {
     let response: Response;
     let body: Buffer;
     try {
       response = await this.fetchImpl(`${this.options.urls[request.upstream]}${request.path}${request.query}`, {
         method: request.method,
-        headers: request.headers as Record<string, string>,
+        headers: withActiveTraceparent(request.headers),
         body: request.body.length > 0 ? new Uint8Array(request.body) : undefined,
         redirect: 'manual',
         signal: AbortSignal.timeout(this.options.timeoutMs),

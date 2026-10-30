@@ -4,13 +4,14 @@ import type { ChargeStatusValue } from '../clients/connectors.client';
 import { toPublicNextAction } from '../domain/next-action';
 import { businessRef } from '../domain/ids';
 import { decideConnectorEvent, isTerminal, type IntentStatus } from '../domain/state';
+import { inActivityTrace } from '../observability/trace-propagation';
 import { emitIntentEvent, normalizeFailureCode, type IntentEventType } from '../events/emit';
 import { settleIntent } from '../payments/settle';
 import { contradictionsRepo } from '../persistence/contradictions.repo';
 import type { Db } from '../persistence/db';
 import { intentsRepo, type IntentRow } from '../persistence/intents.repo';
 import { replicasRepo } from '../persistence/replicas.repo';
-import type { ChargeSignal, ChargeStatusName, LedgerOutcome, NextStep, PaymentPlan } from './types';
+import type { ChargeSignal, ChargeStatusName, LedgerOutcome, NextStep, PaymentPlan, TraceCarrier } from './types';
 
 const EVENT_FOR: Record<'succeeded' | 'failed' | 'canceled' | 'expired', IntentEventType> = {
   succeeded: 'payment_intent.succeeded',
@@ -80,6 +81,18 @@ export function chargeNameOf(status: ChargeStatusValue | string): ChargeStatusNa
  */
 export function createActivities(deps: Deps) {
   const { clients, config } = deps;
+
+  /**
+   * Las activities que llaman a riesgo, conector o ledger reciben, como ÚLTIMO argumento y opcional, el contexto de la petición de origen (`TraceCarrier`, P1.H2.M3)
+   * y corren en un span hijo con el `x-request-id` de esa petición. Sin él (un workflow en vuelo de antes de este campo, o una prueba directa) abren una traza nueva.
+   * No cambia qué hace la activity ni su idempotencia: solo el contexto de observabilidad con el que corre.
+   */
+  const traced =
+    <R>(name: string, run: (intentId: string) => Promise<R>) =>
+    (intentId: string, trace?: TraceCarrier): Promise<R> => {
+      const attempt = attemptOfActivity();
+      return inActivityTrace(name, trace, attempt === Number.MAX_SAFE_INTEGER ? undefined : attempt, () => run(intentId));
+    };
 
   const load = async (intentId: string): Promise<IntentRow> => {
     const row = await intentsRepo.byId(deps.pool, intentId);
@@ -177,7 +190,7 @@ export function createActivities(deps: Deps) {
      * Política fail-closed (P3.H2.M2): si el riesgo no responde, el cobro NO pasa cuando el monto alcanza el umbral (por
      * defecto 0: siempre). Con `deny` o `review` el cobro termina `failed`. Devuelve `proceed:false` ya con el intento cerrado.
      */
-    async assessRisk(intentId: string): Promise<{ proceed: boolean }> {
+    assessRisk: traced('assessRisk', async (intentId: string): Promise<{ proceed: boolean }> => {
       const intent = await load(intentId);
       if (isTerminal(intent.status)) return { proceed: false };
       try {
@@ -228,9 +241,9 @@ export function createActivities(deps: Deps) {
         }
         throw error;
       }
-    },
+    }),
 
-    async createCharge(intentId: string): Promise<{ state: 'waiting' | 'captured' | 'settled' }> {
+    createCharge: traced('createCharge', async (intentId: string): Promise<{ state: 'waiting' | 'captured' | 'settled' }> => {
       const intent = await load(intentId);
       if (isTerminal(intent.status)) return { state: 'settled' };
       if (intent.method === 'wallet') throw ApplicationFailure.nonRetryable('El saldo AloVida no tiene cargo en un conector', 'NoChargeForWallet');
@@ -280,12 +293,12 @@ export function createActivities(deps: Deps) {
         }
         return { state: name === 'captured' ? ('captured' as const) : ('waiting' as const) };
       });
-    },
+    }),
 
     /** Consulta el estado del cargo al conector: atrapa los eventos perdidos (REQ-P3-7). */
-    async inquireCharge(intentId: string): Promise<ChargeSignal & { notFound?: true }> {
+    inquireCharge: traced('inquireCharge', async (intentId: string): Promise<ChargeSignal & { notFound?: true }> => {
       return inquire(await load(intentId));
-    },
+    }),
 
     applyChargeSignal: applySignal,
 
@@ -293,7 +306,7 @@ export function createActivities(deps: Deps) {
      * Vencimiento: antes de dar el intento por vencido se le pregunta al conector, porque el pago pudo llegar y el evento perderse.
      * Si sigue pendiente se cancela el cargo; si el conector responde 409 es que se pagó justo ahora y se vuelve a consultar.
      */
-    async resolveExpiry(intentId: string): Promise<NextStep> {
+    resolveExpiry: traced('resolveExpiry', async (intentId: string): Promise<NextStep> => {
       const intent = await load(intentId);
       if (isTerminal(intent.status)) return 'done';
       if (!intent.chargeId) {
@@ -319,13 +332,13 @@ export function createActivities(deps: Deps) {
       }
       await settle(intentId, 'expired');
       return 'done';
-    },
+    }),
 
     /**
      * Asiento del cobro en el ledger (único movimiento de dinero). `business_ref = ${intentId}:capture` y el intento (`attempt`)
      * sale de la base: repetir la activity repite la MISMA petición y el ledger devuelve el mismo asiento (H-TB1).
      */
-    async recordLedger(intentId: string): Promise<LedgerOutcome> {
+    recordLedger: traced('recordLedger', async (intentId: string): Promise<LedgerOutcome> => {
       const intent = await load(intentId);
       if (intent.ledgerTransferId) return { transferId: intent.ledgerTransferId };
       const source = ledgerSource(intent);
@@ -338,7 +351,7 @@ export function createActivities(deps: Deps) {
       if (result.kind === 'ok') return { transferId: result.value.id };
       if (result.kind === 'rejected') return { rejected: result.code };
       throw ApplicationFailure.nonRetryable('El ledger ya tiene un intento aceptado para este cobro y no se pudo leer', 'LedgerConflict');
-    },
+    }),
 
     /** Cierra el intento con éxito (ya está en el ledger) o con el motivo de fallo. Una sola vez: el CAS lo garantiza. */
     async completeIntent(intentId: string, outcome: { transferId: string } | { failureCode: string }): Promise<{ status: string }> {
@@ -351,14 +364,14 @@ export function createActivities(deps: Deps) {
      * clave estable para que el pagador no pierda su dinero. Un resultado ambiguo se relanza (Temporal reintenta con la MISMA clave);
      * un rechazo definitivo del conector queda registrado para una persona y no se oculta.
      */
-    async compensateCapture(intentId: string): Promise<{ compensated: boolean }> {
+    compensateCapture: traced('compensateCapture', async (intentId: string): Promise<{ compensated: boolean }> => {
       const intent = await load(intentId);
       if (!intent.chargeId) return { compensated: true };
       const refund = await clients.connectors.createRefund(intent.chargeId, intent.amountMinor, `${intentId}:compensation`, intent.mode, { reason: 'duplicate' });
       if (refund.ok) return { compensated: true };
       await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.chargeStatus, incomingStatus: 'compensation_failed', sourceEventId: 'compensation', kind: 'compensation_failed', reason: refund.code }));
       return { compensated: false };
-    },
+    }),
 
     /**
      * Un resultado ambiguo (timeout, corte, 5xx) NO es un fallo (CLAUDE.md regla 11): no se anula nada, se conserva el estado y se

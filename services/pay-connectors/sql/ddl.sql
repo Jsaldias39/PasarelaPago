@@ -443,3 +443,18 @@ CREATE TRIGGER connector_transfers_monotone_trg BEFORE UPDATE ON connector_trans
 
 DROP TRIGGER IF EXISTS "connector_refunds_monotone_trg" ON "connector_refunds";
 CREATE TRIGGER connector_refunds_monotone_trg BEFORE UPDATE ON connector_refunds FOR EACH ROW EXECUTE FUNCTION connector_money_flags_monotone();
+
+-- connector_callback_events (huella de deduplicación y auditoría de lo que dijo el banco) y connector_api_attempts (cada llamada saliente: la evidencia de «timeout, luego ok» de la regla 11)
+-- son de SOLO-AGREGAR: apply.ts y provider-gateway.ts solo hacen INSERT (el primero con ON CONFLICT DO NOTHING) y no hay UPDATE/DELETE/TRUNCATE en services/*/src. Guardián solo de
+-- UPDATE/DELETE/TRUNCATE, NO de INSERT: connector_api_attempts es de alto volumen y no paga costo por llamada.
+DROP TRIGGER IF EXISTS "connector_callback_events_immutable" ON "connector_callback_events";
+CREATE TRIGGER connector_callback_events_immutable BEFORE UPDATE OR DELETE ON connector_callback_events FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "connector_callback_events_no_truncate" ON "connector_callback_events";
+CREATE TRIGGER connector_callback_events_no_truncate BEFORE TRUNCATE ON connector_callback_events FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "connector_api_attempts_immutable" ON "connector_api_attempts";
+CREATE TRIGGER connector_api_attempts_immutable BEFORE UPDATE OR DELETE ON connector_api_attempts FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "connector_api_attempts_no_truncate" ON "connector_api_attempts";
+CREATE TRIGGER connector_api_attempts_no_truncate BEFORE TRUNCATE ON connector_api_attempts FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();

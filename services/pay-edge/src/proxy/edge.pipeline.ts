@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { parseApiKey, verifyApiKey } from '@pay/api-key';
@@ -16,7 +15,6 @@ import { UpstreamClient } from './upstream.client';
 const DUMMY_HASH = `sha256$${'0'.repeat(64)}`;
 const BEARER = /^Bearer ([^\s]+)$/i;
 const IDEMPOTENCY_KEY = /^[\x21-\x7e]{8,255}$/;
-const TRACEPARENT = /^00-([0-9a-f]{32})-[0-9a-f]{16}-([0-9a-f]{2})$/;
 /** Cabeceras que el cliente NO puede fijar: las pone el borde con lo que autenticó. */
 export const RESERVED_HEADERS = ['x-service-id', 'x-merchant-id', 'x-pay-mode'] as const;
 
@@ -96,7 +94,6 @@ export class EdgePipeline {
         // D-28: el modo sale del REGISTRO (test|live), nunca del token ni de una cabecera del cliente.
         'x-pay-mode': principal.mode,
         'x-request-id': req.id !== undefined ? String(req.id) : undefined,
-        traceparent: this.traceparent(req),
         'idempotency-key': idempotencyKey,
         'content-type': body.length > 0 ? 'application/json' : undefined,
         accept: 'application/json',
@@ -181,14 +178,6 @@ export class EdgePipeline {
     // La clave se guarda EN CLARO aguas abajo (`idempotency_keys`) y viaja en cabeceras entre servicios: una con forma de PAN se reenvía como su hash
     // (`masked-<sha256>`), nunca tal cual. No se rechaza: ver `safeIdempotencyKey` (falsos positivos con identificadores hexadecimales).
     return safeIdempotencyKey(value);
-  }
-
-  /** Continúa la traza del cliente si trae una válida (mismo trace id, span nuevo); si no, abre una. */
-  private traceparent(req: Request): string {
-    const incoming = TRACEPARENT.exec(String(req.headers.traceparent ?? ''));
-    const traceId = incoming && !/^0+$/.test(incoming[1]) ? incoming[1] : randomBytes(16).toString('hex');
-    const flags = incoming ? incoming[2] : '01';
-    return `00-${traceId}-${randomBytes(8).toString('hex')}-${flags}`;
   }
 }
 

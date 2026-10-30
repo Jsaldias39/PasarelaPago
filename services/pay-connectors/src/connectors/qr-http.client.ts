@@ -1,6 +1,18 @@
+import { context, propagation } from '@opentelemetry/api';
 import { serviceHeaders } from '@pay/service-auth';
 import { ConnectorRejectedError, ConnectorTimeoutError, ConnectorUnavailableError } from '../domain/connector';
 import type { QrPort } from './mock/mock.connector';
+
+/**
+ * P1.H2.M3: la llamada a pay-qr se hace dentro de la petición que pay-payments mandó a este servicio, así que el contexto ACTIVO de OpenTelemetry es el de esa petición.
+ * Se reenvía su `traceparent` (nunca uno fabricado): el span servidor de pay-qr cuelga de un span de este servicio que sí se exporta. Sin propagador o sin span activo
+ * no se envía nada. Es el único borde de este cliente: `tracestate` y `baggage` no se copian.
+ */
+function activeTraceparent(): Record<string, string> {
+  const carrier: Record<string, string> = {};
+  propagation.inject(context.active(), carrier);
+  return typeof carrier.traceparent === 'string' ? { traceparent: carrier.traceparent } : {};
+}
 
 /**
  * Cliente de `pay-qr` (contrato propuesto en docs/trabajo/ola-1/P4/propuesta/internal-qr-v1.yaml). Idempotente: la
@@ -18,7 +30,7 @@ export class HttpQrClient implements QrPort {
     try {
       response = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, '')}/qr`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'idempotency-key': `qr-${input.chargeId}`, ...serviceHeaders('pay-connectors', { 'x-pay-mode': input.payMode }) }, // D-28: el modo de la clave viaja a pay-qr
+        headers: { 'content-type': 'application/json', 'idempotency-key': `qr-${input.chargeId}`, ...serviceHeaders('pay-connectors', { 'x-pay-mode': input.payMode }), ...activeTraceparent() }, // D-28: el modo de la clave viaja a pay-qr
         body: JSON.stringify({
           kind: 'dynamic',
           merchant_id: input.merchantId,

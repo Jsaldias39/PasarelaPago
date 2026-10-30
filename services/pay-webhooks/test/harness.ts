@@ -17,7 +17,8 @@ import { RESOLVER, TRANSPORT } from '../src/ssrf/tokens';
 import { FakeResolver } from './doubles/fake-resolver';
 import { LoopbackTransport } from './doubles/loopback-transport';
 
-export const SQL_FILES = [join(process.cwd(), '../../contracts/packages/idempotency/sql/001_idempotency_keys.sql'), join(process.cwd(), 'sql/001_webhooks.sql')];
+/** El esquema es el del MODELO, vendorizado (D-18): `sql/ddl.sql` ya trae las tablas técnicas (idempotencia, inbox) y los guardianes de solo-agregar. */
+export const SQL_FILES = [join(process.cwd(), 'sql/ddl.sql')];
 export const PUBLIC_CONTRACT = join(process.cwd(), '../../contracts/openapi/public-v1.yaml');
 
 /** Reloj controlable: las pruebas de reintentos avanzan horas sin esperar. */

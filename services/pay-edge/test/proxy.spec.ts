@@ -26,7 +26,8 @@ describe('[DOBLE] reenvío a los servicios dueños — nivel CORRECTO', () => {
   let h: EdgeHarness;
   let k: Awaited<ReturnType<typeof authed>>;
   beforeAll(async () => {
-    h = await startEdge();
+    // Con el SDK de OpenTelemetry registrado (helpers/otel.ts): el `traceparent` que viaja es el del contexto activo, no uno fabricado.
+    h = await startEdge({ tracing: true });
     k = await authed(h);
   });
   afterAll(async () => h.stop());

@@ -7,13 +7,12 @@ import { until } from '../lib/wait.ts';
 import { startStack, stopStack, type Stack } from '../stack.ts';
 
 /**
- * PENDIENTE (P1.H2.M3, ola 5): el CONTRATO de la traza completa borde → pay-payments → (pay-risk | pay-connectors | pay-qr), escrito contra el Jaeger REAL del Compose y tal
- * como lo pide el DoD de la fila («La traza en Jaeger cruza borde → servicio»). HOY NO PUEDE PASAR por causas que están en los servicios (fuera del alcance de este carril:
- * ver docs/trabajo/ola-5/P1/PROPUESTAS-TRAZA.md). Cuando se corrijan, esta prueba pasa a `flows/` (hay que borrarla de acá).
- *
- * Fallar acá NO es un defecto del arnés. Lo que sí funciona hoy está afirmado en flows/traza-jaeger.e2e.ts.
+ * P1.H2.M3 (ola 5): el CONTRATO de la traza completa borde → pay-payments → (pay-risk | pay-connectors | pay-qr), contra el Jaeger REAL del Compose y tal como lo pide el DoD
+ * de la fila («La traza en Jaeger cruza borde → servicio»). Nació en `pending/` en rojo a propósito (causas en los servicios: docs/trabajo/ola-5/P1/PROPUESTAS-TRAZA.md) y
+ * pasó a `flows/` con sus aserciones SIN cambios cuando los servicios propagaron el contexto (pay-edge, pay-payments, pay-connectors). Lo que ya era verdad desde antes está
+ * afirmado en traza-jaeger.e2e.ts.
  */
-describe('PENDIENTE — árbol completo de la traza en Jaeger', () => {
+describe('árbol completo de la traza en Jaeger (borde → pay-payments → riesgo / conector)', () => {
   const jaeger = new Jaeger();
   let stack: Stack;
   let merchant: SeededMerchant;

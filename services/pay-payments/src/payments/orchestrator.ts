@@ -1,4 +1,5 @@
 import { Client, Connection, WorkflowIdReusePolicy } from '@temporalio/client';
+import { captureTraceCarrier, inClientSpan } from '../observability/trace-propagation';
 import { workflowIds, type ChargeSignal } from '../temporal/types';
 
 /** Costura hacia Temporal: el servicio no conoce su cliente, así las pruebas pueden sustituirla y los errores se traducen acá. */
@@ -37,7 +38,15 @@ export class TemporalOrchestrator implements PaymentOrchestrator {
     await this.connection.close();
   }
 
-  private async start(workflow: string, workflowId: string, arg: Record<string, string>): Promise<void> {
+  private async start(workflow: string, workflowId: string, arg: Record<string, string>, options: { carryTrace?: boolean } = {}): Promise<void> {
+    // P1.H2.M3: el cobro corre en el worker, fuera de la petición. Se captura el contexto DENTRO de un span propio, así las activities cuelgan de un span que se exporta.
+    return inClientSpan(`start ${workflow}`, { 'peer.service': 'temporal', 'temporal.workflow.type': workflow }, async () => {
+      const trace = options.carryTrace ? captureTraceCarrier() : undefined;
+      await this.startWorkflow(workflow, workflowId, trace ? { ...arg, trace } : arg);
+    });
+  }
+
+  private async startWorkflow(workflow: string, workflowId: string, arg: Record<string, unknown>): Promise<void> {
     try {
       await this.client.workflow.start(workflow, {
         args: [arg],
@@ -63,7 +72,7 @@ export class TemporalOrchestrator implements PaymentOrchestrator {
   }
 
   startPayment(intentId: string): Promise<void> {
-    return this.start('PaymentWorkflow', workflowIds.payment(intentId), { intentId });
+    return this.start('PaymentWorkflow', workflowIds.payment(intentId), { intentId }, { carryTrace: true });
   }
   signalCharge(intentId: string, signal: ChargeSignal): Promise<'delivered' | 'no_workflow'> {
     return this.signal(workflowIds.payment(intentId), 'connectorEvent', signal);

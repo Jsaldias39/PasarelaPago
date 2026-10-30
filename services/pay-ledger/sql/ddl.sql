@@ -176,6 +176,12 @@ CREATE INDEX IF NOT EXISTS "idempotency_keys_expires_at_idx" ON "idempotency_key
 -- Complementos del perfil pay (gen_ddl_pay.py): funciones, CHECK, FK compuestas y triggers.
 -- Aplicar DESPUÉS de 04_indexes.sql. Idempotente.
 
+CREATE OR REPLACE FUNCTION forbid_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'la tabla % es inmutable (%)', TG_TABLE_NAME, TG_OP USING ERRCODE = 'integrity_constraint_violation';
+END;
+$$;
+
 ALTER TABLE "ledger_accounts" DROP CONSTRAINT IF EXISTS "ledger_accounts_mode_check";
 ALTER TABLE "ledger_accounts" ADD CONSTRAINT "ledger_accounts_mode_check" CHECK (mode IN ('test', 'live'));
 
@@ -280,3 +286,33 @@ DO $$ BEGIN
         ADD CONSTRAINT "ledger_statement_lines_account_fkey" FOREIGN KEY ("mode", "account")
         REFERENCES "ledger_accounts" ("mode", "account");
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Registros de SOLO-AGREGAR del libro mayor (CLAUDE.md reglas 5 y 11: los errores se corrigen con asientos inversos, nunca con UPDATE ni DELETE). Hasta ahora lo
+-- cumplía el código y NO la base: `UPDATE ledger_legs SET amount_minor = …` a mano pasaba. Evidencia de que el servicio solo hace INSERT (grep en services/*/src, test/ y e2e/):
+-- ledger_transactions ledger.service.ts#INSERT; ledger_legs ledger.service.ts#INSERT; ledger_statement_lines ledger.service.ts#INSERT; ledger_rejections ledger.service.ts y
+-- hold.service.ts#INSERT; ninguna sentencia UPDATE/DELETE/TRUNCATE ni INSERT … ON CONFLICT DO UPDATE sobre ellas. NO se guarda `ledger_holds` (máquina de estados:
+-- pending -> posted/voided/expired) ni `ledger_accounts`. UPDATE/DELETE por fila y TRUNCATE por sentencia (que no pasa por los triggers de fila); DROP SCHEMA/DROP TABLE de las
+-- bases descartables de prueba no se ven afectados. Mismo SQLSTATE (23000) y mensaje que forbid_mutation() de pay_merchants/pay_risk/pay_connectors.
+DROP TRIGGER IF EXISTS "ledger_transactions_immutable" ON "ledger_transactions";
+CREATE TRIGGER ledger_transactions_immutable BEFORE UPDATE OR DELETE ON ledger_transactions FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "ledger_transactions_no_truncate" ON "ledger_transactions";
+CREATE TRIGGER ledger_transactions_no_truncate BEFORE TRUNCATE ON ledger_transactions FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "ledger_legs_immutable" ON "ledger_legs";
+CREATE TRIGGER ledger_legs_immutable BEFORE UPDATE OR DELETE ON ledger_legs FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "ledger_legs_no_truncate" ON "ledger_legs";
+CREATE TRIGGER ledger_legs_no_truncate BEFORE TRUNCATE ON ledger_legs FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "ledger_statement_lines_immutable" ON "ledger_statement_lines";
+CREATE TRIGGER ledger_statement_lines_immutable BEFORE UPDATE OR DELETE ON ledger_statement_lines FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "ledger_statement_lines_no_truncate" ON "ledger_statement_lines";
+CREATE TRIGGER ledger_statement_lines_no_truncate BEFORE TRUNCATE ON ledger_statement_lines FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "ledger_rejections_immutable" ON "ledger_rejections";
+CREATE TRIGGER ledger_rejections_immutable BEFORE UPDATE OR DELETE ON ledger_rejections FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+
+DROP TRIGGER IF EXISTS "ledger_rejections_no_truncate" ON "ledger_rejections";
+CREATE TRIGGER ledger_rejections_no_truncate BEFORE TRUNCATE ON ledger_rejections FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation();

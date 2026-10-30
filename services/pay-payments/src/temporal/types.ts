@@ -38,6 +38,15 @@ export interface LedgerOutcome {
   readonly rejected?: 'insufficient_funds' | 'validation_failed';
 }
 
+/**
+ * Contexto de la petición de origen que viaja con el workflow del cobro (P1.H2.M3): el `traceparent` (W3C) del span activo al arrancarlo y el `x-request-id`. Opcional en
+ * el input: un workflow que arrancó antes de este campo sigue su camino sin traza ni id (cada llamada abre una traza nueva y genera su id).
+ */
+export interface TraceCarrier {
+  readonly traceparent?: string;
+  readonly requestId?: string;
+}
+
 export interface PaymentResult {
   readonly status: string;
 }

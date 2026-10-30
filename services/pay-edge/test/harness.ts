@@ -10,6 +10,7 @@ import type { DestinationStream } from 'pino';
 import { loadConfig, UPSTREAMS, type ServiceConfig, type UpstreamName } from '../src/config';
 import { configureApp } from '../src/configure-app';
 import { UpstreamDouble } from './doubles/upstream-double';
+import { simulatedServerSpan, startTestTracing } from './helpers/otel';
 
 const SQL = join(process.cwd(), 'sql/001_edge.sql');
 export const PUBLIC_CONTRACT = join(process.cwd(), '../../contracts/openapi/public-v1.yaml');
@@ -41,6 +42,8 @@ export interface StartOptions {
   readonly liveAfterLoad?: boolean;
   /** Destino de los logs (por defecto la salida estándar): las pruebas leen acá lo que el borde registra. */
   readonly logStream?: DestinationStream;
+  /** Registra el SDK de OpenTelemetry (exportador en memoria) y un span servidor simulado por petición (`helpers/otel.ts`). */
+  readonly tracing?: boolean;
 }
 
 /** Levanta el borde COMPLETO con Postgres y Redis reales, un esquema propio, un prefijo de Redis propio y dobles de los destinos. */
@@ -64,6 +67,10 @@ export async function startEdge(options: StartOptions = {}): Promise<EdgeHarness
   const config: ServiceConfig = options.liveAfterLoad ? { ...loaded, payMode: 'live' } : loaded;
   const moduleRef = await Test.createTestingModule({ imports: [AppModule.forRoot(config, options.logStream)] }).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false });
+  if (options.tracing) {
+    startTestTracing();
+    app.use(simulatedServerSpan);
+  }
   configureApp(app, config);
   await app.init();
 

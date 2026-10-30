@@ -5,7 +5,7 @@
 import { ActivityFailure, ApplicationFailure, condition, defineSignal, proxyActivities, setHandler, sleep } from '@temporalio/workflow';
 import type { PaymentActivities } from './activities';
 import type { RefundActivities, DisputeActivities } from './activities-money';
-import { SIGNALS, type ActivityPolicy, type ChargeSignal, type NextStep, type PaymentResult, type RefundStep } from './types';
+import { SIGNALS, type ActivityPolicy, type ChargeSignal, type NextStep, type PaymentResult, type RefundStep, type TraceCarrier } from './types';
 
 export const connectorEventSignal = defineSignal<[ChargeSignal]>(SIGNALS.connectorEvent);
 export const wakeSignal = defineSignal(SIGNALS.wake);
@@ -50,8 +50,11 @@ async function untilResolved<T>(options: { run: () => Promise<T>; escalate: () =
   }
 }
 
-export async function PaymentWorkflow(input: { intentId: string }): Promise<PaymentResult> {
+export async function PaymentWorkflow(input: { intentId: string; trace?: TraceCarrier }): Promise<PaymentResult> {
   const { intentId } = input;
+  // P1.H2.M3: el contexto de la petición de origen viaja como dato hasta las activities que llaman a riesgo, conector y ledger. Un workflow que arrancó SIN `trace`
+  // (en vuelo antes de este cambio) agenda exactamente las mismas activities con exactamente los mismos argumentos que en su historia: no se pasa un segundo argumento.
+  const tail: [] | [TraceCarrier] = input.trace ? [input.trace] : [];
   const inbox: ChargeSignal[] = [];
   let woken = false;
   let notFoundEscalated = false;
@@ -82,7 +85,7 @@ export async function PaymentWorkflow(input: { intentId: string }): Promise<Paym
   };
 
   const body = async (): Promise<PaymentResult> => {
-    const risk = await must('risk_unknown', () => a.assessRisk(intentId));
+    const risk = await must('risk_unknown', () => a.assessRisk(intentId, ...tail));
     if (!risk.proceed) return await finalStatus();
 
     let step: NextStep = 'capture';
@@ -91,14 +94,14 @@ export async function PaymentWorkflow(input: { intentId: string }): Promise<Paym
       // Solo `connector_unavailable` (sin efecto, garantizado por el contrato) cierra el cobro tras agotar los reintentos.
       let charge;
       try {
-        charge = await keep('charge_outcome_unknown', () => a.createCharge(intentId), { isDefinitive: (error) => causeType(error) === 'ConnectorUnavailable', deadlineMs: plan.expiresAtMs });
+        charge = await keep('charge_outcome_unknown', () => a.createCharge(intentId, ...tail), { isDefinitive: (error) => causeType(error) === 'ConnectorUnavailable', deadlineMs: plan.expiresAtMs });
       } catch (error) {
         if (causeType(error) !== 'ConnectorUnavailable') throw error;
         await must('finalize_unknown', () => a.settleFailed(intentId, 'connector_unavailable'));
         return await finalStatus();
       }
       if (charge === EXPIRED) {
-        step = await must('expiry_unknown', () => a.resolveExpiry(intentId));
+        step = await must('expiry_unknown', () => a.resolveExpiry(intentId, ...tail));
       } else {
         if (charge.state === 'settled') return await finalStatus();
         step = charge.state === 'captured' ? 'capture' : 'continue';
@@ -108,7 +111,7 @@ export async function PaymentWorkflow(input: { intentId: string }): Promise<Paym
     while (step === 'continue') {
       const remaining = plan.expiresAtMs - Date.now();
       if (remaining <= 0) {
-        step = await must('cancel_outcome_unknown', () => a.resolveExpiry(intentId));
+        step = await must('cancel_outcome_unknown', () => a.resolveExpiry(intentId, ...tail));
         break;
       }
       await condition(() => inbox.length > 0 || woken, Math.min(plan.inquiryIntervalMs, remaining));
@@ -121,7 +124,7 @@ export async function PaymentWorkflow(input: { intentId: string }): Promise<Paym
       } else if (plan.expiresAtMs - Date.now() > 0) {
         // Nadie avisó: se pregunta al conector (un evento perdido no puede dejar el cobro colgado, REQ-P3-7).
         try {
-          const state = await a.inquireCharge(intentId);
+          const state = await a.inquireCharge(intentId, ...tail);
           if (state.notFound && !notFoundEscalated) {
             // El conector dice no conocer un cargo que él creó: no es prueba de que no se pagó. Se escala y se sigue esperando.
             await must('charge_not_found_at_connector', () => a.escalate(intentId, 'charge_not_found_at_connector'));
@@ -137,9 +140,9 @@ export async function PaymentWorkflow(input: { intentId: string }): Promise<Paym
 
     // El conector ya cobró. Si el ledger no contesta NO se devuelve el dinero ni se cierra el cobro: se conserva el estado,
     // se escala y se reintenta con la misma clave hasta que el ledger responda (R-11). Solo un RECHAZO definitivo compensa.
-    const ledger = await must('ledger_outcome_unknown', () => a.recordLedger(intentId));
+    const ledger = await must('ledger_outcome_unknown', () => a.recordLedger(intentId, ...tail));
     if (ledger.transferId) return await must('finalize_unknown', () => a.completeIntent(intentId, { transferId: ledger.transferId as string }));
-    if (plan.method !== 'wallet') await must('compensation_outcome_unknown', () => a.compensateCapture(intentId));
+    if (plan.method !== 'wallet') await must('compensation_outcome_unknown', () => a.compensateCapture(intentId, ...tail));
     return await must('finalize_unknown', () => a.completeIntent(intentId, { failureCode: ledger.rejected ?? 'internal_error' }));
   };
 

@@ -1,3 +1,5 @@
+// PRIMERA IMPORTACIÓN del proceso: sin ella el worker aparte no exporta los spans de las activities (P1.H2.M3). Sin `OTEL_EXPORTER_OTLP_ENDPOINT` no hace nada.
+import './observability/telemetry';
 import 'reflect-metadata';
 import { loadConfig } from './config';
 import { createDeps } from './deps';
