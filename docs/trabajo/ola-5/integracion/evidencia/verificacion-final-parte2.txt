@@ -148,3 +148,7 @@ DONE
 == (causa raíz) FALSO POSITIVO del recolector, no una fuga: la tira de 15 dígitos está dentro de `buildId`, el hash hexadecimal de 64 caracteres del bundle del worker de Temporal (workerVersion.buildId / binaryChecksum). Verificado leyendo el historial real: la tira está rodeada de letras hexadecimales, cumple Luhn y empieza en 3529 por azar; cambió al recompilar el workflow, por eso E7 pasaba antes. Ningún payload (entradas, resultados, memo, cabeceras, fallos) la contiene.
    Corrección: e2e/lib/sensitive-sources.ts → historyText() excluye SOLO las claves de identidad del worker (buildId, binaryChecksum); los payloads se leen enteros. Prueba nueva e2e/lib/sensitive-sources.spec.ts (3): correcto (PAN sintético en un payload se encuentra), límite (tira con forma de tarjeta en buildId no se reporta; el detector sin el filtro SÍ la marcaba), inválido (el mismo número en otro campo SÍ se reporta).
    Re-verificación: sensitive-sources.spec + pan-scan.spec 16/16; e2e/flows/e7.e2e.ts 6/6 exit 0; yarn e2e:typecheck exit 0; yarn lint exit 0.
+== pay-connectors (repetición con OpenBao y Svix arriba) test exit 0
+Test Suites: 34 passed, 34 total
+Tests:       23 todo, 918 passed, 941 total
+== pay-connectors repetición FIN
