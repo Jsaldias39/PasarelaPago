@@ -1,6 +1,6 @@
 # Carril P4 — Conectores, ruteo y QR
 
-> **Estado:** `TODO` · **AVANCE: 0 / 17 — 0,0 %** · **Peldaño:** `UNKNOWN`
+> **Estado:** `EN CURSO` (ola 1) · **AVANCE: 17 / 22 — 77,3 %** · **Peldaño:** `TESTED` en lo marcado HECHO (pruebas de integración contra Postgres y NATS reales, procesos reales de `pay-mockbank` y `pay-qr`, y dobles declarados; sin banco real)
 > **Predecesor:** P1.H1 (plataforma y plantilla).
 > **Carpetas del monorepo:** `services/pay-connectors/`, `services/pay-qr/` · esquema en `mantra-core-health-model`.
 > Plan maestro: [`../PLAN-MAESTRO.md`](../PLAN-MAESTRO.md)
@@ -45,12 +45,12 @@ carácter: si el CRC no lo detecta, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P4.H1.M1 | **Spike**: APIs del Banco Mercantil Santa Cruz (QR interoperable, adquirencia de tarjetas, extractos y cuenta recaudadora) y especificación del QR interoperable; lista de lo que falta y de lo que hay que pedirle al banco | Documento de brechas con fuentes | `evidencia/spike-rieles.md` | TODO |
-| P4.H1.M2 | Esquema `pay_connectors` en el modelo (desde `gateway_connections`, `provider_api_operations`, `provider_api_attempts`, `provider_callback_endpoints` y `provider_callback_events`) | Sin deriva | Verificador de deriva | TODO |
-| P4.H1.M3 | Interfaz `Connector` (`createCharge`, `refund`, `getStatus`, `verifyCallback`, `fetchStatement`) + registro de adaptadores (patrón de Hyperswitch / Kill Bill) | Agregar un adaptador no toca el núcleo | Test de registro | TODO |
-| P4.H1.M4 | Conector **simulador**, configurable por escenario (éxito, rechazo, demora, duplicado, reorden, *down*) | Cada escenario es reproducible por semilla | Test por escenario | TODO |
-| P4.H1.M5 | Endpoint de callbacks: verificación reciclada + deduplicación + outbox | REQ-P4-1 y 2 | Test de integración | TODO |
-| P4.H1.M6 | *Poller* de estado con *backoff* y límite | REQ-P4-5 | Test pegado | TODO |
+| P4.H1.M1 | **Spike**: APIs del Banco Mercantil Santa Cruz (QR interoperable, adquirencia de tarjetas, extractos y cuenta recaudadora) y especificación del QR interoperable; lista de lo que falta y de lo que hay que pedirle al banco | Documento de brechas con fuentes | `evidencia/spike-rieles.md` → [spike](../../spikes/banco-mercantil.md): no hay API pública; **15 pedidos al banco** (`DISCOVERED`) | HECHO |
+| P4.H1.M2 | Esquema `pay_connectors` en el modelo (desde `gateway_connections`, `provider_api_operations`, `provider_api_attempts`, `provider_callback_endpoints` y `provider_callback_events`) | Sin deriva | Verificador de deriva | HECHO — **ORM = mapa del código (schema-map.ts): los servicios usan pg directo, sin ORM; el modelo es la única fuente (D-18)**. El esquema está declarado en `mantra-core-health-model` (módulos 70 `pay_connectors` y 75 `pay_qr`, commit `af60b79`) y `sql/ddl.sql` es su copia vendorizada (`scripts/vendor-ddl.sh --check`: [connectors](../trabajo/ola-3/P4/evidencia/3b-vendor-check-connectors.txt), [qr](../trabajo/ola-3/P4/evidencia/3b-vendor-check-qr.txt)); `src/schema-map.ts` es el mapa de lo que el código usa y `test/drift.spec.ts` compara modelo ↔ base ↔ mapa (tabla ausente, columna ausente, columna obligatoria no mapeada, nulabilidad y tipo divergentes, índices sin nombre propio) con controles negativos ([connectors](../trabajo/ola-3/P4/evidencia/3b-drift-connectors.txt), [qr](../trabajo/ola-3/P4/evidencia/3b-drift-qr.txt)); el `001_*.sql` de referencia se borró y las suites siguen verdes ([connectors](../trabajo/ola-3/P4/evidencia/3c-connectors-test-1.txt), [qr](../trabajo/ola-3/P4/evidencia/3c-qr-test-1.txt)) |
+| P4.H1.M3 | Interfaz `Connector` (`createCharge`, `refund`, `getStatus`, `verifyCallback`, `fetchStatement`) + registro de adaptadores (patrón de Hyperswitch / Kill Bill) | Agregar un adaptador no toca el núcleo | Test de registro | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H1.M3.txt)) |
+| P4.H1.M4 | Conector **simulador**, configurable por escenario (éxito, rechazo, demora, duplicado, reorden, *down*) | Cada escenario es reproducible por semilla | Test por escenario | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H1.M4.txt)) |
+| P4.H1.M5 | Endpoint de callbacks: verificación reciclada + deduplicación + outbox | REQ-P4-1 y 2 | Test de integración | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H1.M5.txt)) |
+| P4.H1.M6 | *Poller* de estado con *backoff* y límite | REQ-P4-5 | Test pegado | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H1.M6.txt)) |
 
 ## H2 — Ruteo y rieles reales (olas 1 a 3)
 
@@ -59,13 +59,13 @@ carácter: si el CRC no lo detecta, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P4.H2.M1 | Motor de reglas de ruteo (canal, monto, costo, salud), declarativo y versionado | REQ-P4-3 | Test pegado | TODO |
-| P4.H2.M2 | *Health checks* por conector + eventos `connector.health.*` | Un conector caído sale del ruteo | Test pegado | TODO |
-| P4.H2.M3 | Adaptador **Mercantil · tarjeta** (adquirencia: autorización, captura, anulación, reembolso, callback y consulta de estado; tokens de su página de pago o de `pay-vault`) | Contra el sandbox, o declarado `BLOQUEADO` con el contrato simulado en los 3 niveles | Salida contra el sandbox | TODO |
-| P4.H2.M4 | Adaptador **Mercantil · QR interoperable** (emisión con la cuenta recaudadora, callback, consulta de estado) | Ídem | Ídem | TODO |
-| P4.H2.M5 | Extractos: `fetchStatement` en `camt.053` o CSV para P2 | El extracto del simulador cuadra con sus cobros | Test pegado | TODO |
-| P4.H2.M6 | Credenciales en OpenBao con rotación; nada de secretos en variables de imagen | REQ-P4-6; `git grep` de secretos → 0 | Salida pegada | TODO |
-| P4.H2.M7 | Adaptador **transferencia bancaria**: instrucciones de pago con referencia única, y confirmación cuando la línea aparece en el extracto | Una línea con la referencia confirma el intento; una sin referencia va a excepción | Test con extracto del simulador | TODO |
+| P4.H2.M1 | Motor de reglas de ruteo (canal, monto, costo, salud), declarativo y versionado | REQ-P4-3 | Test pegado | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H2.M1.txt)) |
+| P4.H2.M2 | *Health checks* por conector + eventos `connector.health.*` | Un conector caído sale del ruteo | Test pegado | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H2.M2.txt)) |
+| P4.H2.M3 | Adaptador **Mercantil · tarjeta** (adquirencia: autorización, captura, anulación, reembolso, callback y consulta de estado; tokens de su página de pago o de `pay-vault`) | Contra el sandbox, o declarado `BLOQUEADO` con el contrato simulado en los 3 niveles | Salida contra el sandbox | BLOQUEADO — sin documentación pública del Mercantil (`docs/spikes/banco-mercantil.md`); lo destraban los 15 pedidos al banco y Q-01/Q-11. Contra el simulador [DOBLE] en 3 niveles ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H1.M4.txt)) |
+| P4.H2.M4 | Adaptador **Mercantil · QR interoperable** (emisión con la cuenta recaudadora, callback, consulta de estado) | Ídem | Ídem | BLOQUEADO — ídem M3 (emisión QR con cuenta recaudadora, callback y consulta de estado del banco) |
+| P4.H2.M5 | Extractos: `fetchStatement` en `camt.053` o CSV para P2 | El extracto del simulador cuadra con sus cobros | Test pegado | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H2.M5.txt)) |
+| P4.H2.M6 | Credenciales en OpenBao con rotación; nada de secretos en variables de imagen | REQ-P4-6; `git grep` de secretos → 0 | Salida pegada | HECHO · [evidencia](../../trabajo/ola-5/P4/evidencia/P4.H2.M6-openbao-tests.txt) · `OpenBaoSecretProvider` contra OpenBao 2.7.2 REAL: lectura con token de solo lectura, rotación sin corte (versión N y N-1 dentro de la ventana), fail-closed (caído, 403, 404, redirección, versión destruida), un token por conector sin mezclar valores, `git grep` de secretos en código desplegado → 0 y logs/respuestas/eventos/base sin secretos; `pay-connectors` 29 suites / 836 tests verificadas por el integrador. Salvedades: bajo `PAY_MODE=live` el servicio exige `SECRET_PROVIDER=openbao` y credenciales; OpenBao `-dev` no es producción (sin TLS ni persistencia); la ventana de 24 h y el segmento de modo (`sandbox`/`live` del servicio) están por confirmar con P4/P1 |
+| P4.H2.M7 | Adaptador **transferencia bancaria**: instrucciones de pago con referencia única, y confirmación cuando la línea aparece en el extracto | Una línea con la referencia confirma el intento; una sin referencia va a excepción | Test con extracto del simulador | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H2.M7.txt)) |
 
 ## H3 — `pay-qr` (olas 1 y 2)
 
@@ -74,10 +74,23 @@ carácter: si el CRC no lo detecta, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P4.H3.M1 | Codificador y decodificador TLV EMVCo MPM + CRC16 (CCITT-FALSE: verificar contra la especificación oficial) | Ida y vuelta sin pérdida; un carácter cambiado → CRC inválido | Tests con vectores pegados | TODO |
-| P4.H3.M2 | QR dinámico por intento (monto + referencia) y estático por comercio; vencimiento y anulación | Un QR vencido se rechaza en la conciliación del callback | Test pegado | TODO |
-| P4.H3.M3 | Perfil boliviano documentado con su fuente (REQ-P4-7) | Cada campo nacional con su fuente | `docs/perfil-qr-bo.md` | TODO |
-| P4.H3.M4 | Imagen PNG/SVG del QR para el comercio (sin datos personales) | Lo lee una app de lectura estándar | Captura de la lectura en `evidencia/` | TODO |
+| P4.H3.M1 | Codificador y decodificador TLV EMVCo MPM + CRC16 (CCITT-FALSE: verificar contra la especificación oficial) | Ida y vuelta sin pérdida; un carácter cambiado → CRC inválido | Tests con vectores pegados | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H3.M1.txt)) |
+| P4.H3.M2 | QR dinámico por intento (monto + referencia) y estático por comercio; vencimiento y anulación | Un QR vencido se rechaza en la conciliación del callback | Test pegado | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H3.M2.txt)) |
+| P4.H3.M3 | Perfil boliviano documentado con su fuente (REQ-P4-7) | Cada campo nacional con su fuente | `docs/perfil-qr-bo.md` | A MEDIAS — `services/pay-qr/docs/perfil-qr-bo.md` escrito con la fuente de cada campo, pero sin acceso al manual oficial del BCB/banco: REQ-P4-7 sigue `AMBIGUOUS` |
+| P4.H3.M4 | Imagen PNG/SVG del QR para el comercio (sin datos personales) | Lo lee una app de lectura estándar | Captura de la lectura en `evidencia/` | HECHO ([evidencia](../trabajo/ola-1/P4/evidencia/P4.H3.M4.txt)) |
+
+## H4 — Banco simulado `pay-mockbank` (ola 4, D-26)
+
+**CA:** Dado el sistema sin credenciales del banco, cuando se cobra por QR o tarjeta, entonces un banco simulado con la misma interfaz que el real responde, calla, se equivoca o se cae según el importe, y el cobro llega a su estado final.
+**DoD:** E1–E3 y E8 en verde contra `pay-mockbank`; tests de contrato idénticos para el simulador y el conector real.
+
+| ID | Microtarea | CA (binario) | DoD (comando de verificación) | Estado |
+|---|---|---|---|---|
+| P4.H4.M1 | Suite de tests de contrato **parametrizada por conector** (`mock`, `mercantil_qr`, `mercantil_card`, `bank_transfer`) | Corre completa contra el simulador y queda lista para el real | `yarn workspace pay-connectors test:contract` → verde con `CONNECTOR=mock` | HECHO ([4a-contract-mock](../trabajo/ola-2/P4/evidencia/4a-contract-mock.txt): `CONNECTOR=mock yarn test:contract` verde, la misma suite contra el banco en proceso y contra `pay-mockbank` por HTTP; [bank_transfer](../trabajo/ola-2/P4/evidencia/4a-contract-bank-transfer.txt). `mercantil_qr` y `mercantil_card` BLOQUEADOS: sin documentación ni ambiente del banco, [guardia](../trabajo/ola-2/P4/evidencia/4a-contract-mercantil-qr.txt)) |
+| P4.H4.M2 | `pay-mockbank`: servicio independiente con su propia base que expone lo que expondría el banco (pago de QR, autorización/captura/anulación de tarjeta, extracto `camt.053`/CSV, callbacks firmados) **sin inventar campos del banco real** (Q-01, Q-11) | Arranca `healthy` y cumple `internal-connectors-v1` | `curl /health/ready` + tests de contrato | HECHO ([mockbank](../trabajo/ola-2/P4/evidencia/4a-mockbank-test-1.txt): `/health/ready` 200 en un proceso real y respuestas validadas contra `openapi/mockbank-v1.proposal.yaml`, que es una PROPUESTA; el conector cumple `internal-connectors-v1` contra él en [connectors](../trabajo/ola-2/P4/evidencia/4a-connectors-test-1.txt)) |
+| P4.H4.M3 | Escenarios **deterministas por importe**, documentados en una tabla: aprobado, rechazado, demorado, callback duplicado, callback fuera de orden, callback perdido, banco caído, extracto con diferencia | Un test por escenario con su importe fijo | `yarn workspace pay-mockbank test` → un caso por fila de la tabla | HECHO ([4a-mockbank-test-1](../trabajo/ola-2/P4/evidencia/4a-mockbank-test-1.txt): `test/scenarios.spec.ts`, un caso por fila con su importe fijo; tabla en `docs/trabajo/ola-2/P4/ESCENARIOS.md`) |
+| P4.H4.M4 | Pagador simulado (`mockbank pay <qr>`) que «paga» un QR emitido por la pasarela | E1 completo sin intervención manual | E1 en verde | HECHO · [evidencia](../../trabajo/ola-4/integracion/evidencia/e2e-corrida-10.txt) · `e2e/flows/e1-payer.e2e.ts` (6 pruebas): el QR de la pasarela lo paga el pagador simulado de `pay-mockbank` (`POST /sandbox/payer/pay`) y el cobro termina `succeeded` por el callback firmado, sin intervención manual; ledger 97,00/3,00 con un asiento, un evento y un webhook firmado; QR repetido, con otro importe, vencido, desconocido o con identidad ajena no mueven nada. Suite completa 33 suites / 251 tests |
+| P4.H4.M5 | Guardia de modo: con `PAY_MODE=live` el conector `mock` no carga y el arranque falla; en sandbox toda respuesta lleva `X-Pay-Mode: sandbox` | Las dos condiciones | Test pegado | HECHO ([mockbank](../trabajo/ola-2/P4/evidencia/4a-mockbank-test-1.txt) `startup.spec.ts`: `live` no arranca y toda respuesta lleva `X-Pay-Mode: sandbox`; [connectors](../trabajo/ola-2/P4/evidencia/4a-connectors-test-1.txt): `live` rechaza `MOCKBANK_URL`, el secreto del mock y la bomba) |
 
 ## Dobles (regla 65)
 

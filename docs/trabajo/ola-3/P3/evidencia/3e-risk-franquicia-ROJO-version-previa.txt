@@ -1,0 +1,14 @@
+# ROJO (versión previa de assessRisk: la franquicia bajo el umbral aplicaba también a en vuelo agotado y a 4xx de integración) · describe «franquicia bajo el umbral ENCENDIDA» · 3e (2026-10-28T02:41:41Z)
+  ● franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000): solo la indisponibilidad pura pasa › límite · 409 «en curso» persistente hasta agotar ⇒ failed/risk_unavailable, SIN cargo, con constancia, aunque el monto esté bajo el umbral
+    Se agotó la espera de: pi_c72da346dc5b8e7890083781 → failed
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+  ● franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000): solo la indisponibilidad pura pasa › límite · timeout persistente hasta agotar ⇒ failed/risk_unavailable, SIN cargo, con constancia
+    Se agotó la espera de: pi_c44a42c8ff362e4cb17332d9 → failed
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+  ● franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000): solo la indisponibilidad pura pasa › límite · un timeout y DESPUÉS un 5xx puro: la evaluación pudo quedar viva ⇒ NO pasa por la franquicia: failed/risk_unavailable, sin cargo, con constancia
+    Se agotó la espera de: pi_2fa46d69b743a4c6f20f0fda → failed
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+  ● franquicia bajo el umbral ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000): solo la indisponibilidad pura pasa › inválido · un 4xx de integración (422) ⇒ failed/risk_unavailable, SIN cargo, con constancia (no es una indisponibilidad)
+    Se agotó la espera de: pi_d19b8b15336a8dd9ed61bea8 → failed
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+Tests:       4 failed, 8 skipped, 2 passed, 14 total

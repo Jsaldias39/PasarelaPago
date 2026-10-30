@@ -1,0 +1,479 @@
+(node:30682) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/risk-ambiguity.http.spec.ts
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › conexión rechazada en las dos pasadas ⇒ provenNotReached, sin llamada anterior ambigua
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 0
+
+      Object {
+    -   "earlierAttemptMayHaveReached": false,
+        "kind": "network",
+    -   "provenNotReached": true,
+      }
+
+      48 |     it('conexión rechazada en las dos pasadas ⇒ provenNotReached, sin llamada anterior ambigua', async () => {
+      49 |       const error = await failure(client(await closedPort()));
+    > 50 |       expect(error).toMatchObject({ kind: 'network', provenNotReached: true, earlierAttemptMayHaveReached: false });
+         |                     ^
+      51 |     });
+      52 |
+      53 |     it('breaker abierto desde antes ⇒ circuit_open provenNotReached (ninguna llamada de este request salió)', async () => {
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:50:21)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › breaker abierto desde antes ⇒ circuit_open provenNotReached (ninguna llamada de este request salió)
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 0
+
+      Object {
+    -   "earlierAttemptMayHaveReached": false,
+        "kind": "circuit_open",
+    -   "provenNotReached": true,
+      }
+
+      56 |         const c = client(server.url, { failureThreshold: 1 });
+      57 |         await expect(c.breaker.exec(async () => { throw new UpstreamError('server_error', 'pay-risk', 503); })).rejects.toBeDefined();
+    > 58 |         expect(await failure(c)).toMatchObject({ kind: 'circuit_open', provenNotReached: true, earlierAttemptMayHaveReached: false });
+         |                                  ^
+      59 |         expect(server.server.listening).toBe(true);
+      60 |       } finally {
+      61 |         await server.close();
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:58:34)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › ECONNREFUSED (la conexión no se estableció) ⇒ provenNotReached
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": true,
+      }
+
+      67 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`connect ${code}`), { code }) }); }) as typeof fetch;
+      68 |       try {
+    > 69 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true });
+         |                                                               ^
+      70 |       } finally {
+      71 |         globalThis.fetch = original;
+      72 |       }
+
+      at toMatchObject (test/risk-ambiguity.http.spec.ts:69:63)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › ENOTFOUND (la conexión no se estableció) ⇒ provenNotReached
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": true,
+      }
+
+      67 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`connect ${code}`), { code }) }); }) as typeof fetch;
+      68 |       try {
+    > 69 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true });
+         |                                                               ^
+      70 |       } finally {
+      71 |         globalThis.fetch = original;
+      72 |       }
+
+      at toMatchObject (test/risk-ambiguity.http.spec.ts:69:63)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › EAI_AGAIN (la conexión no se estableció) ⇒ provenNotReached
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": true,
+      }
+
+      67 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`connect ${code}`), { code }) }); }) as typeof fetch;
+      68 |       try {
+    > 69 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true });
+         |                                                               ^
+      70 |       } finally {
+      71 |         globalThis.fetch = original;
+      72 |       }
+
+      at toMatchObject (test/risk-ambiguity.http.spec.ts:69:63)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › EHOSTUNREACH (la conexión no se estableció) ⇒ provenNotReached
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": true,
+      }
+
+      67 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`connect ${code}`), { code }) }); }) as typeof fetch;
+      68 |       try {
+    > 69 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true });
+         |                                                               ^
+      70 |       } finally {
+      71 |         globalThis.fetch = original;
+      72 |       }
+
+      at toMatchObject (test/risk-ambiguity.http.spec.ts:69:63)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › ENETUNREACH (la conexión no se estableció) ⇒ provenNotReached
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": true,
+      }
+
+      67 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`connect ${code}`), { code }) }); }) as typeof fetch;
+      68 |       try {
+    > 69 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true });
+         |                                                               ^
+      70 |       } finally {
+      71 |         globalThis.fetch = original;
+      72 |       }
+
+      at toMatchObject (test/risk-ambiguity.http.spec.ts:69:63)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › happy eyeballs (AggregateError con TODAS las direcciones rechazadas) ⇒ provenNotReached
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 3
+    + Received  + 1
+
+    - Object {
+    -   "provenNotReached": true,
+    - }
+    + [UpstreamError: pay-risk: network]
+
+      78 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: aggregate }); }) as typeof fetch;
+      79 |       try {
+    > 80 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ provenNotReached: true });
+         |                                                               ^
+      81 |       } finally {
+      82 |         globalThis.fetch = original;
+      83 |       }
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:80:63)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › timeout (la evaluación sigue viva) y luego 503 en el mismo intento ⇒ el 503 informa earlierAttemptMayHaveReached
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 0
+
+      Object {
+    -   "earlierAttemptMayHaveReached": true,
+        "kind": "server_error",
+    -   "provenNotReached": false,
+        "status": 503,
+      }
+
+      90 |       try {
+      91 |         const error = await failure(client(server.url));
+    > 92 |         expect(error).toMatchObject({ kind: 'server_error', status: 503, provenNotReached: false, earlierAttemptMayHaveReached: true });
+         |                       ^
+      93 |       } finally {
+      94 |         await server.close();
+      95 |       }
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:92:23)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › timeout y luego conexión rechazada ⇒ la conexión rechazada NO prueba nada: la primera pudo llegar
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 0
+
+      Object {
+    -   "earlierAttemptMayHaveReached": true,
+        "kind": "network",
+    -   "provenNotReached": false,
+      }
+
+      103 |       try {
+      104 |         const error = await failure(client(server.url));
+    > 105 |         expect(error).toMatchObject({ kind: 'network', provenNotReached: false, earlierAttemptMayHaveReached: true });
+          |                       ^
+      106 |       } finally {
+      107 |         server.server.closeAllConnections();
+      108 |         await closing;
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:105:23)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › timeout y luego breaker abierto (lo abrió otra llamada mientras esperaba) ⇒ circuit_open informa earlierAttemptMayHaveReached
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 0
+
+      Object {
+    -   "earlierAttemptMayHaveReached": true,
+        "kind": "circuit_open",
+    -   "provenNotReached": false,
+      }
+
+      117 |         await new Promise((resolve) => setTimeout(resolve, 60));
+      118 |         await expect(c.breaker.exec(async () => { throw new UpstreamError('server_error', 'pay-risk', 503); })).rejects.toBeDefined(); // otra llamada lo abre
+    > 119 |         expect(await pending).toMatchObject({ kind: 'circuit_open', provenNotReached: false, earlierAttemptMayHaveReached: true });
+          |                               ^
+      120 |       } finally {
+      121 |         await server.close();
+      122 |       }
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:119:31)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › la marca se conserva con 3 pasadas: timeout, 503 y conexión rechazada ⇒ ambiguo
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 0
+
+      Object {
+    -   "earlierAttemptMayHaveReached": true,
+        "kind": "network",
+    -   "provenNotReached": false,
+      }
+
+      133 |       try {
+      134 |         const error = await failure(client(server.url, { retries: 2 }));
+    > 135 |         expect(error).toMatchObject({ kind: 'network', provenNotReached: false, earlierAttemptMayHaveReached: true });
+          |                       ^
+      136 |       } finally {
+      137 |         server.server.closeAllConnections();
+      138 |         await closing;
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:135:23)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › 5xx (con y sin cuerpo del contrato) ⇒ ambiguo
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "server_error",
+    -   "provenNotReached": false,
+      }
+
+      145 |       const server = await listen((_req, res) => problem(res, 503, 'risk_unavailable'));
+      146 |       try {
+    > 147 |         expect(await failure(client(server.url))).toMatchObject({ kind: 'server_error', provenNotReached: false });
+          |                                                   ^
+      148 |       } finally {
+      149 |         await server.close();
+      150 |       }
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:147:51)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › 4xx SIN el cuerpo de error del contrato (un proxy, un service-auth mal puesto) y 2xx ilegible ⇒ unexpected_response, ambiguo
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "unexpected_response",
+    -   "provenNotReached": false,
+        "status": 403,
+      }
+
+      160 |       const forbidden = await listen((_req, res) => res.writeHead(403).end());
+      161 |       try {
+    > 162 |         expect(await failure(client(forbidden.url))).toMatchObject({ kind: 'unexpected_response', status: 403, provenNotReached: false });
+          |                                                      ^
+      163 |       } finally {
+      164 |         await forbidden.close();
+      165 |       }
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:162:54)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › corte de socket tras aceptar la conexión (la orden pudo enviarse) ⇒ network AMBIGUO, no «no llegó»
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": false,
+      }
+
+      175 |       const server = await listen((req) => req.socket.destroy());
+      176 |       try {
+    > 177 |         expect(await failure(client(server.url))).toMatchObject({ kind: 'network', provenNotReached: false });
+          |                                                   ^
+      178 |       } finally {
+      179 |         await server.close();
+      180 |       }
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:177:51)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › error de red con causa ECONNRESET (o sin causa) ⇒ ambiguo
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": false,
+      }
+
+      185 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), code ? { cause: Object.assign(new Error('x'), { code }) } : {}); }) as typeof fetch;
+      186 |       try {
+    > 187 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: false });
+          |                                                               ^
+      188 |       } finally {
+      189 |         globalThis.fetch = original;
+      190 |       }
+
+      at toMatchObject (test/risk-ambiguity.http.spec.ts:187:63)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › error de red con causa UND_ERR_SOCKET (o sin causa) ⇒ ambiguo
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": false,
+      }
+
+      185 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), code ? { cause: Object.assign(new Error('x'), { code }) } : {}); }) as typeof fetch;
+      186 |       try {
+    > 187 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: false });
+          |                                                               ^
+      188 |       } finally {
+      189 |         globalThis.fetch = original;
+      190 |       }
+
+      at toMatchObject (test/risk-ambiguity.http.spec.ts:187:63)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › error de red con causa EPIPE (o sin causa) ⇒ ambiguo
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": false,
+      }
+
+      185 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), code ? { cause: Object.assign(new Error('x'), { code }) } : {}); }) as typeof fetch;
+      186 |       try {
+    > 187 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: false });
+          |                                                               ^
+      188 |       } finally {
+      189 |         globalThis.fetch = original;
+      190 |       }
+
+      at toMatchObject (test/risk-ambiguity.http.spec.ts:187:63)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › error de red con causa undefined (o sin causa) ⇒ ambiguo
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": false,
+      }
+
+      185 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), code ? { cause: Object.assign(new Error('x'), { code }) } : {}); }) as typeof fetch;
+      186 |       try {
+    > 187 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: false });
+          |                                                               ^
+      188 |       } finally {
+      189 |         globalThis.fetch = original;
+      190 |       }
+
+      at toMatchObject (test/risk-ambiguity.http.spec.ts:187:63)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › un AggregateError con UNA dirección que no es «rechazada» ⇒ ambiguo
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 3
+    + Received  + 1
+
+    - Object {
+    -   "provenNotReached": false,
+    - }
+    + [UpstreamError: pay-risk: network]
+
+      196 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: aggregate }); }) as typeof fetch;
+      197 |       try {
+    > 198 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ provenNotReached: false });
+          |                                                               ^
+      199 |       } finally {
+      200 |         globalThis.fetch = original;
+      201 |       }
+
+      at Object.toMatchObject (test/risk-ambiguity.http.spec.ts:198:63)
+
+  ● CircuitBreaker · una sonda semiabierta que vence por timeout no deja el breaker pegado (F3) › límite · DURANTE la sonda las demás llamadas reciben circuit_open (una sola sonda); si la sonda VENCE por timeout, las siguientes llegan a la dependencia en vez de recibir circuit_open
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 0
+
+      Array [
+        1,
+    -   2,
+    -   3,
+      ]
+
+      252 |     const slow = [1, 2, 3].map((n) => ({ n, d: deferred() }));
+      253 |     const calls = slow.map(({ n, d }) => breaker.exec(() => { ran.push(n); return d.promise; }).catch((e: UpstreamError) => e.kind));
+    > 254 |     expect(ran).toEqual([1, 2, 3]); // las TRES llegaron a la dependencia: ninguna recibió circuit_open sin salir
+          |                 ^
+      255 |     for (const { d } of slow) d.resolve('ok');
+      256 |     expect(await Promise.all(calls)).toEqual(['ok', 'ok', 'ok']);
+      257 |     expect(breaker.state).toBe('closed');
+
+      at Object.toEqual (test/risk-ambiguity.http.spec.ts:254:17)
+
+Test Suites: 1 failed, 1 total
+Tests:       21 failed, 5 passed, 26 total
+Snapshots:   0 total
+Time:        2.133 s
+Ran all test suites matching test/risk-ambiguity.http.spec.ts.

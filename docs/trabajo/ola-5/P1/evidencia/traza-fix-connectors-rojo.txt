@@ -1,0 +1,41 @@
+(node:22358) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/qr-client.trace.spec.ts
+  ● HttpQrClient — traceparent hacia pay-qr › correcto: dentro de un span activo reenvía su traceId y su spanId, y conserva el resto de las cabeceras de servicio
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "00-beba2765facb893a4f96281715186340-d575ffefd910803c-01"
+    Received: undefined
+
+      40 |       await new HttpQrClient(baseUrl).issue(input);
+      41 |       span.end();
+    > 42 |       expect(seen[0]!.traceparent).toBe(`00-${span.spanContext().traceId}-${span.spanContext().spanId}-01`);
+         |                                    ^
+      43 |     });
+      44 |     expect(seen[0]!['x-service-id']).toBe('pay-connectors');
+      45 |     expect(seen[0]!['idempotency-key']).toBe('qr-ch_aaaaaaaaaaaaaaaa');
+
+
+  ● HttpQrClient — traceparent hacia pay-qr › límite: contexto NO muestreado (flags 00) ⇒ viaja con flags 00 y la misma traza
+
+    TypeError: expect(received).toMatch(expected)
+
+    Matcher error: received value must be a string
+
+    Received has value: undefined
+
+      50 |     const parent = propagation.extract(ROOT_CONTEXT, { traceparent: `00-${tid}-${hex(8)}-00` });
+      51 |     await context.with(parent, () => new HttpQrClient(baseUrl).issue(input));
+    > 52 |     expect(seen[0]!.traceparent).toMatch(new RegExp(`^00-${tid}-[0-9a-f]{16}-00$`));
+         |                                  ^
+      53 |   });
+      54 |
+      55 |   it('inválido: sin span activo NO se fabrica ningún traceparent y el QR se emite igual', async () => {
+
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 1 passed, 3 total
+Snapshots:   0 total
+Time:        0.74 s, estimated 1 s
+Ran all test suites matching test/qr-client.trace.spec.ts.

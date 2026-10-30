@@ -1,0 +1,166 @@
+# Contrato INTERNO de pay-qr. BORRADOR de la ola 0 (`v1-draft`): no está congelado. Integrado en la ola 2 desde la propuesta de P4
+# (docs/trabajo/ola-1/P4/propuesta/internal-qr-v1.yaml), que `services/pay-qr` ya implementa y prueba. Convenciones: las de common.yaml.
+openapi: 3.1.0
+info:
+  title: pay-qr — API interna
+  version: 1.0.0-draft
+  description: |
+    Emite y anula códigos QR EMVCo MPM (modo presentado por el comercio). Dueño: P4. Consume: `pay-connectors`.
+
+    **Perfil provisional.** El payload usa solo los objetos genéricos de EMVCo y una plantilla de cuenta con un GUID configurable.
+    NO es el perfil del QR interoperable boliviano, que no está publicado en una fuente verificable (Q-01, Q-11): un QR emitido
+    así no es interoperable todavía. La moneda es BOB (`068`) y el país `BO`.
+servers:
+  - url: http://pay-qr:3000
+    description: Marcador de la red interna.
+security:
+  - mTLS: []
+tags:
+  - { name: QR, description: 'Emisión, consulta y anulación' }
+paths:
+  /qr:
+    post:
+      operationId: qrCreate
+      tags: [QR]
+      x-owner: P4
+      summary: Emite un QR
+      description: 'Idempotente por `Idempotency-Key`. Estático: uno vigente por comercio (si ya hay uno se devuelve ese con `200`). Dinámico: uno vigente por intento; emitir otro exige anular el anterior (`409 invalid_state_transition`).'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/QrCreate' } } }
+      responses:
+        '201': { description: QR emitido., content: { application/json: { schema: { $ref: '#/components/schemas/Qr' } } } }
+        '200': { description: Ya existía (estático vigente) o repetición de la misma Idempotency-Key., content: { application/json: { schema: { $ref: '#/components/schemas/Qr' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /qr/decode:
+    post:
+      operationId: qrDecode
+      tags: [QR]
+      x-owner: P4
+      summary: Lee un payload EMVCo MPM (sin guardarlo)
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [payload], additionalProperties: false, properties: { payload: { type: string, maxLength: 512 } } } } }
+      responses:
+        '200': { description: Contenido del payload. `crc_valid` dice si el CRC coincide., content: { application/json: { schema: { $ref: '#/components/schemas/QrDecoded' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /qr-references/{reference}:
+    get:
+      operationId: qrGetByReference
+      tags: [QR]
+      x-owner: P4
+      summary: Busca un QR por la referencia que viaja en su payload (para validar un pago recibido)
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - { name: reference, in: path, required: true, schema: { type: string, pattern: '^[A-Za-z0-9]{1,25}$' } }
+      responses:
+        '200': { description: El QR., content: { application/json: { schema: { $ref: '#/components/schemas/Qr' } } } }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /qr/{id}:
+    get:
+      operationId: qrGet
+      tags: [QR]
+      x-owner: P4
+      summary: Consulta un QR. `status` se calcula al leer (un dinámico vencido pasa a `expired`).
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/QrId' }]
+      responses:
+        '200': { description: El QR., content: { application/json: { schema: { $ref: '#/components/schemas/Qr' } } } }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /qr/{id}/image:
+    get:
+      operationId: qrGetImage
+      tags: [QR]
+      x-owner: P4
+      summary: Imagen del QR (SVG o PNG)
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/QrId'
+        - { name: format, in: query, schema: { type: string, enum: [svg, png], default: svg } }
+      responses:
+        '200':
+          description: La imagen. No se cachea.
+          content:
+            image/svg+xml: { schema: { type: string } }
+            image/png: { schema: { type: string, contentEncoding: base64 } }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /qr/{id}/cancel:
+    post:
+      operationId: qrCancel
+      tags: [QR]
+      x-owner: P4
+      summary: Anula el QR (idempotente; también anula uno ya vencido)
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }, { $ref: '#/components/parameters/QrId' }]
+      responses:
+        '200': { description: QR anulado., content: { application/json: { schema: { $ref: '#/components/schemas/Qr' } } } }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+components:
+  securitySchemes:
+    mTLS: { type: mutualTLS, description: Certificado de servicio; la identidad se confirma con `X-Service-Id`. }
+  parameters:
+    ServiceId: { name: X-Service-Id, in: header, required: true, schema: { type: string, pattern: '^pay-[a-z]+$', examples: [pay-connectors] } }
+    QrId: { name: id, in: path, required: true, schema: { type: string, pattern: '^qr_[a-z0-9]{10,40}$' } }
+  schemas:
+    QrCreate:
+      type: object
+      required: [kind, merchant_id, merchant_name, merchant_city, currency]
+      additionalProperties: false
+      properties:
+        kind: { type: string, enum: [static, dynamic] }
+        merchant_id: { type: string, pattern: '^mc_[a-z0-9]{10,40}$' }
+        merchant_name: { type: string, minLength: 1, maxLength: 60, description: 'Nombre comercial (no una persona). EMV admite 25 caracteres ASCII; se quitan tildes y se rechaza lo que no entre.' }
+        merchant_city: { type: string, minLength: 1, maxLength: 40, description: EMV admite 15 caracteres ASCII. }
+        mcc: { type: string, pattern: '^\d{4}$', description: 'ISO 18245. Por defecto `0000` (no informado).' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }], description: Solo dinámico. }
+        payment_intent_id: { type: string, pattern: '^pi_[a-z0-9]{10,40}$', description: Solo dinámico. }
+        expires_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+      if: { properties: { kind: { const: dynamic } } }
+      then: { required: [amount_minor, payment_intent_id, expires_at], properties: { amount_minor: true, payment_intent_id: true, expires_at: true } }
+    Qr:
+      type: object
+      required: [id, object, kind, merchant_id, reference, currency, payload, status, created_at]
+      properties:
+        id: { type: string, pattern: '^qr_[a-z0-9]{10,40}$' }
+        object: { const: qr }
+        kind: { type: string, enum: [static, dynamic] }
+        merchant_id: { type: string, pattern: '^mc_[a-z0-9]{10,40}$' }
+        payment_intent_id: { type: [string, 'null'] }
+        reference: { type: string, pattern: '^[A-Za-z0-9]{1,25}$', description: Etiqueta 62/05 del payload (dinámico); con ella se vincula el pago recibido. }
+        amount_minor: { oneOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { type: 'null' }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        payload: { type: string, pattern: '^000201.*6304[0-9A-F]{4}$' }
+        status: { type: string, enum: [active, expired, canceled] }
+        expires_at: { oneOf: [{ $ref: 'common.yaml#/components/schemas/Timestamp' }, { type: 'null' }] }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+    QrDecoded:
+      type: object
+      required: [crc_valid, point_of_initiation]
+      properties:
+        crc_valid: { type: boolean }
+        point_of_initiation: { type: string, enum: [static, dynamic, unknown] }
+        amount: { type: [string, 'null'] }
+        currency_numeric: { type: [string, 'null'] }
+        country: { type: [string, 'null'] }
+        merchant_name: { type: [string, 'null'] }
+        merchant_city: { type: [string, 'null'] }
+        reference_label: { type: [string, 'null'] }

@@ -1,0 +1,55 @@
+{
+  "label": "edge",
+  "verdict": "PASS",
+  "problems": [],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "api_key_replica",
+        "p",
+        "api_key_replica_pkey"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "inbox_events_pkey"
+      ],
+      [
+        "merchant_replica",
+        "p",
+        "merchant_replica_pkey"
+      ]
+    ],
+    "modelo": [
+      [
+        "api_key_replica",
+        "p",
+        "pk_api_key_replica"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "pk_inbox_events"
+      ],
+      [
+        "merchant_replica",
+        "p",
+        "pk_merchant_replica"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 3,
+    "columnas": 16,
+    "indices": 4,
+    "check": 3,
+    "fk": 0,
+    "triggers": 0,
+    "funciones": 0
+  }
+}

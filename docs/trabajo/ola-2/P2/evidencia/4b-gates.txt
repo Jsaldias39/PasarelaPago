@@ -1,0 +1,32 @@
+# Gates P2 ola 2 tanda 4b — salidas literales (2026-10-27T23:29Z)
+
+## $ (cd services/pay-ledger && yarn build)
+exit=0
+
+## $ (cd services/pay-settlement && yarn typecheck)
+exit=0
+
+## $ (cd services/pay-settlement && yarn build)
+exit=0
+
+## $ (cd . && yarn eslint services/pay-ledger/**/*.ts services/pay-settlement/**/*.ts e2e/pending/e4.e2e.ts e2e/pending/e8.e2e.ts e2e/lib/p2-*.ts)
+exit=0
+
+## $ (cd . && yarn lint)
+exit=0
+
+## $ (cd . && yarn contracts:lint)
+OK    contracts/openapi/internal-vault-v1.yaml
+OK    contracts/openapi/public-v1.yaml
+OK    contracts/asyncapi/connectors.yaml
+OK    contracts/asyncapi/ledger-settlement.yaml
+OK    contracts/asyncapi/merchants-schedules.yaml
+OK    contracts/asyncapi/payments.yaml
+
+13 contrato(s) válido(s)
+exit=0
+
+## $ (cd . && yarn e2e:typecheck)
+exit=0
+
+(El servicio no define script `lint`: el lint es el de la raíz, arriba. Una llamada de más a `yarn lint` dentro del servicio dio «Couldn't find a script» y se quitó de la evidencia.)

@@ -1,0 +1,10 @@
+# Clasificación de la falla intermitente de lock.spec (1 de 19 corridas; no se pudo capturar el mensaje)
+# Hipótesis: la prueba de carrera retenía el candado un PLAZO FIJO (1500 ms); un hijo que arrancara más tarde (caché de transformación en frío + máquina cargada) llegaba cuando el ganador ya había soltado y ganaba otra vez ⇒ 2 ganadores.
+## Reproducción determinista de la debilidad de la versión anterior (simulando un arranque tardío):
+plazo fijo de 1500 ms, un hijo que arranca 1900 ms tarde ⇒ ganadores: 2 de 8
+## Con la versión corregida (el ganador retiene hasta que TODOS informaron; arranques escalonados hasta 2,5 s):
+Tests:       16 passed, 16 total
+Tests:       16 passed, 16 total
+Tests:       16 passed, 16 total
+## Dispersión medida del arranque de 8 hijos con 8 procesos de CPU compitiendo (3 corridas): máximo ~1,0 s, por debajo del plazo anterior: con la máquina de pruebas a load 15 y la caché en frío el margen podía no alcanzar (hipótesis; la falla original no se capturó).
+## Nota: no se reprodujo la falla original en 6+3 corridas con --no-cache (load 4 a 6); la clasificación es TEST_BUG por construcción demostrada (plazo fijo), no por captura del mensaje.

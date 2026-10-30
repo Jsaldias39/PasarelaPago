@@ -1,0 +1,111 @@
+# IGNORE='startup|env-example' salvo indicación: startup.* compila y arranca el servicio con yarn build (la copia mínima no tiene la cadena de build); env-example.* lee los .env.example de OTROS servicios (no copiados). Son ENVIRONMENT de la copia, no del SQL.
+== qr: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/75_pay_qr/ddl.sql, sha256 5d3dca9053e78740)
+Test Suites: 4 passed, 4 total
+Tests:       93 passed, 93 total
+== vault: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/79_pay_vault/ddl.sql, sha256 24218c4629a5a953)
+Test Suites: 6 passed, 6 total
+Tests:       68 passed, 68 total
+== merchants: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/73_pay_merchants/ddl.sql, sha256 46b8911fae4a3cd4)
+Test Suites: 11 passed, 11 total
+Tests:       145 passed, 145 total
+== schedules: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/77_pay_schedules/ddl.sql, sha256 1d8683c9f9d98cf2)
+Test Suites: 9 passed, 9 total
+Tests:       158 passed, 158 total
+== webhooks: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/80_pay_webhooks/ddl.sql, sha256 a71edfc615f4d81b)
+Test Suites: 10 passed, 10 total
+Tests:       388 passed, 388 total
+== edge: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/71_pay_edge/ddl.sql, sha256 94e38d7560710bfb)
+Test Suites: 12 passed, 12 total
+Tests:       381 passed, 381 total
+# connectors: IGNORE='startup|env-example|mockbank' (mockbank.spec y latency.spec necesitan servicios reales: pay-mockbank compilado con yarn build / Watchman); la referencia da los mismos fallos en la copia (ENVIRONMENT/EXTERNAL)
+== connectors: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/70_pay_connectors/ddl.sql, sha256 5ae10ca7d863beab)
+FAIL test/contract/contract.spec.ts
+  ● mock — pay-mockbank por HTTP (proceso real) › declaración › código, modo sandbox y medios soportados coinciden con lo declarado
+  ● mock — pay-mockbank por HTTP (proceso real) › declaración › código, modo sandbox y medios soportados coinciden con lo declarado
+  ● mock — pay-mockbank por HTTP (proceso real) › createCharge / getStatus / cancel › correcto: por cada medio declarado crea el cobro con la acción siguiente de su tipo, y repetir la referen
+  ● mock — pay-mockbank por HTTP (proceso real) › createCharge / getStatus / cancel › correcto: por cada medio declarado crea el cobro con la acción siguiente de su tipo, y repetir la referen
+  ● mock — pay-mockbank por HTTP (proceso real) › createCharge / getStatus / cancel › correcto: getStatus devuelve un estado válido con su instante; un cobro aprobado termina `captured` (o si
+  ● mock — pay-mockbank por HTTP (proceso real) › createCharge / getStatus / cancel › correcto: getStatus devuelve un estado válido con su instante; un cobro aprobado termina `captured` (o si
+  ● mock — pay-mockbank por HTTP (proceso real) › createCharge / getStatus / cancel › límite: un cobro que nadie paga sigue `pending` hasta su vencimiento y recién entonces se informa `expir
+  ● mock — pay-mockbank por HTTP (proceso real) › createCharge / getStatus / cancel › correcto: cancel de un cobro pendiente lo deja `canceled` y es idempotente
+  ● mock — pay-mockbank por HTTP (proceso real) › createCharge / getStatus / cancel › correcto: cancel de un cobro pendiente lo deja `canceled` y es idempotente
+  ● mock — pay-mockbank por HTTP (proceso real) › createCharge / getStatus / cancel › inválido: una referencia desconocida se rechaza de forma definitiva (ConnectorRejectedError), nunca se in
+  ● mock — pay-mockbank por HTTP (proceso real) › createCharge / getStatus / cancel › inválido: una referencia desconocida se rechaza de forma definitiva (ConnectorRejectedError), nunca se in
+  ● mock — pay-mockbank por HTTP (proceso real) › createCharge / getStatus / cancel › inválido: un medio que el conector no declara se rechaza — NO APLICA: el conector declara varios medios
+  ● mock — pay-mockbank por HTTP (proceso real) › resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › timeout ambiguo: ConnectorTimeoutError (la orden PUDO ejecutarse) y repetir la MI
+  ● mock — pay-mockbank por HTTP (proceso real) › resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › timeout ambiguo: ConnectorTimeoutError (la orden PUDO ejecutarse) y repetir la MI
+  ● mock — pay-mockbank por HTTP (proceso real) › resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › banco caído: createCharge lanza ConnectorUnavailableError (no se envió nada); l
+  ● mock — pay-mockbank por HTTP (proceso real) › resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › banco caído: createCharge lanza ConnectorUnavailableError (no se envió nada); l
+  ● mock — pay-mockbank por HTTP (proceso real) › resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › rechazo síncrono: el importe «rechazado» devuelve `failed` con un código esta
+  ● mock — pay-mockbank por HTTP (proceso real) › resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › rechazo síncrono: el importe «rechazado» devuelve `failed` con un código esta
+  ● mock — pay-mockbank por HTTP (proceso real) › refund / getRefund › correcto: reembolso parcial de un cobro cobrado, idempotente por referencia y consultable; el excedente se rechaza
+  ● mock — pay-mockbank por HTTP (proceso real) › refund / getRefund › correcto: reembolso parcial de un cobro cobrado, idempotente por referencia y consultable; el excedente se rechaza
+  ● mock — pay-mockbank por HTTP (proceso real) › refund / getRefund › límite: getRefund de una referencia que el banco no tiene devuelve `not_found` EXPLÍCITO (no un error)
+  ● mock — pay-mockbank por HTTP (proceso real) › refund / getRefund › límite: getRefund de una referencia que el banco no tiene devuelve `not_found` EXPLÍCITO (no un error)
+  ● mock — pay-mockbank por HTTP (proceso real) › refund / getRefund › inválido: reembolsar un cobro desconocido se rechaza; un conector que no reembolsa lo rechaza SIEMPRE, sin tocar nada
+  ● mock — pay-mockbank por HTTP (proceso real) › refund / getRefund › inválido: reembolsar un cobro desconocido se rechaza; un conector que no reembolsa lo rechaza SIEMPRE, sin tocar nada
+  ● mock — pay-mockbank por HTTP (proceso real) › verifyCallback › correcto: un callback bien firmado se interpreta en un evento con su id, referencia, estado e importe
+  ● mock — pay-mockbank por HTTP (proceso real) › verifyCallback › correcto: un callback bien firmado se interpreta en un evento con su id, referencia, estado e importe
+  ● mock — pay-mockbank por HTTP (proceso real) › verifyCallback › inválido: firma alterada, cuerpo alterado, sin cabeceras, repetición fuera de ventana o basura ⇒ ok:false (nunca se acept
+  ● mock — pay-mockbank por HTTP (proceso real) › verifyCallback › inválido: firma alterada, cuerpo alterado, sin cabeceras, repetición fuera de ventana o basura ⇒ ok:false (nunca se acept
+  ● mock — pay-mockbank por HTTP (proceso real) › fetchStatement › correcto: un cobro cobrado aparece como crédito con NUESTRA referencia y el importe cobrado
+  ● mock — pay-mockbank por HTTP (proceso real) › fetchStatement › correcto: un cobro cobrado aparece como crédito con NUESTRA referencia y el importe cobrado
+  ● mock — pay-mockbank por HTTP (proceso real) › fetchStatement › correcto: el depósito del pagador con la referencia de las instrucciones aparece en el extracto (el banco no avisa) — NO A
+  ● mock — pay-mockbank por HTTP (proceso real) › fetchStatement › límite: una ventana vacía devuelve [] (no un error)
+  ● mock — pay-mockbank por HTTP (proceso real) › fetchStatement › límite: una ventana vacía devuelve [] (no un error)
+  ● mock — pay-mockbank por HTTP (proceso real) › fetchStatement › inválido: con el banco caído el extracto lanza ConnectorUnavailableError (no devuelve [] como si no hubiera movimientos)
+  ● mock — pay-mockbank por HTTP (proceso real) › fetchStatement › inválido: con el banco caído el extracto lanza ConnectorUnavailableError (no devuelve [] como si no hubiera movimientos)
+  ● mock — pay-mockbank por HTTP (proceso real) › createTransfer / getTransfer › correcto: la orden se paga, es idempotente por referencia y se puede consultar; una desconocida da `not_found` 
+  ● mock — pay-mockbank por HTTP (proceso real) › createTransfer / getTransfer › correcto: la orden se paga, es idempotente por referencia y se puede consultar; una desconocida da `not_found` 
+  ● mock — pay-mockbank por HTTP (proceso real) › createTransfer / getTransfer › límite/inválido: Bs …01 la rechaza (`rejected_by_bank`); Bs …07 se EJECUTA y la respuesta se pierde (ambi
+  ● mock — pay-mockbank por HTTP (proceso real) › createTransfer / getTransfer › límite/inválido: Bs …01 la rechaza (`rejected_by_bank`); Bs …07 se EJECUTA y la respuesta se pierde (ambi
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › declaración › código, modo sandbox y medios soportados coinciden con lo declarado
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › declaración › código, modo sandbox y medios soportados coinciden con lo declarado
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › correcto: por cada medio declarado crea el cobro con la acción siguiente de su tipo
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › correcto: por cada medio declarado crea el cobro con la acción siguiente de su tipo
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › correcto: getStatus devuelve un estado válido con su instante; un cobro aprobado te
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › correcto: getStatus devuelve un estado válido con su instante; un cobro aprobado te
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › límite: un cobro que nadie paga sigue `pending` hasta su vencimiento y recién ento
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › límite: un cobro que nadie paga sigue `pending` hasta su vencimiento y recién ento
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › correcto: cancel de un cobro pendiente lo deja `canceled` y es idempotente
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › correcto: cancel de un cobro pendiente lo deja `canceled` y es idempotente
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › inválido: una referencia desconocida se rechaza de forma definitiva (ConnectorRejec
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › inválido: una referencia desconocida se rechaza de forma definitiva (ConnectorRejec
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › inválido: un medio que el conector no declara se rechaza
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createCharge / getStatus / cancel › inválido: un medio que el conector no declara se rechaza
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › timeout ambiguo: ConnectorTimeoutError (la orden PUDO ejecu
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › banco caído: createCharge lanza ConnectorUnavailableError 
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › banco caído: createCharge lanza ConnectorUnavailableError 
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › rechazo síncrono: el importe «rechazado» devuelve `faile
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › refund / getRefund › correcto: reembolso parcial de un cobro cobrado, idempotente por referencia y consultable; el exced
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › refund / getRefund › límite: getRefund de una referencia que el banco no tiene devuelve `not_found` EXPLÍCITO (no un e
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › refund / getRefund › inválido: reembolsar un cobro desconocido se rechaza; un conector que no reembolsa lo rechaza SIEM
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › refund / getRefund › inválido: reembolsar un cobro desconocido se rechaza; un conector que no reembolsa lo rechaza SIEM
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › verifyCallback › correcto: un callback bien firmado se interpreta en un evento con su id, referencia, estado e importe �
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › verifyCallback › inválido: firma alterada, cuerpo alterado, sin cabeceras, repetición fuera de ventana o basura ⇒ ok
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › verifyCallback › inválido: firma alterada, cuerpo alterado, sin cabeceras, repetición fuera de ventana o basura ⇒ ok
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › fetchStatement › correcto: un cobro cobrado aparece como crédito con NUESTRA referencia y el importe cobrado — NO APL
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › fetchStatement › correcto: el depósito del pagador con la referencia de las instrucciones aparece en el extracto (el ba
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › fetchStatement › correcto: el depósito del pagador con la referencia de las instrucciones aparece en el extracto (el ba
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › fetchStatement › límite: una ventana vacía devuelve [] (no un error)
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › fetchStatement › límite: una ventana vacía devuelve [] (no un error)
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › fetchStatement › inválido: con el banco caído el extracto lanza ConnectorUnavailableError (no devuelve [] como si no h
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › fetchStatement › inválido: con el banco caído el extracto lanza ConnectorUnavailableError (no devuelve [] como si no h
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createTransfer / getTransfer › correcto: la orden se paga, es idempotente por referencia y se puede consultar; una desco
+  ● bank_transfer — cuenta `transfers` de pay-mockbank (proceso real) › createTransfer / getTransfer › límite/inválido: Bs …01 la rechaza (`rejected_by_bank`); Bs …07 se EJECUTA y la res
+Test Suites: 1 failed, 19 passed, 20 total
+Tests:       31 failed, 23 todo, 709 passed, 763 total
+# risk: IGNORE='startup|env-example|latency' (mockbank.spec y latency.spec necesitan servicios reales: pay-mockbank compilado con yarn build / Watchman); la referencia da los mismos fallos en la copia (ENVIRONMENT/EXTERNAL)
+== risk: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/76_pay_risk/ddl.sql, sha256 f7b75f62ec82546c)
+FAIL test/assessments.spec.ts
+FAIL test/contract-conformance.spec.ts
+Test Suites: 2 failed, 2 total
+Tests:       0 total
+# connectors: IGNORE='startup|env-example|mockbank|contract.spec|ola2-contratos' — esas specs levantan pay-mockbank real (requiere yarn build, ausente en la copia mínima): ENVIRONMENT, no dependen del SQL
+== connectors: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/70_pay_connectors/ddl.sql, sha256 5ae10ca7d863beab)
+Test Suites: 17 passed, 17 total
+Tests:       471 passed, 471 total
+# risk: IGNORE='startup|env-example|latency' — latency.spec mide contra el Watchman REAL (EXTERNAL); la referencia dio los mismos fallos en la corrida de control anterior (4 = 2 latency + 2 env-example)
+== risk: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/76_pay_risk/ddl.sql, sha256 f7b75f62ec82546c)
+Test Suites: 10 passed, 10 total
+Tests:       181 passed, 181 total

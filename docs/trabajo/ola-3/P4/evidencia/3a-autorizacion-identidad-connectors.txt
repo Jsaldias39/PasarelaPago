@@ -1,0 +1,243 @@
+# 3a-autorizacion-identidad-connectors
+$ (cd services/pay-connectors && yarn test --maxWorkers=2 test/ola2-contratos.spec.ts test/contract.spec.ts -t identidad|sin identidad|otro servicio --verbose --reporters default)
+
+(node:1098) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1099) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/ola2-contratos.spec.ts
+  refund_id opcional en el pedido de reembolso
+    ○ skipped se guarda, vuelve en `ConnectorRefund`, se copia al evento y la consulta lo repite
+    ○ skipped sin `refund_id` va nulo (y en el evento también)
+    ○ skipped refund_id inválido ("re_") ⇒ 422
+    ○ skipped refund_id inválido ("cr_abcdefghij12") ⇒ 422
+    ○ skipped refund_id inválido ("RE_ABCDEFGHIJ12") ⇒ 422
+    ○ skipped refund_id inválido (12345) ⇒ 422
+    ○ skipped refund_id inválido ("") ⇒ 422
+    ○ skipped el mismo `refund_id` con OTRA Idempotency-Key no genera un segundo reembolso (409); con la misma clave devuelve el original
+  GET /refunds/{id} (regla 11: la consulta autoritativa de un reembolso pending)
+    ✓ solo pay-payments puede consultar: pay-settlement y sin identidad ⇒ 403 (513 ms)
+    ○ skipped reembolso resuelto: el contrato, `stale: false`, y `refresh` no vuelve a preguntar al proveedor
+    ○ skipped 404 solo cuando ESTE servicio no lo tiene; un id mal formado tampoco existe; `refresh` inválido ⇒ 422
+    reembolso AMBIGUO (el proveedor lo ejecutó y la respuesta se perdió)
+      ○ skipped sin `refresh` devuelve lo último que se sabe (pending); con `refresh=true` el proveedor confirma, queda `succeeded` y se publica UN evento; repetir no lo repite
+      ○ skipped proveedor sin respuesta durante `refresh` ⇒ `stale: true`, la fila y la reserva NO se tocan (no es un fallo)
+      ○ skipped conector que no sabe consultar reembolsos ⇒ `stale: true` con lo último que se sabe
+      ○ skipped el proveedor responde `not_found` de forma explícita ⇒ sigue `pending` (sin `stale`), la fila NO se borra ni pasa a `failed`
+      ○ skipped proveedor caído ANTES de enviar: la fila quedó `failed` con motivo; la consulta lo informa (ni se borra ni vuelve a preguntar)
+  eventos: `mock`, ids ch_/cr_ y `card_declined`
+    ○ skipped el evento de un cobro cita `ch_…` (connector_transaction_id y subject), conector `mock`, y valida contra el AsyncAPI
+    ○ skipped los eventos de salud usan `mock` (subject y data)
+    ○ skipped un callback `failed` con `card_declined` publica `failure_code: card_declined` (válido contra el AsyncAPI)
+  transferencia bancaria: datos de la cuenta en las instrucciones
+    ○ skipped con la cuenta configurada, las instrucciones traen banco, titular y número (contrato) además de la referencia
+    ○ skipped sin cuenta configurada (T-03) NO se inventa ninguna: las instrucciones salen solo con la referencia
+    configuración de la cuenta (BANK_TRANSFER_*) en tres niveles
+      ○ skipped sandbox sin ninguna variable: arranca con la cuenta SINTÉTICA declarada (lleva el rótulo SANDBOX)
+      ○ skipped sandbox con las tres, o live con las tres: se usan tal cual
+      ○ skipped live sin ninguna: NO se inventa cuenta (T-03)
+      ○ skipped sandbox parcial: la variable que falta (o viene vacía) toma el valor sintético; las dadas se respetan
+      ○ skipped los límites de longitud: 100 caracteres pasan, 101 no; número de 4 y 40 pasan, 3 y 41 no
+      ○ skipped live con la cuenta a medias (una o dos de las tres) NO arranca
+      ○ skipped valores inválidos fallan al arrancar en los dos modos
+      ○ skipped live con el rótulo del simulador en la cuenta NO arranca (una cuenta de mentira no se muestra como real)
+  configuración de pay-mockbank (MOCKBANK_URL, capa sandbox)
+    ○ skipped correcto: sin la variable el banco es el de proceso; con una URL http(s) válida se usa pay-mockbank y el timeout tiene su valor por defecto
+    ○ skipped límite: timeout mínimo 1 ms; vacío = sin banco externo
+    ○ skipped inválido: URL mal formada o de otro esquema, timeout 0/negativo/decimal ⇒ no arranca; bajo live NINGUNA de las dos variables puede estar definida
+  connector.transfer.status_changed
+    ○ skipped pagada: UN evento válido contra el AsyncAPI, sin `merchantid`, con `reference` y `transfer_id`; repetir el pedido no lo repite
+    ○ skipped fallida por el banco: el evento trae `failure_code` (prueba de que NO se pagó)
+    ○ skipped banco caído ANTES de enviar: `failed` con `connector_unavailable` también se anuncia
+    ○ skipped en tránsito → pagada: un evento por cambio de estado, en orden, y la consulta que no cambia nada no publica
+    ○ skipped ambiguo (timeout, la orden se ejecutó): no se anuncia nada hasta que la consulta autoritativa lo resuelve, y entonces UN evento `paid`
+
+PASS test/contract.spec.ts
+  el contrato y las rutas coinciden
+    ○ skipped cada operación del contrato tiene su ruta, y no hay rutas fuera del contrato
+    ○ skipped la prueba FALLA si una operación del contrato no tiene ruta (verificación del verificador)
+    ○ skipped usa el contrato de contracts/ y no una copia
+  matriz de identidad: ruta × servicio llamador (denegado por defecto)
+    ✓ la matriz cubre todas las operaciones protegidas del contrato (7 ms)
+    POST /charges
+      ✓ pay-settlement ⇒ 403 forbidden (185 ms)
+      ✓ pay-ledger ⇒ 403 forbidden (8 ms)
+      ✓ pay-vault ⇒ 403 forbidden (5 ms)
+      ✓ pay-merchants ⇒ 403 forbidden (5 ms)
+      ✓ pay-risk ⇒ 403 forbidden (5 ms)
+      ✓ pay-gateway ⇒ 403 forbidden (5 ms)
+      ✓ pay-qr ⇒ 403 forbidden (6 ms)
+      ✓ pay-connectors ⇒ 403 forbidden (4 ms)
+      ✓ pay-payments ⇒ pasa la identidad (cualquier cosa menos 403) (6 ms)
+      ✓ identidad inválida (sin la cabecera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (vacía) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con mayúsculas) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con guion bajo) ⇒ 403 (45 ms)
+      ✓ identidad inválida (dos servicios) ⇒ 403 (3 ms)
+      ✓ identidad inválida (un nombre cualquiera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (inyección de cabecera) ⇒ 403 (1 ms)
+    GET /charges/{id}
+      ✓ pay-ledger ⇒ 403 forbidden (7 ms)
+      ✓ pay-vault ⇒ 403 forbidden (4 ms)
+      ✓ pay-merchants ⇒ 403 forbidden (3 ms)
+      ✓ pay-risk ⇒ 403 forbidden (3 ms)
+      ✓ pay-gateway ⇒ 403 forbidden (3 ms)
+      ✓ pay-qr ⇒ 403 forbidden (3 ms)
+      ✓ pay-connectors ⇒ 403 forbidden (4 ms)
+      ✓ pay-payments ⇒ pasa la identidad (cualquier cosa menos 403) (6 ms)
+      ✓ pay-settlement ⇒ pasa la identidad (cualquier cosa menos 403) (16 ms)
+      ✓ identidad inválida (sin la cabecera) ⇒ 403 (6 ms)
+      ✓ identidad inválida (vacía) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con mayúsculas) ⇒ 403 (6 ms)
+      ✓ identidad inválida (con guion bajo) ⇒ 403 (5 ms)
+      ✓ identidad inválida (dos servicios) ⇒ 403 (3 ms)
+      ✓ identidad inválida (un nombre cualquiera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (inyección de cabecera) ⇒ 403 (1 ms)
+    GET /charges/{id}/status
+      ✓ pay-ledger ⇒ 403 forbidden (4 ms)
+      ✓ pay-vault ⇒ 403 forbidden (4 ms)
+      ✓ pay-merchants ⇒ 403 forbidden (9 ms)
+      ✓ pay-risk ⇒ 403 forbidden (4 ms)
+      ✓ pay-gateway ⇒ 403 forbidden (4 ms)
+      ✓ pay-qr ⇒ 403 forbidden (3 ms)
+      ✓ pay-connectors ⇒ 403 forbidden (3 ms)
+      ✓ pay-payments ⇒ pasa la identidad (cualquier cosa menos 403) (37 ms)
+      ✓ pay-settlement ⇒ pasa la identidad (cualquier cosa menos 403) (5 ms)
+      ✓ identidad inválida (sin la cabecera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (vacía) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con mayúsculas) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con guion bajo) ⇒ 403 (4 ms)
+      ✓ identidad inválida (dos servicios) ⇒ 403 (3 ms)
+      ✓ identidad inválida (un nombre cualquiera) ⇒ 403 (4 ms)
+      ✓ identidad inválida (inyección de cabecera) ⇒ 403
+    POST /charges/{id}/cancel
+      ✓ pay-settlement ⇒ 403 forbidden (3 ms)
+      ✓ pay-ledger ⇒ 403 forbidden (4 ms)
+      ✓ pay-vault ⇒ 403 forbidden (4 ms)
+      ✓ pay-merchants ⇒ 403 forbidden (9 ms)
+      ✓ pay-risk ⇒ 403 forbidden (2 ms)
+      ✓ pay-gateway ⇒ 403 forbidden (6 ms)
+      ✓ pay-qr ⇒ 403 forbidden (3 ms)
+      ✓ pay-connectors ⇒ 403 forbidden (3 ms)
+      ✓ pay-payments ⇒ pasa la identidad (cualquier cosa menos 403) (17 ms)
+      ✓ identidad inválida (sin la cabecera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (vacía) ⇒ 403 (2 ms)
+      ✓ identidad inválida (con mayúsculas) ⇒ 403 (2 ms)
+      ✓ identidad inválida (con guion bajo) ⇒ 403 (3 ms)
+      ✓ identidad inválida (dos servicios) ⇒ 403 (2 ms)
+      ✓ identidad inválida (un nombre cualquiera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (inyección de cabecera) ⇒ 403
+    POST /charges/{id}/refunds
+      ✓ pay-settlement ⇒ 403 forbidden (2 ms)
+      ✓ pay-ledger ⇒ 403 forbidden (3 ms)
+      ✓ pay-vault ⇒ 403 forbidden (2 ms)
+      ✓ pay-merchants ⇒ 403 forbidden (2 ms)
+      ✓ pay-risk ⇒ 403 forbidden (4 ms)
+      ✓ pay-gateway ⇒ 403 forbidden (3 ms)
+      ✓ pay-qr ⇒ 403 forbidden (2 ms)
+      ✓ pay-connectors ⇒ 403 forbidden (3 ms)
+      ✓ pay-payments ⇒ pasa la identidad (cualquier cosa menos 403) (3 ms)
+      ✓ identidad inválida (sin la cabecera) ⇒ 403 (5 ms)
+      ✓ identidad inválida (vacía) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con mayúsculas) ⇒ 403 (2 ms)
+      ✓ identidad inválida (con guion bajo) ⇒ 403 (3 ms)
+      ✓ identidad inválida (dos servicios) ⇒ 403 (2 ms)
+      ✓ identidad inválida (un nombre cualquiera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (inyección de cabecera) ⇒ 403 (1 ms)
+    GET /refunds/{id}
+      ✓ pay-settlement ⇒ 403 forbidden (2 ms)
+      ✓ pay-ledger ⇒ 403 forbidden (2 ms)
+      ✓ pay-vault ⇒ 403 forbidden (2 ms)
+      ✓ pay-merchants ⇒ 403 forbidden (2 ms)
+      ✓ pay-risk ⇒ 403 forbidden (6 ms)
+      ✓ pay-gateway ⇒ 403 forbidden (2 ms)
+      ✓ pay-qr ⇒ 403 forbidden (3 ms)
+      ✓ pay-connectors ⇒ 403 forbidden (2 ms)
+      ✓ pay-payments ⇒ pasa la identidad (cualquier cosa menos 403) (5 ms)
+      ✓ identidad inválida (sin la cabecera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (vacía) ⇒ 403 (2 ms)
+      ✓ identidad inválida (con mayúsculas) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con guion bajo) ⇒ 403 (2 ms)
+      ✓ identidad inválida (dos servicios) ⇒ 403 (5 ms)
+      ✓ identidad inválida (un nombre cualquiera) ⇒ 403 (2 ms)
+      ✓ identidad inválida (inyección de cabecera) ⇒ 403 (1 ms)
+    POST /transfers
+      ✓ pay-payments ⇒ 403 forbidden (10 ms)
+      ✓ pay-ledger ⇒ 403 forbidden (2 ms)
+      ✓ pay-vault ⇒ 403 forbidden (4 ms)
+      ✓ pay-merchants ⇒ 403 forbidden (2 ms)
+      ✓ pay-risk ⇒ 403 forbidden (3 ms)
+      ✓ pay-gateway ⇒ 403 forbidden (3 ms)
+      ✓ pay-qr ⇒ 403 forbidden (3 ms)
+      ✓ pay-connectors ⇒ 403 forbidden (3 ms)
+      ✓ pay-settlement ⇒ pasa la identidad (cualquier cosa menos 403) (3 ms)
+      ✓ identidad inválida (sin la cabecera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (vacía) ⇒ 403 (4 ms)
+      ✓ identidad inválida (con mayúsculas) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con guion bajo) ⇒ 403 (3 ms)
+      ✓ identidad inválida (dos servicios) ⇒ 403 (3 ms)
+      ✓ identidad inválida (un nombre cualquiera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (inyección de cabecera) ⇒ 403 (1 ms)
+    GET /transfers/{reference}
+      ✓ pay-payments ⇒ 403 forbidden (3 ms)
+      ✓ pay-ledger ⇒ 403 forbidden (4 ms)
+      ✓ pay-vault ⇒ 403 forbidden (4 ms)
+      ✓ pay-merchants ⇒ 403 forbidden (5 ms)
+      ✓ pay-risk ⇒ 403 forbidden (3 ms)
+      ✓ pay-gateway ⇒ 403 forbidden (3 ms)
+      ✓ pay-qr ⇒ 403 forbidden (4 ms)
+      ✓ pay-connectors ⇒ 403 forbidden (3 ms)
+      ✓ pay-settlement ⇒ pasa la identidad (cualquier cosa menos 403) (8 ms)
+      ✓ identidad inválida (sin la cabecera) ⇒ 403 (2 ms)
+      ✓ identidad inválida (vacía) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con mayúsculas) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con guion bajo) ⇒ 403 (2 ms)
+      ✓ identidad inválida (dos servicios) ⇒ 403 (3 ms)
+      ✓ identidad inválida (un nombre cualquiera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (inyección de cabecera) ⇒ 403 (1 ms)
+    GET /statements
+      ✓ pay-payments ⇒ 403 forbidden (3 ms)
+      ✓ pay-ledger ⇒ 403 forbidden (2 ms)
+      ✓ pay-vault ⇒ 403 forbidden (6 ms)
+      ✓ pay-merchants ⇒ 403 forbidden (3 ms)
+      ✓ pay-risk ⇒ 403 forbidden (4 ms)
+      ✓ pay-gateway ⇒ 403 forbidden (2 ms)
+      ✓ pay-qr ⇒ 403 forbidden (2 ms)
+      ✓ pay-connectors ⇒ 403 forbidden (3 ms)
+      ✓ pay-settlement ⇒ pasa la identidad (cualquier cosa menos 403) (2 ms)
+      ✓ identidad inválida (sin la cabecera) ⇒ 403 (2 ms)
+      ✓ identidad inválida (vacía) ⇒ 403 (3 ms)
+      ✓ identidad inválida (con mayúsculas) ⇒ 403 (4 ms)
+      ✓ identidad inválida (con guion bajo) ⇒ 403 (3 ms)
+      ✓ identidad inválida (dos servicios) ⇒ 403 (2 ms)
+      ✓ identidad inválida (un nombre cualquiera) ⇒ 403 (2 ms)
+      ✓ identidad inválida (inyección de cabecera) ⇒ 403 (1 ms)
+    GET /connectors/health
+      ✓ pay-ledger ⇒ 403 forbidden (3 ms)
+      ✓ pay-vault ⇒ 403 forbidden (3 ms)
+      ✓ pay-merchants ⇒ 403 forbidden (3 ms)
+      ✓ pay-risk ⇒ 403 forbidden (2 ms)
+      ✓ pay-gateway ⇒ 403 forbidden (3 ms)
+      ✓ pay-qr ⇒ 403 forbidden (2 ms)
+      ✓ pay-connectors ⇒ 403 forbidden (2 ms)
+      ✓ pay-payments ⇒ pasa la identidad (cualquier cosa menos 403) (5 ms)
+      ✓ pay-settlement ⇒ pasa la identidad (cualquier cosa menos 403) (7 ms)
+      ✓ identidad inválida (sin la cabecera) ⇒ 403 (2 ms)
+      ✓ identidad inválida (vacía) ⇒ 403 (2 ms)
+      ✓ identidad inválida (con mayúsculas) ⇒ 403 (2 ms)
+      ✓ identidad inválida (con guion bajo) ⇒ 403 (2 ms)
+      ✓ identidad inválida (dos servicios) ⇒ 403 (3 ms)
+      ✓ identidad inválida (un nombre cualquiera) ⇒ 403 (3 ms)
+      ✓ identidad inválida (inyección de cabecera) ⇒ 403
+  rutas públicas
+    ✓ /health/* y /callbacks/{connectorId} no piden identidad de servicio (el callback se autentica con su firma) (9 ms)
+    ✓ una ruta que no existe es 404 aun con identidad válida (8 ms)
+  modo live (D-26)
+    ○ skipped con PAY_MODE=live el simulador no se carga: sin conectores, los cobros se rechazan y no hay callbacks de mock
+
+Test Suites: 2 passed, 2 total
+Tests:       40 skipped, 164 passed, 204 total
+Snapshots:   0 total
+Time:        4.958 s
+Ran all test suites matching test/ola2-contratos.spec.ts|test/contract.spec.ts with tests matching "identidad|sin identidad|otro servicio".
+exit=0

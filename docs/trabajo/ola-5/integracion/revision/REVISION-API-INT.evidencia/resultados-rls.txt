@@ -1,0 +1,10 @@
+Corrida 1 (console.log) de rls.int-spec.ts: DB descartable en el Postgres 127.0.0.1:54321, DDL real de database/SQL/42_payments,
+politica tenant_isolation copiada textual de database/SQL/patches/2026-08-05_tenant_rls.sql sobre payment_intents, payment_debts y
+payment_checkout_sessions (ENABLE + FORCE), rol de aplicacion NOSUPERUSER NOBYPASSRLS, SIN app.current_tenant_id ni app.system_context
+(es lo que ve una ruta @Public: TenantContextInterceptor devuelve next.handle() antes de fijar nada).
+
+CONTROL(su): {"received":true,"applied":true,"duplicate":false,"ignored":false,"reconciliationRequired":false,"decision":"aplicar"}
+RLS(app) succeeded => THROWS ResourceNotFoundException status=404 reason=PAYMENT_INTENT_NOT_FOUND
+intent local status after => PI_PENDING (sin cambio)
+RLS(app) processing => {"received":true,"applied":false,"duplicate":false,"ignored":true,"reconciliationRequired":false}
+Tests: 3 passed

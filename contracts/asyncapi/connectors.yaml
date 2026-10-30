@@ -1,0 +1,566 @@
+# Eventos de pay-connectors (P4). BORRADOR `v1-draft`.
+asyncapi: 3.0.0
+info:
+  title: Eventos de pay-connectors (P4)
+  version: 1.0.0-draft
+  description: |-
+    BORRADOR de la ola 0 (`v1-draft`): todavía NO está congelado. Dueño: P4 (`pay-connectors`). Revisan los consumidores listados en cada operación.
+
+    **Sobre.** Todo evento es un CloudEvent 1.0 en modo estructurado JSON (`contracts/schemas/cloudevent.schema.json`),
+    publicado por el outbox del servicio hacia JetStream con el `id` del evento como `Nats-Msg-Id`.
+    `data` lleva SOLO ids, estados e importes (`amount_minor` en centavos, `currency`): nunca datos personales,
+    documentos, PAN, nombres ni cuentas bancarias completas (`x-pii: none`).
+
+    **Entrega: al menos una vez.** El consumidor DEBE tolerar duplicados y reordenamiento:
+    - Duplicado: el mismo `id` otra vez. Se descarta con el inbox (`processOnce`, clave `(consumidor, id)`).
+    - Reordenamiento: el orden solo se garantiza **por agregado** (mismo `subject`, publicados por un único relé).
+      Entre agregados distintos no hay orden. Un evento atrasado no puede hacer retroceder un estado terminal.
+    - Regla de decisión del consumidor ante un evento, tomando como modelo `payment-callback-machine` de la API:
+      `aplicar` (avance legítimo) · `duplicado` (reentrega del mismo hecho: no muta nada) · `obsoleto`
+      (hecho anterior ya superado: se ignora sin error) · `contradiccion` (incompatible con un estado terminal:
+      no se sobrescribe, se deja para conciliación humana).
+
+    **Publicador:** `pay-connectors` (`source: /pay-connectors`), stream `PAY_CONNECTORS`, temas `pay-connectors.>`.
+    **Consumidores (PLAN-MAESTRO §4):** P2 (`pay-settlement`) y P3 (`pay-payments`).
+
+    El callback del proveedor se verifica (firma y endpoint registrado) ANTES de publicar; este evento nunca nace de un callback sin autenticar.
+    Claves de deduplicación del lado del conector: `(connector, provider_event_id)`.
+
+    **Nombres.** El simulador se llama `mock` (como en `internal-connectors-v1.yaml`); `simulator` es un alias heredado que se sigue
+    aceptando mientras los productores migran. La transacción se cita con el id de la API (`ch_…` cobro, `cr_…` reembolso); el `ct_…`
+    histórico (el mismo cuerpo con otro prefijo) también se acepta.
+
+    **Salud.** `connector.health.degraded` se publica cuando el conector pasa a `down` (sale del ruteo, tras varios fallos seguidos), no
+    en el primer fallo; el estado intermedio `degraded` de `GET /connectors/health` no publica nada. `connector.health.recovered`, al
+    volver a `up`.
+
+    **Transferencias salientes.** `connector.transfer.status_changed` es una señal para `pay-settlement`; la consulta autoritativa sigue
+    siendo `GET /transfers/{reference}` (CLAUDE.md, regla 11): el evento nunca es la única prueba de que un pago no se ejecutó.
+servers:
+  nats:
+    host: nats.pay.internal:4222
+    protocol: nats
+    description: 'NATS JetStream (D-10). El host es un marcador: el real se define al desplegar. Stream `PAY_CONNECTORS`,
+      temas `pay-connectors.>`.'
+defaultContentType: application/cloudevents+json
+channels:
+  connectorTransactionStatusChanged:
+    address: pay-connectors.connector.transaction.status_changed
+    description: Tema NATS JetStream `pay-connectors.connector.transaction.status_changed`. Lo publica `pay-connectors`
+      por outbox.
+    messages:
+      ConnectorTransactionStatusChanged:
+        $ref: '#/components/messages/ConnectorTransactionStatusChanged'
+  connectorHealthDegraded:
+    address: pay-connectors.connector.health.degraded
+    description: Tema NATS JetStream `pay-connectors.connector.health.degraded`. Lo publica `pay-connectors` por
+      outbox.
+    messages:
+      ConnectorHealthDegraded:
+        $ref: '#/components/messages/ConnectorHealthDegraded'
+  connectorHealthRecovered:
+    address: pay-connectors.connector.health.recovered
+    description: Tema NATS JetStream `pay-connectors.connector.health.recovered`. Lo publica `pay-connectors` por
+      outbox.
+    messages:
+      ConnectorHealthRecovered:
+        $ref: '#/components/messages/ConnectorHealthRecovered'
+  connectorTransferStatusChanged:
+    address: pay-connectors.connector.transfer.status_changed
+    description: Tema NATS JetStream `pay-connectors.connector.transfer.status_changed`. Lo publica `pay-connectors` por outbox.
+    messages:
+      ConnectorTransferStatusChanged:
+        $ref: '#/components/messages/ConnectorTransferStatusChanged'
+operations:
+  publishConnectorTransactionStatusChanged:
+    action: send
+    channel:
+      $ref: '#/channels/connectorTransactionStatusChanged'
+    summary: pay-connectors publica connector.transaction.status_changed
+    x-publisher: pay-connectors
+    messages:
+    - $ref: '#/channels/connectorTransactionStatusChanged/messages/ConnectorTransactionStatusChanged'
+  consumeConnectorTransactionStatusChangedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/connectorTransactionStatusChanged'
+    summary: pay-settlement (P2) consume connector.transaction.status_changed
+    description: 'Alimenta la conciliación: lo que el proveedor dice haber cobrado contra el ledger.'
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.connector.transaction.status_changed
+    messages:
+    - $ref: '#/channels/connectorTransactionStatusChanged/messages/ConnectorTransactionStatusChanged'
+  consumeConnectorTransactionStatusChangedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/connectorTransactionStatusChanged'
+    summary: pay-payments (P3) consume connector.transaction.status_changed
+    description: Señal para el workflow del cobro o del reembolso (aplicar / duplicado / obsoleto / contradicción).
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.connector.transaction.status_changed
+    messages:
+    - $ref: '#/channels/connectorTransactionStatusChanged/messages/ConnectorTransactionStatusChanged'
+  publishConnectorHealthDegraded:
+    action: send
+    channel:
+      $ref: '#/channels/connectorHealthDegraded'
+    summary: pay-connectors publica connector.health.degraded
+    x-publisher: pay-connectors
+    messages:
+    - $ref: '#/channels/connectorHealthDegraded/messages/ConnectorHealthDegraded'
+  consumeConnectorHealthDegradedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/connectorHealthDegraded'
+    summary: pay-settlement (P2) consume connector.health.degraded
+    description: 'Sin efecto de negocio: el plan lo asigna a P2; sirve para explicar una excepción de conciliación.'
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.connector.health.degraded
+    messages:
+    - $ref: '#/channels/connectorHealthDegraded/messages/ConnectorHealthDegraded'
+  consumeConnectorHealthDegradedByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/connectorHealthDegraded'
+    summary: pay-payments (P3) consume connector.health.degraded
+    description: Excluye o reincorpora el conector en el ruteo del cobro y decide si reintenta por consulta de estado.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.connector.health.degraded
+    messages:
+    - $ref: '#/channels/connectorHealthDegraded/messages/ConnectorHealthDegraded'
+  publishConnectorHealthRecovered:
+    action: send
+    channel:
+      $ref: '#/channels/connectorHealthRecovered'
+    summary: pay-connectors publica connector.health.recovered
+    x-publisher: pay-connectors
+    messages:
+    - $ref: '#/channels/connectorHealthRecovered/messages/ConnectorHealthRecovered'
+  consumeConnectorHealthRecoveredByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/connectorHealthRecovered'
+    summary: pay-settlement (P2) consume connector.health.recovered
+    description: 'Sin efecto de negocio: el plan lo asigna a P2; sirve para explicar una excepción de conciliación.'
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.connector.health.recovered
+    messages:
+    - $ref: '#/channels/connectorHealthRecovered/messages/ConnectorHealthRecovered'
+  consumeConnectorHealthRecoveredByPayPayments:
+    action: receive
+    channel:
+      $ref: '#/channels/connectorHealthRecovered'
+    summary: pay-payments (P3) consume connector.health.recovered
+    description: Excluye o reincorpora el conector en el ruteo del cobro y decide si reintenta por consulta de estado.
+    x-consumer: pay-payments
+    x-lane: P3
+    x-inbox-consumer: pay-payments.connector.health.recovered
+    messages:
+    - $ref: '#/channels/connectorHealthRecovered/messages/ConnectorHealthRecovered'
+  publishConnectorTransferStatusChanged:
+    action: send
+    channel:
+      $ref: '#/channels/connectorTransferStatusChanged'
+    summary: pay-connectors publica connector.transfer.status_changed
+    x-publisher: pay-connectors
+    messages:
+    - $ref: '#/channels/connectorTransferStatusChanged/messages/ConnectorTransferStatusChanged'
+  consumeConnectorTransferStatusChangedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/connectorTransferStatusChanged'
+    summary: pay-settlement (P2) consume connector.transfer.status_changed
+    description: 'Confirma o falla un payout en tránsito sin esperar al barrido. Hasta que lo consuma (ola 2), `pay-settlement` consulta `GET /transfers/{reference}`, que sigue siendo la fuente autoritativa.'
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.connector.transfer.status_changed
+    messages:
+    - $ref: '#/channels/connectorTransferStatusChanged/messages/ConnectorTransferStatusChanged'
+components:
+  messages:
+    ConnectorTransactionStatusChanged:
+      name: connector.transaction.status_changed
+      title: Cambió el estado de una transacción en el proveedor
+      summary: Cambió el estado de una transacción en el proveedor
+      description: |-
+        Cambió el estado de una transacción en el proveedor
+
+        `pay-payments` lo recibe como señal del workflow. Puede llegar duplicado o atrasado (por ejemplo `authorized` después de `captured`): el consumidor lo clasifica como `aplicar | duplicado | obsoleto | contradiccion` y NUNCA retrocede un estado terminal.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-connectors
+            type:
+              const: connector.transaction.status_changed
+            subject:
+              $ref: '#/components/schemas/ConnectorTransactionId'
+            data:
+              $ref: '#/components/schemas/ConnectorTransactionStatusChangedData'
+      examples:
+      - name: connector.transaction.status_changed (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: f73a06c1-744e-5c49-a215-835f9578f5ac
+          source: /pay-connectors
+          type: connector.transaction.status_changed
+          subject: ct_550804bf8910
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            connector_transaction_id: ct_550804bf8910
+            connector: mercantil_qr
+            kind: charge
+            payment_intent_id: pi_c92215200m49
+            refund_id: null
+            merchant_id: mc_5c048c31m1fb
+            status: captured
+            amount_minor: 10000
+            currency: BOB
+            provider_event_id: evt-0001
+            provider_occurred_at: '2026-10-27T15:00:00.000Z'
+            observed_via: callback
+            failure_code: null
+          merchantid: mc_5c048c31m1fb
+    ConnectorHealthDegraded:
+      name: connector.health.degraded
+      title: Un conector empezó a fallar y sale del ruteo
+      summary: Un conector empezó a fallar y sale del ruteo
+      description: |-
+        Un conector empezó a fallar y sale del ruteo
+
+        No pertenece a un comercio: no lleva `merchantid`.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-connectors
+            type:
+              const: connector.health.degraded
+            subject:
+              $ref: '#/components/schemas/ConnectorCode'
+            data:
+              $ref: '#/components/schemas/ConnectorHealthDegradedData'
+      examples:
+      - name: connector.health.degraded (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 6f514849-4f29-58a6-b4cd-6c3d6d694a26
+          source: /pay-connectors
+          type: connector.health.degraded
+          subject: mercantil_qr
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            connector: mercantil_qr
+            since: '2026-10-27T15:00:00.000Z'
+            reason: timeout
+            consecutive_failures: 5
+    ConnectorHealthRecovered:
+      name: connector.health.recovered
+      title: Un conector volvió a responder y vuelve al ruteo
+      summary: Un conector volvió a responder y vuelve al ruteo
+      description: |-
+        Un conector volvió a responder y vuelve al ruteo
+
+        No pertenece a un comercio: no lleva `merchantid`.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-connectors
+            type:
+              const: connector.health.recovered
+            subject:
+              $ref: '#/components/schemas/ConnectorCode'
+            data:
+              $ref: '#/components/schemas/ConnectorHealthRecoveredData'
+      examples:
+      - name: connector.health.recovered (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 655e861b-8be5-5d6f-bd3c-c1e8465220df
+          source: /pay-connectors
+          type: connector.health.recovered
+          subject: mercantil_qr
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            connector: mercantil_qr
+            degraded_since: '2026-10-27T15:00:00.000Z'
+            recovered_at: '2026-10-27T15:05:00.000Z'
+    ConnectorTransferStatusChanged:
+      name: connector.transfer.status_changed
+      title: Cambió el estado de una transferencia saliente en el proveedor
+      summary: Cambió el estado de una transferencia saliente en el proveedor
+      description: |-
+        Cambió el estado de una transferencia saliente en el proveedor
+
+        Dinero que SALE hacia un comercio (payouts). Puede llegar duplicado o atrasado: el consumidor nunca retrocede un estado terminal
+        (`paid`, `failed`). `failed` siempre trae `failure_code` y prueba que NO se pagó; cualquier otra cosa (un evento que no llega, un
+        timeout) no prueba nada. No lleva `merchantid`: la transferencia se ata a su `reference` (`business_ref:attempt`).
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-connectors
+            type:
+              const: connector.transfer.status_changed
+            subject:
+              $ref: '#/components/schemas/TransferId'
+            data:
+              $ref: '#/components/schemas/ConnectorTransferStatusChangedData'
+      examples:
+      - name: connector.transfer.status_changed (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 9a4f6c52-7d3b-5e18-a0c4-6b1d2e8f3a77
+          source: /pay-connectors
+          type: connector.transfer.status_changed
+          subject: tr_q8971q4kc264
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            transfer_id: tr_q8971q4kc264
+            reference: po_c92215200m49:payout:1
+            connector: mock
+            status: paid
+            amount_minor: 9700
+            currency: BOB
+            failure_code: null
+            provider_occurred_at: '2026-10-27T15:00:00.000Z'
+            observed_via: callback
+  schemas:
+    AmountMinor:
+      $ref: ../openapi/common.yaml#/components/schemas/AmountMinor
+    Currency:
+      $ref: ../openapi/common.yaml#/components/schemas/Currency
+    Timestamp:
+      $ref: ../openapi/common.yaml#/components/schemas/Timestamp
+    MerchantId:
+      type: string
+      pattern: ^mc_[a-z0-9]{10,40}$
+    PaymentIntentId:
+      type: string
+      pattern: ^pi_[a-z0-9]{10,40}$
+    RefundId:
+      type: string
+      pattern: ^re_[a-z0-9]{10,40}$
+    ConnectorTransactionId:
+      type: string
+      pattern: ^(ch|cr|ct)_[a-z0-9]{10,40}$
+      description: 'Transacción del conector: `ch_…` (cobro) o `cr_…` (reembolso), los ids de `internal-connectors-v1.yaml`. `ct_…` es el
+        prefijo histórico del mismo cuerpo y se acepta por compatibilidad.'
+    TransferId:
+      type: string
+      pattern: ^tr_[a-z0-9]{10,40}$
+    ConnectorCode:
+      type: string
+      enum:
+      - mock
+      - simulator
+      - mercantil_qr
+      - mercantil_card
+      - bank_transfer
+      description: Conector (D-16). `mock` es el simulador, con el mismo nombre que en `internal-connectors-v1.yaml`; `simulator` es un alias
+        heredado que se sigue aceptando mientras los productores migran. Un banco nuevo agrega un valor; no se renombran los existentes.
+    ConnectorTransactionStatusChangedData:
+      type: object
+      additionalProperties: false
+      required:
+      - connector_transaction_id
+      - connector
+      - kind
+      - payment_intent_id
+      - merchant_id
+      - status
+      - amount_minor
+      - currency
+      - provider_event_id
+      - provider_occurred_at
+      - observed_via
+      properties:
+        connector_transaction_id:
+          $ref: '#/components/schemas/ConnectorTransactionId'
+        connector:
+          $ref: '#/components/schemas/ConnectorCode'
+        kind:
+          type: string
+          enum:
+          - charge
+          - refund
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        refund_id:
+          description: Id del reembolso en `pay-payments` (`re_…`) cuando `kind` es `refund` y el pedido lo trajo (`refund_id` de
+            `POST /charges/{id}/refunds`); nulo en un cobro o si el pedido no lo trajo.
+          oneOf:
+          - $ref: '#/components/schemas/RefundId'
+          - type: 'null'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          type: string
+          enum:
+          - pending
+          - authorized
+          - captured
+          - failed
+          - canceled
+          - expired
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        provider_event_id:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Id del evento en el proveedor; junto con `connector` es la clave de deduplicación del callback.
+        provider_occurred_at:
+          $ref: '#/components/schemas/Timestamp'
+        observed_via:
+          type: string
+          enum:
+          - callback
+          - status_inquiry
+          description: '`status_inquiry`: lo averiguó el poller porque el callback no llegó.'
+        failure_code:
+          oneOf:
+          - type: string
+            enum:
+            - connector_unavailable
+            - validation_failed
+            - card_declined
+            - internal_error
+          - type: 'null'
+      description: Cambió el estado de una transacción en el proveedor
+    ConnectorHealthDegradedData:
+      type: object
+      additionalProperties: false
+      required:
+      - connector
+      - since
+      - reason
+      - consecutive_failures
+      properties:
+        connector:
+          $ref: '#/components/schemas/ConnectorCode'
+        since:
+          $ref: '#/components/schemas/Timestamp'
+        reason:
+          type: string
+          enum:
+          - timeout
+          - error_rate
+          - unreachable
+          - auth_failed
+        consecutive_failures:
+          type: integer
+          minimum: 1
+      description: Un conector empezó a fallar y sale del ruteo
+    ConnectorHealthRecoveredData:
+      type: object
+      additionalProperties: false
+      required:
+      - connector
+      - degraded_since
+      - recovered_at
+      properties:
+        connector:
+          $ref: '#/components/schemas/ConnectorCode'
+        degraded_since:
+          $ref: '#/components/schemas/Timestamp'
+        recovered_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Un conector volvió a responder y vuelve al ruteo
+    ConnectorTransferStatusChangedData:
+      type: object
+      additionalProperties: false
+      required:
+      - transfer_id
+      - reference
+      - connector
+      - status
+      - amount_minor
+      - currency
+      - provider_occurred_at
+      - observed_via
+      properties:
+        transfer_id:
+          $ref: '#/components/schemas/TransferId'
+        reference:
+          type: string
+          pattern: ^[A-Za-z0-9:._-]{3,200}$
+          description: '`business_ref:attempt` con el que se ordenó (por ejemplo `po_x:payout:1`); la clave de `GET /transfers/{reference}`.'
+        connector:
+          $ref: '#/components/schemas/ConnectorCode'
+        status:
+          type: string
+          enum:
+          - pending
+          - in_transit
+          - paid
+          - failed
+          description: '`paid` y `failed` son terminales.'
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        failure_code:
+          oneOf:
+          - type: string
+            enum:
+            - rejected_by_bank
+            - rejected_by_provider
+            - connector_unavailable
+            - validation_failed
+          - type: 'null'
+          description: No nulo cuando `status` es `failed`.
+        provider_occurred_at:
+          $ref: '#/components/schemas/Timestamp'
+        observed_via:
+          type: string
+          enum:
+          - callback
+          - status_inquiry
+          description: '`status_inquiry`: lo averiguó el barrido porque el callback no llegó.'
+      description: Cambió el estado de una transferencia saliente en el proveedor

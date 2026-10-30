@@ -1,0 +1,148 @@
+# Contrato INTERNO de pay-payments. BORRADOR de la ola 0 (`v1-draft`): no está congelado.
+openapi: 3.1.0
+info:
+  title: pay-payments — API interna v1
+  version: 1.0.0-draft
+  description: |
+    Cobros iniciados por otros servicios de la pasarela (no por un comercio desde afuera).
+
+    - **Expone:** P3 (`pay-payments`).
+    - **Consume:** `pay-schedules` (P5), cuando un mandato llega a su fecha (procesos 7.7 y 7.8).
+    - **Seguridad:** mTLS + `X-Service-Id`. Los cobros de comercios entran por la API pública (`public-v1.yaml`).
+
+    Un intento iniciado por un mandato **usa el mismo ciclo de vida** que uno público (máquina de estados,
+    riesgo, ledger y eventos `payment_intent.*`); solo cambia quién lo crea y el medio, que es el saldo AloVida.
+    El intento termina en **un solo estado terminal** aunque el servicio caiga a mitad del proceso.
+
+    **Disputas.** Esta API no las expone. `pay-payments` las implementa (`DisputesService`, flujo `DisputeWorkflow`) y publica los
+    eventos `dispute.*`, pero quién las abre, con qué evidencia y quién las resuelve depende del proceso de contracargos del banco (Q-11)
+    y del recurso público `dispute` (Q-18): es una decisión pendiente del dueño, no un detalle técnico.
+
+    **Modo (D-28).** `X-Pay-Mode: test|live` (parámetro `PayMode` de `common.yaml`): el intento nace en el modo del mandato y toda
+    consulta filtra por `(comercio, modo)`. Su obligatoriedad es de la ola 2.
+servers:
+  - url: http://pay-payments:3000
+    description: Marcador de la red interna.
+security:
+  - mTLS: []
+tags:
+  - { name: Intents, description: Cobros iniciados por servicios internos }
+paths:
+  /intents:
+    post:
+      operationId: paymentsCreateInternalIntent
+      tags: [Intents]
+      x-owner: P3
+      summary: Crea un cobro por cuenta de un mandato
+      description: 'Idempotente por `source` + `period`: el mismo mandato y periodo dos veces devuelve el mismo intento, no uno nuevo (REQ-P5-6).'
+      x-open-question: 'Si una comisión programada (7.8) se cobra con un intento aparte o se netea en el corte de `pay-settlement` lo define el acuerdo comercial. El borrador admite ambas: `kind: commission` crea el intento; el neteo no pasa por acá.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/InternalIntentCreate' } } }
+      responses:
+        '201': { description: Intento creado., content: { application/json: { schema: { $ref: '#/components/schemas/InternalIntent' } } } }
+        '200': { description: 'Ya existía un intento para ese mandato y periodo.', content: { application/json: { schema: { $ref: '#/components/schemas/InternalIntent' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403':
+          description: 'Servicio no autorizado, o comercio suspendido (`merchant_suspended`).'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422':
+          description: 'Regla de negocio: `insufficient_funds` (el pagador no tiene saldo; el intento queda `failed`) o `validation_failed`.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /intents/{id}:
+    get:
+      operationId: paymentsGetInternalIntent
+      tags: [Intents]
+      x-owner: P3
+      summary: Consulta un intento
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^pi_[a-z0-9]{10,40}$' } }
+      responses:
+        '200': { description: El intento., content: { application/json: { schema: { $ref: '#/components/schemas/InternalIntent' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+components:
+  securitySchemes:
+    mTLS:
+      type: mutualTLS
+      description: Certificado de servicio. La identidad del llamador se confirma además con `X-Service-Id`.
+  parameters:
+    ServiceId:
+      name: X-Service-Id
+      in: header
+      required: true
+      description: Servicio llamador. Tiene que coincidir con la identidad del certificado mTLS.
+      schema: { type: string, pattern: '^pay-[a-z]+$', examples: [pay-schedules] }
+    Traceparent:
+      name: traceparent
+      in: header
+      required: false
+      description: W3C Trace Context.
+      schema: { type: string, pattern: '^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$' }
+  schemas:
+    MerchantId:
+      type: string
+      pattern: '^mc_[a-z0-9]{10,40}$'
+    InternalIntentCreate:
+      type: object
+      required: [source, kind, payer_merchant_id, beneficiary_merchant_id, amount_minor, currency, payment_method]
+      additionalProperties: false
+      properties:
+        source:
+          type: object
+          required: [kind, id, period]
+          additionalProperties: false
+          properties:
+            kind: { const: mandate }
+            id: { type: string, pattern: '^md_[a-z0-9]{10,40}$' }
+            period: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$', description: 'Mes que se paga (`AAAA-MM`). Junto con el mandato, clave de idempotencia de negocio.' }
+        kind: { type: string, enum: [obligation, commission], description: '`obligation` = 7.7 (el médico paga una obligación); `commission` = 7.8 (el proveedor paga su comisión a ALOVIDA).' }
+        payer_merchant_id: { $ref: '#/components/schemas/MerchantId' }
+        beneficiary_merchant_id: { $ref: '#/components/schemas/MerchantId' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        payment_method:
+          type: object
+          required: [type]
+          additionalProperties: false
+          properties:
+            type: { const: wallet, description: 'Los pagos programados se pagan con saldo AloVida (D-03).' }
+        description: { type: string, maxLength: 200 }
+    InternalIntent:
+      type: object
+      required: [id, object, source, kind, payer_merchant_id, beneficiary_merchant_id, amount_minor, currency, status, created_at]
+      properties:
+        id: { type: string, pattern: '^pi_[a-z0-9]{10,40}$' }
+        object: { const: payment_intent }
+        source:
+          type: object
+          required: [kind, id, period]
+          properties:
+            kind: { const: mandate }
+            id: { type: string }
+            period: { type: string }
+        kind: { type: string, enum: [obligation, commission] }
+        payer_merchant_id: { $ref: '#/components/schemas/MerchantId' }
+        beneficiary_merchant_id: { $ref: '#/components/schemas/MerchantId' }
+        amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        fee_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        status:
+          type: string
+          enum: [processing, succeeded, failed, canceled, expired]
+          description: 'Terminales: `succeeded`, `failed`, `canceled`, `expired`.'
+        failure_code: { type: [string, 'null'], description: 'Código estable del catálogo de errores (`@pay/problem`). Los mismos de `payment_intent.failed`: `insufficient_funds`, `connector_unavailable`, `risk_unavailable`, `risk_denied`, `payment_declined`, `ledger_unavailable`, `merchant_suspended`, `validation_failed` o `internal_error`.' }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        completed_at: { oneOf: [{ $ref: 'common.yaml#/components/schemas/Timestamp' }, { type: 'null' }] }

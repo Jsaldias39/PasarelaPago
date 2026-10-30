@@ -1,0 +1,258 @@
+# Contrato INTERNO de pay-risk. BORRADOR de la ola 0 (`v1-draft`): no está congelado.
+openapi: 3.1.0
+info:
+  title: pay-risk — API interna v1
+  version: 1.0.0-draft
+  description: |
+    Evaluación de riesgo de un cobro antes de mandarlo al proveedor.
+
+    - **Expone:** P5 (`pay-risk`).
+    - **Consume:** `pay-payments` (P3), primera actividad de `PaymentWorkflow`.
+    - **Seguridad:** mTLS + `X-Service-Id`.
+
+    ## Objetivo de latencia
+
+    **p99 < 300 ms** por evaluación (REQ del carril P5). El llamador pone un *timeout* de 300 ms.
+
+    ## Si el servicio no responde: la política vive en el llamador
+
+    `pay-risk` no decide qué pasa cuando está caído: no puede. La política es de `pay-payments` y es
+    *fail-closed* sobre el umbral: sin respuesta, un cobro de monto alto se rechaza con `risk_unavailable`
+    (`503`); por debajo del umbral, `pay-payments` puede dejarlo pasar si así lo configura el negocio. Este contrato solo
+    garantiza que, cuando responde, la decisión trae un motivo estable.
+
+    ## Si el cribado de sanciones no está disponible
+
+    Watchman caído, más lento que `SCREENING_TIMEOUT_MS` o con una respuesta inválida **no** es un error de este servicio: la evaluación
+    se registra y responde `201` con `decision: review`, `reason_code: screening_unavailable` y `screened: false`. Nunca `allow` (decisión
+    de la ola 0, H-WM1). El llamador (`pay-payments`) trata `review` como `deny` (fail-closed) hasta que exista una revisión humana.
+
+    ## Datos del pagador
+
+    El cribado de sanciones (moov Watchman) necesita un nombre. Se manda en `screening.name`, se usa en memoria
+    para la búsqueda y **no se guarda en claro ni se registra** (regla 90.2). Lo que queda auditado es la
+    huella del pagador, el resultado y la versión de las reglas.
+
+    ## Límites (D-23)
+
+    Los límites por transacción, por día y por pagador son **configurables y no tienen valores por defecto**: nadie
+    inventó un número. Sin límites cargados, la evaluación responde `allow` con `reason_code: no_limits_configured`,
+    de modo que sea visible que la regla no está activa.
+servers:
+  - url: http://pay-risk:3000
+    description: Marcador de la red interna.
+security:
+  - mTLS: []
+tags:
+  - { name: Assessments, description: Evaluaciones de riesgo }
+  - { name: Rule sets, description: 'Carga de límites (back-office, D-23)' }
+paths:
+  /assessments:
+    post:
+      operationId: riskCreateAssessment
+      tags: [Assessments]
+      x-owner: P5
+      summary: Evalúa un cobro
+      description: 'Idempotente por `Idempotency-Key`: reevaluar el mismo intento devuelve la misma decisión (y la misma `rule_version`). `payment_intent_id` es la clave de AGRUPACIÓN: varias evaluaciones del mismo intento no cuentan doble en la velocidad ni en los límites diarios. Si el cribado NO pudo completarse (timeout, caída o respuesta inválida del proveedor) la respuesta es `201` con `decision: review`, `reason_code: screening_unavailable` y `screened: false`, y esa evaluación NO queda congelada bajo la `Idempotency-Key`: un reintento con la MISMA clave y el MISMO cuerpo vuelve a cribar. Solo una evaluación con `screened: true` (o `screening_not_provided`) queda definitiva y se repite con `200`.'
+      x-open-question: 'El umbral de coincidencia aproximada para sanciones lo fija cumplimiento: en el spike de Watchman, una coincidencia exacta puntuó 0,812 y un nombre con una letra cambiada 0,602 (`docs/spikes/watchman.md`). Hasta que se defina, `screening.min_score` es obligatorio en la configuración del servicio y no tiene valor por defecto.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AssessmentCreate' } } }
+      responses:
+        '201': { description: Evaluación registrada., content: { application/json: { schema: { $ref: '#/components/schemas/Assessment' } } } }
+        '200': { description: 'Ya existía una evaluación con esa Idempotency-Key.', content: { application/json: { schema: { $ref: '#/components/schemas/Assessment' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '503':
+          description: 'Reservado para una falla del propio servicio de riesgo (`risk_unavailable`). NO se usa porque el cribado esté caído: ese caso es `201` con `decision: review` y `reason_code: screening_unavailable`. El llamador aplica su política *fail-closed* sobre el umbral ante cualquier falta de respuesta; `pay-risk` nunca responde `allow` si no pudo cribar.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /assessments/{id}:
+    get:
+      operationId: riskGetAssessment
+      tags: [Assessments]
+      x-owner: P5
+      summary: Consulta una evaluación (auditoría)
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^ra_[a-z0-9]{10,40}$' } }
+      responses:
+        '200': { description: La evaluación., content: { application/json: { schema: { $ref: '#/components/schemas/Assessment' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /rule_sets:
+    post:
+      operationId: riskPublishRuleSet
+      tags: [Rule sets]
+      x-owner: P5
+      x-required-role: risk_admin
+      summary: Publica la versión siguiente del conjunto de reglas
+      description: |
+        Versiones inmutables del conjunto de reglas. **Ningún límite tiene valor por defecto** (D-23): la versión 1 es «sin límites»
+        (todo `null`) y `POST /assessments` responde `allow` con `reason_code: no_limits_configured` mientras siga siendo la vigente.
+        Cada campo omitido deja esa regla APAGADA; un cuerpo vacío publica una versión «sin límites». Los valores los carga el negocio
+        o el banco, nunca el código. «Por día» es una ventana móvil de 24 h; el horario es hora de La Paz (UTC-4), `[from, to)`, sin
+        rangos que crucen la medianoche.
+
+        **Solo la llama el back-office** (`X-Service-Id: pay-backoffice`) con la credencial de la persona operadora (`OperatorToken`)
+        y el rol `risk_admin` (propuesta; el servicio de identidad de operadores todavía no existe, Q-21/Q-23). Quién publicó sale
+        de la credencial, nunca del cuerpo. Sin verificador configurado el servicio responde `401` (falla cerrado).
+      security:
+        - mTLS: []
+          OperatorToken: []
+      parameters:
+        - $ref: '#/components/parameters/BackofficeServiceId'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RuleSetCreate' } } }
+      responses:
+        '201': { description: Versión publicada., content: { application/json: { schema: { $ref: '#/components/schemas/RuleSet' } } } }
+        '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /rule_sets/current:
+    get:
+      operationId: riskGetCurrentRuleSet
+      tags: [Rule sets]
+      x-owner: P5
+      x-required-role: risk_admin
+      summary: Versión del conjunto de reglas en vigencia ahora
+      security:
+        - mTLS: []
+          OperatorToken: []
+      parameters:
+        - $ref: '#/components/parameters/BackofficeServiceId'
+      responses:
+        '200': { description: Conjunto vigente., content: { application/json: { schema: { $ref: '#/components/schemas/RuleSet' } } } }
+        '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+components:
+  securitySchemes:
+    mTLS:
+      type: mutualTLS
+      description: Certificado de servicio. La identidad del llamador se confirma además con `X-Service-Id`.
+    OperatorToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Credencial de la persona operadora: de ahí salen su identidad (`sub`) y sus roles.'
+  parameters:
+    ServiceId:
+      name: X-Service-Id
+      in: header
+      required: true
+      description: Servicio llamador. Tiene que coincidir con la identidad del certificado mTLS.
+      schema: { type: string, pattern: '^pay-[a-z]+$', examples: [pay-payments] }
+    Traceparent:
+      name: traceparent
+      in: header
+      required: false
+      description: W3C Trace Context.
+      schema: { type: string, pattern: '^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$' }
+    BackofficeServiceId:
+      name: X-Service-Id
+      in: header
+      required: true
+      description: Debe ser `pay-backoffice` (nombre provisorio del back-office de ALOVIDA).
+      schema: { type: string, pattern: '^pay-[a-z]+$', examples: [pay-backoffice] }
+  schemas:
+    Decision:
+      type: string
+      enum: [allow, review, deny]
+      description: '`allow` sigue; `review` retiene el cobro para una persona; `deny` lo rechaza.'
+    AssessmentCreate:
+      type: object
+      required: [merchant_id, payment_intent_id, amount_minor, currency, method]
+      additionalProperties: false
+      properties:
+        merchant_id: { type: string, pattern: '^mc_[a-z0-9]{10,40}$' }
+        payment_intent_id: { type: string, pattern: '^pi_[a-z0-9]{10,40}$' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        method: { type: string, enum: [qr, card, bank_transfer, wallet] }
+        payer_fingerprint: { type: string, maxLength: 128, description: 'Huella opaca del pagador (por ejemplo, de la tarjeta o del usuario) para límites por pagador. No es reversible a datos personales.' }
+        screening:
+          type: object
+          x-sensitive: true
+          additionalProperties: false
+          description: >-
+            Partes a cribar contra listas de sanciones (D-29): SIEMPRE el comercio (`merchant_name`) y, si el pagador dio un nombre,
+            también el pagador (`name`). Una sola evaluación por intento: gana la coincidencia más grave de las dos partes. Sin
+            `merchant_name` la evaluación responde `review` con `reason_code: screening_not_provided` (fail-closed, D-30); un pagador
+            invitado sin nombre NO produce `review`. Se usan en memoria: no se guardan ni se registran (regla 90.2).
+          properties:
+            merchant_name: { type: string, minLength: 1, maxLength: 300, description: 'Razón social del comercio (la que llega en `merchant.created`/`merchant.activated`). Siempre debe venir.' }
+            merchant_entity_type: { type: string, enum: [person, business], description: 'Opcional. Por defecto `business`. Con él se hace UNA búsqueda en Watchman para el comercio.' }
+            name: { type: string, minLength: 1, maxLength: 200, description: 'Opcional. Nombre del pagador, solo si lo dio (`payer_name`).' }
+            entity_type: { type: string, enum: [person, business], description: 'Opcional. Tipo del pagador. Sin él se hacen dos búsquedas (persona y empresa) y manda el puntaje mayor.' }
+    Assessment:
+      type: object
+      required: [id, object, decision, reason_code, rule_version, screened, created_at]
+      properties:
+        id: { type: string, pattern: '^ra_[a-z0-9]{10,40}$' }
+        object: { const: risk_assessment }
+        payment_intent_id: { type: string, pattern: '^pi_[a-z0-9]{10,40}$' }
+        decision: { $ref: '#/components/schemas/Decision' }
+        reason_code:
+          type: string
+          pattern: '^[a-z][a-z0-9_]*$'
+          description: >-
+            Motivo estable. `allow`: `ok`, `no_limits_configured`. `deny`: `sanctions_match`, `amount_over_limit`, `daily_limit_exceeded`,
+            `payer_daily_limit_exceeded`, `velocity_exceeded`, `merchant_velocity_exceeded`. `review`: `sanctions_possible_match`,
+            `screening_unavailable`, `screening_not_provided`, `payer_unidentified`, `outside_allowed_hours`. Se agregan, no se renombran.
+        rule_version: { type: integer, minimum: 1, description: 'Versión del conjunto de reglas aplicado, para reproducir la decisión.' }
+        screened: { type: boolean, description: '`true` si se cribó contra sanciones. Si es `false`, la decisión nunca es `allow` por esa vía.' }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+    RuleAmount: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    RuleVelocity:
+      type: object
+      required: [max, window_seconds]
+      additionalProperties: false
+      properties:
+        max: { type: integer, minimum: 1, maximum: 1000000, description: 'Intentos distintos permitidos dentro de la ventana; el siguiente se rechaza (`velocity_exceeded`).' }
+        window_seconds: { type: integer, minimum: 1, maximum: 31536000 }
+    RuleHours:
+      type: object
+      required: [from, to]
+      additionalProperties: false
+      description: 'Horario permitido [from, to) en hora de La Paz (UTC-4). Fuera de él, `review` con `outside_allowed_hours`. No cubre rangos que cruzan la medianoche.'
+      properties:
+        from: { type: integer, minimum: 0, maximum: 23 }
+        to: { type: integer, minimum: 1, maximum: 24 }
+    RuleSetCreate:
+      type: object
+      additionalProperties: false
+      description: 'Cada campo omitido deja esa regla APAGADA. Un cuerpo vacío publica una versión «sin límites».'
+      properties:
+        effective_from: { type: string, format: date-time }
+        max_amount_minor: { $ref: '#/components/schemas/RuleAmount' }
+        merchant_daily_amount_minor: { $ref: '#/components/schemas/RuleAmount' }
+        payer_daily_amount_minor: { $ref: '#/components/schemas/RuleAmount' }
+        payer_velocity: { $ref: '#/components/schemas/RuleVelocity' }
+        merchant_velocity: { $ref: '#/components/schemas/RuleVelocity' }
+        hours: { $ref: '#/components/schemas/RuleHours' }
+    RuleSet:
+      type: object
+      required: [object, version, effective_from, max_amount_minor, merchant_daily_amount_minor, payer_daily_amount_minor, payer_velocity, merchant_velocity, hours, published_by]
+      properties:
+        object: { const: risk_rule_set }
+        version: { type: integer, minimum: 1 }
+        effective_from: { type: string, format: date-time }
+        max_amount_minor: { oneOf: [{ $ref: '#/components/schemas/RuleAmount' }, { type: 'null' }] }
+        merchant_daily_amount_minor: { oneOf: [{ $ref: '#/components/schemas/RuleAmount' }, { type: 'null' }] }
+        payer_daily_amount_minor: { oneOf: [{ $ref: '#/components/schemas/RuleAmount' }, { type: 'null' }] }
+        payer_velocity: { oneOf: [{ $ref: '#/components/schemas/RuleVelocity' }, { type: 'null' }] }
+        merchant_velocity: { oneOf: [{ $ref: '#/components/schemas/RuleVelocity' }, { type: 'null' }] }
+        hours: { oneOf: [{ $ref: '#/components/schemas/RuleHours' }, { type: 'null' }] }
+        published_by: { type: string }

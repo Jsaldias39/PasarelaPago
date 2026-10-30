@@ -1,0 +1,170 @@
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs';
+import { connect, createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { type LedgerTestContext, businessRef, checked, createLedgerContext, merchantId, repoPath } from './helpers/app';
+import { waitFor } from './helpers/wait';
+
+/**
+ * Gate «Fallos» (PLAN-MAESTRO §7): experimento de inyección de fallos sobre el ledger REAL. Se levanta un TigerBeetle propio en un puerto libre al azar (no
+ * toca el de desarrollo), se lo mata con SIGKILL en medio del servicio y se observa: (1) lo que el cliente ve mientras está caído, (2) que no queda
+ * ningún efecto a medias, (3) que al volver el mismo reintento —con la MISMA clave— termina y mueve el dinero UNA vez, (4) que el invariante global
+ * cuadra. Documentado en docs/trabajo/ola-3/P2/GATES.md (gate «Fallos»).
+ */
+/** Puerto libre elegido al azar: otras corridas (de otros carriles) pueden estar usando uno fijo. */
+let PORT = 0;
+const freePort = (): Promise<number> =>
+  new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
+const REPO_BINARY = repoPath('.tools/tigerbeetle/tigerbeetle');
+/** Copia del binario con otro nombre y datos en `data.db`: así un `pkill tigerbeetle` de otra corrida no mata el almacén de ESTA prueba. */
+// `--cache-grid=128MiB`: con el tamaño por defecto el proceso ocupa ~3 GB y, en una máquina compartida, el OOM killer del kernel lo mata en plena prueba.
+let BINARY = '';
+const DATA = 'data.db';
+const CLEARING = 'connector:mercantil_qr:clearing';
+const key = () => `key-${Math.random().toString(36).slice(2, 12)}`;
+const leg = (debit_account: string, credit_account: string, amount_minor: number, code = 'charge') => ({ debit_account, credit_account, amount_minor, code });
+
+const portOpen = (): Promise<boolean> =>
+  new Promise((resolve) => {
+    const socket = connect({ host: '127.0.0.1', port: PORT });
+    socket.once('connect', () => (socket.destroy(), resolve(true)));
+    socket.once('error', () => resolve(false));
+  });
+
+let dir: string;
+let tb: ChildProcess | undefined;
+const startTb = async () => {
+  const log = join(dir, `tb-${Date.now()}.log`);
+  tb = spawn(BINARY, ['start', `--addresses=127.0.0.1:${PORT}`, '--cache-grid=128MiB', join(dir, DATA)], { stdio: ['ignore', openSync(log, 'a'), openSync(log, 'a')] });
+  const opened = await waitFor(portOpen, 40_000, 200);
+  if (!opened) process.stderr.write(`TigerBeetle de la prueba no abrió el puerto ${PORT}:\n${readFileSync(log, 'utf8').slice(-1500)}\n`);
+  expect(opened).toBe(true);
+};
+const killTb = async () => {
+  const proc = tb;
+  tb = undefined;
+  if (!proc) return;
+  const exited = new Promise<void>((resolve) => proc.once('exit', () => resolve()));
+  proc.kill('SIGKILL');
+  await exited;
+  expect(await waitFor(async () => !(await portOpen()), 10_000, 100)).toBe(true);
+};
+
+let ctx: LedgerTestContext;
+const saved = { address: process.env.TB_ADDRESS, timeout: process.env.TB_TIMEOUT_MS };
+beforeAll(async () => {
+  expect(existsSync(REPO_BINARY)).toBe(true); // lo deja platform/scripts/tigerbeetle-dev.sh start
+  dir = mkdtempSync(join(tmpdir(), 'pay-ledger-faults-'));
+  BINARY = join(dir, 'p2-store');
+  copyFileSync(REPO_BINARY, BINARY, 0);
+  chmodSync(BINARY, 0o755);
+  const format = spawnSync(BINARY, ['format', '--cluster=0', '--replica=0', '--replica-count=1', join(dir, DATA)], { encoding: 'utf8' });
+  expect(format.status).toBe(0);
+  PORT = await freePort();
+  await startTb();
+  process.env.TB_ADDRESS = `127.0.0.1:${PORT}`;
+  process.env.TB_TIMEOUT_MS = '1500'; // el servicio responde 503 en ~1,5 s en vez de colgarse
+  ctx = await createLedgerContext();
+}, 60_000);
+afterAll(async () => {
+  await ctx?.close();
+  await killTb();
+  rmSync(dir, { recursive: true, force: true });
+  for (const [name, value] of [['TB_ADDRESS', saved.address], ['TB_TIMEOUT_MS', saved.timeout]] as const) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+});
+
+const post = async (path: string, payload: object | undefined, idempotencyKey: string, caller = 'pay-settlement') => ctx.as(caller).post(path, payload).set('idempotency-key', idempotencyKey);
+const balance = async (account: string) => {
+  const res = await ctx.as('pay-settlement').get(`/balances?account=${encodeURIComponent(account)}`);
+  return res.status === 404 ? 0 : (res.body as { balance_minor: number }).balance_minor;
+};
+const count = async (sql: string, params: unknown[] = []) => Number((await ctx.db.pool.query(sql, params)).rows[0].n);
+
+describe('TigerBeetle muerto con SIGKILL en medio del servicio (ledger real)', () => {
+  it('mientras está caído: 503 ledger_unavailable en escrituras y lecturas, sin efectos a medias; al volver, el MISMO reintento termina una sola vez y el invariante cuadra', async () => {
+    const m = merchantId();
+    const fundRef = businessRef();
+    const fund = { business_ref: fundRef, attempt: 1, currency: 'BOB', legs: [leg(CLEARING, `merchant:${m}:pending`, 5000)] };
+    expect((await post('/transactions', fund, key(), 'pay-payments')).status).toBe(201);
+    const release = { business_ref: businessRef('release'), attempt: 1, currency: 'BOB', legs: [leg(`merchant:${m}:pending`, `merchant:${m}:available`, 5000, 'release')] };
+    expect((await post('/transactions', release, key())).status).toBe(201);
+    const holdBody = { business_ref: businessRef('payout'), attempt: 1, debit_account: `merchant:${m}:available`, credit_account: 'payout:clearing', amount_minor: 2000, currency: 'BOB', expires_in_seconds: 300 };
+    const hold = checked(ctx, 'POST', '/holds', await post('/holds', holdBody, key()));
+    expect(hold.status).toBe(201);
+    expect(await balance(`merchant:${m}:available`)).toBe(3000);
+
+    await killTb();
+
+    // — escrituras con TigerBeetle caído —
+    const txRef = businessRef();
+    const tx = { business_ref: txRef, attempt: 1, currency: 'BOB', legs: [leg(CLEARING, `merchant:${m}:pending`, 700)] };
+    const started = Date.now();
+    const down = await post('/transactions', tx, key(), 'pay-payments');
+    expect(down.status).toBe(503);
+    expect(down.body.code).toBe('ledger_unavailable');
+    expect(Date.now() - started).toBeLessThan(6000); // timeout acotado, no se cuelga
+    const newHold = { ...holdBody, business_ref: businessRef('payout'), amount_minor: 100 };
+    expect((await post('/holds', newHold, key())).status).toBe(503);
+    const postKey = key();
+    expect((await post(`/holds/${hold.body.id}/post`, undefined, postKey)).status).toBe(503);
+    const voidKey = key();
+    expect((await post(`/holds/${hold.body.id}/void`, undefined, voidKey)).status).toBe(503);
+    expect((await ctx.as('pay-settlement').get(`/balances?account=${encodeURIComponent(`merchant:${m}:pending`)}`)).status).toBe(503); // lecturas también: nunca un saldo viejo
+    // sin efectos a medias: ni filas del movimiento fallido, ni de la retención nueva, ni evento; la retención previa sigue pendiente
+    expect(await count('SELECT count(*)::int AS n FROM ledger_legs WHERE business_ref = $1', [txRef])).toBe(0);
+    expect(await count('SELECT count(*)::int AS n FROM ledger_holds WHERE business_ref = $1', [newHold.business_ref])).toBe(0);
+    expect(await count("SELECT count(*)::int AS n FROM outbox_events WHERE envelope::text LIKE '%' || $1 || '%'", [txRef])).toBe(0);
+    expect((await ctx.db.pool.query('SELECT status FROM ledger_holds WHERE id = $1', [hold.body.id])).rows[0].status).toBe('pending');
+
+    // — vuelve TigerBeetle (mismos datos): los MISMOS reintentos, con las MISMAS claves —
+    await startTb();
+    // El cliente de TigerBeetle se reconecta solo Y entrega al reiniciar lo que había quedado en su cola aunque el HTTP ya respondió 503: un timeout NO significa que no
+    // se aplicó (H-5). Por eso, justo después de volver, TigerBeetle puede ir POR DELANTE de Postgres (movimiento y retención aplicados, sin fila). Lo que se exige es que
+    // el reintento con los mismos identificadores converja: ni duplica ni pierde, y deja las filas que faltaban.
+    const okTx = await waitFor(async () => [200, 201].includes((await post('/transactions', tx, key(), 'pay-payments')).status), 20_000, 500);
+    expect(okTx).toBe(true);
+    const retriedHold = await post('/holds', newHold, key());
+    expect([200, 201]).toContain(retriedHold.status);
+    expect(await count('SELECT count(*)::int AS n FROM ledger_holds WHERE business_ref = $1', [newHold.business_ref])).toBe(1);
+    const posted = await post(`/holds/${hold.body.id}/post`, undefined, postKey);
+    expect(posted.status).toBe(200); // el 503 NO quedó guardado como respuesta final de esa clave
+    expect(posted.headers['idempotency-replayed']).toBeUndefined();
+    const again = await post(`/holds/${hold.body.id}/post`, undefined, postKey);
+    expect(again.status).toBe(200);
+    expect(again.headers['idempotency-replayed']).toBe('true');
+    expect((await post(`/holds/${hold.body.id}/void`, undefined, voidKey)).status).toBe(409); // ya confirmada: la anulación no la deshace
+
+    expect(await count('SELECT count(*)::int AS n FROM ledger_legs WHERE business_ref = $1', [txRef])).toBe(1);
+    expect(await balance(`merchant:${m}:pending`)).toBe(700);
+    expect(await balance(`merchant:${m}:available`)).toBe(2900); // 5000 − 2000 (confirmada) − 100 (la retención nueva, una sola vez)
+    expect(await balance('payout:clearing')).toBe(2000);
+    const report = await ctx.invariant.check();
+    expect(report.ok).toBe(true);
+  }, 90_000);
+
+  it('la retención vencida durante la caída se resuelve sola al volver: el monto no se pierde ni se duplica', async () => {
+    const m = merchantId();
+    expect((await post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs: [leg(CLEARING, `merchant:${m}:pending`, 900)] }, key(), 'pay-payments')).status).toBe(201);
+    expect((await post('/transactions', { business_ref: businessRef('release'), attempt: 1, currency: 'BOB', legs: [leg(`merchant:${m}:pending`, `merchant:${m}:available`, 900, 'release')] }, key())).status).toBe(201);
+    const hold = await post('/holds', { business_ref: businessRef('payout'), attempt: 1, debit_account: `merchant:${m}:available`, credit_account: 'payout:clearing', amount_minor: 900, currency: 'BOB', expires_in_seconds: 2 }, key());
+    expect(hold.status).toBe(201);
+    await killTb();
+    await new Promise((resolve) => setTimeout(resolve, 3000)); // espera deliberada: el tiempo de la retención corre mientras TigerBeetle está caído
+    await startTb();
+    const restored = await waitFor(async () => (await balance(`merchant:${m}:available`)) === 900, 20_000, 500);
+    expect(restored).toBe(true);
+    expect(await balance('payout:clearing')).toBeGreaterThanOrEqual(0);
+    expect((await ctx.invariant.check()).ok).toBe(true);
+  }, 60_000);
+});

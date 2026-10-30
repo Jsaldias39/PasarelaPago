@@ -1,0 +1,23 @@
+import { createRequire } from 'node:module';
+import { randomBytes } from 'node:crypto';
+const [which, rounds = '5'] = process.argv.slice(2);
+const dir = which === 'patched' ? '/tmp/claude-0/-home-user/e2a1ca80-8ad4-54a7-8e83-0b9ce0655bff/scratchpad/patched/clients' : '/home/user/pasarelapago/services/pay-payments/dist/clients';
+const require = createRequire(import.meta.url);
+const { HttpClient } = require(`${dir}/http.js`);
+const { RiskClient } = require(`${dir}/risk.client.js`);
+const { startStack, stopStack } = await import('/home/user/pasarelapago/e2e/stack.ts');
+const id = (p) => `${p}_${randomBytes(8).toString('hex')}`;
+const stack = await startStack({ only: ['pay-risk'], warmUp: false, tolerateFailures: false });
+let okTotal = 0, total = 0;
+try {
+  for (let r = 1; r <= Number(rounds); r++) {
+    const http = new HttpClient({ name: 'pay-risk', baseUrl: stack.url('pay-risk'), serviceId: 'pay-payments', timeoutMs: 40, retries: 1, breaker: { failureThreshold: 5, resetAfterMs: 10000, ...(which === 'patched' ? { ignoreTimeouts: true } : {}) } });
+    const risk = new RiskClient(http); const t0 = performance.now();
+    const run = async () => { const p = { pi: id('pi'), mc: id('mc') }; let delay = 500; const trail = []; for (let a = 1; a <= 6; a++) { try { const x = await risk.assess({ merchantId: p.mc, paymentIntentId: p.pi, amountMinor: 10000, currency: 'BOB', method: 'qr', screening: { merchantName: 'COMERCIO RIESGO-TIMEOUT (SINTETICO)' } }); trail.push(`a${a}:${x.decision}`); return ['ok', trail]; } catch (e) { trail.push(`a${a}:${e.kind ?? e.code ?? e.name}`); } if (a < 6) { await new Promise((z) => setTimeout(z, delay)); delay = Math.min(delay * 2, 5000); } } return ['AGOTADO', trail]; };
+    const res = await Promise.all([1, 2, 3, 4].map(run));
+    const ok = res.filter((x) => x[0] === 'ok').length; okTotal += ok; total += 4;
+    console.log(`${which} ronda ${r}: ${ok}/4 convergen en ${((performance.now() - t0) / 1000).toFixed(1)} s | ${res.map((x) => x[1].join('>')).join(' || ')}`.slice(0, 420));
+    await new Promise((z) => setTimeout(z, 500));
+  }
+  console.log(`${which}: ${okTotal}/${total} cobros convergen`);
+} finally { await stopStack(stack, { keepLogs: false }); }

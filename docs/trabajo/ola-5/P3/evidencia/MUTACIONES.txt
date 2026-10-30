@@ -1,0 +1,30 @@
+=== M1 (F1-A) request() olvida las llamadas anteriores ambiguas ===
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › la marca se conserva con 3 pasadas:
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › timeout (la evaluación sigue viva)
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › timeout y luego breaker abierto (lo
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › timeout y luego conexión rechazada
+Tests:       4 failed, 22 passed, 26 total
+=== M2 (F1-B) toda falla de red se declara 'no llegó' ===
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › corte de socket tras aceptar la conexión (la orden pudo enviarse)
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › error de red con causa ECONNRESET (o sin causa) ⇒ ambiguo
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › error de red con causa EPIPE (o sin causa) ⇒ ambiguo
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › error de red con causa UND_ERR_SOCKET (o sin causa) ⇒ ambiguo
+Tests:       4 failed, 22 passed, 26 total
+=== M6 (F3) el semiabierto vuelve a admitir una sola sonda tras un timeout ===
+  ● CircuitBreaker · una sonda semiabierta que vence por timeout no deja el breaker pegado (F3) › límite · DURANTE la sonda las demás llamadas reciben circuit_open (una sola sonda); si la sond
+Tests:       1 failed, 25 passed, 26 total
+=== M3 (F1-B) assessRisk vuelve a tratar un 5xx / unexpected_response como 'no hay evaluación' (solo el timeout es ambiguo) ===
+  ● franquicia APAGADA (defecto): todo sigue fail-closed en los mismos casos › F1-A · timeout y 503 en el mismo intento y luego `deny` ⇒ risk_denied, sin cargo
+  ● franquicia ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000), riesgo alcanzable: nada ambiguo la activa › F1-A · timeout y, DENTRO del mismo intento del cliente, un 503: la evalua
+  ● franquicia ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000), riesgo alcanzable: nada ambiguo la activa › F1-B · un 5xx o una respuesta fuera del contrato NO prueban que riesgo no
+Tests:       7 failed, 8 skipped, 1 passed, 16 total
+=== M4 (F1-C) la ronda anterior no se detecta (attempt vuelve a 1 y nada lo recuerda) ===
+  ● franquicia ENCENDIDA y pay-risk PROBADAMENTE inalcanzable (conexión rechazada): única causa que la activa › F1-C · hubo una ronda anterior de la actividad (`attempt` vuelve a 1 pero la base
+Tests:       1 failed, 15 skipped, 16 total
+=== M5 (F7) un allow con screened:false vuelve a concederse ===
+  ● franquicia APAGADA (defecto): todo sigue fail-closed en los mismos casos › F7 · `allow` sin cribar ⇒ NO se concede: failed/risk_unavailable, sin cargo, con constancia
+  ● franquicia ENCENDIDA (RISK_ALLOW_BELOW_THRESHOLD=true, umbral 1.000.000), riesgo alcanzable: nada ambiguo la activa › F7 · `allow` con `screened:false` (el contrato dice que no ocurre) no se 
+Tests:       3 failed, 13 skipped, 16 total
+=== restaurado: marcas MUT- que quedan ===
+src/clients/http.ts:0
+src/temporal/activities.ts:0

@@ -1,0 +1,15 @@
+      145 |     expect(results.filter((r) => r.startsWith('WON'))).toHaveLength(1);
+    > 146 |     expect(results.filter((r) => r.startsWith('WON'))[0]).toContain('RECLAIMED huerfano');
+          |                                                           ^
+      147 |     expect(results.filter((r) => r.startsWith('LOST'))).toHaveLength(7);
+      148 |   });
+      149 |
+
+      at Object.toContain (e2e/lib/lock.spec.ts:146:59)
+
+
+Test Suites: 1 failed, 22 passed, 23 total
+Tests:       1 failed, 178 passed, 179 total
+Snapshots:   0 total
+Time:        248.314 s, estimated 316 s
+Ran all test suites.

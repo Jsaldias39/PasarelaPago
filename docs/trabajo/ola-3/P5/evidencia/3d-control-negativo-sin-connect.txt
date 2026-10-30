@@ -1,0 +1,13 @@
+# Control negativo: guardPool SOLO con pool.on('error') (sin el manejador de la conexión prestada) — la prueba debe FALLAR
+  ● conexión PRESTADA cortada a mitad de una transacción › límite (regla 11): corte mientras se escribe la evaluación: 5xx del contrato (nunca 201 ni «no existe»), el proceso sigue vivo, no queda una evaluación a medias y reintentar con la MISMA clave converge en UNA
+Tests:       1 failed, 3 passed, 4 total
+
+## pay-merchants (guardPool sin el manejador de la conexión prestada)
+  ● conexión PRESTADA cortada a mitad de una transacción › límite (regla 11): corte mientras se escribe el alta del comercio: 5xx del contrato (nunca 201 ni «no existe»), el proceso sigue viv
+Tests:       1 failed, 3 passed, 4 total
+
+## pay-schedules (guardPool sin el manejador de la conexión prestada)
+  ● conexión PRESTADA cortada a mitad de una transacción › regla 11: corte mientras se anota «ejecutado» (el dinero YA se movió): el proceso sigue vivo, el pago NO queda ejecutado a medias ni
+    Expected: true
+    Received: false
+Tests:       1 failed, 3 passed, 4 total

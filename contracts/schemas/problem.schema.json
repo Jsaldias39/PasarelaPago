@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:alovida:pay:schema:problem",
+  "title": "Problem Details (RFC 9457) con código estable",
+  "type": "object",
+  "required": ["type", "title", "status", "code"],
+  "properties": {
+    "type": { "type": "string", "pattern": "^urn:alovida:pay:problem:[a-z][a-z0-9_]*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": { "type": "integer", "minimum": 400, "maximum": 599 },
+    "detail": { "type": "string" },
+    "instance": { "type": "string" },
+    "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "request_id": { "type": "string" },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["field", "code"],
+        "properties": {
+          "field": { "type": "string" },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Código estable del error de CAMPO (no es el `code` del problema). Valores conocidos, que se agregan y no se renombran: required, invalid_value, out_of_range, invalid_key, invalid_token, invalid_amount, unsupported_currency, unknown_field, unknown_parameter, not_allowed_for_method, payment_method_unavailable, fee_schedule_missing, exceeds_refundable, contains_card_number, card_number_detected, invalid_json, too_large, already_registered, invalid_cursor, must_be_after_period_from; webhooks (field url): invalid_url, https_required, credentials_in_url, port_not_allowed, internal_name, private_address, unresolvable; webhooks (field enabled_events): unknown_event_type; webhooks (field endpoint): limit_reached."
+          },
+          "message": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

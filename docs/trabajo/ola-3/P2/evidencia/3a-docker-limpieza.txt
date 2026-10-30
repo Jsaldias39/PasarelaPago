@@ -1,0 +1,9 @@
+$ docker image rm pay-ledger-gate:p2 pay-settlement-gate:p2 localhub/library/node:22-alpine
+Untagged: pay-ledger-gate:p2
+Deleted: sha256:328e49cd99966b19c01723f93c95c03ef05ac6819d5c4be3af385c953b2d7248
+Untagged: pay-settlement-gate:p2
+Deleted: sha256:737e4077cef438a2ab63cacde5c38fa1c3b31294e92806b1226449ca3f59f7b4
+Untagged: localhub/library/node:22-alpine
+Deleted: sha256:57d0228532656e935e68a67e712ba9e044881b19fb3aa7aa3ee9fabea0874fb3
+$ docker images | grep -E "gate|localhub"  (vacío = limpio)
+(fin)

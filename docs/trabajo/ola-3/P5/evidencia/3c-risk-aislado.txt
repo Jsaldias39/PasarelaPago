@@ -1,0 +1,21 @@
+### corrida 1: todo pay-risk salvo latency.spec (--maxWorkers=2; load 15.87)
+Test Suites: 15 passed, 15 total
+Tests:       223 passed, 223 total
+### corrida 2: todo pay-risk salvo latency.spec (--maxWorkers=2; load 17.60)
+Test Suites: 15 passed, 15 total
+Tests:       223 passed, 223 total
+### latency.spec.ts sola (load 16.78)
+LATENCIA {"label":"secuencial-1-busqueda","n":200,"p50":51.6,"p95":101.2,"p99":134.1,"max":155.2}
+LATENCIA {"label":"secuencial-3-busquedas","n":200,"p50":191.8,"p95":390.3,"p99":451.5,"max":543.5}
+LATENCIA {"label":"concurrente-4","n":400,"p50":282.7,"p95":441.6,"p99":528.1,"max":780}
+LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":26.2,"p95":160,"p99":249.4,"max":329.4}
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 ll
+          64 |     expect(line.p99).toBeLessThan(300);
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › concurrencia moderada (4 clientes en paralelo), ≥ 400 llamadas — INFORMATIVA: el Watchman (monohilo por 
+          69 |     // el p99 se acerca al presupuesto por la saturación de Watchman, no del servicio. Se deja una guarda al doble del presupuesto
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › el servicio SIN Watchman (cribado instantáneo [DOBLE]) aporta una fracción del presupuesto: p99 propio, �
+    > 88 |       expect(line.p99).toBeLessThan(150); // la mitad del presupuesto: lo que el servicio gasta por sí mismo
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › cada llamada medida dejó su rastro, con su duración interna registrada
+       99 |     // Menos del 1 %: es el criterio del p99. Las llamadas sin cribar son cribados que superaron los 200 ms (decisión `review`, nunca `allow`).
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 1 passed, 5 total

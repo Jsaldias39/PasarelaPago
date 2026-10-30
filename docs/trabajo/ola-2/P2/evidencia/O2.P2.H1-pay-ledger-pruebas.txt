@@ -1,0 +1,201 @@
+# O2.P2.H1 (pay-ledger): M1 contrato sin tolerancias · M2 modo en identidad/registro · M3 403 sin modo · M4 aislamiento test↔live — nombres literales de la última corrida (--json)
+
+## test/contract.spec.ts — 13/13 pasan
+  [passed] el servicio implementa TODO el contrato cada operación de internal-ledger-v1.yaml tiene su ruta, y no hay rutas internas que el contrato no declare
+  [passed] el servicio implementa TODO el contrato `GET /balance` de public-v1.yaml está implementado (la parte de P2 en pay-ledger)
+  [passed] identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista sin identidad de servicio ⇒ 403 en TODAS las rutas internas
+  [passed] identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista pay-edge (solo atiende rutas públicas) ⇒ 403 en TODAS las rutas internas
+  [passed] identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista pay-risk (no está en la política de cuentas) ⇒ 403 en TODAS las rutas internas
+  [passed] identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista un valor con forma inválida ⇒ 403 en TODAS las rutas internas
+  [passed] identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista un servicio de la política SÍ pasa el guard (la ruta responde otra cosa que 403)
+  [passed] identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista `GET /balance` público: solo pay-edge
+  [passed] el contrato ya declara el 422 de las cinco rutas que antes lo tomaban de tolerancia (CONTRATOS.md §5) GET /balances declara 422 con un Problem
+  [passed] el contrato ya declara el 422 de las cinco rutas que antes lo tomaban de tolerancia (CONTRATOS.md §5) GET /statements declara 422 con un Problem
+  [passed] el contrato ya declara el 422 de las cinco rutas que antes lo tomaban de tolerancia (CONTRATOS.md §5) POST /holds/{id}/void declara 422 con un Problem
+  [passed] el contrato ya declara el 422 de las cinco rutas que antes lo tomaban de tolerancia (CONTRATOS.md §5) GET /transactions/{business_ref} declara 422 con un Problem
+  [passed] el contrato ya declara el 422 de las cinco rutas que antes lo tomaban de tolerancia (CONTRATOS.md §5) GET /holds/{id} declara 422 con un Problem
+
+## test/mode.spec.ts — 43/43 pasan
+  [passed] correcto: el modo válido opera y los dos modos son independientes en modo test todas las rutas internas responden con su contrato
+  [passed] correcto: el modo válido opera y los dos modos son independientes en modo live todas las rutas internas responden con su contrato
+  [passed] correcto: el modo válido opera y los dos modos son independientes el MISMO business_ref, intento y cuentas en test y en live son dos asientos distintos, con ids distintos y saldos independientes
+  [passed] correcto: el modo válido opera y los dos modos son independientes el invariante global verifica los dos modos por separado y cierra sin diferencias
+  [passed] correcto: el modo válido opera y los dos modos son independientes un contracargo partido (pendiente + deuda) opera dentro de su modo y no toca el otro
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) el dinero cargado en test no se puede gastar en el modo contrario: rechazo por saldo y nada se mueve
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) el dinero cargado en live no se puede gastar en el modo contrario: rechazo por saldo y nada se mueve
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) un saldo y un extracto creados en test no existen en el modo contrario (404, sin revelar nada)
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) un saldo y un extracto creados en live no existen en el modo contrario (404, sin revelar nada)
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) un asiento de test no se consulta con el modo contrario (404)
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) un asiento de live no se consulta con el modo contrario (404)
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) una retención de test no se consulta, confirma ni anula desde el modo contrario: sigue pendiente y reservada
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) una retención de live no se consulta, confirma ni anula desde el modo contrario: sigue pendiente y reservada
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) la misma Idempotency-Key usada en el otro modo NO repite la respuesta guardada del primero
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) el rechazo por saldo de un modo no consume el intento del otro y queda registrado con su modo
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) concurrencia: 10 cobros simultáneos en cada modo sobre la misma cuenta lógica suman por separado
+  [passed] límite: el dinero y los registros de un modo NO se ven ni se gastan desde el otro (test↔live, en los dos sentidos) las cuentas de plataforma compartidas por nombre (platform:fees) son distintas en TigerBeetle por modo
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions sin la cabecera ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions vacío ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions en mayúsculas ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions sandbox (modo de despliegue, no de clave) ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions un valor cualquiera ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /transactions dos modos ⇒ 403 forbidden y no deja filas ni mueve dinero
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds sin la cabecera ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds vacío ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds en mayúsculas ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds sandbox (modo de despliegue, no de clave) ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds un valor cualquiera ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` POST /holds dos modos ⇒ 403 y no deja filas
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones sin la cabecera ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones vacío ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones en mayúsculas ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones sandbox (modo de despliegue, no de clave) ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones un valor cualquiera ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` las lecturas y la resolución de retenciones dos modos ⇒ 403 en cada ruta
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público sin la cabecera ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público vacío ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público en mayúsculas ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público sandbox (modo de despliegue, no de clave) ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público un valor cualquiera ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` GET /balance público dos modos ⇒ 403
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` el modo solo sale de la cabecera: un `mode` en el cuerpo o en la consulta se rechaza como campo desconocido y no cambia de modo
+  [passed] inválido: sin un modo válido NO se atiende, NO se asienta nada y NO se cae en `live` el almacenamiento también lo impide: un modo fuera de test|live no entra a ninguna tabla y una pata no puede nombrar una cuenta de otro modo
+
+## test/ids.spec.ts — 25/25 pasan
+  [passed] ids deterministas (P2.H1.M3) la misma cuenta lógica da siempre el mismo id de 128 bits, y cuentas distintas dan ids distintos
+  [passed] ids deterministas (P2.H1.M3) valor fijado: un cambio accidental del algoritmo de derivación rompería todos los ids ya asentados
+  [passed] ids deterministas (P2.H1.M3) el id de la pata depende de business_ref, attempt e índice (H-TB1: un reintento tras rechazo usa un id nuevo)
+  [passed] ids deterministas (P2.H1.M3) el MODO entra en todos los ids: la misma cuenta, pata y retención de `test` y de `live` son identidades distintas (D-28)
+  [passed] ids deterministas (P2.H1.M3) los dominios no se pisan: la misma cadena como cuenta, pata, retención y resolución da ids distintos
+  [passed] ids deterministas (P2.H1.M3) propiedad (20.000 casos): nunca 0 ni 2^128−1, sin colisiones, y los ids públicos cumplen los patrones del contrato
+  [passed] ids deterministas (P2.H1.M3) hash128 corrige los dos valores prohibidos de TigerBeetle
+  [passed] plan de cuentas merchant:mc_k3m9x2q7ab:pending → merchant_pending (credit, no negativo: true)
+  [passed] plan de cuentas merchant:mc_k3m9x2q7ab:debt → merchant_debt (debit, no negativo: true)
+  [passed] plan de cuentas merchant:mc_k3m9x2q7ab:available → merchant_available (credit, no negativo: true)
+  [passed] plan de cuentas user:usr_abc-123:wallet → user_wallet (credit, no negativo: true)
+  [passed] plan de cuentas platform:fees → platform_fees (credit, no negativo: false)
+  [passed] plan de cuentas connector:mercantil_qr:clearing → connector_clearing (debit, no negativo: false)
+  [passed] plan de cuentas payout:clearing → payout_clearing (credit, no negativo: false)
+  [passed] plan de cuentas schedule:md_k3m9x2q7ab:reserve → schedule_reserve (credit, no negativo: true)
+  [passed] plan de cuentas rechaza ""
+  [passed] plan de cuentas rechaza "platform:fee"
+  [passed] plan de cuentas rechaza "merchant:mc_short:pending"
+  [passed] plan de cuentas rechaza "merchant:mc_k3m9x2q7ab:other"
+  [passed] plan de cuentas rechaza "user:a:wallet"
+  [passed] plan de cuentas rechaza "connector:AB:clearing"
+  [passed] plan de cuentas rechaza "x"
+  [passed] plan de cuentas rechaza "merchant:mc_k3m9x2q7ab:pending "
+  [passed] plan de cuentas rechaza "platform:fees
+"
+  [passed] plan de cuentas extrae el comercio dueño
+
+## test/drift.spec.ts — 5/5 pasan
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) sin deriva: el SQL aplicado coincide con lo que el código asume
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) columna obligatoria no mapeada
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) columna opcional que el mapa no conoce
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) tabla ausente, columna ausente, tipo y nulabilidad divergentes
+  [passed] deriva SQL ↔ base ↔ mapa del código (P2.H1.M2, 97.2) el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale) tabla sin mapear e índice con nombre generado
+
+## test/invariant.spec.ts — 3/3 pasan
+  [passed] invariante global (REQ-P2-4) con actividad real (cobros, liberación, retención pendiente, retención confirmada, rechazos) débitos = créditos y TigerBeetle coincide con el extracto
+  [passed] invariante global (REQ-P2-4) se rompe a propósito: si falta una línea de extracto, el job lo detecta, lo registra como error y lo deja en `last`
+  [passed] invariante global (REQ-P2-4) el job periódico corre solo y se detiene
+
+## test/transactions.spec.ts — 72/72 pasan
+  [passed] POST /transactions — el cobro de referencia del plan (D-07, D-20) Bs 100,00 con 2,5 % + Bs 0,50 deja 97,00 al comercio y 3,00 a la plataforma, con débitos = créditos
+  [passed] POST /transactions — idempotencia (REQ-P2-1) repetir el mismo asiento devuelve `exists` con el mismo id y no mueve dinero otra vez
+  [passed] POST /transactions — idempotencia (REQ-P2-1) 10 llamadas simultáneas idénticas ⇒ UNA sola efectiva (una 201 y nueve 200)
+  [passed] POST /transactions — idempotencia (REQ-P2-1) el mismo (business_ref, attempt) con OTRO contenido ⇒ 422 idempotency_key_reused y no mueve dinero
+  [passed] POST /transactions — regla de intentos que hace cumplir el servidor (H-TB1) tras un rechazo, `attempt`+1 se acepta; un attempt nuevo tras un intento ACEPTADO es 409 y no mueve dinero
+  [passed] POST /transactions — regla de intentos que hace cumplir el servidor (H-TB1) el primer attempt tiene que ser 1: empezar en 2 es 409
+  [passed] POST /transactions — atomicidad y saldo (REQ-P2-2, M8) un lote con una pata sin saldo no aplica NINGUNA (lote enlazado)
+  [passed] POST /transactions — atomicidad y saldo (REQ-P2-2, M8) saldo justo ⇒ aceptado; un centavo más ⇒ 422 y el saldo no cambia
+  [passed] POST /transactions — atomicidad y saldo (REQ-P2-2, M8) medio «saldo AloVida»: la billetera paga a un comercio; sin saldo, rechazo sin efecto
+  [passed] POST /transactions — atomicidad y saldo (REQ-P2-2, M8) de `merchant:available` de un comercio a `merchant:pending` de otro (transferencia entre comercios)
+  [passed] POST /transactions — atomicidad y saldo (REQ-P2-2, M8) 100 patas en un asiento se aplican; 101 se rechazan por validación
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` monto < pendiente: UNA pata, sin deuda
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` monto = pendiente: UNA pata, `pending` en 0, sin deuda
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` monto = pendiente + 1 centavo: DOS patas en un solo asiento enlazado (el pendiente y 1 centavo de deuda)
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` pendiente 0 (la cuenta ni existe): TODO el contracargo es deuda
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` repetir el mismo (business_ref, attempt) devuelve lo mismo y no mueve dinero otra vez ni vuelve a partirlo con un saldo nuevo
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` un llamador que ya partió el contracargo a mano también funciona
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` recuperación: si TigerBeetle ya aplicó el contracargo partido y Postgres no lo registró, se ADOPTA lo aplicado (no se vuelve a partir con el saldo ya cambiado)
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` concurrencia: dos contracargos sobre el mismo pendiente ⇒ lo debitado de `pending` nunca supera el pendiente y pending + deuda iguala los montos
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` concurrencia: diez contracargos de 30 sobre un pendiente de 100 ⇒ salen exactamente 100 de `pending` y 200 son deuda
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` inválido: el código charge NO puede dejar `pending` en negativo: se rechaza y no mueve nada
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` inválido: el código fee NO puede dejar `pending` en negativo: se rechaza y no mueve nada
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` inválido: el código refund NO puede dejar `pending` en negativo: se rechaza y no mueve nada
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` inválido: el código payout NO puede dejar `pending` en negativo: se rechaza y no mueve nada
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` inválido: el código release NO puede dejar `pending` en negativo: se rechaza y no mueve nada
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` inválido: el código wallet_transfer NO puede dejar `pending` en negativo: se rechaza y no mueve nada
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` inválido: el código mandate NO puede dejar `pending` en negativo: se rechaza y no mueve nada
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` inválido: `adjustment` hacia otro destino que no sea la compensación de un conector tampoco deja `pending` en negativo
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` inválido: liberar a `available` más de lo que hay en `pending` tampoco crea dinero
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` la deuda se netea con disponible (disponible → deuda) y no se puede pagar de más
+  [passed] POST /transactions — contracargo perdido (D-22): `pending` nunca queda en negativo; el exceso es deuda en `merchant:{id}:debt` permisos: quien no puede tocar la deuda no la toca (ni directo ni por un contracargo)
+  [passed] POST /transactions — rastro de rechazos (P2.H1.M9) un rechazo deja una fila con business_ref, attempt y motivo; repetirlo no duplica el rastro
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza campo no declarado en el cuerpo con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza campo no declarado en una pata con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza importe 0 con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza importe con decimales con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza importe negativo con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza importe como texto con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza attempt 0 con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza moneda distinta de BOB con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza business_ref mal formado con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza cuenta fuera del plan con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza débito igual a crédito con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza sin patas con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos rechaza código de movimiento inventado con 422 validation_failed y no registra nada
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos sin Idempotency-Key ⇒ 400 idempotency_key_required
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos 403 para sin identidad de servicio
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos 403 para un servicio que no puede llamar al ledger
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos 403 para pay-schedules tocando una cuenta de conector
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos 403 para pay-payments tocando payout:clearing
+  [passed] POST /transactions — validación de entrada (lista blanca) y permisos GET de un business_ref inexistente ⇒ 404
+  [passed] recuperación ante una caída entre TigerBeetle y Postgres (ids deterministas) TigerBeetle aplicó pero Postgres no registró: reintentar el mismo attempt NO duplica el dinero
+  [passed] recuperación ante una caída entre TigerBeetle y Postgres (ids deterministas) un asiento de varias patas ya aplicado por TigerBeetle (lote enlazado) también se retoma sin duplicar: `exists` hace fallar la cadena, y se verifica por id
+  [passed] recuperación ante una caída entre TigerBeetle y Postgres (ids deterministas) TigerBeetle rechazó pero Postgres no registró: el reintento queda como rechazo (id_already_failed), sin mover dinero
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) correcto: el reintento IDÉNTICO tras la caída adopta lo aplicado (201) y no duplica
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) límite: la primera pata con +1 centavo (TigerBeetle responde exists_with_different_amount) ⇒ 422, sin éxito, sin registro y sin mover dinero; y el reintento correcto sigue funcionando
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) límite: la SEGUNDA pata con +1 centavo (estados mezclados exists / linked_event_failed: TigerBeetle ni mira la segunda) ⇒ 422, sin éxito, sin registro y sin mover dinero; y el reintento correcto sigue funcionando
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) límite: la segunda pata con otra cuenta de destino (estados mezclados) ⇒ 422, sin éxito, sin registro y sin mover dinero; y el reintento correcto sigue funcionando
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) límite: la segunda pata con otro código (estados mezclados) ⇒ 422, sin éxito, sin registro y sin mover dinero; y el reintento correcto sigue funcionando
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) límite: la primera pata con otro código ⇒ 422, sin éxito, sin registro y sin mover dinero; y el reintento correcto sigue funcionando
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) límite: la primera pata con otra cuenta de origen ⇒ 422, sin éxito, sin registro y sin mover dinero; y el reintento correcto sigue funcionando
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) límite: una pata de MENOS (el pedido ya no es el mismo lote) ⇒ 422, sin éxito, sin registro y sin mover dinero; y el reintento correcto sigue funcionando
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) límite: una pata de MÁS ⇒ 422, sin éxito, sin registro y sin mover dinero; y el reintento correcto sigue funcionando
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) límite: SOLO una de las dos patas está aplicada (anomalía: un lote enlazado es atómico) ⇒ se rechaza, no se completa a ciegas
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) una sola pata ya aplicada con otro monto también es 422 (antes: 500)
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) contracargo partido ya aplicado (100 desde `pending` + 50 de deuda) y reintento con otro contenido bruto +1 centavo (las mitades aplicadas suman 150, no 151) ⇒ 422 y no se mueve nada
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) contracargo partido ya aplicado (100 desde `pending` + 50 de deuda) y reintento con otro contenido bruto −1 centavo ⇒ 422 y no se mueve nada
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) contracargo partido ya aplicado (100 desde `pending` + 50 de deuda) y reintento con otro contenido otra compensación de conector ⇒ 422 y no se mueve nada
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) contracargo partido ya aplicado (100 desde `pending` + 50 de deuda) y reintento con otro contenido el reintento idéntico (150) adopta lo aplicado
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) contracargo partido ya aplicado (100 desde `pending` + 50 de deuda) y reintento con otro contenido solo está aplicada una mitad y no suma el bruto ⇒ 422 (la otra mitad no se inventa)
+  [passed] reutilizar (business_ref, attempt) con OTRO contenido tras una caída: nunca es un éxito y nunca mueve dinero (422 idempotency_key_reused) contracargo partido ya aplicado (100 desde `pending` + 50 de deuda) y reintento con otro contenido lo aplicado debita OTRA cuenta (de otro comercio) ⇒ 422
+  [passed] cliente de TigerBeetle (H-4 y H-5) un cluster_id equivocado no da error en TigerBeetle: el servicio responde 503 ledger_unavailable dentro de su propio timeout
+
+## test/holds.spec.ts — 13/13 pasan
+  [passed] POST /holds — primera fase reserva el monto: el disponible baja y NO se puede gastar dos veces lo retenido
+  [passed] POST /holds — primera fase idempotente por (business_ref, attempt) y con la regla de intentos
+  [passed] POST /holds — primera fase valida la entrada y los permisos
+  [passed] POST /holds/{id}/post y /void — segunda fase post total: mueve el monto, deja pata y extracto, y publica los eventos
+  [passed] POST /holds/{id}/post y /void — segunda fase post parcial: lo no confirmado vuelve a la cuenta de origen
+  [passed] POST /holds/{id}/post y /void — segunda fase post por más de lo retenido ⇒ 422 y la retención sigue pendiente
+  [passed] POST /holds/{id}/post y /void — segunda fase void devuelve el monto y publica ledger.hold.voided
+  [passed] POST /holds/{id}/post y /void — segunda fase se resuelve UNA sola vez: post o void de una retención ya resuelta ⇒ 409
+  [passed] POST /holds/{id}/post y /void — segunda fase con la misma Idempotency-Key se repite la respuesta guardada, incluso un error de negocio
+  [passed] POST /holds/{id}/post y /void — segunda fase 5 confirmaciones simultáneas con claves distintas ⇒ UNA efectiva y cuatro 409; el dinero se mueve una vez
+  [passed] POST /holds/{id}/post y /void — segunda fase id inexistente o con una forma que ninguna retención puede tener ⇒ 404
+  [passed] vencimiento de una retención (REQ-P2-3) pasado el plazo sin resolver, el monto vuelve solo; no se puede confirmar; el barrido deja constancia y publica el evento
+  [passed] POST /holds — reutilizar (business_ref, attempt) con otro contenido tras una caída TigerBeetle ya tiene esa retención con OTRO monto: 422 idempotency_key_reused, nada se registra ni se mueve (antes: 500)
+
+## test/statements.spec.ts — 9/9 pasan
+  [passed] GET /balances cuenta acreedora: balance = créditos − débitos − débitos pendientes; cuenta deudora: valor absoluto con nature debit
+  [passed] GET /balances cuenta que el ledger nunca vio ⇒ 404; cuenta fuera del plan o sin parámetro ⇒ 422
+  [passed] GET /statements — orden estable y paginación (P2.H1.M6) las páginas, en orden y sin repetir ni saltear, suman exactamente el extracto completo
+  [passed] GET /statements — orden estable y paginación (P2.H1.M6) un movimiento nuevo entre dos páginas NO corre la segunda página (el cursor es por posición, no por desplazamiento)
+  [passed] GET /statements — orden estable y paginación (P2.H1.M6) cada pata aparece como una línea de débito en una cuenta y una de crédito en la otra, con su contraparte
+  [passed] GET /statements — orden estable y paginación (P2.H1.M6) filtra por rango de fechas
+  [passed] GET /statements — orden estable y paginación (P2.H1.M6) valida los parámetros: límite fuera de rango, cursor inválido, fecha mal formada, cuenta desconocida
+  [passed] GET /balance público (lo atiende pay-edge) devuelve pendiente y disponible del comercio autenticado, validado contra public-v1.yaml
+  [passed] GET /balance público (lo atiende pay-edge) sin comercio identificado ⇒ 401; con una identidad de servicio que no es pay-edge ⇒ 403

@@ -1,0 +1,53 @@
+# P4.H2.M6 — gates (estado final; OpenBao real 2.7.2 en 127.0.0.1:54200, Postgres y NATS del Compose)
+$ (cd services/pay-connectors) yarn typecheck
+exit=0
+$ yarn build
+exit=0
+$ yarn test   (corrida 1, suite completa)
+Test Suites: 29 passed, 29 total
+Tests:       23 todo, 836 passed, 859 total
+Snapshots:   0 total
+Time:        34.161 s
+exit=0
+$ yarn test   (corrida 2, suite completa)
+Test Suites: 29 passed, 29 total
+Tests:       23 todo, 836 passed, 859 total
+Snapshots:   0 total
+Time:        39.677 s
+exit=0
+$ (raíz) yarn eslint services/pay-connectors
+exit=0
+
+$ git grep --untracked -nE "whsec_[A-Za-z0-9+/=]{16,}|PAY_SECRET_[A-Z_]+=.+" -- services/pay-connectors services/pay-qr
+services/pay-connectors/.env.example:26:PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET=whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==
+services/pay-connectors/test/env.ts:15:process.env.PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET ??= 'whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==';
+services/pay-connectors/test/mockbank.spec.ts:159:    const { t, bank } = await pair({ secret: 'whsec_b3Ryby1zZWNyZXRvLWRpc3RpbnRvLTAwMDAwMDAwMDA=' });
+services/pay-connectors/test/pool-error.spec.ts:16:const MOCK_SECRET = { PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET: 'whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==' };
+services/pay-connectors/test/startup.spec.ts:17:const MOCK_SECRET = { PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET: 'whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==' };
+   (todas son valores SINTETICOS de desarrollo/prueba, ya presentes en ola-1: el literal «whsec_ZGV2LW…» decodifica a «dev-only-mock-secret-0123456789abcdef»; ninguna está en src/ ni en una imagen)
+
+$ git grep --untracked -nE "<secretos whsec_, PAY_SECRET_*=valor, token raiz, OPENBAO_*=valor, X-Vault-Token con valor, tokens hvs./s.>" -- services/pay-connectors/src services/pay-qr/src      (CODIGO DESPLEGADO)
+exit=1 (1 = 0 coincidencias)
+$ git grep --untracked -n "dev-only-root" -- services
+services/pay-connectors/test/env.ts:21:process.env.PAY_TEST_OPENBAO_ROOT_TOKEN ??= 'dev-only-root';
+exit=0  (solo test/env.ts: variable de entorno del test, nunca en src/)
+$ git grep --untracked -nEi "^\s*(ENV|ARG)\s+.*(SECRET|TOKEN|PASSWORD|OPENBAO|ROLE_ID)" -- services/pay-connectors/Dockerfile platform/Dockerfile*
+exit=1 (1 = 0 coincidencias)
+$ git grep --untracked -nE "console\.(log|info|warn|error|debug|trace)" -- services/pay-connectors/src
+exit=1 (1 = 0 coincidencias)
+
+# Tras el último ajuste (la prueba ahora también borra la política de la prueba de arranque real)
+$ yarn typecheck
+exit=0
+$ yarn test   (corrida 3, suite completa)
+Test Suites: 29 passed, 29 total
+Tests:       23 todo, 836 passed, 859 total
+Snapshots:   0 total
+Time:        35.13 s, estimated 39 s
+exit=0
+$ yarn eslint services/pay-connectors
+exit=0
+$ limpieza en OpenBao tras las pruebas: montajes / métodos de auth / políticas
+['cubbyhole/', 'identity/', 'secret/', 'sys/']
+['token/']
+['default', 'root']

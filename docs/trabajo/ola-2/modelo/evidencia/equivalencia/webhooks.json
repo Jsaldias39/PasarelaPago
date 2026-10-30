@@ -1,0 +1,120 @@
+{
+  "label": "webhooks",
+  "verdict": "PASS",
+  "problems": [],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "idempotency_keys",
+        "p",
+        "idempotency_keys_pkey"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "inbox_events_pkey"
+      ],
+      [
+        "webhook_deliveries",
+        "f",
+        "webhook_deliveries_endpoint_fk"
+      ],
+      [
+        "webhook_deliveries",
+        "p",
+        "webhook_deliveries_pkey"
+      ],
+      [
+        "webhook_deliveries",
+        "u",
+        "webhook_deliveries_endpoint_event_key"
+      ],
+      [
+        "webhook_delivery_attempts",
+        "f",
+        "webhook_delivery_attempts_delivery_fk"
+      ],
+      [
+        "webhook_delivery_attempts",
+        "p",
+        "webhook_delivery_attempts_pkey"
+      ],
+      [
+        "webhook_endpoints",
+        "p",
+        "webhook_endpoints_pkey"
+      ],
+      [
+        "webhook_secrets",
+        "f",
+        "webhook_secrets_endpoint_fk"
+      ],
+      [
+        "webhook_secrets",
+        "p",
+        "webhook_secrets_pkey"
+      ]
+    ],
+    "modelo": [
+      [
+        "idempotency_keys",
+        "p",
+        "pk_idempotency_keys"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "pk_inbox_events"
+      ],
+      [
+        "webhook_deliveries",
+        "f",
+        "fk_webhook_deliveries_endpoint_id"
+      ],
+      [
+        "webhook_deliveries",
+        "p",
+        "pk_webhook_deliveries"
+      ],
+      [
+        "webhook_delivery_attempts",
+        "f",
+        "fk_webhook_delivery_attempts_delivery_id"
+      ],
+      [
+        "webhook_delivery_attempts",
+        "p",
+        "pk_webhook_delivery_attempts"
+      ],
+      [
+        "webhook_endpoints",
+        "p",
+        "pk_webhook_endpoints"
+      ],
+      [
+        "webhook_secrets",
+        "f",
+        "fk_webhook_secrets_endpoint_id"
+      ],
+      [
+        "webhook_secrets",
+        "p",
+        "pk_webhook_secrets"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 6,
+    "columnas": 51,
+    "indices": 10,
+    "check": 8,
+    "fk": 3,
+    "triggers": 0,
+    "funciones": 0
+  }
+}

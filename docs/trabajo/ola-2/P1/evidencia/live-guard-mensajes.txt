@@ -1,0 +1,11 @@
+pay-ledger      healthy=true  
+pay-risk        healthy=false [Nest] 10779  - 10/27/2026, 10:09:24 PM   ERROR [ExceptionHandler] Error: PAY_MODE=live exige declarar WATCHMAN_LISTS=current (listas de sanciones vigentes)
+pay-qr          healthy=false throw new Error('PAY_MODE=live no admite un QR_ACCOUNT_GUID provisional o de sandbox: poné el GUID que asigna el banco o el regulador');
+pay-vault       healthy=false throw new Error('PAY_MODE=live: VAULT_BACKEND=fake es un doble; pay-vault se niega a arrancar');
+pay-merchants   healthy=false throw new Error(`PAY_MODE=live no arranca con dobles ni interruptores de prueba: ${problems.join('; ')}`);
+pay-webhooks    healthy=false throw new Error('WEBHOOKS_SANDBOX_TARGETS y WEBHOOKS_SANDBOX_CA_FILE no pueden usarse con PAY_MODE=live: abren la entrega a la red local');
+pay-connectors  healthy=false throw new Error(`PAY_MODE=live no admite conectores ni dobles de sandbox; quitá del entorno: ${found.join(', ')}`);
+pay-payments    healthy=false throw new Error(`PAY_MODE=live: no se pudo verificar que pay-connectors no tiene conectores «mock» o «sandbox» (${error.name}); pay-payments se niega a arrancar`);
+pay-settlement  healthy=false [Nest] 10948  - 10/27/2026, 10:09:27 PM   ERROR [ExceptionHandler] Error: SETTLEMENT_TRANSFER_CONNECTOR=mock no puede correr con PAY_MODE=live
+pay-schedules   healthy=true  
+pay-edge        healthy=false throw new Error(`PAY_MODE=live no admite servicios dueños en loopback (dobles locales); corregí: ${offenders.join(', ')}`);

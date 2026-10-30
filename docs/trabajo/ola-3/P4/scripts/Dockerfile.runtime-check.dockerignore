@@ -1,0 +1,5 @@
+# Propio de Dockerfile.runtime-check: ESTA comprobación necesita lo ya compilado del árbol de trabajo (node_modules, dist), que el .dockerignore de la raíz
+# excluye a propósito para las imágenes de producción. BuildKit usa este archivo (<Dockerfile>.dockerignore) en lugar del de la raíz.
+.git
+e2e/.run
+e2e/.scratch

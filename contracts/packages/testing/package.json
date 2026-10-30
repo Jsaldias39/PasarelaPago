@@ -1,0 +1,27 @@
+{
+  "name": "@pay/testing",
+  "version": "0.1.0",
+  "description": "Ayudas para pruebas de integración contra Postgres real (no se publica)",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "yarn run -T tsc -p tsconfig.build.json",
+    "typecheck": "yarn run -T tsc -p tsconfig.json --noEmit",
+    "test": "yarn run -T jest --config jest.config.cjs"
+  },
+  "dependencies": {
+    "@apidevtools/json-schema-ref-parser": "^11.7.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "pg": "^8.22.0",
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8"
+  }
+}

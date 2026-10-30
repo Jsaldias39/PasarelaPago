@@ -1,0 +1,18 @@
+# 3a-sandbox-header-connectors
+$ (cd services/pay-connectors && yarn test --maxWorkers=2 test/sandbox-header.spec.ts --verbose --reporters default)
+(las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
+
+(node:28288) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/sandbox-header.spec.ts
+  X-Pay-Mode: sandbox en las respuestas (pay-connectors)
+    ✓ correcto/límite: en un despliegue sandbox TODA respuesta la lleva, con éxito o con error, y cada recorrido devuelve el estado esperado (320 ms)
+    ✓ inválido/límite: en un despliegue live NINGUNA respuesta la lleva (ni la salud, ni los errores) (214 ms)
+    ✓ la cabecera de la PETICIÓN no la cambia: una clave `test` y una `live` reciben la misma respuesta de despliegue (sandbox); un valor raro en la petición tampoco (21 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        3.582 s, estimated 4 s
+Ran all test suites matching test/sandbox-header.spec.ts.
+exit=0

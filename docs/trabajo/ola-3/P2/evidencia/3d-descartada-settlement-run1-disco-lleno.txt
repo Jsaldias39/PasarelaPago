@@ -1,0 +1,587 @@
+(node:5399) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5400) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 5399  - [39m10/28/2026, 1:45:24 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+FAIL test/pool-resilience.spec.ts (6.955 s)
+
+
+  ● Test suite failed to run
+
+    Unhandled error. (Error: Connection terminated unexpectedly
+        at Connection.<anonymous> (/home/user/pasarelapago/node_modules/pg/lib/client.js:204:73)
+        at Object.onceWrapper (node:events:633:28)
+        at Connection.emit (node:events:519:28)
+        at Socket.<anonymous> (/home/user/pasarelapago/node_modules/pg/lib/connection.js:64:12)
+        at Socket.emit (node:events:519:28)
+        at TCP.<anonymous> (node:net:346:12)
+        at TCP.callbackTrampoline (node:internal/async_hooks:130:17))
+
+      at Connection.<anonymous> (../../node_modules/pg/lib/client.js:204:73)
+      at Socket.<anonymous> (../../node_modules/pg/lib/connection.js:64:12)
+      at TCP.callbackTrampoline (node:internal/async_hooks:130:17))
+      at Client._handleErrorEvent (../../node_modules/pg/lib/client.js:422:10)
+      at Connection.<anonymous> (../../node_modules/pg/lib/client.js:222:16)
+      at Socket.<anonymous> (../../node_modules/pg/lib/connection.js:64:12)
+
+[31m[Nest] 5399  - [39m10/28/2026, 1:45:57 AM [31m  ERROR[39m [38;5;3m[ReconciliationService] [39mObject(2) {
+  run: [32m'rr_4mjme3dacxa6cliwbqd5'[39m,
+  err: [32m'TypeError'[39m
+}
+La corrida de conciliación falló por un error inesperado
+[31m[Nest] 5400  - [39m10/28/2026, 1:46:09 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(3) {
+  payout: [32m'po_mnhe2mpjnucorwnbsesb'[39m,
+  hold: [32m'hd_048fc1235e19fd290320'[39m,
+  hold_status: [32m'expired'[39m
+}
+El riel pagó pero la retención del ledger no se pudo confirmar
+FAIL test/payout.spec.ts (14.177 s)
+  ● payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) › lectura y autorización › lista paginada, del más nuevo al más viejo, con filtros por comercio y estado
+
+    error: could not extend file "base/16408/6226197": No space left on device
+
+      47 |   }
+      48 |   const pool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${schema}`, max });
+    > 49 |   for (const file of sqlFiles) await pool.query(readFileSync(file, 'utf8'));
+         |                                ^
+      50 |   return {
+      51 |     pool,
+      52 |     schema,
+
+      at ../../node_modules/pg-pool/index.js:45:11
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:49:32)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at funded (test/payout.spec.ts:15:9)
+      at Object.<anonymous> (test/payout.spec.ts:320:17)
+
+  ● payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) › lectura y autorización › lista paginada, del más nuevo al más viejo, con filtros por comercio y estado
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+FAIL test/consumers.spec.ts (7.813 s)
+  ● payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) › inválido (fecha ilegible): se descarta sin abrir nada ni dejar rastro en el inbox
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa[31m[Nest] 5400  - [39m10/28/2026, 1:46:27 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(2) {
+  payout: [32m'po_ebwgr73spjw565ufx2vx'[39m,
+  reason: [32m'RailAmbiguousError'[39m
+}
+ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva
+[31m[Nest] 5400  - [39m10/28/2026, 1:46:27 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(2) {
+  payout: [32m'po_ebwgr73spjw565ufx2vx'[39m,
+  reason: [32m'RailAmbiguousError'[39m
+}
+ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva
+[31m[Nest] 5399  - [39m10/28/2026, 1:46:33 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+{"level":30,"time":1793151997704,"pid":5400,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":3,"msg":"request completed"}
+[31m[Nest] 5400  - [39m10/28/2026, 1:46:37 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'c170d969-b0ff-450d-bd45-9ef78eb2cef5'[39m
+}
+Error no controlado
+{"level":30,"time":1793151997715,"pid":5400,"hostname":"vm","req":{"id":"c170d969-b0ff-450d-bd45-9ef78eb2cef5","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":3,"msg":"request errored"}
+{"level":30,"time":1793151997722,"pid":5400,"hostname":"vm","req":{"id":"9d060c3e-028a-4574-bb13-2c9f87074744","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+
+Summary of all failing tests
+FAIL test/pool-resilience.spec.ts (6.955 s)
+
+
+  ● Test suite failed to run
+
+    Unhandled error. (Error: Connection terminated unexpectedly
+        at Connection.<anonymous> (/home/user/pasarelapago/node_modules/pg/lib/client.js:204:73)
+        at Object.onceWrapper (node:events:633:28)
+        at Connection.emit (node:events:519:28)
+        at Socket.<anonymous> (/home/user/pasarelapago/node_modules/pg/lib/connection.js:64:12)
+        at Socket.emit (node:events:519:28)
+        at TCP.<anonymous> (node:net:346:12)
+        at TCP.callbackTrampoline (node:internal/async_hooks:130:17))
+
+      at Connection.<anonymous> (../../node_modules/pg/lib/client.js:204:73)
+      at Socket.<anonymous> (../../node_modules/pg/lib/connection.js:64:12)
+      at TCP.callbackTrampoline (node:internal/async_hooks:130:17))
+      at Client._handleErrorEvent (../../node_modules/pg/lib/client.js:422:10)
+      at Connection.<anonymous> (../../node_modules/pg/lib/client.js:222:16)
+      at Socket.<anonymous> (../../node_modules/pg/lib/connection.js:64:12)
+
+FAIL test/payout.spec.ts (14.177 s)
+  ● payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) › lectura y autorización › lista paginada, del más nuevo al más viejo, con filtros por comercio y estado
+
+    error: could not extend file "base/16408/6226197": No space left on device
+
+      47 |   }
+      48 |   const pool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${schema}`, max });
+    > 49 |   for (const file of sqlFiles) await pool.query(readFileSync(file, 'utf8'));
+         |                                ^
+      50 |   return {
+      51 |     pool,
+      52 |     schema,
+
+      at ../../node_modules/pg-pool/index.js:45:11
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:49:32)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at funded (test/payout.spec.ts:15:9)
+      at Object.<anonymous> (test/payout.spec.ts:320:17)
+
+  ● payout (P2.H2.M4, REQ-P2-1/2 del lado del pago) › lectura y autorización › lista paginada, del más nuevo al más viejo, con filtros por comercio y estado
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+FAIL test/consumers.spec.ts (7.813 s)
+  ● payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) › inválido (fecha ilegible): se descarta sin abrir nada ni dejar rastro en el inbox
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) › inválido (fecha ilegible): se descarta sin abrir nada ni dejar rastro en el inbox
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) › inválido (campo faltante current_status): se descarta sin abrir nada ni dejar rastro en el inbox
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) › inválido (campo faltante current_status): se descarta sin abrir nada ni dejar rastro en el inbox
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) › un evento con ese tipo pero de otro origen se ignora
+
+    error: could not extend file "base/16408/6226213": No space left on device
+
+      47 |   }
+      48 |   const pool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${schema}`, max });
+    > 49 |   for (const file of sqlFiles) await pool.query(readFileSync(file, 'utf8'));
+         |                                ^
+      50 |   return {
+      51 |     pool,
+      52 |     schema,
+
+      at ../../node_modules/pg-pool/index.js:45:11
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:49:32)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● payment_intent.contradiction_detected (pay-payments → pay-settlement, ola 2) › un evento con ese tipo pero de otro origen se ignora
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● ledger.transfer.posted: inbox, duplicados y desorden › el mismo evento repetido y concurrente (10 a la vez) tiene un solo efecto
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● ledger.transfer.posted: inbox, duplicados y desorden › el mismo evento repetido y concurrente (10 a la vez) tiene un solo efecto
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● ledger.transfer.posted: inbox, duplicados y desorden › desorden: un evento anterior que llega tarde adelanta la primera aparición y no atrasa la última actividad (cualquier orden da lo mismo)
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● ledger.transfer.posted: inbox, duplicados y desorden › desorden: un evento anterior que llega tarde adelanta la primera aparición y no atrasa la última actividad (cualquier orden da lo mismo)
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● ledger.transfer.posted: inbox, duplicados y desorden › un crédito a una cuenta que no es `pending` de un comercio y un evento de otro origen se ignoran sin tocar el inbox
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● ledger.transfer.posted: inbox, duplicados y desorden › un crédito a una cuenta que no es `pending` de un comercio y un evento de otro origen se ignoran sin tocar el inbox
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 1 dejan siempre la 3
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 1 dejan siempre la 3
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 1 dejan siempre la 3
+
+    error: could not write init file
+
+      47 |   }
+      48 |   const pool = new Pool({ connectionString: TEST_DATABASE_URL, options: `-c search_path=${schema}`, max });
+    > 49 |   for (const file of sqlFiles) await pool.query(readFileSync(file, 'utf8'));
+         |                                ^
+      50 |   return {
+      51 |     pool,
+      52 |     schema,
+
+      at ../../node_modules/pg-pool/index.js:45:11
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:49:32)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 1 dejan siempre la 3
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 2 dejan siempre la 3
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 2 dejan siempre la 3
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 2 dejan siempre la 3
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 2 dejan siempre la 3
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 3 dejan siempre la 3
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 3 dejan siempre la 3
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 3 dejan siempre la 3
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › las versiones 1, 2 y 3 llegando en el orden 3 dejan siempre la 3
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › concurrencia: las tres versiones a la vez, cada una repetida, dejan la más nueva y un evento por versión en el inbox
+
+    No se pudo conectar a la base de pruebas (postgres://postgres:***@127.0.0.1:54321/pay_test). Levantala con `docker compose -f platform/compose.yml up -d postgres`. Causa: could not write init file
+
+      41 |   } catch (error) {
+      42 |     await admin.end();
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `No se pudo conectar a la base de pruebas (${TEST_DATABASE_URL.replace(/:[^:@/]*@/, ':***@')}). ` +
+      45 |         `Levantala con \`docker compose -f platform/compose.yml up -d postgres\`. Causa: ${(error as Error).message}`,
+      46 |     );
+
+      at createIsolatedDatabase (../../contracts/packages/testing/src/index.ts:43:11)
+      at createSettlementContext (test/helpers/app.ts:108:14)
+      at Object.<anonymous> (test/consumers.spec.ts:17:9)
+
+  ● fee_schedule.published: inbox, duplicados y desorden › concurrencia: las tres versiones a la vez, cada una repetida, dejan la más nueva y un evento por versión en el inbox
+
+    Called end on pool more than once
+
+      52 |     schema,
+      53 |     async drop() {
+    > 54 |       await pool.end();
+         |                  ^
+      55 |       await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      56 |       await admin.end();
+      57 |     },
+
+      at BoundPool.end (../../node_modules/pg-pool/index.js:491:19)
+      at Object.end [as drop] (../../contracts/packages/testing/src/index.ts:54:18)
+      at Object.drop [as close] (test/helpers/app.ts:185:16)
+
+
+Test Suites: 3 failed, 26 passed, 29 total
+Tests:       14 failed, 556 passed, 570 total
+Snapshots:   0 total
+Time:        79.783 s, estimated 119 s
+Ran all test suites.
+Test results written to: ../../../../../tmp/claude-0/-home-user/e2a1ca80-8ad4-54a7-8e83-0b9ce0655bff/scratchpad/3d-pay-settlement-run1.json
+rc=1

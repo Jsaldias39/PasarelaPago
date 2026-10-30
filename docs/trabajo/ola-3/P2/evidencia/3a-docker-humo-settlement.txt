@@ -1,0 +1,13 @@
+$ docker run -d --name pay-settlement-gate --network host -e PORT=3198 -e PAY_MODE=sandbox -e DB_USER=pay_settlement -e DB_NAME=pay_settlement ... pay-settlement-gate:p2   (sin NATS_URL: no compite por los consumidores durables compartidos)
+5f3f32e501bc
+ready rc=0
+$ curl /health/live /health/ready
+{"status":"ok"}
+{"status":"ok","info":{"database":{"status":"up"},"settlement":{"status":"up","mode":"bank","payMode":"sandbox","rail":"bank_transfer","simulated":false}},"error":{},"details":{"database":{"status":"up"},"settlement":{"status":"up","mode":"bank","payMode":"sandbox","rail":"bank_transfer","simulated":false}}}
+$ docker exec ... id -un (proceso como usuario no root)
+node
+$ docker logs (últimas líneas)
+{"level":30,"time":1793147372367,"pid":1,"hostname":"vm","context":"RouterExplorer","msg":"Mapped {/charges, POST} route"}
+{"level":30,"time":1793147372367,"pid":1,"hostname":"vm","context":"RouterExplorer","msg":"Mapped {/exports/accounting, GET} route"}
+{"level":40,"time":1793147372367,"pid":1,"hostname":"vm","context":"EventsModule","msg":"Sin NATS_URL: el relé del outbox no publica"}
+{"level":30,"time":1793147372367,"pid":1,"hostname":"vm","context":"NestApplication","msg":"Nest application successfully started"}

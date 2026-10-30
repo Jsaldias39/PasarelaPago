@@ -1,0 +1,101 @@
+# PROPUESTA de ampliación de contrato (no congelada): carga de límites de `pay-risk` (D-23).
+# El borrador `contracts/openapi/internal-risk-v1.yaml` solo declara `/assessments`; los límites tienen que cargarlos
+# el negocio o el banco, así que hace falta una operación de back-office. Al integrarla, mover a `contracts/openapi/`
+# y cambiar los `$ref` a `common.yaml#/…`.
+openapi: 3.1.0
+info:
+  title: pay-risk — carga de reglas (propuesta)
+  version: 1.0.0-draft
+  description: |
+    Versiones inmutables del conjunto de reglas. **Ningún límite tiene valor por defecto**: la versión 1 es «sin límites»
+    (todo `null`) y `POST /assessments` responde `allow` con `reason_code: no_limits_configured` mientras siga siendo la vigente.
+    La persona operadora se identifica con una credencial (`Authorization: Bearer`) y debe tener el rol `risk_admin`
+    (propuesta, Q-21/Q-23); quién publicó sale de la credencial, nunca del cuerpo.
+servers:
+  - url: http://pay-risk:3000
+security:
+  - mTLS: []
+    OperatorToken: []
+paths:
+  /rule_sets:
+    post:
+      operationId: riskPublishRuleSet
+      x-owner: P5
+      x-required-role: risk_admin
+      summary: Publica la versión siguiente del conjunto de reglas
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RuleSetCreate' } } }
+      responses:
+        '201': { description: Versión publicada., content: { application/json: { schema: { $ref: '#/components/schemas/RuleSet' } } } }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unprocessable' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+  /rule_sets/current:
+    get:
+      operationId: riskGetCurrentRuleSet
+      x-owner: P5
+      x-required-role: risk_admin
+      summary: Versión del conjunto de reglas en vigencia ahora
+      parameters: [{ $ref: '#/components/parameters/ServiceId' }]
+      responses:
+        '200': { description: Conjunto vigente., content: { application/json: { schema: { $ref: '#/components/schemas/RuleSet' } } } }
+        '401': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/Forbidden' }
+        '500': { $ref: '../../../../../contracts/openapi/common.yaml#/components/responses/ServerError' }
+components:
+  securitySchemes:
+    mTLS: { type: mutualTLS, description: Certificado de servicio; la identidad se confirma además con `X-Service-Id`. }
+    OperatorToken: { type: http, scheme: bearer, bearerFormat: JWT, description: 'Credencial de la persona operadora: de ahí salen su identidad (`sub`) y sus roles.' }
+  parameters:
+    ServiceId:
+      name: X-Service-Id
+      in: header
+      required: true
+      description: Debe ser `pay-backoffice`.
+      schema: { type: string, pattern: '^pay-[a-z]+$' }
+  schemas:
+    Amount: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    Velocity:
+      type: object
+      required: [max, window_seconds]
+      additionalProperties: false
+      properties:
+        max: { type: integer, minimum: 1, maximum: 1000000, description: 'Intentos distintos permitidos dentro de la ventana; el siguiente se rechaza (`velocity_exceeded`).' }
+        window_seconds: { type: integer, minimum: 1, maximum: 31536000 }
+    Hours:
+      type: object
+      required: [from, to]
+      additionalProperties: false
+      description: 'Horario permitido [from, to) en hora de La Paz (UTC-4). Fuera de él, `review` con `outside_allowed_hours`. No cubre rangos que cruzan la medianoche.'
+      properties:
+        from: { type: integer, minimum: 0, maximum: 23 }
+        to: { type: integer, minimum: 1, maximum: 24 }
+    RuleSetCreate:
+      type: object
+      additionalProperties: false
+      description: 'Cada campo omitido deja esa regla APAGADA. Un cuerpo vacío publica una versión «sin límites».'
+      properties:
+        effective_from: { type: string, format: date-time }
+        max_amount_minor: { $ref: '#/components/schemas/Amount' }
+        merchant_daily_amount_minor: { $ref: '#/components/schemas/Amount' }
+        payer_daily_amount_minor: { $ref: '#/components/schemas/Amount' }
+        payer_velocity: { $ref: '#/components/schemas/Velocity' }
+        merchant_velocity: { $ref: '#/components/schemas/Velocity' }
+        hours: { $ref: '#/components/schemas/Hours' }
+    RuleSet:
+      type: object
+      required: [object, version, effective_from, max_amount_minor, merchant_daily_amount_minor, payer_daily_amount_minor, payer_velocity, merchant_velocity, hours, published_by]
+      properties:
+        object: { const: risk_rule_set }
+        version: { type: integer, minimum: 1 }
+        effective_from: { type: string, format: date-time }
+        max_amount_minor: { oneOf: [{ $ref: '#/components/schemas/Amount' }, { type: 'null' }] }
+        merchant_daily_amount_minor: { oneOf: [{ $ref: '#/components/schemas/Amount' }, { type: 'null' }] }
+        payer_daily_amount_minor: { oneOf: [{ $ref: '#/components/schemas/Amount' }, { type: 'null' }] }
+        payer_velocity: { oneOf: [{ $ref: '#/components/schemas/Velocity' }, { type: 'null' }] }
+        merchant_velocity: { oneOf: [{ $ref: '#/components/schemas/Velocity' }, { type: 'null' }] }
+        hours: { oneOf: [{ $ref: '#/components/schemas/Hours' }, { type: 'null' }] }
+        published_by: { type: string }

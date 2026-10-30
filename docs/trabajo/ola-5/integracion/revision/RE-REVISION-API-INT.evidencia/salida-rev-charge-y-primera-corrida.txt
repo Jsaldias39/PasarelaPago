@@ -1,0 +1,84 @@
+  console.log
+    SECUENCIA SQL del receptor (primeras 14):
+    0: [query] select 1 from pg_database where datname = 'mantra_it_rev_rls_7aedd60194'
+    1: [query] begin
+    2: [query] select set_config('app.system_context', 'true', true)
+    3: [query] select id, tenant_id from payments.payment_intents where gateway_intent_ref = ? limit 2
+    4: [query] select set_config('app.system_context', 'false', true)
+    5: [query] select set_config('app.current_tenant_id', ?, true)
+    6: [query] select "p0".* from "payments"."payment_intents" as "p0" where "p0"."gateway_intent_ref" = ? and "p0"."tenant_id" = ? limit ? for upd
+    7: [query] select "p0".* from "payments"."payment_webhook_events" as "p0" where "p0"."gateway_event_ref" = ? limit ?
+    8: [query] select "p0".* from "payments"."payment_checkout_sessions" as "p0" where "p0"."payment_intent_id" = ? for update
+    9: [query] select "p0".* from "payments"."payment_debts" as "p0" where "p0"."id" = ? limit ? for update
+    10: [query] insert into "payments"."payment_webhook_events" ("id", "gateway_id", "event_type", "gateway_event_ref", "payload_json", "signature",
+    11: [query] update "payments"."payment_debts" set "outstanding_amount" = ?, "status_concept_id" = ?, "settled_at" = ?, "updated_at" = ?, "row_ve
+    12: [query] update "payments"."payment_checkout_sessions" set "status_concept_id" = ?, "completed_at" = ?, "updated_at" = ?, "row_version" = ? w
+    13: [query] update "payments"."payment_intents" set "status_concept_id" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and "row_version
+
+
+  console.log
+    REV-5 conexiones distintas observadas tras fallo en ventana: 18; contaminadas: 0
+
+
+  console.log
+    REV-9 resultados: [{"received":true,"eventId":"46202737-2974-489e-8121-f831719520dc","applied":true,"duplicate":false,"ignored":false,"reconciliationRequired":false,"decision":"aplicar"},{"received":true,"eventId":"6d11bf1f-4b03-4b56-98f4-6e84e99e0604","applied":true,"duplicate":false,"ignored":false,"reconciliationRequired":true,"decision":"aplicar"}]
+
+
+  console.log
+    REV-10 errores observados en la 1a pasada concurrente: {}
+
+
+  console.log
+    REV-11 errores en 40 rondas: {"40P01":22}
+
+
+FAIL test/integration/rev-b1-rls.int-spec.ts (31.051 s)
+  ● Receptor de webhooks bajo RLS con un rol NOBYPASSRLS › REV-1 ventana de elevacion: entre system_context=true y =false corre UNA sola sentencia (la lectura de id,tenant_id), y la firma se verifica antes
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      424 |     expect(stmts[iOn + 1]).toMatch(/from payments\.payment_intents where gateway_intent_ref = .* limit 2/u);
+      425 |     // Nada tocó la base antes de la elevacion salvo el begin de la transaccion.
+    > 426 |     expect(stmts.slice(0, iOn).every((l) => /^begin/u.test(l))).toBe(true);
+          |                                                                 ^
+      427 |   });
+      428 |
+      429 |   it('REV-2 firma invalida / evento malformado / flag de modo: CERO sentencias SQL (la elevacion no se alcanza sin firma)', async () => {
+
+
+  console.log
+    REV-M2a rondas con DOS cobros vivos sobre la misma deuda: 8/8
+
+
+  console.log
+    REV-M2b rondas con dos cobros vivos: 0/4; deuda bloqueada durante la llamada HTTP: true
+
+
+  console.log
+    REV-M2c (sourceRefType en mayusculas) => despachado
+
+
+  console.log
+    REV-M2c (sourceRefType distinto) => despachado
+
+
+  console.log
+    REV-M2c (sin sourceRefType (solo sourceRefId)) => despachado
+
+
+  console.log
+    REV-M2d reintento de A tras despachar B: rechazado 409 PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE; cobros vivos en la pasarela: 2
+
+
+  console.log
+    REV-M3b ajena-existente esperó el lock: true (resolvio e404 a los 708ms); inexistente: e404 en 5ms
+
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       1 failed, 24 passed, 25 total
+Snapshots:   0 total
+Time:        40.839 s
+Ran all test suites matching rev-.

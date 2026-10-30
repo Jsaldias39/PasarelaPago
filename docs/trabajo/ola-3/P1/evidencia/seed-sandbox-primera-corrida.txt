@@ -1,0 +1,91 @@
+FAIL e2e/flows/seed-sandbox.e2e.ts (31.835 s)
+  ● seed:sandbox contra el stack real de 12 servicios › CORRECTO: la 1ª corrida inserta 3 comercios, 3 claves, 2 billeteras y 1 mandato, y se declara SINTÉTICA
+
+    seed:sandbox salió con 1: seed:sandbox falló: Asiento de apertura sintético de sandbox-seed:opening:taller falló (422): {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"validation_failed","errors":[{"field":"business_ref","code":"invalid_format"}],"request_id":
+
+      80 |   it('CORRECTO: la 1ª corrida inserta 3 comercios, 3 claves, 2 billeteras y 1 mandato, y se declara SINTÉTICA', async () => {
+      81 |     const result = await seed();
+    > 82 |     if (result.code !== 0) throw new Error(`seed:sandbox salió con ${result.code}: ${result.stderr}`);
+         |                                  ^
+      83 |     first = JSON.parse(result.stdout) as typeof first;
+      84 |     stateAfterFirst = JSON.parse(readFileSync(stateFile(), 'utf8')) as SeedState;
+      85 |     expect(first.declaracion).toMatch(/SINTÉTICA.*ningún dato es real/);
+
+      at Object.<anonymous> (e2e/flows/seed-sandbox.e2e.ts:82:34)
+
+  ● seed:sandbox contra el stack real de 12 servicios › CORRECTO: la 2ª corrida inserta 0 y reutiliza todo, con los mismos ids y las mismas claves
+
+    seed:sandbox salió con 1: seed:sandbox falló: Asiento de apertura sintético de sandbox-seed:opening:taller falló (422): {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"validation_failed","errors":[{"field":"business_ref","code":"invalid_format"}],"request_id":
+
+      91 |   it('CORRECTO: la 2ª corrida inserta 0 y reutiliza todo, con los mismos ids y las mismas claves', async () => {
+      92 |     const result = await seed();
+    > 93 |     if (result.code !== 0) throw new Error(`seed:sandbox salió con ${result.code}: ${result.stderr}`);
+         |                                  ^
+      94 |     second = JSON.parse(result.stdout) as typeof second;
+      95 |     stateAfterSecond = JSON.parse(readFileSync(stateFile(), 'utf8')) as SeedState;
+      96 |     expect(second.inserted).toEqual({ merchants: 0, api_keys: 0, wallets: 0, mandates: 0 });
+
+      at Object.<anonymous> (e2e/flows/seed-sandbox.e2e.ts:93:34)
+
+  ● seed:sandbox contra el stack real de 12 servicios › LÍMITE: tras DOS corridas hay UN asiento de apertura por billetera (saldo = apertura), UN mandato, y el estado con las claves está en modo 0600
+
+    TypeError: Cannot read properties of undefined (reading 'merchants')
+
+      102 |   it('LÍMITE: tras DOS corridas hay UN asiento de apertura por billetera (saldo = apertura), UN mandato, y el estado con las claves está en modo 0600', async () => {
+      103 |     for (const spec of SEED_MERCHANTS) {
+    > 104 |       const merchantId = stateAfterSecond.merchants[spec.ref]!.merchantId;
+          |                                           ^
+      105 |       expect(await balance(merchantId)).toBe(spec.walletMinor); // si la 2ª corrida hubiera cargado otra vez, sería el doble
+      106 |       if (spec.walletMinor > 0) {
+      107 |         const lines = await stack.callAs('pay-payments', 'pay-ledger', 'GET', `/statements?account=${encodeURIComponent(`merchant:${merchantId}:available`)}&limit=100`, { payMode: 'test' });
+
+      at Object.merchants (e2e/flows/seed-sandbox.e2e.ts:104:43)
+
+  ● seed:sandbox contra el stack real de 12 servicios › CORRECTO: TODO lo sembrado está declarado sintético (nombres, NIT SBX…, marca en el mandato) en los servicios reales
+
+    TypeError: Cannot read properties of undefined (reading 'merchants')
+
+      122 |   it('CORRECTO: TODO lo sembrado está declarado sintético (nombres, NIT SBX…, marca en el mandato) en los servicios reales', async () => {
+      123 |     for (const spec of SEED_MERCHANTS) {
+    > 124 |       const { merchantId, token } = stateAfterSecond.merchants[spec.ref]!;
+          |                                                      ^
+      125 |       const me = await edge(token, 'GET', '/v1/merchants/me');
+      126 |       expect(me.status).toBe(200);
+      127 |       expect(me.json).toMatchObject({ id: merchantId, display_name: expect.stringContaining('(SINTÉTICO)') });
+
+      at Object.merchants (e2e/flows/seed-sandbox.e2e.ts:124:54)
+
+  ● seed:sandbox contra el stack real de 12 servicios › CORRECTO: las claves sk_test_ sembradas autentican en pay-edge: un GET autenticado devuelve 200 con SU comercio
+
+    TypeError: Cannot read properties of undefined (reading 'merchants')
+
+      53 |   const edge = (token: string | undefined, method: string, path: string) =>
+      54 |     stack.call('pay-edge', method, path, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+    > 55 |   const merchantsOf = (state: SeedState) => Object.entries(state.merchants);
+         |                                                                  ^
+      56 |   const tokenOf = (ref: string) => stateAfterSecond.merchants[ref]!.token;
+      57 |   const balance = async (merchantId: string) => {
+      58 |     const res = await stack.callAs('pay-payments', 'pay-ledger', 'GET', `/balances?account=${encodeURIComponent(`merchant:${merchantId}:available`)}`, { payMode: 'test' });
+
+      at merchants (e2e/flows/seed-sandbox.e2e.ts:55:66)
+      at Object.merchantsOf (e2e/flows/seed-sandbox.e2e.ts:142:48)
+
+  ● seed:sandbox contra el stack real de 12 servicios › INVÁLIDO: la clave de OTRO comercio no ve el mandato (403/404), y una clave inventada o la falta de clave dan 401
+
+    TypeError: Cannot read properties of undefined (reading 'mandates')
+
+      150 |
+      151 |   it('INVÁLIDO: la clave de OTRO comercio no ve el mandato (403/404), y una clave inventada o la falta de clave dan 401', async () => {
+    > 152 |     const mandateId = stateAfterSecond.mandates[SEED_MANDATES[0]!.ref]!.mandateId;
+          |                                        ^
+      153 |     expect((await edge(tokenOf('medico'), 'GET', `/v1/mandates/${mandateId}`)).status).toBe(200); // control positivo: el dueño sí
+      154 |     for (const other of ['taller', 'proveedor']) expect([403, 404]).toContain((await edge(tokenOf(other), 'GET', `/v1/mandates/${mandateId}`)).status);
+      155 |     expect((await edge('sk_test_inventada0000000000000000000000', 'GET', '/v1/merchants/me')).status).toBe(401);
+
+      at Object.mandates (e2e/flows/seed-sandbox.e2e.ts:152:40)
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 2 passed, 8 total
+Snapshots:   0 total
+Time:        31.941 s
+Ran all test suites matching e2e/flows/seed-sandbox.

@@ -1,0 +1,262 @@
+(node:5623) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/trace-propagation.spec.ts
+  ● UpstreamClient — span cliente y traceparent (sin Postgres) › CORRECTO: dentro de un span activo reenvía SU traceId y el spanId del span cliente exportado (hijo del activo)
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+      43 |       const [header] = seen;
+      44 |       const m = W3C.exec(header!.traceparent!);
+    > 45 |       expect(m).not.toBeNull();
+         |                     ^
+      46 |       const forwardSpan = spansNamed('forward pay-ledger')[0]!;
+      47 |       expect(m![1]).toBe(parent.spanContext().traceId);
+      48 |       expect(m![2]).toBe(forwardSpan.spanContext().spanId);
+
+
+  ● UpstreamClient — span cliente y traceparent (sin Postgres) › CORRECTO: un traceparent que ponga el llamador en los headers se REEMPLAZA por el del contexto activo (y tracestate/baggage no pasan)
+
+    TypeError: Cannot read properties of undefined (reading 'split')
+
+      61 |       expect(names.filter((n) => n === 'traceparent')).toHaveLength(1);
+      62 |       expect(seen[0]!.traceparent).not.toBe(spoofed);
+    > 63 |       expect(seen[0]!.traceparent!.split('-')[1]).toBe(parent.spanContext().traceId);
+         |                                    ^
+      64 |       expect(names).not.toContain('tracestate');
+      65 |       expect(names).not.toContain('baggage');
+      66 |       expect(seen[0]!.accept).toBe('application/json');
+
+
+  ● UpstreamClient — span cliente y traceparent (sin Postgres) › LÍMITE: contexto NO muestreado (flags 00) ⇒ se reenvía con flags 00 y no se exporta ningún span cliente
+
+    TypeError: expect(received).toMatch(expected)
+
+    Matcher error: received value must be a string
+
+    Received has value: undefined
+
+      73 |     const parent = propagation.extract(ROOT_CONTEXT, { traceparent: `00-${tid}-${sid}-00` });
+      74 |     await context.with(parent, () => client().forward(request()));
+    > 75 |     expect(seen[0]!.traceparent).toMatch(new RegExp(`^00-${tid}-[0-9a-f]{16}-00$`));
+         |                                  ^
+      76 |     expect(spansNamed('forward pay-ledger')).toHaveLength(0);
+      77 |   });
+      78 |
+
+
+  ● UpstreamClient — span cliente y traceparent (sin Postgres) › LÍMITE: sin span activo el traceparent es el del PROPIO span cliente (traza nueva real y exportada), no uno fabricado
+
+    TypeError: Cannot read properties of undefined (reading 'parentSpanContext')
+
+      27 |
+      28 | export type Finished = ReturnType<typeof exported.getFinishedSpans>[number];
+    > 29 | export const parentIdOf = (span: Finished): string | undefined => span.parentSpanContext?.spanId;
+         |                                                                        ^
+      30 | export const spansNamed = (prefix: string): Finished[] => exported.getFinishedSpans().filter((s) => s.name.startsWith(prefix));
+      31 | /** Lo que un span exporta y podría filtrar (sin las referencias internas del SDK, que son circulares). */
+      32 | export const dumpOf = (span: Finished): string => JSON.stringify({ name: span.name, attributes: span.attributes, status: span.status, events: span.events, links: span.links });
+
+
+  ● UpstreamClient — span cliente y traceparent (sin Postgres) › LÍMITE: el span cliente lleva solo atributos de una lista cerrada (sin URL, cuerpo, cabeceras ni clave)
+
+    TypeError: Cannot read properties of undefined (reading 'attributes')
+
+      90 |     });
+      91 |     const [span] = spansNamed('forward pay-ledger');
+    > 92 |     expect(Object.keys(span!.attributes).sort()).toEqual(['http.request.method', 'http.response.status_code', 'peer.service']);
+         |                              ^
+      93 |     expect(dumpOf(span!)).not.toMatch(/SECRETO|4111|limit=5|payment_intents/);
+      94 |   });
+      95 |
+
+
+  ● UpstreamClient — span cliente y traceparent (sin Postgres) › INVÁLIDO: un destino caído deja el span en ERROR sin mensaje ni excepción, y el error al llamador es el de siempre (503)
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+      103 |     });
+      104 |     const [span] = spansNamed('forward pay-ledger');
+    > 105 |     expect(span!.status).toEqual({ code: SpanStatusCode.ERROR });
+          |                  ^
+      106 |     expect(span!.events).toHaveLength(0);
+      107 |     expect(dumpOf(span!)).not.toMatch(/ECONNREFUSED|secreto-interno|10\.0\.0\.9/);
+      108 |   });
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › CORRECTO: SIN traceparent entrante, el reenviado pertenece a la MISMA traza del span servidor y cuelga de un span cliente exportado
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "f6912629ccf89321214c00364f798b45"
+    Received: "71ec78677182d4b6fe9251f9d98c40ed"
+
+      146 |     const m = W3C.exec(forwarded().traceparent as string)!;
+      147 |     expect(m).not.toBeNull();
+    > 148 |     expect(m[1]).toBe(serverSpan().spanContext().traceId);
+          |                  ^
+      149 |     expect(m[2]).toBe(clientSpan().spanContext().spanId);
+      150 |     expect(parentIdOf(clientSpan())).toBe(serverSpan().spanContext().spanId);
+      151 |     expect(parentIdOf(serverSpan())).toBeUndefined(); // raíz: traza nueva
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › CORRECTO: con traceparent válido del cliente continúa SU traza: el servidor cuelga del span del cliente y el reenviado cuelga del cliente-span del borde
+
+    TypeError: Cannot read properties of undefined (reading 'spanContext')
+
+      158 |     const m = W3C.exec(forwarded().traceparent as string)!;
+      159 |     expect(m[1]).toBe(tid);
+    > 160 |     expect(m[2]).toBe(clientSpan().spanContext().spanId);
+          |                       ^
+      161 |     expect(m[2]).not.toBe(sid);
+      162 |     expect(parentIdOf(serverSpan())).toBe(sid);
+      163 |     expect(parentIdOf(clientSpan())).toBe(serverSpan().spanContext().spanId);
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › LÍMITE: traceparent de VERSIÓN FUTURA ⇒ 200 y el borde reenvía exactamente la traza que el SDK aceptó (o una nueva si el SDK la rechazó): nunca discrepan
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "aa07f235d33a49e4276030cc95e20ed4"
+    Received: "2227de7f2275d32c334ee55252840822"
+
+      186 |     const m = W3C.exec(forwarded().traceparent as string)!;
+      187 |     expect(m).not.toBeNull();
+    > 188 |     expect(m[1]).toBe(serverSpan().spanContext().traceId);
+          |                  ^
+      189 |     expect(m[1]).toBe(accepted ?? serverSpan().spanContext().traceId);
+      190 |     if (accepted === undefined) expect(m[1]).not.toBe(tid);
+      191 |   });
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › INVÁLIDO: traceparent basura ⇒ 200 (nunca 5xx), traza NUEVA y reenviado bien formado de esa traza
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "a545097c7c9e144cd2f3741652efe1f9"
+    Received: "3efb3d0d72bb01c75e216ee21d392d12"
+
+      221 |     const m = W3C.exec(forwarded().traceparent as string)!;
+      222 |     expect(m).not.toBeNull();
+    > 223 |     expect(m[1]).toBe(serverSpan().spanContext().traceId);
+          |                  ^
+      224 |     expect(m[1]).not.toMatch(/^0+$/);
+      225 |     expect(parentIdOf(serverSpan())).toBeUndefined();
+      226 |   });
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › INVÁLIDO: traceparent ceros ⇒ 200 (nunca 5xx), traza NUEVA y reenviado bien formado de esa traza
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "8066c011bdd847b4bd1d33019f5c793f"
+    Received: "e2d930085f46c42df21ac221ed5c2780"
+
+      221 |     const m = W3C.exec(forwarded().traceparent as string)!;
+      222 |     expect(m).not.toBeNull();
+    > 223 |     expect(m[1]).toBe(serverSpan().spanContext().traceId);
+          |                  ^
+      224 |     expect(m[1]).not.toMatch(/^0+$/);
+      225 |     expect(parentIdOf(serverSpan())).toBeUndefined();
+      226 |   });
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › INVÁLIDO: traceparent mayúsculas ⇒ 200 (nunca 5xx), traza NUEVA y reenviado bien formado de esa traza
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "932ab22dc3aa8620dd9a431ad4ab5d95"
+    Received: "e152b81dcd1e77e9e9b729c65eb2667f"
+
+      221 |     const m = W3C.exec(forwarded().traceparent as string)!;
+      222 |     expect(m).not.toBeNull();
+    > 223 |     expect(m[1]).toBe(serverSpan().spanContext().traceId);
+          |                  ^
+      224 |     expect(m[1]).not.toMatch(/^0+$/);
+      225 |     expect(parentIdOf(serverSpan())).toBeUndefined();
+      226 |   });
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › INVÁLIDO: traceparent faltan campos ⇒ 200 (nunca 5xx), traza NUEVA y reenviado bien formado de esa traza
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "88f798e9dcf0509c567c6e04784963e5"
+    Received: "0b5db7bcbd890e7873da5b24d0a669b8"
+
+      221 |     const m = W3C.exec(forwarded().traceparent as string)!;
+      222 |     expect(m).not.toBeNull();
+    > 223 |     expect(m[1]).toBe(serverSpan().spanContext().traceId);
+          |                  ^
+      224 |     expect(m[1]).not.toMatch(/^0+$/);
+      225 |     expect(parentIdOf(serverSpan())).toBeUndefined();
+      226 |   });
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › INVÁLIDO: traceparent versión ff ⇒ 200 (nunca 5xx), traza NUEVA y reenviado bien formado de esa traza
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "caf65f3424f7a8ab0eeef3c194aad77d"
+    Received: "2aa201e09708d47e7aa98c4812c4a792"
+
+      221 |     const m = W3C.exec(forwarded().traceparent as string)!;
+      222 |     expect(m).not.toBeNull();
+    > 223 |     expect(m[1]).toBe(serverSpan().spanContext().traceId);
+          |                  ^
+      224 |     expect(m[1]).not.toMatch(/^0+$/);
+      225 |     expect(parentIdOf(serverSpan())).toBeUndefined();
+      226 |   });
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › INVÁLIDO: traceparent traceId corto ⇒ 200 (nunca 5xx), traza NUEVA y reenviado bien formado de esa traza
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "64f92ab37b4fce83ebdd55e84b2e9fb7"
+    Received: "1fc19a9a9302006a4c976e6502716ad2"
+
+      221 |     const m = W3C.exec(forwarded().traceparent as string)!;
+      222 |     expect(m).not.toBeNull();
+    > 223 |     expect(m[1]).toBe(serverSpan().spanContext().traceId);
+          |                  ^
+      224 |     expect(m[1]).not.toMatch(/^0+$/);
+      225 |     expect(parentIdOf(serverSpan())).toBeUndefined();
+      226 |   });
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › INVÁLIDO: traceparent larguísimo ⇒ 200 (nunca 5xx), traza NUEVA y reenviado bien formado de esa traza
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "0c70c591975e5c001c16bf0e94fa183f"
+    Received: "cb0c660e0e01b703a1e043cde0db8650"
+
+      221 |     const m = W3C.exec(forwarded().traceparent as string)!;
+      222 |     expect(m).not.toBeNull();
+    > 223 |     expect(m[1]).toBe(serverSpan().spanContext().traceId);
+          |                  ^
+      224 |     expect(m[1]).not.toMatch(/^0+$/);
+      225 |     expect(parentIdOf(serverSpan())).toBeUndefined();
+      226 |   });
+
+
+  ● pay-edge — tubería completa: una traza por petición, con padre real y request-id de extremo a extremo › INVÁLIDO: destino caído ⇒ el borde responde 503 como siempre, con el span cliente en ERROR y la traza intacta
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+      233 |       expect(res.status).toBeLessThanOrEqual(504);
+      234 |       expect(res.headers['x-request-id']).toBe('id-correlacion-caido');
+    > 235 |       expect(clientSpan().status.code).toBe(SpanStatusCode.ERROR);
+          |              ^
+      236 |     } finally {
+      237 |       h.doubles['pay-ledger'].override = undefined;
+      238 |     }
+
+
+Test Suites: 1 failed, 1 total
+Tests:       17 failed, 6 passed, 23 total
+Snapshots:   0 total
+Time:        1.542 s, estimated 3 s
+Ran all test suites matching test/trace-propagation.spec.ts.

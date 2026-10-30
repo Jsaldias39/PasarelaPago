@@ -1,0 +1,21 @@
+# VERDE — código corregido. Gates de services/pay-webhooks (todo con flock /tmp/pay-heavy.lock)
+## yarn eslint services/pay-webhooks (raíz) / yarn typecheck / yarn build
+eslint-exit=0
+typecheck-exit=0
+build-exit=0
+
+## yarn test COMPLETO — corrida 1
+Test Suites: 20 passed, 20 total
+Tests:       543 passed, 543 total
+Time:        25.839 s, estimated 26 s
+test-exit=0
+
+## yarn test COMPLETO — corrida 2
+Test Suites: 20 passed, 20 total
+Tests:       543 passed, 543 total
+Time:        27.487 s
+test-exit=0
+
+## specs nuevos (corrida dirigida previa a los gates; mismos 103 tests)
+Test Suites: 3 passed, 3 total
+Tests:       103 passed, 103 total

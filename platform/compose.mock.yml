@@ -1,0 +1,341 @@
+# Capa MOCK / SANDBOX completa (D-26, P1.H5.M1): los 12 servicios de la pasarela (los 11 de producto + `pay-mockbank`, el banco simulado) sobre la infraestructura
+# de platform/compose.yml, con PAY_MODE=sandbox y el conector `mock` hablando con pay-mockbank por HTTP. Pasar a producción es cambiar configuración, no código
+# (docs/runbooks/sandbox-a-produccion.md). NADA de esto es real: banco simulado, secretos sintéticos, listas de sanciones OFAC de 2019 congeladas.
+#
+# UNA sola imagen (platform/Dockerfile.sandbox, ~1 GB) para los doce contenedores: se distinguen por working_dir, PORT y entorno. Un solo `docker build`.
+#
+# Uso (desde la raíz del repo; el DISCO manda: la imagen pesa ~1 GB y TigerBeetle preasigna ~1 GB):
+#   node platform/scripts/sandbox-secrets.mjs                       # una vez: secretos sintéticos en platform/.sandbox/ (no se versionan)
+#   docker compose --env-file platform/.sandbox/secrets.env -f platform/compose.yml -f platform/compose.mock.yml config -q     # valida
+#   docker compose --env-file platform/.sandbox/secrets.env -f platform/compose.yml -f platform/compose.mock.yml up -d --build --wait
+#   yarn seed:sandbox                                               # comercios, claves sk_test_, tarifas, billeteras y mandatos sintéticos (idempotente)
+# Criterio de «todo healthy»: `up --wait` termina con código 0 (cada servicio responde GET /health/ready 200) y
+#   docker compose ... ps --format '{{.Service}} {{.Health}}'  →  los 12 servicios y la infraestructura en `healthy`; `sandbox-migrate` en `Exited (0)`.
+# Apagar: `docker compose ... down` (con `-v` borra TODOS los datos: bases, TigerBeetle, KYC, NATS).
+#
+# Requisitos del kernel: TigerBeetle y su cliente nativo usan io_uring; si el host lo desactiva para contenedores (kernel.io_uring_disabled), `tigerbeetle` y
+# `pay-ledger` no arrancan (visto en el kernel de las máquinas de prueba, ver docs/trabajo/ola-3/P2/GATES.md). Sin pay-ledger no hay cobros: no es un fallo del compose.
+# Los puertos de los servicios se publican SOLO en 127.0.0.1 (los mismos del plan: 3101 a 3112) para sembrar, depurar y medir desde el host.
+#
+# Valores que se pueden cambiar sin editar el archivo (con variables de entorno al invocar compose): RATE_LIMIT_IP_PER_WINDOW, RATE_LIMIT_KEY_PER_WINDOW (el borde frena
+# a ~5 rps por IP y ~10 rps por clave por defecto: para la prueba de carga subilos, ver docs/trabajo/ola-3/P1/CARGA.md), RISK_TIMEOUT_MS, SCREENING_TIMEOUT_MS, LOG_LEVEL.
+
+x-sandbox-image: &sandbox-image
+  image: pay-sandbox:local
+  pull_policy: never
+  restart: unless-stopped
+
+x-env-common: &env-common
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  NATS_URL: nats://nats:4222
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  # Obligatorio en los doce y SIN valor por defecto en el código; acá fijo y explícito. `live` no arranca con dobles (guardia de modo demostrada: ARNES.md § PAY_MODE).
+  PAY_MODE: sandbox
+
+x-service-healthcheck: &service-healthcheck
+  # busybox wget viene en node:alpine; $$PORT lo expande el shell del contenedor, no Compose.
+  test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$$PORT/health/ready >/dev/null 2>&1 || exit 1"]
+  interval: 5s
+  timeout: 5s
+  retries: 24
+  start_period: 10s
+
+x-infra-ready: &infra-ready
+  postgres: { condition: service_healthy }
+  nats: { condition: service_healthy }
+
+services:
+  # TigerBeetle: en platform/compose.yml es del perfil `full` (con OpenBao y Svix, que acá NO hacen falta); se lo saca del perfil.
+  tigerbeetle:
+    profiles: !reset []
+
+  # DDL de referencia en cada base, una sola vez y sin borrar nada (platform/scripts/sandbox-migrate.mjs). Los servicios no aplican DDL al arrancar.
+  sandbox-migrate:
+    <<: *sandbox-image
+    # Única definición con `build`: las demás usan la imagen que esta construye (la etiqueta es la misma).
+    build:
+      context: ..
+      dockerfile: platform/Dockerfile.sandbox
+      args: { HUB: "${HUB:-docker.io}" }
+    restart: "no"
+    working_dir: /repo
+    command: ["node", "platform/scripts/sandbox-migrate.mjs"]
+    environment:
+      <<: *env-common
+    depends_on: { postgres: { condition: service_healthy } }
+
+  pay-ledger:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-ledger
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3105:3105"]
+    environment:
+      <<: *env-common
+      PORT: "3105"
+      DB_NAME: pay_ledger
+      DB_USER: pay_ledger
+      DB_PASSWORD: dev_only_ledger
+      TB_ADDRESS: tigerbeetle:3000
+      TB_CLUSTER_ID: "0"
+      LEDGER_ID_NAMESPACE: sandbox
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      sandbox-migrate: { condition: service_completed_successfully }
+      tigerbeetle: { condition: service_started }
+
+  pay-risk:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-risk
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3108:3108"]
+    environment:
+      <<: *env-common
+      PORT: "3108"
+      DB_NAME: pay_risk
+      DB_USER: pay_risk
+      DB_PASSWORD: dev_only_risk
+      WATCHMAN_URL: http://watchman:8084
+      SANCTIONS_DENY_SCORE: "0.80"
+      SANCTIONS_REVIEW_SCORE: "0.60"
+      SCREENING_TIMEOUT_MS: ${SCREENING_TIMEOUT_MS:-200}
+      PAYER_HASH_KEY: ${SANDBOX_PAYER_HASH_KEY:?corré node platform/scripts/sandbox-secrets.mjs y pasá --env-file platform/.sandbox/secrets.env}
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      watchman: { condition: service_healthy }
+      sandbox-migrate: { condition: service_completed_successfully }
+
+  pay-qr:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-qr
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3104:3104"]
+    environment:
+      <<: *env-common
+      PORT: "3104"
+      DB_NAME: pay_qr
+      DB_USER: pay_qr
+      DB_PASSWORD: dev_only_qr
+      QR_ACCOUNT_GUID: e2e.sandbox.guid
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      sandbox-migrate: { condition: service_completed_successfully }
+
+  pay-vault:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-vault
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3111:3111"]
+    environment:
+      <<: *env-common
+      PORT: "3111"
+      DB_NAME: pay_vault
+      DB_USER: pay_vault
+      DB_PASSWORD: dev_only_vault
+      VAULT_BACKEND: fake
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      sandbox-migrate: { condition: service_completed_successfully }
+
+  pay-merchants:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-merchants
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3107:3107"]
+    volumes: ["kyc_data:/data/kyc"]
+    environment:
+      <<: *env-common
+      PORT: "3107"
+      DB_NAME: pay_merchants
+      DB_USER: pay_merchants
+      DB_PASSWORD: dev_only_merchants
+      KYC_STORE_DIR: /data/kyc
+      # Credencial de operador SINTÉTICA: la clave PÚBLICA va al servicio; la privada queda en platform/.sandbox (la usa `yarn seed:sandbox`).
+      OPERATOR_TOKEN_PUBLIC_KEY: ${SANDBOX_OPERATOR_TOKEN_PUBLIC_KEY:?corré node platform/scripts/sandbox-secrets.mjs y pasá --env-file platform/.sandbox/secrets.env}
+      OPERATOR_TOKEN_ISSUER: ${SANDBOX_OPERATOR_TOKEN_ISSUER:-pay-sandbox-identity}
+      OPERATOR_TOKEN_AUDIENCE: pay-merchants
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      sandbox-migrate: { condition: service_completed_successfully }
+
+  pay-webhooks:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-webhooks
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3110:3110"]
+    environment:
+      <<: *env-common
+      PORT: "3110"
+      DB_NAME: pay_webhooks
+      DB_USER: pay_webhooks
+      DB_PASSWORD: dev_only_webhooks
+      WEBHOOKS_SECRET_KEK: ${SANDBOX_WEBHOOKS_SECRET_KEK:?corré node platform/scripts/sandbox-secrets.mjs y pasá --env-file platform/.sandbox/secrets.env}
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      sandbox-migrate: { condition: service_completed_successfully }
+
+  # El banco SIMULADO (P4): mismo contrato que el conector real, escenarios por centavos (docs/trabajo/ola-2/P4/ESCENARIOS.md). Se niega a cargar con PAY_MODE=live.
+  pay-mockbank:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-mockbank
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3112:3112"]
+    environment:
+      <<: *env-common
+      PORT: "3112"
+      DB_NAME: pay_mockbank
+      DB_USER: pay_mockbank
+      DB_PASSWORD: dev_only_mockbank
+      MOCKBANK_WEBHOOK_SECRET: ${SANDBOX_CONNECTOR_MOCK_WEBHOOK_SECRET:?corré node platform/scripts/sandbox-secrets.mjs y pasá --env-file platform/.sandbox/secrets.env}
+      MOCKBANK_CALLBACK_URL: http://pay-connectors:3103/callbacks/mock
+      MOCKBANK_DELIVERY_INTERVAL_MS: "500"
+      PAY_QR_URL: http://pay-qr:3104
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      pay-qr: { condition: service_healthy }
+      sandbox-migrate: { condition: service_completed_successfully }
+
+  pay-connectors:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-connectors
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3103:3103"]
+    environment:
+      <<: *env-common
+      PORT: "3103"
+      DB_NAME: pay_connectors
+      DB_USER: pay_connectors
+      DB_PASSWORD: dev_only_connectors
+      PAY_QR_URL: http://pay-qr:3104
+      # El conector `mock` habla con pay-mockbank por HTTP (propuesta #8 de P4): sin MOCKBANK_URL usaría su banco en memoria.
+      MOCKBANK_URL: http://pay-mockbank:3112
+      PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET: ${SANDBOX_CONNECTOR_MOCK_WEBHOOK_SECRET:?corré node platform/scripts/sandbox-secrets.mjs y pasá --env-file platform/.sandbox/secrets.env}
+      BANK_TRANSFER_BANK_NAME: BANCO SIMULADO (SANDBOX)
+      BANK_TRANSFER_ACCOUNT_HOLDER: ALOVIDA PAY (SANDBOX)
+      BANK_TRANSFER_ACCOUNT_NUMBER: SANDBOX-0000-0001
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      pay-qr: { condition: service_healthy }
+      pay-mockbank: { condition: service_healthy }
+      sandbox-migrate: { condition: service_completed_successfully }
+
+  pay-payments:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-payments
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3102:3102"]
+    environment:
+      <<: *env-common
+      PORT: "3102"
+      DB_NAME: pay_payments
+      DB_USER: pay_payments
+      DB_PASSWORD: dev_only_payments
+      RISK_URL: http://pay-risk:3108
+      CONNECTORS_URL: http://pay-connectors:3103
+      LEDGER_URL: http://pay-ledger:3105
+      VAULT_URL: http://pay-vault:3111
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: pay-payments-sandbox
+      TEMPORAL_RUN_WORKER: "true"
+      RISK_TIMEOUT_MS: ${RISK_TIMEOUT_MS:-300}
+      RISK_FAIL_CLOSED_THRESHOLD_MINOR: "0"
+      RISK_ALLOW_BELOW_THRESHOLD: "false"
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      temporal: { condition: service_healthy }
+      pay-risk: { condition: service_healthy }
+      pay-connectors: { condition: service_healthy }
+      pay-ledger: { condition: service_healthy }
+      pay-vault: { condition: service_healthy }
+      sandbox-migrate: { condition: service_completed_successfully }
+
+  pay-settlement:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-settlement
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3106:3106"]
+    environment:
+      <<: *env-common
+      PORT: "3106"
+      DB_NAME: pay_settlement
+      DB_USER: pay_settlement
+      DB_PASSWORD: dev_only_settlement
+      LEDGER_URL: http://pay-ledger:3105
+      CONNECTORS_URL: http://pay-connectors:3103
+      OPERATOR_TOKEN_PUBLIC_KEY: ${SANDBOX_OPERATOR_TOKEN_PUBLIC_KEY:?corré node platform/scripts/sandbox-secrets.mjs y pasá --env-file platform/.sandbox/secrets.env}
+      OPERATOR_TOKEN_ISSUER: ${SANDBOX_OPERATOR_TOKEN_ISSUER:-pay-sandbox-identity}
+      OPERATOR_TOKEN_AUDIENCE: pay-settlement
+      SETTLEMENT_MODE: bank
+      SETTLEMENT_TRANSFER_CONNECTOR: mock
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      pay-ledger: { condition: service_healthy }
+      pay-connectors: { condition: service_healthy }
+      sandbox-migrate: { condition: service_completed_successfully }
+
+  pay-schedules:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-schedules
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3109:3109"]
+    environment:
+      <<: *env-common
+      PORT: "3109"
+      DB_NAME: pay_schedules
+      DB_USER: pay_schedules
+      DB_PASSWORD: dev_only_schedules
+      LEDGER_URL: http://pay-ledger:3105
+      RETRY_DELAYS_SECONDS: 3600,7200,14400
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      pay-ledger: { condition: service_healthy }
+      sandbox-migrate: { condition: service_completed_successfully }
+
+  # El borde: lo único que un comercio ve (API pública). Último en arrancar.
+  pay-edge:
+    <<: *sandbox-image
+    working_dir: /repo/services/pay-edge
+    command: ["node", "dist/main.js"]
+    ports: ["127.0.0.1:3101:3101"]
+    environment:
+      <<: *env-common
+      PORT: "3101"
+      DB_NAME: pay_edge
+      DB_USER: pay_edge
+      DB_PASSWORD: dev_only_edge
+      REDIS_URL: redis://redis:6379
+      RATE_LIMIT_PREFIX: sandbox
+      RATE_LIMIT_IP_PER_WINDOW: ${RATE_LIMIT_IP_PER_WINDOW:-300}
+      RATE_LIMIT_KEY_PER_WINDOW: ${RATE_LIMIT_KEY_PER_WINDOW:-600}
+      UPSTREAM_PAY_PAYMENTS_URL: http://pay-payments:3102
+      UPSTREAM_PAY_MERCHANTS_URL: http://pay-merchants:3107
+      UPSTREAM_PAY_SCHEDULES_URL: http://pay-schedules:3109
+      UPSTREAM_PAY_WEBHOOKS_URL: http://pay-webhooks:3110
+      UPSTREAM_PAY_LEDGER_URL: http://pay-ledger:3105
+      UPSTREAM_PAY_SETTLEMENT_URL: http://pay-settlement:3106
+    healthcheck: *service-healthcheck
+    depends_on:
+      <<: *infra-ready
+      redis: { condition: service_healthy }
+      pay-payments: { condition: service_healthy }
+      pay-merchants: { condition: service_healthy }
+      pay-schedules: { condition: service_healthy }
+      pay-webhooks: { condition: service_healthy }
+      pay-ledger: { condition: service_healthy }
+      pay-settlement: { condition: service_healthy }
+      sandbox-migrate: { condition: service_completed_successfully }
+
+volumes:
+  kyc_data:

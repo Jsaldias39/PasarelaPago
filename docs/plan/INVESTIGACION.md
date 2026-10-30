@@ -2,8 +2,10 @@
 
 > **Qué es:** el relevamiento que sostiene las decisiones de [`PLAN-MAESTRO.md`](./PLAN-MAESTRO.md) y [`DECISIONES.md`](./DECISIONES.md). Para cada
 > proyecto: qué es, qué copiamos (código o patrón), qué descartamos y por qué.
-> **Peldaño de evidencia:** `DISCOVERED`. Se leyeron documentación oficial, READMEs y fuentes
-> secundarias. **No se clonó, compiló ni corrió ninguno de estos proyectos.** Cada licencia lleva
+> **Peldaño de evidencia:** `DISCOVERED` para lo relevado en este documento. Después se ejecutaron spikes con
+> evidencia propia (ver [`../spikes/`](../spikes/)): **TigerBeetle y Temporal `TESTED`**, Watchman `TESTED` solo con
+> datos de 2019, y card-vault, Svix, OpenBao y el Banco Mercantil `DISCOVERED`. Las licencias de la tabla se
+> confirmaron leyendo el texto de cada `LICENSE` ([`../spikes/licencias.md`](../spikes/licencias.md)); no es asesoría legal. Cada licencia lleva
 > su estado: `confirmada` (la fuente consultada la nombra) o `VERIFICAR` (hay que abrir el archivo
 > `LICENSE` del repo antes de adoptarla).
 
@@ -24,22 +26,22 @@
 
 | Proyecto | Qué es | Licencia | Veredicto |
 |---|---|---|---|
-| **tigerbeetle/tigerbeetle** | Base de datos de partida doble: cuentas y transferencias con `id` de 128 bits elegido por el cliente, que sirve de clave de idempotencia; transferencias **en dos fases** (pendiente, después confirmada o anulada, con vencimiento); invariantes de saldo por cuenta (`debits_must_not_exceed_credits`); eventos enlazados atómicos. Jepsen la analizó en la versión 0.16.11. | VERIFICAR (la fuente que se consultó no la nombra) | **Adoptado** como motor del servicio `pay-ledger`. Las dos fases son exactamente la **retención** de una autorización; el invariante de saldo impide gastar lo que no hay sin un `if` en la aplicación. Los metadatos (a qué factura corresponde, quién es el comercio) quedan en Postgres, no en TigerBeetle. |
-| **formancehq/ledger** | Libro mayor programable con Numscript, un DSL para mover dinero. | MIT · confirmada (módulo Go) | Alternativa si TigerBeetle no pasa el *spike*. Numscript es un buen modelo para describir repartos (comisiones, splits). |
-| **blnkfinance/blnk** | Libro mayor de partida doble orientado a billeteras y fintech. | Apache-2.0 · según su documentación, VERIFICAR | Segunda alternativa. |
+| **tigerbeetle/tigerbeetle** | Base de datos de partida doble: cuentas y transferencias con `id` de 128 bits elegido por el cliente, que sirve de clave de idempotencia; transferencias **en dos fases** (pendiente, después confirmada o anulada, con vencimiento); invariantes de saldo por cuenta (`debits_must_not_exceed_credits`); eventos enlazados atómicos. Jepsen la analizó en la versión 0.16.11. | Apache-2.0 · confirmada (texto del `LICENSE`, `docs/spikes/tigerbeetle.md` §6) | **Adoptado** como motor del servicio `pay-ledger`. Las dos fases son exactamente la **retención** de una autorización; el invariante de saldo impide gastar lo que no hay sin un `if` en la aplicación. Los metadatos (a qué factura corresponde, quién es el comercio) quedan en Postgres, no en TigerBeetle. |
+| **formancehq/ledger** | Libro mayor programable con Numscript, un DSL para mover dinero. | 🔴 **No declarada** en `formancehq/ledger` v3; el repo anterior `formancehq/stack` es MIT solo para su Community Edition (`ee/` va con otra licencia). Ver `docs/spikes/licencias.md` | **Descartado** como ledger salvo confirmación escrita de su licencia (TigerBeetle pasó el spike). Numscript es un buen modelo para describir repartos (comisiones, splits). |
+| **blnkfinance/blnk** | Libro mayor de partida doble orientado a billeteras y fintech. | Apache-2.0 · confirmada (`LICENSE.md`, sin el apéndice «How to apply»); una fuente de terceros menciona licencia dual para la nube | Segunda alternativa. |
 | **Propio en Postgres** (`payments.wallet_ledger_entries`) | Ya existe en la API: *append-only* y bidireccional. | — | Se **recicla su semántica** (cuentas, asientos) como modelo de metadatos del ledger. |
 
 ### 1.3 Piezas de infraestructura
 
 | Proyecto | Para qué | Licencia | Veredicto |
 |---|---|---|---|
-| **svix/svix-webhooks** (Rust) | Servidor de webhooks salientes: firma, reintentos, salud del endpoint. Requiere Postgres; Redis opcional. | MIT · confirmada | **Adoptado** detrás de `pay-webhooks`. No se escribe un motor de reintentos propio. |
+| **svix/svix-webhooks** (Rust) | Servidor de webhooks salientes: firma, reintentos, salud del endpoint. Requiere Postgres; Redis opcional. | MIT · confirmada (SDK y `server/`) | **Adoptado** detrás de `pay-webhooks`. No se escribe un motor de reintentos propio. |
 | **Standard Webhooks** (especificación) | Cabeceras `webhook-id`, `webhook-timestamp` y `webhook-signature`; firma HMAC-SHA256 (`v1`, secreto `whsec_`) o Ed25519 (`v1a`); reintentos con *backoff* exponencial y *jitter* durante días; `410` deshabilita el endpoint. | Abierta | **Adoptada** como contrato de todo webhook que emitimos. |
-| **Temporal** | Ejecución durable: sagas con compensaciones registradas por paso que corren en orden inverso. Su documentación pide compensaciones idempotentes. Hay ejemplos oficiales de *money transfer* y *order saga*. | MIT · VERIFICAR | **Adoptado** para orquestar el ciclo de un pago (autorizar → registrar en el ledger → capturar → notificar, con su vuelta atrás). |
-| **Debezium Outbox Event Router** | Publica la tabla *outbox* en Kafka leyendo el WAL (con NATS se usa un relé propio por *polling* o `LISTEN/NOTIFY`); enruta por `aggregate_type`. Entrega **al menos una vez**. | Apache-2.0 · VERIFICAR | **Patrón adoptado** (outbox + inbox). En la ola 1, relé por *polling*; Debezium es optativo en la ola 3. |
+| **Temporal** | Ejecución durable: sagas con compensaciones registradas por paso que corren en orden inverso. Su documentación pide compensaciones idempotentes. Hay ejemplos oficiales de *money transfer* y *order saga*. | MIT · confirmada (servidor y SDK TypeScript, `docs/spikes/temporal.md`) | **Adoptado** para orquestar el ciclo de un pago (autorizar → registrar en el ledger → capturar → notificar, con su vuelta atrás). |
+| **Debezium Outbox Event Router** | Publica la tabla *outbox* en Kafka leyendo el WAL (con NATS se usa un relé propio por *polling* o `LISTEN/NOTIFY`); enruta por `aggregate_type`. Entrega **al menos una vez**. | Apache-2.0 · confirmada | **Patrón adoptado** (outbox + inbox). En la ola 1, relé por *polling*; Debezium es optativo en la ola 3. |
 | **NATS JetStream** / Apache Kafka (KRaft) | Bus de eventos. | Apache-2.0 | **NATS JetStream elegido** (decisión D-10): un binario liviano que encaja en Coolify, con persistencia, *acks* y deduplicación por `Nats-Msg-Id`. Kafka queda como alternativa si la carga medida lo exige. Redpanda queda descartado porque su licencia es BSL. |
-| **moov-io** (Go) | `ach`, `wire`, `fed` y **`watchman`**: búsqueda en listas de sanciones (OFAC, ONU, UE). | Apache-2.0 · confirmada para `ach`; VERIFICAR `watchman` | **Watchman adoptado** como servicio de cribado dentro de `pay-risk`. ACH y Fedwire no aplican en Bolivia. |
-| **OpenBao** | Secretos y KMS, bifurcación de Vault con licencia MPL. | MPL-2.0 · VERIFICAR | **Adoptado** para claves de firma, secretos de conectores y cifrado de campos. HashiCorp Vault se descarta por su licencia BSL. |
+| **moov-io** (Go) | `ach`, `wire`, `fed` y **`watchman`**: búsqueda en listas de sanciones (OFAC, ONU, UE). | Apache-2.0 · confirmada (`ach` y `watchman`) | **Watchman adoptado** como servicio de cribado dentro de `pay-risk`. ACH y Fedwire no aplican en Bolivia. |
+| **OpenBao** | Secretos y KMS, bifurcación de Vault con licencia MPL. | MPL-2.0 · confirmada: copyleft por archivo (solo obliga si se modifican archivos de OpenBao) | **Adoptado** para claves de firma, secretos de conectores y cifrado de campos. HashiCorp Vault se descarta por su licencia BSL. |
 | **hyperswitch-card-vault** | Bóveda PCI de PAN. | Apache-2.0 · confirmada (repo de Juspay) | Ola 3, **solo si** se decide aceptar tarjeta con PAN propio. Antes de eso, la tarjeta entra por los campos alojados del PSP y el PAN nunca pasa por nosotros. |
 
 ## 2 · Estándares que el diseño adopta

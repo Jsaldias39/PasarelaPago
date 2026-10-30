@@ -1,0 +1,26 @@
+# Control negativo: SIN el arreglo (la evaluación con cribado incompleto vuelve a congelarse bajo la clave) — las pruebas deben FALLAR
+  ● cribado incompleto con el Watchman [DOBLE] › correcto: timeout y luego OK ⇒ el reintento con la MISMA clave vuelve a cribar, da allow y QUEDA definitivo; repetirlo no vuelve a cribar
+    Expected: "started"
+    Received: "completed"
+  ● cribado incompleto con el Watchman [DOBLE] › límite: caída persistente (503) ⇒ review/screening_unavailable CADA vez, nunca allow, cada intento con su rastro; al recuperarse el cribado, la MISMA cla
+    - Expected  - 1
+    + Received  + 1
+  ● cribado incompleto con el Watchman [DOBLE] › límite: respuesta que no es JSON ⇒ review/screening_unavailable CADA vez, nunca allow, cada intento con su rastro; al recuperarse el cribado, la MISMA cla
+    - Expected  - 1
+    + Received  + 1
+  ● cribado incompleto con el Watchman [DOBLE] › límite: respuesta con forma inesperada ⇒ review/screening_unavailable CADA vez, nunca allow, cada intento con su rastro; al recuperarse el cribado, la MIS
+    - Expected  - 1
+    + Received  + 1
+  ● cribado incompleto con el Watchman [DOBLE] › límite: timeout persistente ⇒ review/screening_unavailable CADA vez, nunca allow, cada intento con su rastro; al recuperarse el cribado, la MISMA clave co
+    - Expected  - 1
+    + Received  + 1
+  ● cribado incompleto con el Watchman [DOBLE] › inválido: el cuerpo distinto con la misma clave sigue siendo 422 (idempotency_key_reused) aunque el primer intento no fuera definitivo; 5 simultáneas con e
+    Expected value: 200
+    Received array: [201, 409]
+  ● cribado incompleto con el Watchman REAL (listas estáticas de 2019, solo sandbox) › correcto: un comercio limpio que chocó con un timeout real reintenta con la MISMA clave y, al responder Watchman, da 
+    - Expected  - 3
+    + Received  + 3
+  ● cribado incompleto con el Watchman REAL (listas estáticas de 2019, solo sandbox) › límite: un nombre sancionado que chocó con un timeout NO se cuela: el reintento con Watchman respondiendo es deny/sa
+    - Expected  - 3
+    + Received  + 3
+Tests:       8 failed, 3 passed, 11 total

@@ -1,0 +1,50 @@
+(node:24337) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+R3> 3-way RLS_ENFORCE=false (superusuario, sin transaccion de peticion): {"ok":20,"e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE":40}
+R3> same-intent x5 round 0 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 1 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 2 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 3 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 4 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 5 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> 3-way RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): {"e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE":40,"ok":20}
+R3> same-intent x5 round 0 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 1 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 2 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 3 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 4 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 5 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> deadlock-soak: {"e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE":160,"ok":80}
+R3> N5 con RLS: {"payment_debts":"libre","payment_intents":"libre","idleInTx":"1"}
+R3> POOL pool=4, 3 peticiones RLS simultaneas (K<pool): {"ok":3} en 105ms
+R3> POOL pool=4, 4 peticiones RLS simultaneas (K=pool): {"eError:timeout exceeded when trying to connect":4} en 6005ms
+R3> POOL pool=4, 8 peticiones RLS simultaneas (K>pool): {"ok":1,"eError:timeout exceeded when trying to connect":7} en 6045ms
+R3> POOL pool=10 (DB_POOL_MAX por defecto), 9 peticiones RLS: {"ok":9} en 214ms
+R3> POOL pool=10 (DB_POOL_MAX por defecto), 10 peticiones RLS: {"eError:timeout exceeded when trying to connect":10} en 6008ms
+R3> POOL control pool=4 sin RLS x8: {"ok":8} en 137ms
+R3> 504->retry RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ref pi_dbl0000000155, posts 4
+R3> 504->retry RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ref pi_dbl0000000156, posts 4
+R3> TypeError tras reservar: ref=dispatching:6dfb6402-7e07-47a8-92dd-5edc48e268c1
+R3> EXP-a: cobros vivos en la pasarela = 2; B ref pi_dbl0000000159
+R3> EXP-a: reintento de A con la misma clave => e409 PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE
+R3> EXP-a: refs en la deuda: [{"id":"4bb4eced-52ee-45a6-bfd9-de7991d880fc","gateway_intent_ref":"dispatching:9ec491ea-f4df-4d7c-a6c5-23c1ee65c0fc"},{"id":"4e1763ec-8b84-4a90-9266-56ab0643b0f0","gateway_intent_ref":"pi_dbl0000000159"}]
+R3> EXP-b: pi_dbl0000000160, creados=1
+R3> EXP-c: A=pi_dbl0000000162 B=pi_dbl0000000161 creados=2
+R3> EXP-c: [{"id":"03f964b1-fd77-4973-869e-f1151e175382","gateway_intent_ref":"pi_dbl0000000161"},{"id":"4016496e-54fa-4a0f-808b-b58a6d9d7e89","gateway_intent_ref":"pi_dbl0000000162"}]
+R3> MARK(no hubo cobro real: drop_before) DECLINE=>e409 PAYMENT_INTENT_VIA_GATEWAY; flag apagado=>e409 PAYMENT_INTENT_VIA_GATEWAY
+R3> 4xx 404: respuesta=e503 PAYMENT_GATEWAY_UNAVAILABLE; reserva tras el fallo=null
+R3> 4xx 400: respuesta=e422 PAYMENT_GATEWAY_REJECTED; reserva tras el fallo=null
+R3> 4xx 408: respuesta=e422 PAYMENT_GATEWAY_REJECTED; reserva tras el fallo=null
+R3> 4xx 413: respuesta=e422 PAYMENT_GATEWAY_REJECTED; reserva tras el fallo=null
+R3> 4xx 499: respuesta=e422 PAYMENT_GATEWAY_REJECTED; reserva tras el fallo=null
+R3> SAME-INTENT-RACE: ref de A durante la ventana=null; B=ok; A1/A2=e503,ok; cobros vivos=2; posts=5
+DDL real aplicado: 6 tablas, 67 índices, 6 FK internas; FK omitidas: fk_payment_intents_gateway_connection_id -> gateway_connections, fk_payment_intents_payment_method_id -> payment_methods, fk_payment_debts_gateway_connection_id -> gateway_connections, fk_payment_checkout_sessions_gateway_connection_id -> gateway_connections, fk_payment_checkout_sessions_callback_endpoint_id -> provider_callback_endpoints
+createIntent x6 misma clave: 6 resueltas, rechazadas: 
+(2) máximo de POST a la pasarela en una ronda de 2 concurrentes: 2 (siempre la misma clave; creación única)
+
+Test Suites: 3 passed, 3 total
+Tests:       105 passed, 105 total
+Snapshots:   0 total
+Time:        66.717 s
+Ran all test suites matching rev3-charge|rev3-b1-rls|payments-gateway-charge.
+EXIT 0

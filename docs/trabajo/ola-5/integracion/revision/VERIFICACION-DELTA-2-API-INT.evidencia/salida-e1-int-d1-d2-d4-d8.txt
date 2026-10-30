@@ -1,0 +1,37 @@
+(node:24407) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+DDL real aplicado: 6 tablas, 67 índices, 6 FK internas; FK omitidas: fk_payment_intents_gateway_connection_id -> gateway_connections, fk_payment_intents_payment_method_id -> payment_methods, fk_payment_debts_gateway_connection_id -> gateway_connections, fk_payment_checkout_sessions_gateway_connection_id -> gateway_connections, fk_payment_checkout_sessions_callback_endpoint_id -> provider_callback_endpoints
+createIntent x6 misma clave: 6 resueltas, rechazadas: 
+(2) máximo de POST a la pasarela en una ronda de 2 concurrentes: 2 (siempre la misma clave; creación única)
+(14) pool 4 x 3: {"503 PAYMENT_GATEWAY_BUSY":2,"ok":1} en 126 ms
+(14) pool 4 x 4: {"503 PAYMENT_GATEWAY_BUSY":3,"ok":1} en 98 ms
+(14) pool 4 x 8: {"503 PAYMENT_GATEWAY_BUSY":7,"ok":1} en 105 ms
+(14) pool 10 x 9: {"503 PAYMENT_GATEWAY_BUSY":5,"ok":4} en 168 ms
+(14) pool 10 x 10: {"503 PAYMENT_GATEWAY_BUSY":6,"ok":4} en 170 ms
+(14) pool 10 x 25: {"503 PAYMENT_GATEWAY_BUSY":21,"ok":4} en 161 ms
+R4I> D1 REVIEW: registrar=ok; reintento=e422:PAYMENT_INTENT_RISK_REVIEW_PENDING; reconcile=e422:PAYMENT_INTENT_RISK_REVIEW_PENDING; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE(reconciliationRequired); POST nuevos=0; creados=0
+R4I> D1 DECLINE: registrar=ok; estado=PENDING ref=dispatching:; reintento=e422:PAYMENT_INTENT_RISK_DECLINED; reconcile=e422:PAYMENT_INTENT_RISK_DECLINED; POST nuevos(hasta aqui)=1
+R4I> D1 DECLINE-deuda: B(reserva fresca)=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE; close(fresca)=e409:PAYMENT_GATEWAY_DISPATCH_IN_FLIGHT; B(reserva vencida)=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE(reconciliationRequired); listada=true; close(vencida)=ok; B tras close=ok; A reintenta tras close=e422:PAYMENT_INTENT_CANCELED; claves de A tras close=3
+R4I> D1 REVIEW->APPROVE (el envio nunca llego): bloqueado=e422:PAYMENT_INTENT_RISK_REVIEW_PENDING; luego ref=pi_dbl0000000002; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE; cobros=1; claves=1
+R4I> D1 DECLINE->APPROVE (el envio nunca llego): bloqueado=e422:PAYMENT_INTENT_RISK_DECLINED; luego ref=pi_dbl0000000003; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE; cobros=1; claves=1
+R4I> D1 REVIEW->APPROVE (el cobro SI se ejecuto): bloqueado=e422:PAYMENT_INTENT_RISK_REVIEW_PENDING; luego ref=pi_dbl0000000004; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE; cobros=1; claves=1
+R4I> D1 DECLINE->APPROVE (el cobro SI se ejecuto): bloqueado=e422:PAYMENT_INTENT_RISK_DECLINED; luego ref=pi_dbl0000000005; B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE; cobros=1; claves=1
+R4I> D1 CARRERA: {"dispatch=ok | DECLINE=ok | final=PENDING/pi_":27,"dispatch=ok | DECLINE=e409:PAYMENT_INTENT_VIA_GATEWAY | final=PENDING/pi_":3}
+R4I> D1 CARRERA: DECLINE registrado y aun asi cobro vivo asociado (pi_)=27; reintento posterior que CREA tras DECLINE=0
+R4I> D2 close: fresca=e409:PAYMENT_GATEWAY_DISPATCH_IN_FLIGHT; vencida=ok; segundo=ok; sin reserva=e409:PAYMENT_GATEWAY_NOTHING_TO_RECONCILE; con pi_=e409:PAYMENT_GATEWAY_NOTHING_TO_RECONCILE; otro tenant=e404:PAYMENT_INTENT_NOT_FOUND; inexistente=e404:PAYMENT_INTENT_NOT_FOUND; llamadas a la pasarela durante los close=0; A=CANCELED/dispatching:
+R4I> D2 huerfano: el cobro pi_dbl00… de A existe en la pasarela; intenciones locales que lo referencian=0 (un webhook terminal suyo respondera 404; no puede reabrir la deuda)
+R4I> D4 listado: formato-antiguo={"paymentIntentId":"6aec462f-7534-4a5e-b349-6c278246820e","ageMs":null,"canReconcile":false}; fecha-futura-lejana={"paymentIntentId":"a5caa3f7-f24e-417b-8619-93f4490f9c64","ageMs":null,"canReconcile":false}; futura<5min=undefined
+R4I> D4 close: formato-antiguo=ok; futura-lejana=ok; futura<5min=e409:PAYMENT_GATEWAY_DISPATCH_IN_FLIGHT; (reconcile del antiguo=e422:PAYMENT_INTENT_CANCELED)
+R4I> D8 RLS_ENFORCE=false / el cobro SI existia (replay): {"retry=ok | close=ok | A=CANCELED/pi_ | B=ok | cobros vivos=2":6}; rondas con 2 cobros vivos=6/6
+R4I> D8 RLS_ENFORCE=false / el primer envio nunca llego (el reintento crea): {"retry=ok | close=ok | A=CANCELED/pi_ | B=ok | cobros vivos=2":6}; rondas con 2 cobros vivos=6/6
+R4I> D8 simultaneo RLS_ENFORCE=false: {"retry=ok | close=ok | A=CANCELED/pi_ | B=ok | vivos=2":12}; CANCELED con pi_=12/12
+R4I> D8 RLS_ENFORCE=true (NOBYPASSRLS) / el cobro SI existia (replay): {"retry=ok | close=ok | A=CANCELED/pi_ | B=ok | cobros vivos=2":6}; rondas con 2 cobros vivos=6/6
+R4I> D8 RLS_ENFORCE=true (NOBYPASSRLS) / el primer envio nunca llego (el reintento crea): {"retry=ok | close=ok | A=CANCELED/pi_ | B=ok | cobros vivos=2":6}; rondas con 2 cobros vivos=6/6
+R4I> D8 simultaneo RLS_ENFORCE=true (NOBYPASSRLS): {"retry=ok | close=ok | A=CANCELED/pi_ | B=ok | vivos=2":12}; CANCELED con pi_=12/12
+
+Test Suites: 2 passed, 2 total
+Tests:       101 passed, 101 total
+Snapshots:   0 total
+Time:        54.509 s
+Ran all test suites matching rev4-charge|payments-gateway-charge.
+EXIT 0

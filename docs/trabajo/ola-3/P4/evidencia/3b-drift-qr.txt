@@ -1,0 +1,24 @@
+# 3b-drift-qr
+$ (cd services/pay-qr && yarn test --maxWorkers=2 test/drift.spec.ts --verbose --reporters default)
+(las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
+
+(node:29704) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/drift.spec.ts
+  deriva modelo ↔ base ↔ mapa del código (P4.H1.M2, 97.2)
+    ✓ sin deriva: la base que sale del ddl.sql del modelo coincide con lo que el código asume (45 ms)
+    ✓ el ddl.sql vendorizado coincide con el del modelo (scripts/vendor-ddl.sh --check; sin el repo hermano, se omite sin fallar) (24 ms)
+    ✓ aplicar el ddl.sql DOS veces no cambia nada (idempotente) y deja los índices con nombre propio (38 ms)
+    el verificador detecta cada tipo de deriva (si no detecta, el «sin deriva» de arriba no vale): CONTROL NEGATIVO
+      ✓ columna obligatoria no mapeada (el modelo agrega una NOT NULL sin default que el código no llena) (16 ms)
+      ✓ columna opcional que el mapa no conoce (14 ms)
+      ✓ MUTACIÓN DEL MAPA: tabla ausente, columna ausente, tipo y nulabilidad divergentes (10 ms)
+      ✓ MUTACIÓN DEL MAPA: quitar una columna que el código usa de verdad (amount_minor) hace fallar el «sin deriva» (9 ms)
+      ✓ tabla sin mapear e índice con nombre generado (24 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        0.639 s, estimated 1 s
+Ran all test suites matching test/drift.spec.ts.
+exit=0

@@ -1,0 +1,291 @@
+FAIL e2e/pending/e1.e2e.ts (27.816 s)
+  ● E1 — primer cobro QR de punta a punta › el cobro de Bs 100 por QR pasa a succeeded, el ledger deja 97,00 en pending y 3,00 en fees (débitos = créditos), y el comercio recibe UN payment_intent.succeeded
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      72 |     expect((await waitFor(async () => [...receiver.accepted.values()].some((a) => a.path === '/hook-e1'), 60_000)).ok).toBe(true);
+      73 |     const delivered = [...receiver.accepted.values()].filter((a) => a.path === '/hook-e1').map((a) => JSON.parse(a.body) as { type: string; data: { object: { id: string } } });
+    > 74 |     expect(delivered.filter((e) => e.type === 'payment_intent.succeeded' && e.data.object.id === created.intent.id)).toHaveLength(1);
+         |                                                                                                                      ^
+      75 |   });
+      76 | });
+      77 |
+
+      at Object.toHaveLength (e2e/pending/e1.e2e.ts:74:118)
+
+FAIL e2e/pending/e4.e2e.ts (12.307 s)
+  ● E4 — corte semanal → payout → conciliación → excepción › PRECONDICIÓN DEL CRUCE: el extracto del conector trae nuestra referencia de cobro (`pi_…:capture`), que es la clave con que settlement cruza contra el ledger
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: ArrayContaining ["pi_e497b6ba7b6322:capture", "pi_e4f2215b9e6d22:capture"]
+    Received: []
+
+      159 |     // Hoy el simulador devuelve `our_reference = ch_…` (el id del cobro del conector): ninguna línea trae `pi_…:capture` y NINGUNA puede, porque un
+      160 |     // `business_ref` del ledger siempre lleva `:operación`. Es el hueco P2↔P4 documentado en FLUJOS-E4-E8.md; mientras exista, la conciliación de abajo no cruza.
+    > 161 |     expect(lines.map((l) => l.our_reference).filter((r) => wanted.includes(r ?? ''))).toEqual(expect.arrayContaining(wanted));
+          |                                                                                       ^
+      162 |   });
+      163 |
+      164 |   it('CONCILIACIÓN: el extracto trae Bs 1,00 menos en UN cobro ⇒ una sola excepción amount_mismatch con la diferencia; lo demás cruza; el ledger NO se mueve; settlement avisa UNA vez', async () => {
+
+      at Object.toEqual (e2e/pending/e4.e2e.ts:161:87)
+
+  ● E4 — corte semanal → payout → conciliación → excepción › CONCILIACIÓN: el extracto trae Bs 1,00 menos en UN cobro ⇒ una sola excepción amount_mismatch con la diferencia; lo demás cruza; el ledger NO se mueve; settlement avisa UNA vez
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "exception_count": 1,
+    +   "exception_count": 4,
+        "failure_code": null,
+        "status": "completed",
+      }
+
+      174 |     runId = (started.json as { id: string }).id;
+      175 |     const run = await until(`la corrida ${runId} termina`, async () => (await backoffice(stack, 'GET', `/reconciliation_runs/${runId}`)).json as { status: string; matched_count: number; exception_count: number; failure_code: string | null }, (r) => r.status !== 'running', 60_000, 250);
+    > 176 |     expect(run).toMatchObject({ status: 'completed', exception_count: 1, failure_code: null });
+          |                 ^
+      177 |     expect(run.matched_count).toBeGreaterThanOrEqual(1);
+      178 |
+      179 |     const open = (await backoffice(stack, 'GET', '/reconciliation_exceptions?status=open')).json as { data: { id: string; kind: string; business_ref: string | null; statement_amount_minor: number | null; ledger_amount_minor: number | null }[] };
+
+      at Object.toMatchObject (e2e/pending/e4.e2e.ts:176:17)
+
+  ● E4 — corte semanal → payout → conciliación → excepción › CONCILIACIÓN REPETIDA: otra corrida sobre el mismo periodo no reabre ni vuelve a avisar lo ya conocido
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+      Array [
+    -   undefined,
+    +   "rx_wwosbgfqnxuetjus7sxg",
+    +   "rx_7kvv4ojqnv2gvo6sxvbn",
+    +   "rx_77mxrlteuqj2ncomlsw3",
+    +   "rx_4jfjmg33vr46c36zrtfy",
+      ]
+
+      205 |     await until(`la corrida ${id} termina`, async () => (await backoffice(stack, 'GET', `/reconciliation_runs/${id}`)).json as { status: string }, (r) => r.status !== 'running', 60_000, 250);
+      206 |     const open = (await backoffice(stack, 'GET', '/reconciliation_exceptions?status=open')).json as { data: { id: string }[] };
+    > 207 |     expect(open.data.map((e) => e.id)).toEqual([exceptionId]);
+          |                                        ^
+      208 |     expect(await readStream(stack, 'PAY_SETTLEMENT', 'pay-settlement.reconciliation.exception.opened', (e) => e.data.exception_id === exceptionId)).toHaveLength(1);
+      209 |   });
+      210 |
+
+      at Object.toEqual (e2e/pending/e4.e2e.ts:207:40)
+
+  ● E4 — corte semanal → payout → conciliación → excepción › RESOLUCIÓN: la decide una persona. Sin credencial 401; un operador no pide ajustes (403); un administrador descarta y la excepción deja de estar abierta
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 404
+
+      213 |     const dismiss = { resolution: 'dismiss', note: 'Diferencia de Bs 1,00 del simulador (escenario 09): sin acción' };
+      214 |     expect((await resolve(undefined, dismiss, 'e4-resolve-0001')).status).toBe(401);
+    > 215 |     expect((await resolve(operatorBearer(stack, ['settlement_operator']), { resolution: 'request_adjustment', note: 'Pedido de ajuste' }, 'e4-resolve-0002')).status).toBe(403);
+          |                                                                                                                                                                       ^
+      216 |     expect((await backoffice(stack, 'GET', '/reconciliation_exceptions?status=open')).json).toMatchObject({ data: [{ id: exceptionId }] });
+      217 |
+      218 |     const done = await resolve(operatorBearer(stack, ['settlement_admin'], { sub: 'op_e2e_carla' }), dismiss, 'e4-resolve-0003');
+
+      at Object.toBe (e2e/pending/e4.e2e.ts:215:167)
+
+FAIL e2e/pending/e5.e2e.ts (40.797 s)
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › SIEMBRA [DOBLE]: el médico tiene Bs 500,00 por un asiento de apertura sintético (idempotente); el proveedor, nada
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › el médico programa Bs 1.000,00 mensuales al proveedor por la API pública, con sk_test_ (el modo lo fija el borde)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › PRIMER INTENTO: con Bs 500,00 de Bs 1.000,00 espera fondos, avisa UNA vez y no mueve dinero (aunque haya 5 ejecutores)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › REINTENTO: al llegar los otros Bs 500,00 el pago se ejecuta UNA vez, con asiento tx_ del ledger, y el proveedor cobra Bs 1.000,00
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › REINTENTO SEGURO: repetir la retención y la liberación con la MISMA clave devuelve lo mismo y no mueve dinero otra vez
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › UN SOLO EFECTO con 5 ejecutores en carrera: un solo `executed` en el bus y en el webhook, una sola fila, ningún pago más
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+FAIL e2e/pending/e8.e2e.ts (46.511 s)
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › ANTES DEL EXTRACTO: sin la línea del banco el cobro sigue abierto y el ledger no tiene nada (el banco no avisa, no hay callback)
+
+    TypeError: Cannot read properties of undefined (reading 'filter')
+
+      47 |     return res.status === 404 ? 0 : (res.json as { balance_minor: number }).balance_minor;
+      48 |   };
+    > 49 |   const lines = async (account: string) => ((await call(`/statements?account=${encodeURIComponent(account)}&limit=100`)).json as { data: { direction: 'debit' | 'credit'; amount_minor: number; business_ref: string }[] }).data.filter((l) => l.business_ref === `${intentId}:capture`);
+         |                                                                                                                                                                                                                                  ^
+      50 |   const accounts = [`merchant:${merchantId}:pending`, 'platform:fees', 'connector:mock:clearing'];
+      51 |   const all = (await Promise.all(accounts.map(lines))).flat();
+      52 |   const sum = (direction: 'debit' | 'credit') => all.filter((l) => l.direction === direction).reduce((total, l) => total + l.amount_minor, 0);
+
+      at filter (e2e/lib/flow.ts:49:226)
+          at async Promise.all (index 0)
+      at ledgerOfCapture (e2e/lib/flow.ts:51:16)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:74:12)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › CONFIRMACIÓN POR EL EXTRACTO: el crédito con la referencia y el importe exactos captura el cobro; el ledger deja neto en pending y comisión en fees, débitos = créditos
+
+    E8 necesita pay-mockbank (P4.H4.M3, en construcción): hoy no hay forma de que el pagador deposite 20000 centavos con la referencia TR7W76T372UH en el banco simulado del stack (vive dentro del proceso de pay-connectors). Implementar acá la llamada a pay-mockbank cuando exista.
+
+      44 |  */
+      45 | export async function payerTransfersToBank(input: { reference: string; amountMinor: number }): Promise<never> {
+    > 46 |   throw new Error(
+         |         ^
+      47 |     `E8 necesita pay-mockbank (P4.H4.M3, en construcción): hoy no hay forma de que el pagador deposite ${input.amountMinor} centavos con la referencia ${input.reference} ` +
+      48 |       'en el banco simulado del stack (vive dentro del proceso de pay-connectors). Implementar acá la llamada a pay-mockbank cuando exista.',
+      49 |   );
+
+      at payerTransfersToBank (e2e/lib/p2-bank.ts:46:9)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:78:31)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › UNA SOLA VEZ: el conector vuelve a leer la misma línea en cada ciclo y NO captura dos veces: un evento captured, una captura en el ledger
+
+    No se cumplió «el conector publicó la captura» en 30000 ms; último valor: []
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:90:20)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › CONCILIACIÓN (P2): la línea del extracto cruza con el asiento de la captura; la corrida termina sin excepciones y no mueve el ledger
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 1
+    Received:    0
+
+      106 |     // Hoy la línea trae la referencia de la TRANSFERENCIA y el ledger la del cobro (`pi_…:capture`): no cruzan (FLUJOS-E4-E8.md). Cuando se alineen: 1 cruzada, 0 excepciones.
+      107 |     expect(run).toMatchObject({ status: 'completed', exception_count: 0 });
+    > 108 |     expect(run.matched_count).toBeGreaterThanOrEqual(1);
+          |                               ^
+      109 |     expect(await Promise.all([`merchant:${merchant.merchantId}:pending`, 'platform:fees', `connector:${CONNECTOR}:clearing`].map((a) => view.balance(a)))).toEqual(before);
+      110 |     expect(((await backoffice(stack, 'GET', '/reconciliation_exceptions?status=open')).json as { data: unknown[] }).data).toEqual([]);
+      111 |   });
+
+      at Object.toBeGreaterThanOrEqual (e2e/pending/e8.e2e.ts:108:31)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › IMPORTE DISTINTO: un crédito con la referencia correcta pero otro importe NO captura el cobro; queda a la vista como excepción para una persona
+
+    E8 necesita pay-mockbank (P4.H4.M3, en construcción): hoy no hay forma de que el pagador deposite 19000 centavos con la referencia TREZMAIXOM75 en el banco simulado del stack (vive dentro del proceso de pay-connectors). Implementar acá la llamada a pay-mockbank cuando exista.
+
+      44 |  */
+      45 | export async function payerTransfersToBank(input: { reference: string; amountMinor: number }): Promise<never> {
+    > 46 |   throw new Error(
+         |         ^
+      47 |     `E8 necesita pay-mockbank (P4.H4.M3, en construcción): hoy no hay forma de que el pagador deposite ${input.amountMinor} centavos con la referencia ${input.reference} ` +
+      48 |       'en el banco simulado del stack (vive dentro del proceso de pay-connectors). Implementar acá la llamada a pay-mockbank cuando exista.',
+      49 |   );
+
+      at payerTransfersToBank (e2e/lib/p2-bank.ts:46:9)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:117:31)
+
+Test Suites: 4 failed, 1 passed, 5 total
+Tests:       16 failed, 8 passed, 24 total
+Snapshots:   0 total
+Time:        146.398 s
+Ran all test suites.

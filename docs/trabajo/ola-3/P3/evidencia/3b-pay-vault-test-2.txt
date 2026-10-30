@@ -1,0 +1,25 @@
+# pay-vault yarn test --maxWorkers=2 (corrida 2, sin 001_vault.sql, ddl.sql de af60b79) · 3b (2026-10-28T00:40:44Z)
+(node:22161) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:22162) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 22161  - [39m10/28/2026, 12:40:47 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+{"level":30,"time":1793148047318,"pid":22162,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":1,"msg":"request completed"}
+[31m[Nest] 22162  - [39m10/28/2026, 12:40:47 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'aeea0692-395f-4f7f-954b-9f27abde27ea'[39m
+}
+Error no controlado
+{"level":30,"time":1793148047327,"pid":22162,"hostname":"vm","req":{"id":"aeea0692-395f-4f7f-954b-9f27abde27ea","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":3,"msg":"request errored"}
+{"level":30,"time":1793148047336,"pid":22162,"hostname":"vm","req":{"id":"b4e24add-ec73-4411-b0eb-4579730a8f35","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":3,"msg":"request completed"}
+
+Test Suites: 7 passed, 7 total
+Tests:       79 passed, 79 total
+Snapshots:   0 total
+Time:        4.164 s
+Ran all test suites.
+exit: 0

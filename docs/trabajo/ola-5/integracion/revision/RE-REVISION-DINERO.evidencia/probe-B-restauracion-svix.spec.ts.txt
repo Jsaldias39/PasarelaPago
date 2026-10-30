@@ -1,0 +1,30 @@
+// Copiar a services/pay-webhooks/test/svix/zz-probe-b.spec.ts y correr con: flock /tmp/pay-heavy.lock yarn test test/svix/zz-probe-b.spec.ts
+// Resultado observado: PROBE-RESTORE {... "orphansDeleted":3,"orphansWithheld":0 ...} postRestore aún vivos: 0   |   con 6 comercios: orphansDeleted 0, orphansWithheld 6
+import { randomBytes } from 'node:crypto';
+import { createIsolatedDatabase, type IsolatedDatabase } from '@pay/testing';
+import type { SvixClient } from '../../src/engine/svix/svix-client';
+import { SvixReconciler } from '../../src/engine/svix/svix-reconciler';
+import { insertEndpoint } from '../../src/endpoints/endpoint.repository';
+import { newMerchantId, SQL_FILES } from '../harness';
+import { assertSvixReady, newSvixClient, svixToken } from './svix-env';
+const TYPE = 'payment_intent.succeeded'; const URL = 'https://receptor.comercio.example/hook';
+const SECRET = 'whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oDC2FVsBQIhrs=';
+const newId = () => `we_${randomBytes(10).toString('hex')}`;
+describe('PROBE · restauración de la base con la configuración por DEFECTO (gracia 10 min, margen 60 s, tope 5)', () => {
+  let client: SvixClient; let db: IsolatedDatabase;
+  beforeAll(async () => { client = newSvixClient(svixToken()); await assertSvixReady(client); await client.ensureEventType(TYPE, 'x'); });
+  beforeEach(async () => { db = await createIsolatedDatabase(SQL_FILES); });
+  afterEach(async () => db.drop());
+  const mk = async (m: string, owner = 'live-prod') => { const uid = newId(); await client.ensureApp(m, m); await client.createEndpoint(m, { uid, url: URL, eventTypes: [TYPE], secret: SECRET, metadata: { pay_owner: owner } }); return uid; };
+  it('3 comercios con un endpoint posterior al punto de restauración: se borran los 3 (≤ tope)', async () => {
+    const merchants = [newMerchantId(), newMerchantId(), newMerchantId()]; const postRestore: string[] = [];
+    for (const m of merchants) {
+      const before = await mk(m); await insertEndpoint(db.pool, { id: before, merchantId: m, url: URL, description: null, enabledEvents: [TYPE], signatureScheme: 'v1' });
+      postRestore.push(await mk(m)); // creado DESPUÉS del respaldo: la base restaurada no lo conoce
+    }
+    const rec = new SvixReconciler(db.pool, client, { orphanGraceMs: 600_000, clockMarginMs: 60_000, concurrency: 2, namespace: 'live-prod', now: () => new Date(Date.now() + 11 * 60_000 + 5_000) });
+    const s = await rec.runOnce();
+    const left = (await Promise.all(merchants.map((m) => client.listEndpoints(m)))).flatMap((l) => (l ?? []).map((e) => e.uid));
+    console.log('PROBE-RESTORE', JSON.stringify(s), 'postRestore aún vivos:', postRestore.filter((u) => left.includes(u)).length);
+  });
+});

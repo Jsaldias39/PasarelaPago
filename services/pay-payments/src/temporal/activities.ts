@@ -1,0 +1,485 @@
+import { Logger } from '@nestjs/common';
+import { metrics } from '@opentelemetry/api';
+import { ApplicationFailure, Context } from '@temporalio/activity';
+import type { Deps } from '../deps';
+import type { ChargeStatusValue } from '../clients/connectors.client';
+import type { UpstreamError } from '../clients/http';
+import { toPublicNextAction } from '../domain/next-action';
+import { businessRef } from '../domain/ids';
+import { decideConnectorEvent, isTerminal, type IntentStatus } from '../domain/state';
+import { inActivityTrace } from '../observability/trace-propagation';
+import { emitIntentEvent, normalizeFailureCode, type IntentEventType } from '../events/emit';
+import { settleIntent } from '../payments/settle';
+import { contradictionsRepo } from '../persistence/contradictions.repo';
+import type { Db } from '../persistence/db';
+import { intentsRepo, type IntentRow } from '../persistence/intents.repo';
+import { replicasRepo } from '../persistence/replicas.repo';
+import type { ChargeSignal, ChargeStatusName, LedgerOutcome, NextStep, PaymentPlan, TraceCarrier } from './types';
+
+const EVENT_FOR: Record<'succeeded' | 'failed' | 'canceled' | 'expired', IntentEventType> = {
+  succeeded: 'payment_intent.succeeded',
+  failed: 'payment_intent.failed',
+  canceled: 'payment_intent.canceled',
+  expired: 'payment_intent.expired',
+};
+
+/** `source_event_id` que deja `escalate('risk_unknown')` (el workflow lo pide cuando una ronda de `assessRisk` agota sus reintentos): `ambiguous:${kind}`. Acoplado a `workflows.ts` (`must('risk_unknown', …)`). */
+const ROUND_FAILED_MARKER = 'ambiguous:risk_unknown';
+
+const isUpstreamError = (error: unknown): boolean => error instanceof Error && error.name === 'UpstreamError';
+const isRejection = (error: unknown): boolean => error instanceof Error && error.name === 'UpstreamRejection';
+
+/** El error prueba que NINGUNA llamada de la ronda llegó a pay-risk (ver `UpstreamError.provenNotReached`). */
+const neverReached = (error: unknown): boolean => isUpstreamError(error) && (error as Partial<UpstreamError>).provenNotReached === true;
+
+/**
+ * El error prueba que pay-risk NO ES ALCANZABLE: esta ronda intentó conectar y la conexión nunca se estableció (rechazada, DNS, red inalcanzable). Es la ÚNICA prueba con la que la franquicia
+ * «bajo el umbral pasa» concede. `circuit_open` NO la da: el breaker lo abren los 5xx de OTROS cobros y pay-risk puede estar sano (REVISION-DINERO F-A1: un pagador sancionado pasó sin una sola llamada a riesgo).
+ */
+const riskProvenUnreachable = (error: unknown): boolean => isUpstreamError(error) && (error as Partial<UpstreamError>).provenUnreachable === true;
+
+/** Constancia, log y contador de una concesión de la franquicia: sin datos personales (solo ids y montos). */
+const FRANCHISE_KIND = 'risk_franchise_granted';
+const franchiseLogger = new Logger('RiskFranchise');
+/**
+ * Contador `pay_payments_risk_franchise_granted_total`. Se pide al medidor global en cada uso (no al cargar el módulo): el instrumento de la API es el que haya cuando se crea, y el SDK de
+ * `observability/telemetry.ts` (que exporta por OTLP si hay `OTEL_EXPORTER_OTLP_ENDPOINT`) se registra antes que este módulo, pero así tampoco depende del orden. Sin SDK es un no-op: la
+ * fuente durable sigue siendo la constancia (`SELECT count(*) FROM intent_contradictions WHERE kind = 'risk_franchise_granted'`) y el log.
+ */
+const countFranchiseGrant = (attributes: { currency: string; method: string }): void =>
+  metrics.getMeter('pay-payments').createCounter('pay_payments_risk_franchise_granted_total', {
+    description: 'Cobros aprobados SIN decisión de riesgo por la franquicia RISK_ALLOW_BELOW_THRESHOLD (pay-risk probadamente inalcanzable); cada uno tiene su constancia risk_franchise_granted para re-cribarlo',
+  }).add(1, attributes);
+
+/**
+ * Una respuesta de riesgo que NO es una decisión pero que tampoco dice «no»: la evaluación pudo quedar viva o ya decidida en pay-risk. Es AMBIGUA (CLAUDE.md regla 11) y se reintenta
+ * con la MISMA clave, sin crear otra evaluación; nunca es un rechazo definitivo ni habilita la franquicia «bajo el umbral». Lo son:
+ *  · `409 idempotency_request_in_progress`: la primera llamada con esta clave todavía no terminó;
+ *  · TODO `UpstreamError` en el que NO se PRUEBA que ninguna llamada llegó (`provenNotReached` falso): `timeout`, corte de socket, `5xx`, `unexpected_response` (un 4xx sin el cuerpo de
+ *    error del contrato, un 2xx ilegible) y cualquier error que siga a una llamada anterior del mismo intento que pudo llegar (`earlierAttemptMayHaveReached`: p. ej. un timeout y, en el
+ *    reintento interno del cliente, un 503 o un `circuit_open`). Un 5xx no prueba que riesgo no evaluó: pudo caerse después de escribir el `deny` y antes de responder (REVISION-DINERO F1).
+ * Lo único que NO es ambiguo es un `UpstreamError` con `provenNotReached` (conexión rechazada, DNS, red inalcanzable, breaker abierto): ver `neverReached`.
+ */
+const isRiskInFlight = (error: unknown): boolean =>
+  (error instanceof Error && error.name === 'RiskScreeningUnavailable') ||
+  (isRejection(error) && (error as { status?: number; code?: string }).status === 409 && (error as { code?: string }).code === 'idempotency_request_in_progress') ||
+  // `429 rate_limited` (REVISION-DINERO F-A5): pay-risk NO evaluó (el límite de velocidad corta antes) pero tampoco dijo «no»: es transitorio y se reintenta con la MISMA clave, sin
+  // crear otra evaluación. Si persiste hasta agotar la política, cierra `failed/risk_unavailable` con constancia como el resto (fail-closed).
+  (isRejection(error) && (error as { status?: number; code?: string }).status === 429 && (error as { code?: string }).code === 'rate_limited') ||
+  (isUpstreamError(error) && !neverReached(error));
+
+/**
+ * `201 review` con `screened:false` y `reason_code: screening_unavailable`: pay-risk no pudo cribar (Watchman caído o lento). El contrato (`POST /assessments`)
+ * dice que esa evaluación NO queda congelada bajo la `Idempotency-Key` y que un reintento con la MISMA clave vuelve a cribar: es AMBIGUO, no una denegación
+ * (regla 11). Son definitivas solo las evaluaciones con `screened:true`, `screening_not_provided` y los `review` de negocio que no dependen del cribado.
+ */
+const DEFINITIVE_UNSCREENED_REVIEWS: ReadonlySet<string> = new Set(['screening_not_provided', 'payer_unidentified', 'outside_allowed_hours']);
+class RiskScreeningUnavailable extends Error {
+  constructor(reason = 'pay-risk no pudo cribar (screening_unavailable)') {
+    super(reason);
+    this.name = 'RiskScreeningUnavailable';
+  }
+}
+const isScreeningUnavailable = (assessment: { decision: string; screened: boolean; reason_code: string }): boolean =>
+  assessment.decision === 'review' && !assessment.screened && !DEFINITIVE_UNSCREENED_REVIEWS.has(assessment.reason_code);
+/**
+ * Defensa en profundidad (REVISION-DINERO F7): `internal-risk-v1` dice que un `allow` SIEMPRE trae `screened:true` («si es `false`, la decisión nunca es `allow`») y `evaluate()` de pay-risk
+ * lo sostiene. Un `allow` sin cribado es una respuesta contradictoria que no se concede (regla 11: nunca se concede por ambigüedad): se trata como el cribado no disponible, en vuelo, y se
+ * reintenta con la misma clave; agotada la política, fail-closed con constancia.
+ */
+const isUnscreenedAllow = (assessment: { decision: string; screened: boolean }): boolean => assessment.decision === 'allow' && assessment.screened !== true;
+
+/** Intento actual de la actividad (1 en el primero). Fuera de Temporal (pruebas directas) no hay contexto: se cuenta como el último. */
+function attemptOfActivity(): number {
+  try {
+    return Context.current().info.attempt;
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+/** El conector llama «succeeded» a lo que el contrato de eventos llama «captured»; «requires_action» es «pending». */
+export function chargeNameOf(status: ChargeStatusValue | string): ChargeStatusName {
+  switch (status) {
+    case 'succeeded':
+    case 'captured':
+      return 'captured';
+    case 'authorized':
+      return 'authorized';
+    case 'failed':
+    case 'canceled':
+    case 'expired':
+      return status;
+    default:
+      return 'pending';
+  }
+}
+
+/**
+ * Activities del cobro (P3.H2). TODA activity con efecto externo es idempotente: Temporal las ejecuta al menos una vez
+ * (si el worker cae a mitad, se repite). La idempotencia sale de claves derivadas del intento (`${intentId}:risk|charge|cancel`,
+ * `business_ref = ${intentId}:capture`), de precondiciones en la escritura (CAS sobre el estado) y de leer el estado de la base.
+ */
+export function createActivities(deps: Deps) {
+  const { clients, config } = deps;
+
+  /**
+   * Las activities que llaman a riesgo, conector o ledger reciben, como ÚLTIMO argumento y opcional, el contexto de la petición de origen (`TraceCarrier`, P1.H2.M3)
+   * y corren en un span hijo con el `x-request-id` de esa petición. Sin él (un workflow en vuelo de antes de este campo, o una prueba directa) abren una traza nueva.
+   * No cambia qué hace la activity ni su idempotencia: solo el contexto de observabilidad con el que corre.
+   */
+  const traced =
+    <R>(name: string, run: (intentId: string) => Promise<R>) =>
+    (intentId: string, trace?: TraceCarrier): Promise<R> => {
+      const attempt = attemptOfActivity();
+      return inActivityTrace(name, trace, attempt === Number.MAX_SAFE_INTEGER ? undefined : attempt, () => run(intentId));
+    };
+
+  const load = async (intentId: string): Promise<IntentRow> => {
+    const row = await intentsRepo.byId(deps.pool, intentId);
+    if (!row) throw ApplicationFailure.nonRetryable(`El intento ${intentId} no existe`, 'IntentNotFound');
+    return row;
+  };
+
+  /**
+   * ¿Hubo antes OTRA ocasión de que la evaluación de riesgo saliera hacia pay-risk, que `attempt` (que vuelve a 1 en cada ejecución nueva de la actividad) ya no ve? (REVISION-DINERO F1,
+   * escenario C.) Una ronda anterior de `assessRisk` que agotó sus reintentos sin cerrar el intento deja, por el workflow (`keep('risk_unknown')` ⇒ `escalate`), la constancia
+   * `ambiguous:risk_unknown` en la base: sobrevive a la actividad, al worker y a un workflow nuevo del mismo intento. Si existe, se asume CONSERVADORAMENTE que una evaluación pudo salir.
+   * Límite conocido: si esa constancia no se pudo escribir todavía (la propia escalada falló) o la ronda anterior se cortó antes de escalar, esta consulta no la ve.
+   */
+  const earlierRoundMayHaveSent = async (intentId: string): Promise<boolean> => {
+    const { rows } = await deps.pool.query('SELECT 1 FROM intent_contradictions WHERE payment_intent_id = $1 AND source_event_id = $2 LIMIT 1', [intentId, ROUND_FAILED_MARKER]);
+    return rows.length > 0;
+  };
+
+  const denyByRisk = async (intentId: string): Promise<{ proceed: false }> => {
+    await settle(intentId, 'failed', { failureCode: 'risk_denied' });
+    return { proceed: false };
+  };
+
+  const settle = async (intentId: string, to: 'succeeded' | 'failed' | 'canceled' | 'expired', patch: { failureCode?: string; failureReason?: string; ledgerTransferId?: string } = {}): Promise<IntentRow> => {
+    try {
+      return (await settleIntent(deps, intentId, to, patch)).intent;
+    } catch (error) {
+      if (error instanceof Error && /no existe/.test(error.message)) throw ApplicationFailure.nonRetryable(error.message, 'IntentNotFound');
+      throw error;
+    }
+  };
+
+  /** Aplica una señal del conector sobre el intento con bloqueo de fila. Idempotente: el resultado sale del estado resultante. */
+  const applySignal = async (intentId: string, signal: ChargeSignal): Promise<NextStep> =>
+    deps.tx(async (db: Db) => {
+      const intent = await intentsRepo.byId(db, intentId, { forUpdate: true });
+      if (!intent) throw ApplicationFailure.nonRetryable(`El intento ${intentId} no existe`, 'IntentNotFound');
+      const { decision, reason } = decideConnectorEvent({ intentStatus: intent.status, chargeStatus: intent.chargeStatus, incoming: signal.status });
+      if (isTerminal(intent.status)) {
+        // Una señal que llega con el intento ya cerrado (iba en la misma ráfaga que la que lo cerró) no se pierde: si afirma algo
+        // incompatible con el estado terminal (REQ-P3-3: `failed` sobre `succeeded`, dinero `captured` sobre un `failed`) queda registrada y se publica.
+        if (decision === 'contradiccion') {
+          await contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.chargeStatus, incomingStatus: signal.status, sourceEventId: `signal:${intent.chargeStatus}->${signal.status}`, kind: 'status_conflict', reason });
+        }
+        return 'done';
+      }
+      if (decision === 'contradiccion') {
+        await contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.chargeStatus, incomingStatus: signal.status, sourceEventId: `signal:${intent.chargeStatus}->${signal.status}`, kind: 'status_conflict', reason });
+      }
+      if (decision === 'aplicar') {
+        await intentsRepo.setChargeStatus(db, intentId, intent.chargeStatus, signal.status);
+        if (signal.status === 'failed' || signal.status === 'canceled' || signal.status === 'expired') {
+          const to = signal.status;
+          const row = await intentsRepo.transition(db, intentId, ['processing', 'requires_action'], to, { ...(to === 'failed' ? { failureCode: normalizeFailureCode(signal.failureCode) } : {}), nextAction: null });
+          if (row) await emitIntentEvent(db, EVENT_FOR[to], row);
+          return 'done';
+        }
+      }
+      const charge = decision === 'aplicar' ? signal.status : intent.chargeStatus;
+      if (charge === 'captured' || charge === 'settled') {
+        // Cobrado: deja de esperar al pagador y pasa a registrarse en el ledger.
+        if (intent.status === 'requires_action') {
+          const row = await intentsRepo.transition(db, intentId, ['requires_action'], 'processing', { nextAction: null });
+          if (row) await emitIntentEvent(db, 'payment_intent.processing', row);
+        }
+        return 'capture';
+      }
+      return 'continue';
+    });
+
+  /**
+   * Consulta autoritativa del cargo. Un `404` exacto («el conector no conoce ese cargo», que el propio conector nos devolvió al
+   * crearlo) es una ANOMALÍA, no una prueba de que no hubo pago: no anula, no vence ni falla nada (regla 11); se señala con
+   * `notFound` para que quien llama escale y siga.
+   */
+  const inquire = async (intent: IntentRow): Promise<ChargeSignal & { notFound?: true }> => {
+    if (!intent.chargeId) return { status: 'pending' };
+    let state;
+    try {
+      state = await clients.connectors.getChargeStatus(intent.chargeId, intent.mode);
+    } catch (error) {
+      if (isRejection(error) && (error as { status?: number }).status === 404) return { status: 'pending', notFound: true };
+      throw error;
+    }
+    // Un dato viejo del conector (`stale`) no es una novedad: se trata como «sin cambios».
+    if (state.stale) return { status: 'pending' };
+    return { status: chargeNameOf(state.status), failureCode: state.failure_code ? normalizeFailureCode(state.failure_code) : undefined };
+  };
+
+  return nonRetryableRejections({
+    async loadPaymentPlan(intentId: string): Promise<PaymentPlan> {
+      const intent = await load(intentId);
+      return {
+        status: intent.status,
+        terminal: isTerminal(intent.status),
+        method: intent.method,
+        hasCharge: intent.chargeId !== null,
+        chargeCaptured: intent.chargeStatus === 'captured',
+        expiresAtMs: intent.expiresAt.getTime(),
+        inquiryIntervalMs: config.policy.inquiryIntervalMs,
+        activity: config.policy.activity,
+      };
+    },
+
+    /**
+     * Política fail-closed (P3.H2.M2): si el riesgo no responde, el cobro NO pasa cuando el monto alcanza el umbral (por
+     * defecto 0: siempre). Con `deny` o `review` el cobro termina `failed`. Devuelve `proceed:false` ya con el intento cerrado.
+     */
+    assessRisk: traced('assessRisk', async (intentId: string): Promise<{ proceed: boolean }> => {
+      const intent = await load(intentId);
+      if (isTerminal(intent.status)) return { proceed: false };
+      try {
+        // D-29: UNA evaluación por intento con las dos partes. SIEMPRE la razón social del comercio; sin ella en la réplica (D-33: llega en
+        // merchant.created|activated) no se inventa: la evaluación sale sin `merchant_name` y pay-risk responde `review` ⇒ risk_denied (D-30).
+        // El pagador, solo si dio un nombre: un invitado sin nombre no se cribó y no bloquea.
+        const [merchantName, payerName] = await Promise.all([replicasRepo.merchantLegalName(deps.pool, intent.merchantId), intentsRepo.payerName(deps.pool, intentId)]);
+        const assessment = await clients.risk.assess({
+          merchantId: intent.merchantId, paymentIntentId: intent.id, amountMinor: intent.amountMinor, currency: intent.currency, method: intent.method,
+          ...(merchantName || payerName ? { screening: { ...(merchantName ? { merchantName } : {}), ...(payerName ? { payerName } : {}) } } : {}),
+        });
+        // El cribado no se pudo completar: ni «sí» ni «no». Se reintenta con la misma clave (ver `RiskScreeningUnavailable`); agotada la política, fail-closed.
+        if (isScreeningUnavailable(assessment)) throw new RiskScreeningUnavailable();
+        if (isUnscreenedAllow(assessment)) throw new RiskScreeningUnavailable('pay-risk respondió allow sin cribado (screened:false), que el contrato descarta');
+        // D4/D-30: `review` (con el cribado hecho, o por una razón de negocio) se trata como `deny` hasta que exista cola de revisión manual.
+        if (assessment.decision !== 'allow') return await denyByRisk(intentId);
+        return { proceed: true };
+      } catch (error) {
+        // Política (P3.H2.M2, regla 11): sin decisión de riesgo no se cobra. Pero «sin decisión» tiene tres causas distintas:
+        //  · AMBIGUA / EN VUELO (409 en curso, `review/screening_unavailable` o `allow` sin cribar, y TODO `UpstreamError` en el que no se PRUEBE que ninguna llamada llegó: timeout,
+        //    corte de socket, 5xx, respuesta ilegible o fuera del contrato, o cualquier error tras una llamada anterior que pudo llegar): se reintenta con la MISMA clave (Temporal,
+        //    con backoff) hasta que riesgo responda con su decisión. Si se agota la política de la actividad el intento se cierra SIEMPRE `failed/risk_unavailable` (fail-closed,
+        //    sin cargo, con constancia para una persona), sea cual sea el monto y la configuración: esa evaluación pudo quedar viva y puede volver como `deny`. NUNCA queda en `processing`.
+        //  · RESPUESTA FUERA DE LA DECISIÓN (cualquier 4xx declarado que no es `deny`/`review` en una respuesta válida): es un error de integración nuestro;
+        //    mismo cierre SIEMPRE fail-closed y con constancia. Solo una `decision` válida es un «sí» o un «no» de negocio.
+        //  · PROBADAMENTE NO LLEGÓ (conexión rechazada, DNS, red inalcanzable, breaker abierto) en la PRIMERA ronda y el PRIMER intento: no hay ninguna evaluación que pueda llegar a decir «no»,
+        //    así que se cierra `failed/risk_unavailable` al instante, sin constancia (con la franquicia apagada, por encima del umbral o con breaker abierto) —
+        //    F-A5: no se reintenta a propósito, para no retrasar ~13 s ni abrir una excepción de conciliación por cada cobro durante una caída de riesgo.
+        //    La franquicia «bajo el umbral pasa» (RISK_ALLOW_BELOW_THRESHOLD, apagada por defecto) aplica SOLO si además hay PRUEBA de que pay-risk es inalcanzable
+        //    (`riskProvenUnreachable`: conexión rechazada/DNS/red de ESTA ronda). `circuit_open` no basta (F-A1). Cada concesión deja constancia durable `risk_franchise_granted`.
+        const attempt = attemptOfActivity();
+        // «No llegó» solo vale si nunca hubo OTRA ocasión de que la evaluación saliera: ni un intento anterior de esta actividad (attempt > 1) ni una ronda/ejecución anterior (ver `earlierRoundMayHaveSent`).
+        // Si la hubo, una indisponibilidad ahora (el breaker abierto por los propios 5xx, la red) NO borra que haya una evaluación viva con esta clave: se trata como «en vuelo».
+        const earlierAttemptSent = attempt > 1 && attempt !== Number.MAX_SAFE_INTEGER && isUpstreamError(error);
+        const inFlight = isRiskInFlight(error) || earlierAttemptSent || (neverReached(error) && (await earlierRoundMayHaveSent(intentId)));
+        if (inFlight && attempt < config.policy.activity.maxAttempts) {
+          throw ApplicationFailure.retryable('pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave', 'RiskInFlight');
+        }
+        const integrationError = !inFlight && isRejection(error);
+        if (inFlight || integrationError) {
+          const kind = integrationError ? 'risk_integration_error' : 'risk_unresolved';
+          await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'ambiguous', sourceEventId: `ambiguous:${kind}`, kind, reason: 'risk_without_decision_fail_closed' }));
+          await settle(intentId, 'failed', { failureCode: 'risk_unavailable' });
+          return { proceed: false };
+        }
+        if (isUpstreamError(error)) {
+          const failClosed = BigInt(intent.amountMinor) >= config.policy.riskFailClosedThresholdMinor || !config.policy.riskAllowBelowThreshold || !riskProvenUnreachable(error);
+          if (failClosed) {
+            await settle(intentId, 'failed', { failureCode: 'risk_unavailable' });
+            return { proceed: false };
+          }
+          // Franquicia concedida: NO hubo decisión de riesgo. Primero la constancia durable (misma tabla y mecanismo que `ambiguous:risk_unknown`; abre una excepción de conciliación en
+          // pay-settlement para re-cribar después); si no se puede escribir, la excepción sube, Temporal reintenta y el reintento (attempt > 1) cierra fail-closed: no se concede sin rastro.
+          await deps.tx((db) =>
+            contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'waived', sourceEventId: `waived:${FRANCHISE_KIND}`, kind: FRANCHISE_KIND, reason: 'risk_unreachable_below_threshold' }),
+          );
+          countFranchiseGrant({ currency: intent.currency, method: intent.method });
+          franchiseLogger.warn({ event: FRANCHISE_KIND, payment_intent_id: intentId, merchant_id: intent.merchantId, amount_minor: intent.amountMinor, currency: intent.currency, threshold_minor: config.policy.riskFailClosedThresholdMinor.toString() }, 'Cobro aprobado SIN decisión de riesgo (franquicia bajo el umbral, pay-risk inalcanzable): re-cribar');
+          return { proceed: true };
+        }
+        throw error;
+      }
+    }),
+
+    createCharge: traced('createCharge', async (intentId: string): Promise<{ state: 'waiting' | 'captured' | 'settled' }> => {
+      const intent = await load(intentId);
+      if (isTerminal(intent.status)) return { state: 'settled' };
+      if (intent.method === 'wallet') throw ApplicationFailure.nonRetryable('El saldo AloVida no tiene cargo en un conector', 'NoChargeForWallet');
+      if (intent.chargeId) return { state: intent.chargeStatus === 'captured' ? 'captured' : 'waiting' };
+
+      const outcome = await clients.connectors.createCharge({
+        mode: intent.mode,
+        paymentIntentId: intent.id,
+        merchantId: intent.merchantId,
+        amountMinor: intent.amountMinor,
+        currency: intent.currency,
+        method: intent.method,
+        ...(intent.cardToken ? { cardToken: intent.cardToken } : {}),
+        expiresAt: intent.expiresAt.toISOString(),
+        ...(intent.description ? { description: intent.description } : {}),
+      });
+      if (!outcome.ok) {
+        // `502 connector_unavailable` exacto: el conector garantiza que NO se envió nada; se reintenta y, agotados los
+        // reintentos, el workflow cierra el cobro. Los demás rechazos (4xx declarados) son de negocio: el cobro no se puede hacer.
+        if (outcome.status === 502) throw ApplicationFailure.retryable('El conector no está disponible (sin efecto)', 'ConnectorUnavailable');
+        await settle(intentId, 'failed', { failureCode: outcome.status === 422 || outcome.code === 'card_declined' ? 'payment_declined' : normalizeFailureCode(outcome.code) });
+        return { state: 'settled' };
+      }
+      const charge = outcome.value;
+      const name = chargeNameOf(charge.status);
+      if (name === 'failed' || name === 'canceled' || name === 'expired') {
+        await settle(intentId, name, name === 'failed' ? { failureCode: normalizeFailureCode(charge.failure_code) } : {});
+        return { state: 'settled' };
+      }
+      const nextAction = charge.next_action ? toPublicNextAction(charge.next_action, intent.expiresAt, config.policy.bankTransfer) : null;
+      if (charge.next_action?.type === 'bank_transfer_instructions' && !nextAction) {
+        // El conector no informó la cuenta y no hay respaldo (T-03): no se puede mostrar al pagador adónde transferir. Se anula el
+        // cargo (con clave estable; si el conector no contesta, Temporal reintenta) y el POST responde 422 payment_method_unavailable.
+        await clients.connectors.cancelCharge(charge.id, `${intentId}:cancel`, intent.mode);
+        await settle(intentId, 'failed', { failureCode: 'validation_failed', failureReason: 'payment_method_unavailable' });
+        return { state: 'settled' };
+      }
+      return deps.tx(async (db) => {
+        const patch = { connector: charge.connector, chargeId: charge.id, chargeStatus: name === 'captured' ? 'captured' : 'pending' };
+        if (nextAction && name !== 'captured') {
+          const row = await intentsRepo.transition(db, intentId, ['processing'], 'requires_action', { ...patch, nextAction: nextAction as unknown as Record<string, unknown> });
+          if (row) await emitIntentEvent(db, 'payment_intent.requires_action', row);
+          else return { state: 'settled' as const };
+        } else {
+          const row = await intentsRepo.transition(db, intentId, ['processing'], 'processing', patch);
+          if (!row) return { state: 'settled' as const };
+        }
+        return { state: name === 'captured' ? ('captured' as const) : ('waiting' as const) };
+      });
+    }),
+
+    /** Consulta el estado del cargo al conector: atrapa los eventos perdidos (REQ-P3-7). */
+    inquireCharge: traced('inquireCharge', async (intentId: string): Promise<ChargeSignal & { notFound?: true }> => {
+      return inquire(await load(intentId));
+    }),
+
+    applyChargeSignal: applySignal,
+
+    /**
+     * Vencimiento: antes de dar el intento por vencido se le pregunta al conector, porque el pago pudo llegar y el evento perderse.
+     * Si sigue pendiente se cancela el cargo; si el conector responde 409 es que se pagó justo ahora y se vuelve a consultar.
+     */
+    resolveExpiry: traced('resolveExpiry', async (intentId: string): Promise<NextStep> => {
+      const intent = await load(intentId);
+      if (isTerminal(intent.status)) return 'done';
+      if (!intent.chargeId) {
+        await settle(intentId, 'expired');
+        return 'done';
+      }
+      const first = await inquire(intent);
+      if (first.notFound) {
+        // No se puede verificar ni anular un cargo que el conector dice no conocer: el intento NO vence. Se escala y el workflow falla visible.
+        await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'ambiguous', sourceEventId: 'ambiguous:charge_not_found_at_connector', kind: 'charge_not_found_at_connector', reason: 'authoritative_query_not_found_keeps_state' }));
+        throw ApplicationFailure.nonRetryable('El conector no conoce el cargo al vencer; se conserva el estado', 'ChargeNotFoundAtConnector');
+      }
+      // El conector ya lo tiene cancelado (nuestra propia anulación de una ejecución anterior que no llegó a confirmarse): al vencer es `expired`.
+      if (first.status === 'canceled') {
+        await settle(intentId, 'expired');
+        return 'done';
+      }
+      if (first.status !== 'pending' && first.status !== 'authorized') return applySignal(intentId, first);
+      const cancel = await clients.connectors.cancelCharge(intent.chargeId, `${intentId}:cancel`, intent.mode);
+      if (!cancel.ok) {
+        const again = await inquire(await load(intentId));
+        if (again.status === 'captured') return applySignal(intentId, again);
+      }
+      await settle(intentId, 'expired');
+      return 'done';
+    }),
+
+    /**
+     * Asiento del cobro en el ledger (único movimiento de dinero). `business_ref = ${intentId}:capture` y el intento (`attempt`)
+     * sale de la base: repetir la activity repite la MISMA petición y el ledger devuelve el mismo asiento (H-TB1).
+     */
+    recordLedger: traced('recordLedger', async (intentId: string): Promise<LedgerOutcome> => {
+      const intent = await load(intentId);
+      if (intent.ledgerTransferId) return { transferId: intent.ledgerTransferId };
+      const source = ledgerSource(intent);
+      const target = `merchant:${intent.beneficiaryMerchantId ?? intent.merchantId}:pending`;
+      const legs = [
+        { debit_account: source, credit_account: target, amount_minor: intent.netMinor, code: 'charge' as const },
+        ...(intent.feeMinor > 0 ? [{ debit_account: source, credit_account: 'platform:fees', amount_minor: intent.feeMinor, code: 'fee' as const }] : []),
+      ];
+      const result = await clients.ledger.createTransaction({ mode: intent.mode, businessRef: businessRef.capture(intentId), attempt: intent.ledgerAttempt, currency: intent.currency, legs });
+      if (result.kind === 'ok') return { transferId: result.value.id };
+      if (result.kind === 'rejected') return { rejected: result.code };
+      throw ApplicationFailure.nonRetryable('El ledger ya tiene un intento aceptado para este cobro y no se pudo leer', 'LedgerConflict');
+    }),
+
+    /** Cierra el intento con éxito (ya está en el ledger) o con el motivo de fallo. Una sola vez: el CAS lo garantiza. */
+    async completeIntent(intentId: string, outcome: { transferId: string } | { failureCode: string }): Promise<{ status: string }> {
+      const row = await settle(intentId, 'transferId' in outcome ? 'succeeded' : 'failed', 'transferId' in outcome ? { ledgerTransferId: outcome.transferId } : { failureCode: outcome.failureCode });
+      return { status: row.status };
+    },
+
+    /**
+     * Compensación: el conector cobró y el ledger RECHAZÓ el asiento (respuesta definitiva). Se reembolsa el cargo completo con una
+     * clave estable para que el pagador no pierda su dinero. Un resultado ambiguo se relanza (Temporal reintenta con la MISMA clave);
+     * un rechazo definitivo del conector queda registrado para una persona y no se oculta.
+     */
+    compensateCapture: traced('compensateCapture', async (intentId: string): Promise<{ compensated: boolean }> => {
+      const intent = await load(intentId);
+      if (!intent.chargeId) return { compensated: true };
+      const refund = await clients.connectors.createRefund(intent.chargeId, intent.amountMinor, `${intentId}:compensation`, intent.mode, { reason: 'duplicate' });
+      if (refund.ok) return { compensated: true };
+      await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.chargeStatus, incomingStatus: 'compensation_failed', sourceEventId: 'compensation', kind: 'compensation_failed', reason: refund.code }));
+      return { compensated: false };
+    }),
+
+    /**
+     * Un resultado ambiguo (timeout, corte, 5xx) NO es un fallo (CLAUDE.md regla 11): no se anula nada, se conserva el estado y se
+     * deja constancia para una persona. Idempotente por `kind`: escalar dos veces es lo mismo que una.
+     */
+    async escalate(intentId: string, kind: string): Promise<void> {
+      const intent = await load(intentId);
+      await deps.tx((db) => contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'ambiguous', sourceEventId: `ambiguous:${kind}`, kind, reason: 'ambiguous_result_keeps_state' }));
+    },
+
+    async settleFailed(intentId: string, failureCode: string): Promise<{ status: string }> {
+      const row = await settle(intentId, 'failed', { failureCode });
+      return { status: row.status };
+    },
+  });
+}
+
+/** Cuenta que se debita: la billetera del usuario, el saldo del comercio pagador (cobro programado) o el clearing del conector. */
+export function ledgerSource(intent: IntentRow): string {
+  if (intent.method === 'wallet' && intent.walletUserRef) return `user:${intent.walletUserRef}:wallet`;
+  if (intent.source) return `merchant:${intent.merchantId}:available`;
+  return `connector:${intent.connector ?? 'mock'}:clearing`;
+}
+
+export type PaymentActivities = ReturnType<typeof createActivities>;
+
+/**
+ * Un rechazo 4xx que el contrato no declara para la operación es un error de integración nuestro: reintentar no lo arregla.
+ * Se marca no reintentable para que el workflow lo escale y falle de forma visible, en vez de girar para siempre.
+ */
+export function nonRetryableRejections<T extends Record<string, (...args: never[]) => Promise<unknown>>>(activities: T): T {
+  const wrapped: Record<string, unknown> = {};
+  for (const [name, fn] of Object.entries(activities)) {
+    wrapped[name] = async (...args: never[]) => {
+      try {
+        return await fn(...args);
+      } catch (error) {
+        if (isRejection(error)) throw ApplicationFailure.nonRetryable((error as Error).message, 'UpstreamRejection');
+        throw error;
+      }
+    };
+  }
+  return wrapped as T;
+}
+
+/** Estados desde los que un cobro puede cancelarse (solo mientras espera al pagador). */
+export const CANCELABLE: readonly IntentStatus[] = ['requires_action'];

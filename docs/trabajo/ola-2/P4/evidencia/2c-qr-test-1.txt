@@ -1,0 +1,20 @@
+# 2c-qr-test-1
+$ (cd services/pay-qr && yarn test --maxWorkers=2)
+(las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
+
+(node:20990) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20989) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 20990  - [39m10/27/2026, 10:04:56 PM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'62a895f7-6d6a-497a-8d82-daa81db988f9'[39m
+}
+Error no controlado
+
+Test Suites: 5 passed, 5 total
+Tests:       97 passed, 97 total
+Snapshots:   0 total
+Time:        25.469 s, estimated 32 s
+Ran all test suites.
+exit=0

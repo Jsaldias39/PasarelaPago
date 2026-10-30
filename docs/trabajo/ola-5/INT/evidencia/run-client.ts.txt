@@ -1,0 +1,83 @@
+// Corrida ÚNICA del cliente de la API (PaymentsGatewayClient) y del verificador de webhooks contra el stack SANDBOX REAL de la pasarela.
+// Solo lee /home/user/pasarelapago (usa su arnés e2e tal cual; el runtime queda en e2e/.run, ignorado por git).
+import { readFileSync } from 'node:fs';
+import { createServer } from 'node:https';
+import { startStack, stopStack } from '/home/user/pasarelapago/e2e/stack.ts';
+import { seedMerchant, waitForEdgeToKnow } from '/home/user/pasarelapago/e2e/lib/seed.ts';
+import { PaymentsGatewayClient } from '/home/user/mantra-core-health-api/src/modules/payments/gateway/payments-gateway.client';
+import { deriveGatewayIdempotencyKey } from '/home/user/mantra-core-health-api/src/modules/payments/gateway/payments-gateway-idempotency';
+import { verifyStandardWebhook } from '/home/user/mantra-core-health-api/src/modules/payments/gateway/standard-webhook-signature';
+
+const out = (k: string, v: unknown) => process.stdout.write(`${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}\n`);
+
+async function main() {
+  const stack = await startStack({ tolerateFailures: false });
+  const deliveries: { headers: Record<string, string | string[] | undefined>; raw: Buffer }[] = [];
+  let server: ReturnType<typeof createServer> | undefined;
+  try {
+    const merchant = await seedMerchant(stack, { label: 'COMERCIO INT API (SINTETICO)' });
+    out('edge_conoce_la_clave', (await waitForEdgeToKnow(stack, merchant)).ok);
+
+    // Receptor HTTPS propio (certificado autofirmado del arnés): captura los bytes y cabeceras REALES de cada entrega.
+    server = createServer({ cert: readFileSync(stack.receiver.certFile), key: readFileSync(stack.receiver.keyFile) }, (req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('end', () => {
+        deliveries.push({ headers: req.headers, raw: Buffer.concat(chunks) });
+        res.writeHead(200).end();
+      });
+    });
+    await new Promise<void>((r) => server!.listen(stack.receiver.port, '127.0.0.1', r));
+    const endpoint = await stack.call('pay-edge', 'POST', '/v1/webhook_endpoints', {
+      headers: { authorization: `Bearer ${merchant.token}`, 'idempotency-key': 'int-api-endpoint-0001' },
+      json: { url: `https://127.0.0.1:${stack.receiver.port}/hook-api`, enabled_events: ['*'] },
+    });
+    out('webhook_endpoint_status', endpoint.status);
+    const secret = (endpoint.json as { secret: string }).secret;
+
+    // El cliente de la API contra pay-edge real, con la clave sk_test_ sembrada.
+    const client = new PaymentsGatewayClient({
+      viaGateway: true, baseUrl: `${stack.url('pay-edge')}/v1`, apiKey: merchant.token, mode: 'test',
+      webhookSecrets: [secret], webhookPublicKeys: [], webhookToleranceSeconds: 300, timeoutMs: 15_000, maxAttempts: 3, retryBaseMs: 200,
+    });
+    const key = deriveGatewayIdempotencyKey({ tenantId: '11111111-1111-1111-1111-111111111111', sourceRefType: 'payment_debt', sourceRefId: '22222222-2222-2222-2222-222222222222', localIdempotencyKey: 'int-api-sandbox-0001' });
+    const body = { amount_minor: 15000, currency: 'BOB' as const, payment_method: { type: 'qr' as const } };
+
+    const raw = await stack.call('pay-edge', 'POST', '/v1/payment_intents', { headers: { authorization: `Bearer ${merchant.token}`, 'idempotency-key': 'raw-probe-0001' }, json: body });
+    out('SONDA_CRUDA', { status: raw.status, text: raw.text.slice(0, 600) });
+    const first = await client.createPaymentIntent(body, key, { requestId: 'mantra-int-sandbox-0001' }).catch((e: any) => { out('ERROR_PASARELA', { status: e.status, code: e.code, fieldErrors: e.details?.fieldErrors, requestId: e.details?.requestId }); throw e; });
+    out('crear_1', { replayed: first.replayed, id: first.intent.id, status: first.intent.status, amount_minor: first.intent.amount_minor, fee_minor: first.intent.fee_minor, next_action: first.intent.next_action?.type });
+    const second = await client.createPaymentIntent(body, key, { requestId: 'mantra-int-sandbox-0001' });
+    out('crear_2_misma_clave', { replayed: second.replayed, mismo_id: second.intent.id === first.intent.id });
+
+    let current = await client.getPaymentIntent(first.intent.id);
+    for (let i = 0; i < 120 && !['succeeded', 'failed', 'canceled', 'expired'].includes(current.status); i += 1) {
+      await new Promise((r) => setTimeout(r, 500));
+      current = await client.getPaymentIntent(first.intent.id);
+    }
+    out('estado_final', { status: current.status, succeeded_at: current.succeeded_at });
+
+    // Esperar las entregas del webhook (por condición).
+    for (let i = 0; i < 120 && !deliveries.some((d) => String(d.raw).includes('payment_intent.succeeded')); i += 1) await new Promise((r) => setTimeout(r, 500));
+    out('entregas_recibidas', deliveries.length);
+    for (const d of deliveries) {
+      const event = JSON.parse(d.raw.toString('utf8')) as { id: string; type: string; mode: string; data: { object: Record<string, unknown> } };
+      let verdict = 'ok';
+      try { verifyStandardWebhook({ headers: d.headers as Record<string, string>, payload: d.raw, secrets: [secret] }); } catch (e) { verdict = (e as { reason?: string }).reason ?? String(e); }
+      out('entrega', { type: event.type, mode: event.mode, webhook_id_igual_al_id: d.headers['webhook-id'] === event.id, verifica_con_NUESTRO_verificador: verdict, claves_data_object: Object.keys(event.data.object).sort(), payment_intent_id_coincide: event.data.object.payment_intent_id === first.intent.id });
+    }
+    // Negativo contra bytes reales: un byte alterado de la primera entrega no verifica.
+    const sample = deliveries[0];
+    if (sample) {
+      const tampered = Buffer.from(sample.raw.toString('utf8').replace('"mode":"test"', '"mode":"live"'));
+      let verdict = 'ok';
+      try { verifyStandardWebhook({ headers: sample.headers as Record<string, string>, payload: tampered, secrets: [secret] }); } catch (e) { verdict = (e as { reason?: string }).reason ?? String(e); }
+      out('entrega_alterada', verdict);
+    }
+  } finally {
+    await new Promise<void>((r) => (server ? server.close(() => r()) : r()));
+    const stop = await stopStack(stack, { keepLogs: false });
+    out('apagado', { leftoverPids: stop.leftoverPids });
+  }
+}
+main().then(() => process.exit(0), (e) => { process.stderr.write(`${e instanceof Error ? e.stack : String(e)}\n`); process.exit(1); });

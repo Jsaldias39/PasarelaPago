@@ -1,0 +1,14 @@
+$ docker build -f platform/Dockerfile.sandbox --build-arg HUB=docker.io -t pay-sandbox:bloqueo-docker-io .
+------
+ > [internal] load metadata for docker.io/library/node:22-alpine:
+------
+Dockerfile.sandbox:9
+--------------------
+   7 |     ARG HUB=docker.io
+   8 |     
+   9 | >>> FROM ${HUB}/library/node:22-alpine AS build
+  10 |     ARG PRUNE=0
+  11 |     WORKDIR /repo
+--------------------
+ERROR: failed to build: failed to solve: docker.io/library/node:22-alpine: failed to resolve source metadata for docker.io/library/node:22-alpine: unexpected status from HEAD request to https://registry-1.docker.io/v2/library/node/manifests/22-alpine: 429 Too Many Requests
+exit=1

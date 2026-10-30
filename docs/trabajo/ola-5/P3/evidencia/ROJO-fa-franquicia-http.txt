@@ -1,0 +1,473 @@
+Comando (en un worktree con src de HEAD a641f96 y las pruebas NUEVAS): yarn test test/ola5.risk-franchise.spec.ts test/risk-ambiguity.http.spec.ts
+Test Suites: 2 failed, 2 total
+Tests:       28 failed, 35 passed, 63 total
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › conexión rechazada en las dos pasadas ⇒ provenNotReached, sin llamada anterior ambigua
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "earlierAttemptMayHaveReached": false,
+        "kind": "network",
+        "provenNotReached": true,
+    -   "provenUnreachable": true,
+      }
+
+      48 |     it('conexión rechazada en las dos pasadas ⇒ provenNotReached, sin llamada anterior ambigua', async () => {
+      49 |       const error = await failure(client(await closedPort()));
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › breaker abierto desde antes ⇒ circuit_open provenNotReached (ninguna llamada de este request salió) pero NO pro
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "earlierAttemptMayHaveReached": false,
+        "kind": "circuit_open",
+        "provenNotReached": true,
+    -   "provenUnreachable": false,
+      }
+
+      56 |         const c = client(server.url, { failureThreshold: 1 });
+      57 |         await expect(c.breaker.exec(async () => { throw new UpstreamError('server_error', 'pay-risk', 503); })).rejects.toBeDefined();
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › ECONNREFUSED (la conexión no se estableció) ⇒ provenNotReached y provenUnreachable
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+        "provenNotReached": true,
+    -   "provenUnreachable": true,
+      }
+
+      68 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`${syscall} ${code}`), { code, syscall }) }); }) as typeof fetch;
+      69 |       try {
+    > 70 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true, provenUnreachable: true });
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › ENOTFOUND (la conexión no se estableció) ⇒ provenNotReached y provenUnreachable
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+        "provenNotReached": true,
+    -   "provenUnreachable": true,
+      }
+
+      68 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`${syscall} ${code}`), { code, syscall }) }); }) as typeof fetch;
+      69 |       try {
+    > 70 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true, provenUnreachable: true });
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › EAI_AGAIN (la conexión no se estableció) ⇒ provenNotReached y provenUnreachable
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+        "provenNotReached": true,
+    -   "provenUnreachable": true,
+      }
+
+      68 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`${syscall} ${code}`), { code, syscall }) }); }) as typeof fetch;
+      69 |       try {
+    > 70 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true, provenUnreachable: true });
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › EHOSTUNREACH (la conexión no se estableció) ⇒ provenNotReached y provenUnreachable
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+        "provenNotReached": true,
+    -   "provenUnreachable": true,
+      }
+
+      68 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`${syscall} ${code}`), { code, syscall }) }); }) as typeof fetch;
+      69 |       try {
+    > 70 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true, provenUnreachable: true });
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › ENETUNREACH (la conexión no se estableció) ⇒ provenNotReached y provenUnreachable
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "kind": "network",
+        "provenNotReached": true,
+    -   "provenUnreachable": true,
+      }
+
+      68 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`${syscall} ${code}`), { code, syscall }) }); }) as typeof fetch;
+      69 |       try {
+    > 70 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true, provenUnreachable: true });
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › happy eyeballs (AggregateError con TODAS las direcciones rechazadas) ⇒ provenNotReached
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "provenNotReached": true,
+    -   "provenUnreachable": true,
+      }
+
+      79 |       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: aggregate }); }) as typeof fetch;
+      80 |       try {
+    > 81 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ provenNotReached: true, provenUnreachable: true });
+         |                                                               ^
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › conexión rechazada en la 1.ª pasada y breaker abierto en la 2.ª ⇒ circuit_open CONSERVA la prueba de inalcanzab
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "earlierAttemptMayHaveReached": false,
+        "kind": "circuit_open",
+        "provenNotReached": true,
+    -   "provenUnreachable": true,
+      }
+
+       96 |         const error = await failure(client('http://pay-risk.test', { failureThreshold: 1 }));
+       97 |         expect(calls).toBe(1);
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › F-A4 · EHOSTUNREACH/ENETUNREACH solo prueban «nunca se estableció» con syscall «connect» › inválido · EHOSTUNREACH SIN syscall o con otro syscall (read/write) ⇒ ambiguo: ni prov
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 1
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": false,
+    -   "provenUnreachable": false,
+    +   "provenNotReached": true,
+      }
+
+      110 |         for (const syscall of [undefined, 'read', 'write']) {
+      111 |           globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`${code}`), { code, ...(syscall ? { syscall } : {}) }) }); }) as typeof fetch;
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › F-A4 · EHOSTUNREACH/ENETUNREACH solo prueban «nunca se estableció» con syscall «connect» › inválido · ENETUNREACH SIN syscall o con otro syscall (read/write) ⇒ ambiguo: ni prove
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 1
+
+      Object {
+        "kind": "network",
+    -   "provenNotReached": false,
+    -   "provenUnreachable": false,
+    +   "provenNotReached": true,
+      }
+
+      110 |         for (const syscall of [undefined, 'read', 'write']) {
+      111 |           globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`${code}`), { code, ...(syscall ? { syscall } : {}) }) }); }) as typeof fetch;
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › F-A4 · EHOSTUNREACH/ENETUNREACH solo prueban «nunca se estableció» con syscall «connect» › límite · un AggregateError donde UNA dirección es EHOSTUNREACH sin syscall «connect» ⇒
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 1
+
+      Object {
+    -   "provenNotReached": false,
+    -   "provenUnreachable": false,
+    +   "provenNotReached": true,
+      }
+
+      122 |       try {
+      123 |         globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: aggregateOf({ code: 'EHOSTUNREACH' }) }); }) as typeof fetch;
+    > 124 |         expect(await failure(client('http://pay-risk.test'))).toMatchObject({ provenNotReached: false, provenUnreachable: false });
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › timeout y luego conexión rechazada ⇒ la conexión rechazada NO prueba nada: la primera 
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "earlierAttemptMayHaveReached": true,
+        "kind": "network",
+        "provenNotReached": false,
+    -   "provenUnreachable": false,
+      }
+
+      149 |       try {
+      150 |         const error = await failure(client(server.url));
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › timeout y luego breaker abierto (lo abrió otra llamada mientras esperaba) ⇒ circuit_op
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "earlierAttemptMayHaveReached": true,
+        "kind": "circuit_open",
+        "provenNotReached": false,
+    -   "provenUnreachable": false,
+      }
+
+      163 |         await new Promise((resolve) => setTimeout(resolve, 60));
+      164 |         await expect(c.breaker.exec(async () => { throw new UpstreamError('server_error', 'pay-risk', 503); })).rejects.toBeDefined(); // otra llamada lo abre
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › límite · una llamada anterior del MISMO request pudo llegar: el último error no la borra › la marca se conserva con 3 pasadas: timeout, 503 y conexión rechazada ⇒ ambiguo
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Object {
+        "earlierAttemptMayHaveReached": true,
+        "kind": "network",
+        "provenNotReached": false,
+    -   "provenUnreachable": false,
+      }
+
+      179 |       try {
+      180 |         const error = await failure(client(server.url, { retries: 2 }));
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › F-A3 · cuerpo cortado tras los headers › inválido · el corte durante el cuerpo sale como UpstreamError network AMBIGU
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "UpstreamError"
+    Received: "TypeError"
+
+      262 |           const c = client(server.url, { failureThreshold: 2, retries: 0 });
+      263 |           const error = await failure(c);
+    > 264 |           expect(error.name).toBe('UpstreamError');
+          |                              ^
+      265 |           expect(error).toMatchObject({ kind: 'network', status: 201, provenNotReached: false, provenUnreachable: false });
+      266 |           await failure(c); // dos fallas seguidas con umbral 2: el breaker se abre, como con cualquier otra falla de red
+      267 |           expect(c.breaker.state).toBe('open');
+
+      at Object.toBe (test/risk-ambiguity.http.spec.ts:264:30)
+
+  ● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › F-A3 · cuerpo cortado tras los headers › límite · el timeout durante la lectura del cuerpo es un UpstreamError timeou
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  -  5
+    + Received  + 29
+
+    - Object {
+    -   "kind": "timeout",
+    -   "name": "UpstreamError",
+    -   "provenNotReached": false,
+    -   "status": 201,
+    + DOMException {
+    +   "ABORT_ERR": 20,
+    +   "DATA_CLONE_ERR": 25,
+    +   "DOMSTRING_SIZE_ERR": 2,
+
+  ● franquicia ENCENDIDA y pay-risk PROBADAMENTE inalcanzable (conexión rechazada): única causa que la activa › correcto (no regresión) · conexión rechazada, primer intento, monto bajo el umbral ⇒ la franquicia PASA: requires_action y un ca
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 1
+
+    - Array [
+    -   "risk_franchise_granted",
+    - ]
+    + Array []
+
+      203 |     await h.settledAs(id, 'requires_action');
+      204 |     expect(stack.connectors.chargeCreations.get(id)).toBe(1);
+    > 205 |     expect(await h.escalations(id)).toEqual(['risk_franchise_granted']);
+          |                                     ^
+
+  ● F-A2 · cada concesión de la franquicia deja constancia durable, un log sin datos personales y un contador › correcto · constancia risk_franchise_granted (kind/motivo/estado), evento payment_intent.contradiction_detected en el outbox y l
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 9
+    + Received  + 1
+
+    - Array [
+    -   Object {
+    -     "current_status": "processing",
+    -     "incoming_status": "waived",
+    -     "kind": "risk_franchise_granted",
+    -     "reason": "risk_unreachable_below_threshold",
+    -     "source_event_id": "waived:risk_franchise_granted",
+    -   },
+    - ]
+
+  ● F-A2 · cada concesión de la franquicia deja constancia durable, un log sin datos personales y un contador › correcto · el contador pay_payments_risk_franchise_granted_total suma 1 por concesión
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 1
+
+    - Array [
+    -   1,
+    - ]
+    + Array []
+
+      293 |       await provider.forceFlush();
+      294 |       const points = exporter.getMetrics().flatMap((m) => m.scopeMetrics).flatMap((scope) => scope.metrics).filter((metric) => metric.descriptor.name === 'pay_payments_risk_franchise_granted_total').flatMap((metric) => metric.dataPoints as { value: number; attributes: Record<string, unknown> }[]);
+    > 295 |       expect(points.map((point) => point.value)).toEqual([1]);
+          |                                                  ^
+
+  ● F-A2 · cada concesión de la franquicia deja constancia durable, un log sin datos personales y un contador › inválido · si la constancia no se puede escribir NO se concede sin rastro: el reintento cierra fail-closed y no hay cargo
+
+    Se agotó la espera de: pi_c7ddf5b2084c3240b9618cdd → failed
+
+      112 |     const value = await probe();
+      113 |     if (value) return value;
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+          |                                      ^
+      115 |     await new Promise((resolve) => setTimeout(resolve, 60));
+      116 |   }
+      117 | }
+
+      at waitFor (test/helpers/stack.ts:114:38)
+      at Object.<anonymous> (test/ola5.risk-franchise.spec.ts:324:7)
+
+
+  ● F-A2 · guarda de configuración: la franquicia no se admite bajo PAY_MODE=live › inválido · live + RISK_ALLOW_BELOW_THRESHOLD=true ⇒ NO arranca (con umbral > 0 y también con el umbral 0 que la deja inerte), y el mensaje nombra la variabl
+
+    expect(received).toThrow(expected)
+
+    Expected pattern: /PAY_MODE=live: RISK_ALLOW_BELOW_THRESHOLD=true no está permitido/
+
+    Received function did not throw
+
+      341 |
+      342 |   it('inválido · live + RISK_ALLOW_BELOW_THRESHOLD=true ⇒ NO arranca (con umbral > 0 y también con el umbral 0 que la deja inerte), y el mensaje nombra la variable', () => {
+    > 343 |     expect(() => loadConfig(env({ PAY_MODE: 'live', RISK_ALLOW_BELOW_THRESHOLD: 'true', RISK_FAIL_CLOSED_THRESHOLD_MINOR: THRESHOLD }))).toThrow(/PAY_MODE=live: RISK_ALLOW_BELOW_THRESHOLD=true no está permitido/);
+          |                                                                                                                                          ^
+      344 |     expect(() => loadConfig(env({ PAY_MODE: 'live', RISK_ALLOW_BELOW_THRESHOLD: 'true', RISK_FAIL_CLOSED_THRESHOLD_MINOR: '0' }))).toThrow(/RISK_ALLOW_BELOW_THRESHOLD=true no está permitido/);
+      345 |   });
+      346 |
+
+
+  ● F-A1 · un breaker abierto por los 5xx de OTROS cobros NO es prueba de que pay-risk esté caído: no activa la franquicia › inválido (la sonda A) · un pagador SANCIONADO que entra con el breaker abierto NO pasa: failed/risk_unavailable, SI
+
+    Se agotó la espera de: pi_f1c5f064d2168f1ac69fc124 → failed
+
+      112 |     const value = await probe();
+      113 |     if (value) return value;
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+          |                                      ^
+      115 |     await new Promise((resolve) => setTimeout(resolve, 60));
+      116 |   }
+      117 | }
+
+      at waitFor (test/helpers/stack.ts:114:38)
+      at Object.<anonymous> (test/ola5.risk-franchise.spec.ts:389:5)
+
+
+  ● F-A1 · un breaker abierto por los 5xx de OTROS cobros NO es prueba de que pay-risk esté caído: no activa la franquicia › control · mientras el breaker está abierto ningún cobro bajo el umbral recibe la franquicia (ninguna constancia ris
+
+    Se agotó la espera de: pi_dfc0ac82791f04588001fdf4 → failed
+
+      112 |     const value = await probe();
+      113 |     if (value) return value;
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+          |                                      ^
+      115 |     await new Promise((resolve) => setTimeout(resolve, 60));
+      116 |   }
+      117 | }
+
+      at waitFor (test/helpers/stack.ts:114:38)
+      at Object.<anonymous> (test/ola5.risk-franchise.spec.ts:398:5)
+
+
+  ● F-A3 · un cuerpo cortado tras los headers 201 cierra el intento por la política (no queda en processing en bucle) › inválido · cuerpo cortado persistente ⇒ failed/risk_unavailable (agotada la política), SIN cargo, con constancia risk_un
+
+    Se agotó la espera de: pi_b2c1322ad8d920ddd203c52c → failed
+
+      112 |     const value = await probe();
+      113 |     if (value) return value;
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+          |                                      ^
+      115 |     await new Promise((resolve) => setTimeout(resolve, 60));
+      116 |   }
+      117 | }
+
+      at waitFor (test/helpers/stack.ts:114:38)
+      at Object.<anonymous> (test/ola5.risk-franchise.spec.ts:438:5)
+
+
+  ● F-A3 · un 2xx de riesgo sin una decisión legible (cuerpo vacío) es ambiguo: se cierra por la política, no queda reintentando › inválido · 201 con cuerpo vacío persistente ⇒ failed/risk_unavailable, SIN cargo, con constancia risk_unresol
+
+    Se agotó la espera de: pi_1b747c4ccd1859f08b3f8a76 → failed
+
+      112 |     const value = await probe();
+      113 |     if (value) return value;
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+          |                                      ^
+      115 |     await new Promise((resolve) => setTimeout(resolve, 60));
+      116 |   }
+      117 | }
+
+      at waitFor (test/helpers/stack.ts:114:38)
+      at Object.<anonymous> (test/ola5.risk-franchise.spec.ts:464:5)
+
+
+  ● F-A5 · un 429 rate_limited de riesgo es transitorio: se reintenta con la MISMA clave dentro de la política, y sigue siendo fail-closed › correcto · dos 429 y luego `allow` ⇒ el cobro avanza UNA vez, con la misma clave y sin constancia
+
+    Se agotó la espera de: pi_515b8bf9cb731fa124627abb → requires_action
+
+      112 |     const value = await probe();
+      113 |     if (value) return value;
+    > 114 |     if (Date.now() > deadline) throw new Error(`Se agotó la espera de: ${label}`);
+          |                                      ^
+      115 |     await new Promise((resolve) => setTimeout(resolve, 60));
+      116 |   }
+      117 | }
+
+      at waitFor (test/helpers/stack.ts:114:38)
+      at Object.<anonymous> (test/ola5.risk-franchise.spec.ts:497:5)
+
+
+  ● F-A5 · un 429 rate_limited de riesgo es transitorio: se reintenta con la MISMA clave dentro de la política, y sigue siendo fail-closed › límite/inválido · 429 persistente ⇒ failed/risk_unavailable (agotada la política), SIN cargo, con c
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+    -   "risk_unresolved",
+    +   "risk_integration_error",
+      ]
+
+      509 |     expect(await h.code(lastIntent)).toBe('risk_unavailable');
+      510 |     expect(stack!.connectors.chargeFor(lastIntent)).toBeUndefined();
+    > 511 |     expect(await h.escalations(lastIntent)).toEqual(['risk_unresolved']);
+          |                                             ^

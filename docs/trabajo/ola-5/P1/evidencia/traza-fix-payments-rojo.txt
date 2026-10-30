@@ -1,0 +1,272 @@
+(node:20406) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/trace-propagation.spec.ts
+  ● HttpClient — traceparent del contexto activo y x-request-id de la petición de origen › CORRECTO: dentro de una petición (traza + id) la llamada lleva SU traceId, el spanId del span cliente exportado y el MISMO x-request-id; el span cuelga del activo
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+      175 |     const { traceId, spanId } = await inServerSpan(undefined, () => runWithRequestId('traza-pend-aaaa1111', () => client().request({ method: 'POST', path: '/assessments', body: {}, idempotencyKey: 'k-0000000001' })));
+      176 |     const m = W3C.exec(seen[0]!.traceparent as string)!;
+    > 177 |     expect(m).not.toBeNull();
+          |                   ^
+      178 |     expect(m[1]).toBe(traceId);
+      179 |     const [span] = spansNamed('POST pay-risk');
+      180 |     expect(m[2]).toBe(idOf(span!));
+
+
+  ● HttpClient — traceparent del contexto activo y x-request-id de la petición de origen › CORRECTO: los REINTENTOS de una llamada llevan el mismo x-request-id y el mismo idempotency-key (cada intento tiene su propio span)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "traza-reintento-1",
+    -   "traza-reintento-1",
+    +   "b38de8e6-e514-4f32-9d95-e1d38313d9bd",
+    +   "602534dc-0c1b-48ae-8a82-c42781528fad",
+      ]
+
+      190 |     await runWithRequestId('traza-reintento-1', () => client(1).request({ method: 'POST', path: '/x', body: {}, idempotencyKey: 'k-0000000002' }));
+      191 |     expect(seen).toHaveLength(2);
+    > 192 |     expect(seen.map((h) => h['x-request-id'])).toEqual(['traza-reintento-1', 'traza-reintento-1']);
+          |                                                ^
+      193 |     expect(seen.map((h) => h['idempotency-key'])).toEqual(['k-0000000002', 'k-0000000002']);
+      194 |     expect(new Set(seen.map((h) => h.traceparent)).size).toBe(2);
+      195 |     expect(spansNamed('POST pay-risk')).toHaveLength(2);
+
+
+  ● HttpClient — traceparent del contexto activo y x-request-id de la petición de origen › LÍMITE: un x-request-id explícito y válido gana al del alcance; uno inválido (espacios, 65 caracteres, forma de PAN) se reemplaza por el del alcance
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Array [
+    -   "explicito-valido-1",
+    -   "traza-del-alcance-1",
+    -   "traza-del-alcance-1",
+    -   "traza-del-alcance-1",
+    +   "df3eeaf4-9fa8-43a0-ab62-027c5038aac0",
+    +   "33eeb12f-f5ce-44a6-87bd-095e976cd763",
+    +   "1b8fe316-4c08-4d1a-817d-4afebb7ef644",
+    +   "c0804b28-d5c3-4cb3-801f-447e70008757",
+      ]
+
+      211 |       for (const bad of ['con espacio', 'a'.repeat(65), 'r-4111111111111111']) await client().request({ method: 'GET', path: '/b', headers: { 'x-request-id': bad } });
+      212 |     });
+    > 213 |     expect(seen.map((h) => h['x-request-id'])).toEqual(['explicito-valido-1', 'traza-del-alcance-1', 'traza-del-alcance-1', 'traza-del-alcance-1']);
+          |                                                ^
+      214 |   });
+      215 |
+      216 |   it('LÍMITE: contexto NO muestreado ⇒ viaja con flags 00 y no se exporta ningún span cliente', async () => {
+
+
+  ● HttpClient — traceparent del contexto activo y x-request-id de la petición de origen › LÍMITE: contexto NO muestreado ⇒ viaja con flags 00 y no se exporta ningún span cliente
+
+    TypeError: expect(received).toMatch(expected)
+
+    Matcher error: received value must be a string
+
+    Received has value: undefined
+
+      218 |     const parent = propagation.extract(ROOT_CONTEXT, { traceparent: `00-${tid}-${hex(8)}-00` });
+      219 |     await context.with(parent, () => client().request({ method: 'GET', path: '/a' }));
+    > 220 |     expect(seen[0]!.traceparent).toMatch(new RegExp(`^00-${tid}-[0-9a-f]{16}-00$`));
+          |                                  ^
+      221 |     expect(spansNamed('GET pay-risk')).toHaveLength(0);
+      222 |   });
+      223 |
+
+
+  ● HttpClient — traceparent del contexto activo y x-request-id de la petición de origen › LÍMITE: un traceparent/tracestate/baggage que pase el llamador en headers se descarta; solo viaja el del contexto activo
+
+    expect(received).not.toBe(expected) // Object.is equality
+
+    Expected: not "00-46f0f06d58927a67ff240e963b30e905-64e0e46fddc6166b-01"
+
+      225 |     const spoofed = `00-${hex(16)}-${hex(8)}-01`;
+      226 |     const { traceId } = await inServerSpan(undefined, () => client().request({ method: 'GET', path: '/a', headers: { Traceparent: spoofed, tracestate: 'a=b', Baggage: 'x=y' } }));
+    > 227 |     expect(seen[0]!.traceparent).not.toBe(spoofed);
+          |                                      ^
+      228 |     expect((seen[0]!.traceparent as string).split('-')[1]).toBe(traceId);
+      229 |     expect(seen[0]!.tracestate).toBeUndefined();
+      230 |     expect(seen[0]!.baggage).toBeUndefined();
+
+
+  ● HttpClient — traceparent del contexto activo y x-request-id de la petición de origen › LÍMITE: el span cliente lleva solo atributos de una lista cerrada (nada de ruta, cuerpo, cabeceras ni claves)
+
+    TypeError: Cannot read properties of undefined (reading 'attributes')
+
+      234 |     await inServerSpan(undefined, () => client().request({ method: 'POST', path: '/assessments/pi_4111111111111111?x=1', body: { pan: '4111111111111111' }, idempotencyKey: 'k-SECRETO-0001', headers: { authorization: 'Bearer sk_test_SECRETO' } }));
+      235 |     const [span] = spansNamed('POST pay-risk');
+    > 236 |     expect(Object.keys(span!.attributes).sort()).toEqual(['http.request.method', 'http.response.status_code', 'peer.service']);
+          |                              ^
+      237 |     expect(dumpOf(span!)).not.toMatch(/SECRETO|4111|assessments|x=1/);
+      238 |   });
+      239 |
+
+
+  ● HttpClient — traceparent del contexto activo y x-request-id de la petición de origen › INVÁLIDO: un 5xx sigue siendo UpstreamError(server_error) y deja el span en ERROR sin cuerpo ni mensaje
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+      242 |     await expect(inServerSpan(undefined, () => client().request({ method: 'GET', path: '/a' }))).rejects.toMatchObject({ name: 'UpstreamError', kind: 'server_error', status: 500 });
+      243 |     const [span] = spansNamed('GET pay-risk');
+    > 244 |     expect(span!.status).toEqual({ code: SpanStatusCode.ERROR });
+          |                  ^
+      245 |     expect(span!.attributes['http.response.status_code']).toBe(500);
+      246 |     expect(dumpOf(span!)).not.toMatch(/secreto-interno|10\.0\.0\.9/);
+      247 |   });
+
+
+  ● HttpClient — traceparent del contexto activo y x-request-id de la petición de origen › INVÁLIDO: destino caído o lento ⇒ UpstreamError network/timeout (igual que antes) y el span en ERROR
+
+    TypeError: Cannot read properties of undefined (reading 'status')
+
+      251 |     await expect(down.request({ method: 'GET', path: '/a' })).rejects.toMatchObject({ kind: 'network' });
+      252 |     const [span] = spansNamed('GET pay-risk');
+    > 253 |     expect(span!.status.code).toBe(SpanStatusCode.ERROR);
+          |                  ^
+      254 |     const silent = createServer(() => undefined); // acepta y nunca responde
+      255 |     await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
+      256 |     try {
+
+
+(node:20405) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/trace.workflow.spec.ts
+  ● CORRECTO — petición con traza y x-request-id → riesgo, conector y ledger › server → start PaymentWorkflow → activity → POST pay-risk / pay-connectors / pay-ledger: una traza, sin padres ausentes, con el id de la petición en las tres llamadas
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+      45 | const spanOfCall = (call: { headers: Record<string, string | string[] | undefined> }): Finished => {
+      46 |   const m = /^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$/.exec(call.headers.traceparent as string);
+    > 47 |   expect(m).not.toBeNull();
+         |                 ^
+      48 |   const span = exported.getFinishedSpans().find((s) => idOf(s) === m![2]);
+      49 |   expect(span).toBeDefined();
+      50 |   expect(span!.spanContext().traceId).toBe(m![1]);
+
+
+  ● CORRECTO — petición con traza y x-request-id → riesgo, conector y ledger › el input del workflow lleva `trace` con el traceparent y el id; ninguna otra cosa cambia (idempotencia, claves de riesgo y de cargo)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+        "intentId",
+    -   "trace",
+      ]
+
+      112 |     const id = created.body.id as string;
+      113 |     const input = await startedInput(id);
+    > 114 |     expect(Object.keys(input).sort()).toEqual(['intentId', 'trace']);
+          |                                       ^
+      115 |     expect(input.trace).toMatchObject({ requestId, traceparent: expect.stringMatching(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/) });
+      116 |     const risk = stack.risk.server.calls.filter((c) => intentOf(c) === id);
+      117 |     expect([...new Set(risk.map((c) => c.headers['idempotency-key']))]).toEqual([`${id}:risk`]);
+
+
+  ● LÍMITE — sin contexto de origen, o con el cobro ya en marcha › sin petición de origen (ni span ni id): el input lleva solo el traceparent del span `start` (traza nueva real), sin id; cada llamada genera su propio UUID
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+        "intentId",
+    -   "trace",
+      ]
+
+      126 |     const id = created.body.id as string;
+      127 |     const input = await startedInput(id);
+    > 128 |     expect(Object.keys(input).sort()).toEqual(['intentId', 'trace']);
+          |                                       ^
+      129 |     expect(Object.keys(input.trace as object)).toEqual(['traceparent']);
+      130 |     const risk = riskCallOf(id);
+      131 |     expect(risk.headers['x-request-id']).toMatch(UUID);
+
+
+  ● LÍMITE — sin contexto de origen, o con el cobro ya en marcha › un workflow con el input de ANTES del campo ({intentId}, como los que estaban en vuelo) sigue su camino: el cobro llega a requires_action con UNA evaluación y UN cargo
+
+    TypeError: expect(received).toMatch(expected)
+
+    Matcher error: received value must be a string
+
+    Received has value: undefined
+
+      147 |     const risk = riskCallOf(id);
+      148 |     expect(risk.headers['x-request-id']).toMatch(UUID);
+    > 149 |     expect(risk.headers.traceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/);
+          |                                      ^
+      150 |     const activity = parentOf(spanOfCall(risk));
+      151 |     expect([activity.name, parentIdOf(activity)]).toEqual(['activity assessRisk', undefined]);
+      152 |   });
+
+
+  ● LÍMITE — sin contexto de origen, o con el cobro ya en marcha › un traceparent entrante NO muestreado (flags 00) llega a riesgo y conector con flags 00 y no se exporta ningún span del cobro
+
+    TypeError: expect(received).toMatch(expected)
+
+    Matcher error: received value must be a string
+
+    Received has value: undefined
+
+      158 |     const risk = riskCallOf(id);
+      159 |     const charge = chargeCallOf(id);
+    > 160 |     for (const call of [risk, charge]) expect(call.headers.traceparent).toMatch(new RegExp(`^00-${tid}-[0-9a-f]{16}-00$`));
+          |                                                                         ^
+      161 |     expect(risk.headers['x-request-id']).toBe('traza-sin-muestreo-1');
+      162 |     expect(exported.getFinishedSpans()).toHaveLength(0);
+      163 |   });
+
+
+  ● LÍMITE — sin contexto de origen, o con el cobro ya en marcha › un x-request-id de 65 caracteres (inválido) no se propaga: las llamadas generan el suyo y el cobro avanza
+
+    expect(received).toMatchObject(expected)
+
+    Matcher error: received value must be a non-null object
+
+    Received has value: undefined
+
+      169 |     const risk = riskCallOf(id);
+      170 |     expect(risk.headers['x-request-id']).toMatch(UUID);
+    > 171 |     expect((await startedInput(id)).trace).toMatchObject({ traceparent: expect.any(String) });
+          |                                            ^
+      172 |     expect(((await startedInput(id)).trace as Record<string, unknown>).requestId).toBeUndefined();
+      173 |   });
+      174 | });
+
+
+  ● INVÁLIDO — carrier basura en un workflow ya existente › un workflow arrancado con un `trace` malformado (traceparent y id inválidos, campos de más) completa su primer tramo igual: no lanza ni cambia el resultado del cobro
+
+    TypeError: expect(received).toMatch(expected)
+
+    Matcher error: received value must be a string
+
+    Received has value: undefined
+
+      195 |     const risk = riskCallOf(id);
+      196 |     expect(risk.headers['x-request-id']).toMatch(UUID);
+    > 197 |     expect(risk.headers.traceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/);
+          |                                      ^
+      198 |     expect(base).not.toBe(id);
+      199 |     expect(spansNamed('activity assessRisk').some((s) => parentIdOf(s) === undefined)).toBe(true);
+      200 |   });
+
+
+Test Suites: 2 failed, 2 total
+Tests:       15 failed, 29 passed, 44 total
+Snapshots:   0 total
+Time:        4.633 s, estimated 5 s
+Ran all test suites matching test/trace-propagation.spec.ts|test/trace.workflow.spec.ts.

@@ -1,0 +1,21 @@
+## A. Control negativo: init-databases.sh ANTERIOR (git HEAD) — Postgres aparte en :54399
+ENTRÓ a template1 como pay_ledger
+FALLA: pay_webhooks entró a template1: 1
+FALLA: pay_vault entró a template1: 1
+FALLA: pay_mockbank entró a template1: 1
+separación: 168 comprobaciones correctas, 12 fallas
+
+## B. init-databases.sh NUEVO — Postgres aparte en :54399
+psql: error: connection to server at "127.0.0.1", port 54399 failed: FATAL:  permission denied for database "template1"
+DETAIL:  User does not have CONNECT privilege.
+separación: 180 comprobaciones correctas, 0 fallas
+-- el superusuario sigue pudiendo crear bases (la plantilla no se rompió):
+CREATE DATABASE
+DROP DATABASE
+-- un rol con CREATEDB (no superusuario) también:
+CREATE ROLE
+psql: error: connection to server at "127.0.0.1", port 54399 failed: FATAL:  permission denied for database "pay_test"
+f
+
+## C. Sin contenedores p1gate: 0
+(nota: la prueba con un rol CREATEDB no es concluyente: el rol de prueba no tenía CONNECT a ninguna base; no afecta al gate)

@@ -1,0 +1,159 @@
+== reanudación tras reinicio del contenedor 2026-10-30T13:54:03Z HEAD=b11909b (parte 1: verificacion-final.txt, llegó hasta pay-payments)
+== (re)arranque 2026-10-30T14:59:44Z HEAD=b11909b
+== pay-payments typecheck 0 build 0
+== pay-payments, corrida con --maxWorkers=2 (17:40Z): Test Suites 2 failed / 35 passed; Tests 2 failed / 513 passed (JEST_EXIT=1)
+   FAIL test/payment.kill.spec.ts › corrida 4: createIntent devolvió status 'processing' en vez de 'requires_action' (assessRisk reintentó: RiskInFlight)
+   FAIL test/ola2.tanda2g.refund.spec.ts › E3 502 sin cuerpo exacto: stack.connectors.chargeFor(id) undefined (el cargo aún no existía)
+   Aislados con --runInBand (mismo commit): refund 10/10 PASS exit 0; kill 7/7 PASS exit 0.
+   Clasificación (regla 80.4): ENVIRONMENT/carga (cada suite levanta su worker de Temporal y su PG; con 2 workers + Temporal + TigerBeetle en 4 vCPU el cobro tarda más que lo que el test supone). NO se da por PASS: se repite el servicio completo con --runInBand (regla 70.3: un worker en máquina de desarrollo).
+== (re)arranque 2026-10-30T18:00:23Z HEAD=2c09205
+== pay-payments typecheck 0 build 0
+test exit 0
+Test Suites: 37 passed, 37 total
+Tests:       515 passed, 515 total
+== pay-payments FIN
+== pay-vault typecheck 0 build 0
+test exit 0
+Test Suites: 13 passed, 13 total
+Tests:       150 passed, 150 total
+== pay-vault FIN
+== pay-connectors typecheck 0 build 0
+test exit 1
+FAIL test/openbao.spec.ts
+  ● P4.H2.M6 contra OpenBao real — correcto › lee el secreto de su espacio (KV v2) con un token de solo lectura
+  ● P4.H2.M6 contra OpenBao real — correcto › rotar con versiones KV v2: la nueva se usa sin reiniciar y la anterior sigue válida dentro de la ventana
+  ● P4.H2.M6 contra OpenBao real — correcto › la ventana de rotación vence sola (created_time del servidor real); la versión anterior deja de valer
+  ● P4.H2.M6 contra OpenBao real — correcto › cerrar la ventana a mano: borrar la versión anterior deja vigente solo la nueva
+  ● P4.H2.M6 contra OpenBao real — correcto › AppRole real: se autentica con role_id + secret_id, lee con el token emitido y no con el raíz
+  ● P4.H2.M6 contra OpenBao real — límite › secreto ausente ⇒ [] (fail-closed), nunca un valor por defecto
+  ● P4.H2.M6 contra OpenBao real — límite › versión borrada o destruida: la última ⇒ [] y no se cae a una anterior; undelete la restaura; una escritura nueva la reemplaza
+== pay-connectors FIN
+== pay-qr typecheck 0 build 0
+test exit 0
+Test Suites: 10 passed, 10 total
+Tests:       121 passed, 121 total
+== pay-qr FIN
+== pay-mockbank typecheck 0 build 0
+test exit 0
+Test Suites: 17 passed, 17 total
+Tests:       161 passed, 161 total
+== pay-mockbank FIN
+== pay-ledger typecheck 0 build 0
+== (re)arranque 2026-10-30T19:18:46Z HEAD=8f77e7b
+== pay-ledger typecheck 0 build 0
+-- pay-ledger:append-only-guards.readiness exit 0 Tests:       13 passed, 13 total
+== pay-ledger:append-only-guards.readiness FIN
+-- pay-ledger:append-only exit 0 Tests:       27 passed, 27 total
+== pay-ledger:append-only FIN
+-- pay-ledger:config exit 0 Tests:       10 passed, 10 total
+== pay-ledger:config FIN
+-- pay-ledger:contract exit 0 Tests:       13 passed, 13 total
+== pay-ledger:contract FIN
+== (nota) TigerBeetle de desarrollo reseteado con platform/scripts/tigerbeetle-dev.sh reset: acumulaba 2098 grupos huérfanos de corridas previas y el reconciliador de arranque hacía lentas las suites de pay-ledger (deployment.spec > 8 min)
+== (re)arranque 2026-10-30T19:27:59Z HEAD=fa3543f
+== pay-ledger typecheck 0 build 0
+== (causa raíz) pay-ledger deployment.spec "colgado": NO era TigerBeetle (el reseteo no lo arregló). Las 31 pruebas pasan en 3 s; el proceso de Jest no terminaba.
+   (1) boot() dejaba vivo el relé del outbox cuando app.init() fallaba (casos «NO arranca»): app.close() en el catch (test/deployment.spec.ts). Sin el cambio, el caso «con un motor que es un doble» se colgaba (timeout 124); con él, exit 0.
+   (2) El caso IDEMPOTENCY_MASK_KEY falla en compile() (IdempotencyStore lanza en su constructor) con los pools de pg y del ORM ya creados y sin handle para cerrarlos: forceExit en services/pay-ledger/jest.config.cjs, comentado. Las aserciones no cambian.
+   Resultado: deployment.spec 31/31, 3 s, exit 0 sin flags.
+== (re)arranque 2026-10-30T20:14:54Z HEAD=930a66e
+== pay-ledger typecheck 0 build 0
+-- pay-ledger:deployment exit 0 Tests:       31 passed, 31 total
+== pay-ledger:deployment FIN
+-- pay-ledger:drift exit 0 Tests:       5 passed, 5 total
+== pay-ledger:drift FIN
+-- pay-ledger:env-example exit 0 Tests:       4 passed, 4 total
+== pay-ledger:env-example FIN
+-- pay-ledger:events exit 0 Tests:       9 passed, 9 total
+== pay-ledger:events FIN
+-- pay-ledger:faults exit 0 Tests:       2 passed, 2 total
+== pay-ledger:faults FIN
+-- pay-ledger:health exit 0 Tests:       6 passed, 6 total
+== pay-ledger:health FIN
+-- pay-ledger:holds-accounts-fk exit 0 Tests:       6 passed, 6 total
+== pay-ledger:holds-accounts-fk FIN
+-- pay-ledger:holds exit 0 Tests:       13 passed, 13 total
+== pay-ledger:holds FIN
+-- pay-ledger:idempotency-parallel exit 0 Tests:       6 passed, 6 total
+== pay-ledger:idempotency-parallel FIN
+-- pay-ledger:ids exit 0 Tests:       28 passed, 28 total
+== pay-ledger:ids FIN
+-- pay-ledger:invariant exit 0 Tests:       3 passed, 3 total
+== pay-ledger:invariant FIN
+-- pay-ledger:mode exit 0 Tests:       45 passed, 45 total
+== pay-ledger:mode FIN
+-- pay-ledger:pan-detector exit 0 Tests:       2 passed, 2 total
+== pay-ledger:pan-detector FIN
+-- pay-ledger:pool-resilience exit 0 Tests:       10 passed, 10 total
+== pay-ledger:pool-resilience FIN
+-- pay-ledger:reconciler exit 0 Tests:       13 passed, 13 total
+== pay-ledger:reconciler FIN
+-- pay-ledger:sensitive-data exit 0 Tests:       5 passed, 5 total
+== pay-ledger:sensitive-data FIN
+-- pay-ledger:separation exit 1 Tests:       1 failed, 9 passed, 10 total
+FAIL test/separation.spec.ts (8.59 s)
+  ● separación — pay-ledger arranca con pay_ledger y ese rol no tiene nada en las demás bases › intentar conectarse con el rol a CADA base de otro servicio, a pay_test y a postgres es 42501 (p
+== pay-ledger:separation FIN
+-- pay-ledger:statements exit 0 Tests:       9 passed, 9 total
+== pay-ledger:statements FIN
+-- pay-ledger:transactions exit 0 Tests:       72 passed, 72 total
+== pay-ledger:transactions FIN
+== pay-ledger FIN
+== pay-settlement typecheck 0 build 0
+test exit 0
+Test Suites: 32 passed, 32 total
+Tests:       596 passed, 596 total
+== pay-settlement FIN
+== pay-merchants typecheck 0 build 0
+== (nota) pay-ledger:separation: UN rojo en la corrida por archivo (1 failed / 9 passed; 42 conexiones a la vez con "Connection terminated due to connection timeout", connectionTimeoutMillis 5000; la suite tardó 8,6 s). Aislada, 4 corridas seguidas: 10/10 PASS (1,7 s). NO se da por resuelto: no hay causa demostrada (el log de Postgres no muestra nada en esa hora). Clasificación provisional: ENVIRONMENT transitorio (parada de Postgres/red de Docker de ~5 s), sin reproducción. Queda declarado como riesgo residual; no se subió ningún timeout ni se agregó reintento.
+test exit 0
+Test Suites: 20 passed, 20 total
+Tests:       213 passed, 213 total
+== pay-merchants FIN
+== pay-risk typecheck 0 build 0
+test exit 0
+Test Suites: 18 passed, 18 total
+Tests:       244 passed, 244 total
+== pay-risk FIN
+== pay-schedules typecheck 2 build 0
+test exit 0
+Test Suites: 16 passed, 16 total
+Tests:       213 passed, 213 total
+== pay-schedules FIN
+== e2e COMPLETO
+e2e exit 1
+FAIL e2e/flows/e7.e2e.ts (30.446 s)
+  ● E7 — tarjeta por campos alojados, sin un PAN fuera de pay-vault › ESCANEO: 0 apariciones del PAN en logs, bus, filas de todas las bases, historiales de Temporal y trazas (y el escaneo no fue vacío)
+FAIL e2e/flows/e7.e2e.ts (30.446 s)
+  ● E7 — tarjeta por campos alojados, sin un PAN fuera de pay-vault › ESCANEO: 0 apariciones del PAN en logs, bus, filas de todas las bases, historiales de Temporal y trazas (y el escaneo no fue vacío)
+Test Suites: 1 failed, 35 passed, 36 total
+Tests:       1 failed, 273 passed, 274 total
+== e2e FIN
+== test:parity
+parity exit 0
+== parity FIN
+== restos de mutaciones
+(fin búsqueda)
+== literales de clave largos
+contracts/packages/api-key/src/index.spec.ts:73:  it.each([undefined, null, 42, '', 'sk_live_', 'sk_prod_aaaaaaaaaaaaaaaa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'SK_LIVE_AAAAAAAAAAAAAAAA_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'sk_live_aaaaaaaaaaaaaaa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'sk_live_aaaaaaaaaaaaaaaa_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', `sk_live_aaaaaaaaaaaaaaaa_${'a'.repeat(500)}`, 'sk_live_aaaaaaaaaaaaaaa1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'])(
+e2e/flows/key-lifecycle.e2e.ts:51:      const unknown = await stack.call('pay-edge', 'GET', '/v1/merchants/me', { headers: { authorization: 'Bearer sk_test_nokeynokeyno_00000000000000000000000000000000' } });
+e2e/flows/seed-sandbox.e2e.ts:170:    expect((await edge('sk_test_inventada0000000000000000000000', 'GET', '/v1/merchants/me')).status).toBe(401);
+services/pay-edge/test/doubles/samples.ts:44:  'POST /api_keys': { status: 201, body: { ...apiKey, secret: 'sk_test_abcdefghijklmnop_abcdefghijklmnopqrstuvwxyz234567' } },
+services/pay-edge/test/doubles/samples.ts:46:  'POST /api_keys/{id}/rotate': { status: 201, body: { ...apiKey, secret: 'sk_test_abcdefghijklmnop_abcdefghijklmnopqrstuvwxyz234567' } },
+(fin búsqueda)
+== barridos FIN
+== fin 2026-10-30T20:34:23Z
+DONE
+== e2e COMPLETO (20:23Z): Tests 1 failed / 273 passed (Test Suites 1 failed / 35 passed). FAIL e2e/flows/e7.e2e.ts › ESCANEO: card_like_number "352907*****7521" en temporal:payment-pi_baf4… (44 apariciones).
+== (causa raíz) FALSO POSITIVO del recolector, no una fuga: la tira de 15 dígitos está dentro de `buildId`, el hash hexadecimal de 64 caracteres del bundle del worker de Temporal (workerVersion.buildId / binaryChecksum). Verificado leyendo el historial real: la tira está rodeada de letras hexadecimales, cumple Luhn y empieza en 3529 por azar; cambió al recompilar el workflow, por eso E7 pasaba antes. Ningún payload (entradas, resultados, memo, cabeceras, fallos) la contiene.
+   Corrección: e2e/lib/sensitive-sources.ts → historyText() excluye SOLO las claves de identidad del worker (buildId, binaryChecksum); los payloads se leen enteros. Prueba nueva e2e/lib/sensitive-sources.spec.ts (3): correcto (PAN sintético en un payload se encuentra), límite (tira con forma de tarjeta en buildId no se reporta; el detector sin el filtro SÍ la marcaba), inválido (el mismo número en otro campo SÍ se reporta).
+   Re-verificación: sensitive-sources.spec + pan-scan.spec 16/16; e2e/flows/e7.e2e.ts 6/6 exit 0; yarn e2e:typecheck exit 0; yarn lint exit 0.
+== pay-connectors (repetición con OpenBao y Svix arriba) test exit 0
+Test Suites: 34 passed, 34 total
+Tests:       23 todo, 918 passed, 941 total
+== pay-connectors repetición FIN
+== pay-webhooks (repetición con OpenBao y Svix arriba) test exit 0
+Test Suites: 25 passed, 25 total
+Tests:       616 passed, 616 total
+== pay-webhooks repetición FIN
+RERUN-DONE

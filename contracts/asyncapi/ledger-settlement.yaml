@@ -1,0 +1,1299 @@
+# Eventos de pay-ledger y pay-settlement (P2). BORRADOR `v1-draft`.
+asyncapi: 3.0.0
+info:
+  title: Eventos de pay-ledger y pay-settlement (P2)
+  version: 1.0.0-draft
+  description: |-
+    BORRADOR de la ola 0 (`v1-draft`): todavía NO está congelado. Dueño: P2 (`pay-ledger`, `pay-settlement`). Revisan los consumidores listados en cada operación.
+
+    **Sobre.** Todo evento es un CloudEvent 1.0 en modo estructurado JSON (`contracts/schemas/cloudevent.schema.json`),
+    publicado por el outbox del servicio hacia JetStream con el `id` del evento como `Nats-Msg-Id`.
+    `data` lleva SOLO ids, estados e importes (`amount_minor` en centavos, `currency`): nunca datos personales,
+    documentos, PAN, nombres ni cuentas bancarias completas (`x-pii: none`).
+
+    **Entrega: al menos una vez.** El consumidor DEBE tolerar duplicados y reordenamiento:
+    - Duplicado: el mismo `id` otra vez. Se descarta con el inbox (`processOnce`, clave `(consumidor, id)`).
+    - Reordenamiento: el orden solo se garantiza **por agregado** (mismo `subject`, publicados por un único relé).
+      Entre agregados distintos no hay orden. Un evento atrasado no puede hacer retroceder un estado terminal.
+    - Regla de decisión del consumidor ante un evento, tomando como modelo `payment-callback-machine` de la API:
+      `aplicar` (avance legítimo) · `duplicado` (reentrega del mismo hecho: no muta nada) · `obsoleto`
+      (hecho anterior ya superado: se ignora sin error) · `contradiccion` (incompatible con un estado terminal:
+      no se sobrescribe, se deja para conciliación humana).
+
+    **Publicadores:** `pay-ledger` (`source: /pay-ledger`, stream `PAY_LEDGER`, temas `pay-ledger.>`) para `ledger.*`;
+    `pay-settlement` (`source: /pay-settlement`, stream `PAY_SETTLEMENT`, temas `pay-settlement.>`) para `payout.*`, `settlement.batch.closed` y `reconciliation.exception.opened`.
+    **Consumidores (PLAN-MAESTRO §4):** P1 (`pay-webhooks`) y P5 (`pay-schedules`).
+
+    Los temas llevan el prefijo del servicio y después el `type`, por eso `ledger.transfer.posted` sale en `pay-ledger.ledger.transfer.posted`.
+    Los montos de asientos y retenciones son enteros ≥ 1; las cuentas son códigos lógicos del plan de cuentas, nunca números de cuenta bancaria.
+    **Idempotencia del ledger:** el `transfer_id`/`hold_id` se deriva de `(ledger_ref, attempt)`. Un intento rechazado quema su id (spike TigerBeetle, `id_already_failed`); el reintento sube `attempt`.
+
+    **Ids.** `transfer_id` (`tf_…`) identifica UNA pata de un asiento; el asiento es `tx_…` y la retención `hd_…` (`internal-ledger-v1.yaml`).
+    Los eventos de otros servicios que citan el asiento (`ledger_transfer_id`) usan `tx_…` o `hd_…`, no `tf_…`.
+
+    **Qué NO se publica.** La liberación `pending → available` del corte (`release`) asienta pero no publica `ledger.transfer.posted`: el
+    corte lo informa `settlement.batch.closed`.
+
+    **Nombres.** El simulador se llama `mock` (como en las APIs); `simulator` es un alias heredado que se sigue aceptando.
+servers:
+  nats:
+    host: nats.pay.internal:4222
+    protocol: nats
+    description: 'NATS JetStream (D-10). El host es un marcador: el real se define al desplegar. Streams `PAY_LEDGER`
+      (temas `pay-ledger.>`) y `PAY_SETTLEMENT` (temas `pay-settlement.>`).'
+defaultContentType: application/cloudevents+json
+channels:
+  ledgerTransferPosted:
+    address: pay-ledger.ledger.transfer.posted
+    description: Tema NATS JetStream `pay-ledger.ledger.transfer.posted`. Lo publica `pay-ledger` por outbox.
+    messages:
+      LedgerTransferPosted:
+        $ref: '#/components/messages/LedgerTransferPosted'
+  ledgerHoldCreated:
+    address: pay-ledger.ledger.hold.created
+    description: Tema NATS JetStream `pay-ledger.ledger.hold.created`. Lo publica `pay-ledger` por outbox.
+    messages:
+      LedgerHoldCreated:
+        $ref: '#/components/messages/LedgerHoldCreated'
+  ledgerHoldPosted:
+    address: pay-ledger.ledger.hold.posted
+    description: Tema NATS JetStream `pay-ledger.ledger.hold.posted`. Lo publica `pay-ledger` por outbox.
+    messages:
+      LedgerHoldPosted:
+        $ref: '#/components/messages/LedgerHoldPosted'
+  ledgerHoldVoided:
+    address: pay-ledger.ledger.hold.voided
+    description: Tema NATS JetStream `pay-ledger.ledger.hold.voided`. Lo publica `pay-ledger` por outbox.
+    messages:
+      LedgerHoldVoided:
+        $ref: '#/components/messages/LedgerHoldVoided'
+  ledgerHoldExpired:
+    address: pay-ledger.ledger.hold.expired
+    description: Tema NATS JetStream `pay-ledger.ledger.hold.expired`. Lo publica `pay-ledger` por outbox.
+    messages:
+      LedgerHoldExpired:
+        $ref: '#/components/messages/LedgerHoldExpired'
+  payoutCreated:
+    address: pay-settlement.payout.created
+    description: Tema NATS JetStream `pay-settlement.payout.created`. Lo publica `pay-settlement` por outbox.
+    messages:
+      PayoutCreated:
+        $ref: '#/components/messages/PayoutCreated'
+  payoutPaid:
+    address: pay-settlement.payout.paid
+    description: Tema NATS JetStream `pay-settlement.payout.paid`. Lo publica `pay-settlement` por outbox.
+    messages:
+      PayoutPaid:
+        $ref: '#/components/messages/PayoutPaid'
+  payoutFailed:
+    address: pay-settlement.payout.failed
+    description: Tema NATS JetStream `pay-settlement.payout.failed`. Lo publica `pay-settlement` por outbox.
+    messages:
+      PayoutFailed:
+        $ref: '#/components/messages/PayoutFailed'
+  settlementBatchClosed:
+    address: pay-settlement.settlement.batch.closed
+    description: Tema NATS JetStream `pay-settlement.settlement.batch.closed`. Lo publica `pay-settlement` por outbox.
+    messages:
+      SettlementBatchClosed:
+        $ref: '#/components/messages/SettlementBatchClosed'
+  reconciliationExceptionOpened:
+    address: pay-settlement.reconciliation.exception.opened
+    description: Tema NATS JetStream `pay-settlement.reconciliation.exception.opened`. Lo publica `pay-settlement`
+      por outbox.
+    messages:
+      ReconciliationExceptionOpened:
+        $ref: '#/components/messages/ReconciliationExceptionOpened'
+operations:
+  publishLedgerTransferPosted:
+    action: send
+    channel:
+      $ref: '#/channels/ledgerTransferPosted'
+    summary: pay-ledger publica ledger.transfer.posted
+    x-publisher: pay-ledger
+    messages:
+    - $ref: '#/channels/ledgerTransferPosted/messages/LedgerTransferPosted'
+  consumeLedgerTransferPostedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerTransferPosted'
+    summary: pay-webhooks (P1) consume ledger.transfer.posted
+    description: Sin efecto para el comercio salvo `ledger.transfer.posted` de cobros; el plan asigna el ledger
+      a P1.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.ledger.transfer.posted
+    messages:
+    - $ref: '#/channels/ledgerTransferPosted/messages/LedgerTransferPosted'
+  consumeLedgerTransferPostedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerTransferPosted'
+    summary: pay-schedules (P5) consume ledger.transfer.posted
+    description: Confirma o libera la reserva de un pago programado (`schedule:{id}:reserve`) cuando el evento es
+      una retención suya.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.ledger.transfer.posted
+    messages:
+    - $ref: '#/channels/ledgerTransferPosted/messages/LedgerTransferPosted'
+  publishLedgerHoldCreated:
+    action: send
+    channel:
+      $ref: '#/channels/ledgerHoldCreated'
+    summary: pay-ledger publica ledger.hold.created
+    x-publisher: pay-ledger
+    messages:
+    - $ref: '#/channels/ledgerHoldCreated/messages/LedgerHoldCreated'
+  consumeLedgerHoldCreatedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerHoldCreated'
+    summary: pay-webhooks (P1) consume ledger.hold.created
+    description: Sin efecto para el comercio salvo `ledger.transfer.posted` de cobros; el plan asigna el ledger
+      a P1.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.ledger.hold.created
+    messages:
+    - $ref: '#/channels/ledgerHoldCreated/messages/LedgerHoldCreated'
+  consumeLedgerHoldCreatedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerHoldCreated'
+    summary: pay-schedules (P5) consume ledger.hold.created
+    description: Confirma o libera la reserva de un pago programado (`schedule:{id}:reserve`) cuando el evento es
+      una retención suya.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.ledger.hold.created
+    messages:
+    - $ref: '#/channels/ledgerHoldCreated/messages/LedgerHoldCreated'
+  publishLedgerHoldPosted:
+    action: send
+    channel:
+      $ref: '#/channels/ledgerHoldPosted'
+    summary: pay-ledger publica ledger.hold.posted
+    x-publisher: pay-ledger
+    messages:
+    - $ref: '#/channels/ledgerHoldPosted/messages/LedgerHoldPosted'
+  consumeLedgerHoldPostedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerHoldPosted'
+    summary: pay-webhooks (P1) consume ledger.hold.posted
+    description: Sin efecto para el comercio salvo `ledger.transfer.posted` de cobros; el plan asigna el ledger
+      a P1.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.ledger.hold.posted
+    messages:
+    - $ref: '#/channels/ledgerHoldPosted/messages/LedgerHoldPosted'
+  consumeLedgerHoldPostedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerHoldPosted'
+    summary: pay-schedules (P5) consume ledger.hold.posted
+    description: Confirma o libera la reserva de un pago programado (`schedule:{id}:reserve`) cuando el evento es
+      una retención suya.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.ledger.hold.posted
+    messages:
+    - $ref: '#/channels/ledgerHoldPosted/messages/LedgerHoldPosted'
+  publishLedgerHoldVoided:
+    action: send
+    channel:
+      $ref: '#/channels/ledgerHoldVoided'
+    summary: pay-ledger publica ledger.hold.voided
+    x-publisher: pay-ledger
+    messages:
+    - $ref: '#/channels/ledgerHoldVoided/messages/LedgerHoldVoided'
+  consumeLedgerHoldVoidedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerHoldVoided'
+    summary: pay-webhooks (P1) consume ledger.hold.voided
+    description: Sin efecto para el comercio salvo `ledger.transfer.posted` de cobros; el plan asigna el ledger
+      a P1.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.ledger.hold.voided
+    messages:
+    - $ref: '#/channels/ledgerHoldVoided/messages/LedgerHoldVoided'
+  consumeLedgerHoldVoidedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerHoldVoided'
+    summary: pay-schedules (P5) consume ledger.hold.voided
+    description: Confirma o libera la reserva de un pago programado (`schedule:{id}:reserve`) cuando el evento es
+      una retención suya.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.ledger.hold.voided
+    messages:
+    - $ref: '#/channels/ledgerHoldVoided/messages/LedgerHoldVoided'
+  publishLedgerHoldExpired:
+    action: send
+    channel:
+      $ref: '#/channels/ledgerHoldExpired'
+    summary: pay-ledger publica ledger.hold.expired
+    x-publisher: pay-ledger
+    messages:
+    - $ref: '#/channels/ledgerHoldExpired/messages/LedgerHoldExpired'
+  consumeLedgerHoldExpiredByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerHoldExpired'
+    summary: pay-webhooks (P1) consume ledger.hold.expired
+    description: Sin efecto para el comercio salvo `ledger.transfer.posted` de cobros; el plan asigna el ledger
+      a P1.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.ledger.hold.expired
+    messages:
+    - $ref: '#/channels/ledgerHoldExpired/messages/LedgerHoldExpired'
+  consumeLedgerHoldExpiredByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerHoldExpired'
+    summary: pay-schedules (P5) consume ledger.hold.expired
+    description: Confirma o libera la reserva de un pago programado (`schedule:{id}:reserve`) cuando el evento es
+      una retención suya.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.ledger.hold.expired
+    messages:
+    - $ref: '#/channels/ledgerHoldExpired/messages/LedgerHoldExpired'
+  publishPayoutCreated:
+    action: send
+    channel:
+      $ref: '#/channels/payoutCreated'
+    summary: pay-settlement publica payout.created
+    x-publisher: pay-settlement
+    messages:
+    - $ref: '#/channels/payoutCreated/messages/PayoutCreated'
+  consumePayoutCreatedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/payoutCreated'
+    summary: pay-webhooks (P1) consume payout.created
+    description: Notifica la liquidación al comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.payout.created
+    messages:
+    - $ref: '#/channels/payoutCreated/messages/PayoutCreated'
+  consumePayoutCreatedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/payoutCreated'
+    summary: pay-schedules (P5) consume payout.created
+    description: Sin efecto de negocio salvo mandatos que dependen del saldo disponible tras el corte.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.payout.created
+    messages:
+    - $ref: '#/channels/payoutCreated/messages/PayoutCreated'
+  publishPayoutPaid:
+    action: send
+    channel:
+      $ref: '#/channels/payoutPaid'
+    summary: pay-settlement publica payout.paid
+    x-publisher: pay-settlement
+    messages:
+    - $ref: '#/channels/payoutPaid/messages/PayoutPaid'
+  consumePayoutPaidByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/payoutPaid'
+    summary: pay-webhooks (P1) consume payout.paid
+    description: Notifica la liquidación al comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.payout.paid
+    messages:
+    - $ref: '#/channels/payoutPaid/messages/PayoutPaid'
+  consumePayoutPaidByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/payoutPaid'
+    summary: pay-schedules (P5) consume payout.paid
+    description: Sin efecto de negocio salvo mandatos que dependen del saldo disponible tras el corte.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.payout.paid
+    messages:
+    - $ref: '#/channels/payoutPaid/messages/PayoutPaid'
+  publishPayoutFailed:
+    action: send
+    channel:
+      $ref: '#/channels/payoutFailed'
+    summary: pay-settlement publica payout.failed
+    x-publisher: pay-settlement
+    messages:
+    - $ref: '#/channels/payoutFailed/messages/PayoutFailed'
+  consumePayoutFailedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/payoutFailed'
+    summary: pay-webhooks (P1) consume payout.failed
+    description: Notifica la liquidación al comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.payout.failed
+    messages:
+    - $ref: '#/channels/payoutFailed/messages/PayoutFailed'
+  consumePayoutFailedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/payoutFailed'
+    summary: pay-schedules (P5) consume payout.failed
+    description: Sin efecto de negocio salvo mandatos que dependen del saldo disponible tras el corte.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.payout.failed
+    messages:
+    - $ref: '#/channels/payoutFailed/messages/PayoutFailed'
+  publishSettlementBatchClosed:
+    action: send
+    channel:
+      $ref: '#/channels/settlementBatchClosed'
+    summary: pay-settlement publica settlement.batch.closed
+    x-publisher: pay-settlement
+    messages:
+    - $ref: '#/channels/settlementBatchClosed/messages/SettlementBatchClosed'
+  consumeSettlementBatchClosedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/settlementBatchClosed'
+    summary: pay-webhooks (P1) consume settlement.batch.closed
+    description: Sin efecto de negocio para el comercio; el plan lo asigna a P1.
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.settlement.batch.closed
+    messages:
+    - $ref: '#/channels/settlementBatchClosed/messages/SettlementBatchClosed'
+  consumeSettlementBatchClosedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/settlementBatchClosed'
+    summary: pay-schedules (P5) consume settlement.batch.closed
+    description: Sin efecto de negocio salvo mandatos que dependen del saldo disponible tras el corte.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.settlement.batch.closed
+    messages:
+    - $ref: '#/channels/settlementBatchClosed/messages/SettlementBatchClosed'
+  publishReconciliationExceptionOpened:
+    action: send
+    channel:
+      $ref: '#/channels/reconciliationExceptionOpened'
+    summary: pay-settlement publica reconciliation.exception.opened
+    x-publisher: pay-settlement
+    messages:
+    - $ref: '#/channels/reconciliationExceptionOpened/messages/ReconciliationExceptionOpened'
+  consumeReconciliationExceptionOpenedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/reconciliationExceptionOpened'
+    summary: pay-webhooks (P1) consume reconciliation.exception.opened
+    description: Sin efecto para el comercio; el plan lo asigna a P1 (alerta operativa).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.reconciliation.exception.opened
+    messages:
+    - $ref: '#/channels/reconciliationExceptionOpened/messages/ReconciliationExceptionOpened'
+  consumeReconciliationExceptionOpenedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/reconciliationExceptionOpened'
+    summary: pay-schedules (P5) consume reconciliation.exception.opened
+    description: Sin efecto de negocio; el plan lo asigna a P5.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.reconciliation.exception.opened
+    messages:
+    - $ref: '#/channels/reconciliationExceptionOpened/messages/ReconciliationExceptionOpened'
+  consumeLedgerTransferPostedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/ledgerTransferPosted'
+    summary: pay-settlement (P2) consume ledger.transfer.posted
+    description: Un crédito a `merchant:{id}:pending` le dice qué comercios tienen ventas por liberar, sin leer la base de nadie. Ignora lo que no
+      sea de esa cuenta.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.ledger-transfer-posted
+    messages:
+    - $ref: '#/channels/ledgerTransferPosted/messages/LedgerTransferPosted'
+components:
+  messages:
+    LedgerTransferPosted:
+      name: ledger.transfer.posted
+      title: Se asentó una transferencia en el ledger
+      summary: Se asentó una transferencia en el ledger
+      description: |-
+        Se asentó una transferencia en el ledger
+
+        `merchantid` es opcional: los asientos entre cuentas de plataforma (por ejemplo `platform:fees`) no pertenecen a un comercio.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-ledger
+            type:
+              const: ledger.transfer.posted
+            subject:
+              $ref: '#/components/schemas/LedgerTransferId'
+            data:
+              $ref: '#/components/schemas/LedgerTransferPostedData'
+      examples:
+      - name: ledger.transfer.posted (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 03f27720-904f-5a37-bd11-d8243aab9df8
+          source: /pay-ledger
+          type: ledger.transfer.posted
+          subject: tf_b1kb4f86f3q8
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            transfer_id: tf_b1kb4f86f3q8
+            ledger_ref: pi_c92215200m49:capture
+            attempt: 1
+            kind: capture
+            debit_account: connector:mercantil_qr:clearing
+            credit_account: merchant:mc_5c048c31m1fb:pending
+            amount_minor: 9700
+            currency: BOB
+            posted_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    LedgerHoldCreated:
+      name: ledger.hold.created
+      title: Se creó una retención (transferencia pendiente en dos fases)
+      summary: Se creó una retención (transferencia pendiente en dos fases)
+      description: |-
+        Se creó una retención (transferencia pendiente en dos fases)
+
+        La retención reserva el monto: la segunda fase (post o void) no puede romper el invariante de saldo. Si vence sin resolverse, el monto vuelve solo (`ledger.hold.expired`).
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-ledger
+            type:
+              const: ledger.hold.created
+            subject:
+              $ref: '#/components/schemas/HoldId'
+            data:
+              $ref: '#/components/schemas/LedgerHoldCreatedData'
+      examples:
+      - name: ledger.hold.created (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 8ebf75c9-aba9-5f14-9777-3cbbd2eca202
+          source: /pay-ledger
+          type: ledger.hold.created
+          subject: hd_qq916q525259
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            hold_id: hd_qq916q525259
+            ledger_ref: po_592272mccf7m:payout
+            attempt: 1
+            account: merchant:mc_5c048c31m1fb:available
+            amount_minor: 50000
+            currency: BOB
+            expires_at: '2026-10-27T15:30:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    LedgerHoldPosted:
+      name: ledger.hold.posted
+      title: Se confirmó la retención
+      summary: Se confirmó la retención
+      description: |-
+        Se confirmó la retención
+
+        Una retención se resuelve una sola vez (post o void).
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-ledger
+            type:
+              const: ledger.hold.posted
+            subject:
+              $ref: '#/components/schemas/HoldId'
+            data:
+              $ref: '#/components/schemas/LedgerHoldPostedData'
+      examples:
+      - name: ledger.hold.posted (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 0a0cb8b5-c8bc-5424-a446-07f33628d69b
+          source: /pay-ledger
+          type: ledger.hold.posted
+          subject: hd_qq916q525259
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            hold_id: hd_qq916q525259
+            ledger_ref: po_592272mccf7m:payout
+            account: merchant:mc_5c048c31m1fb:available
+            posted_amount_minor: 50000
+            currency: BOB
+            transfer_id: tf_b1kb4f86f3q8
+            posted_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    LedgerHoldVoided:
+      name: ledger.hold.voided
+      title: Se anuló la retención y el monto volvió a la cuenta
+      summary: Se anuló la retención y el monto volvió a la cuenta
+      description: |-
+        Se anuló la retención y el monto volvió a la cuenta
+
+        Es la compensación de una saga (por ejemplo, el rail del payout falló).
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-ledger
+            type:
+              const: ledger.hold.voided
+            subject:
+              $ref: '#/components/schemas/HoldId'
+            data:
+              $ref: '#/components/schemas/LedgerHoldVoidedData'
+      examples:
+      - name: ledger.hold.voided (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 1621d6a3-f964-5ac1-8c4e-b7ebb20c2c33
+          source: /pay-ledger
+          type: ledger.hold.voided
+          subject: hd_qq916q525259
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            hold_id: hd_qq916q525259
+            ledger_ref: po_592272mccf7m:payout
+            account: merchant:mc_5c048c31m1fb:available
+            amount_minor: 50000
+            currency: BOB
+            reason: downstream_failed
+            voided_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    LedgerHoldExpired:
+      name: ledger.hold.expired
+      title: La retención venció sin resolverse y el monto volvió a la cuenta
+      summary: La retención venció sin resolverse y el monto volvió a la cuenta
+      description: La retención venció sin resolverse y el monto volvió a la cuenta
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-ledger
+            type:
+              const: ledger.hold.expired
+            subject:
+              $ref: '#/components/schemas/HoldId'
+            data:
+              $ref: '#/components/schemas/LedgerHoldExpiredData'
+      examples:
+      - name: ledger.hold.expired (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: c7e3a43c-099a-5f90-b20e-37335dd931d6
+          source: /pay-ledger
+          type: ledger.hold.expired
+          subject: hd_qq916q525259
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            hold_id: hd_qq916q525259
+            ledger_ref: po_592272mccf7m:payout
+            account: merchant:mc_5c048c31m1fb:available
+            amount_minor: 50000
+            currency: BOB
+            expired_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    PayoutCreated:
+      name: payout.created
+      title: Se creó una liquidación al comercio
+      summary: Se creó una liquidación al comercio
+      description: |-
+        Se creó una liquidación al comercio
+
+        Se emite una sola vez por `(comercio, periodo)` aunque el job de corte corra dos veces.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-settlement
+            type:
+              const: payout.created
+            subject:
+              $ref: '#/components/schemas/PayoutId'
+            data:
+              $ref: '#/components/schemas/PayoutCreatedData'
+      examples:
+      - name: payout.created (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 3ba4146a-98d9-5a64-9d7e-dfe4feb50243
+          source: /pay-settlement
+          type: payout.created
+          subject: po_592272mccf7m
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payout_id: po_592272mccf7m
+            merchant_id: mc_5c048c31m1fb
+            settlement_batch_id: sb_fqk8676065fb
+            amount_minor: 50000
+            currency: BOB
+            status: pending
+            period_from: '2026-10-19T00:00:00.000Z'
+            period_to: '2026-10-26T00:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    PayoutPaid:
+      name: payout.paid
+      title: La liquidación se pagó al comercio
+      summary: La liquidación se pagó al comercio
+      description: |-
+        La liquidación se pagó al comercio
+
+        Estado terminal. El estado público `in_transit` no tiene evento propio.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-settlement
+            type:
+              const: payout.paid
+            subject:
+              $ref: '#/components/schemas/PayoutId'
+            data:
+              $ref: '#/components/schemas/PayoutPaidData'
+      examples:
+      - name: payout.paid (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 3ea2ea81-c6f0-5f72-afab-61ab499f8ee2
+          source: /pay-settlement
+          type: payout.paid
+          subject: po_592272mccf7m
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payout_id: po_592272mccf7m
+            merchant_id: mc_5c048c31m1fb
+            amount_minor: 50000
+            currency: BOB
+            status: paid
+            paid_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    PayoutFailed:
+      name: payout.failed
+      title: La liquidación falló; la retención se anuló y el saldo quedó intacto
+      summary: La liquidación falló; la retención se anuló y el saldo quedó intacto
+      description: |-
+        La liquidación falló; la retención se anuló y el saldo quedó intacto
+
+        Estado terminal. Va acompañado de `ledger.hold.voided`.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-settlement
+            type:
+              const: payout.failed
+            subject:
+              $ref: '#/components/schemas/PayoutId'
+            data:
+              $ref: '#/components/schemas/PayoutFailedData'
+      examples:
+      - name: payout.failed (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 8ddc80fe-712e-5345-93c9-622fa04c442e
+          source: /pay-settlement
+          type: payout.failed
+          subject: po_592272mccf7m
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payout_id: po_592272mccf7m
+            merchant_id: mc_5c048c31m1fb
+            amount_minor: 50000
+            currency: BOB
+            status: failed
+            failure_code: connector_unavailable
+            failed_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    SettlementBatchClosed:
+      name: settlement.batch.closed
+      title: 'Se cerró el corte semanal de liquidación (D-19: lunes, T+7)'
+      summary: 'Se cerró el corte semanal de liquidación (D-19: lunes, T+7)'
+      description: |-
+        Se cerró el corte semanal de liquidación (D-19: lunes, T+7)
+
+        Agregado de la plataforma: no lleva `merchantid`.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-settlement
+            type:
+              const: settlement.batch.closed
+            subject:
+              $ref: '#/components/schemas/SettlementBatchId'
+            data:
+              $ref: '#/components/schemas/SettlementBatchClosedData'
+      examples:
+      - name: settlement.batch.closed (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: fde5b37c-1045-53d3-bf2d-d3181411b1e5
+          source: /pay-settlement
+          type: settlement.batch.closed
+          subject: sb_fqk8676065fb
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            settlement_batch_id: sb_fqk8676065fb
+            period_from: '2026-10-19T00:00:00.000Z'
+            period_to: '2026-10-26T00:00:00.000Z'
+            currency: BOB
+            merchants_count: 12
+            payouts_count: 11
+            released_minor: 1250000
+            closed_at: '2026-10-27T15:00:00.000Z'
+    ReconciliationExceptionOpened:
+      name: reconciliation.exception.opened
+      title: La conciliación encontró una diferencia; el ledger NO se ajusta solo
+      summary: La conciliación encontró una diferencia; el ledger NO se ajusta solo
+      description: |-
+        La conciliación encontró una diferencia; el ledger NO se ajusta solo
+
+        `merchantid` es opcional: una línea del extracto sin cobro asociado no tiene comercio.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          properties:
+            source:
+              const: /pay-settlement
+            type:
+              const: reconciliation.exception.opened
+            subject:
+              $ref: '#/components/schemas/ReconciliationExceptionId'
+            data:
+              $ref: '#/components/schemas/ReconciliationExceptionOpenedData'
+      examples:
+      - name: reconciliation.exception.opened (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 31e94e3b-298f-58f2-abb4-aefc44ce0b05
+          source: /pay-settlement
+          type: reconciliation.exception.opened
+          subject: rx_m12m943b3085
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            exception_id: rx_m12m943b3085
+            connector: mercantil_qr
+            kind: amount_mismatch
+            difference_minor: -50
+            currency: BOB
+            payment_intent_id: pi_c92215200m49
+            statement_line_ref: extracto-2026-10-26#linea-17
+            opened_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+  schemas:
+    AmountMinor:
+      $ref: ../openapi/common.yaml#/components/schemas/AmountMinor
+    Currency:
+      $ref: ../openapi/common.yaml#/components/schemas/Currency
+    Timestamp:
+      $ref: ../openapi/common.yaml#/components/schemas/Timestamp
+    MerchantId:
+      type: string
+      pattern: ^mc_[a-z0-9]{10,40}$
+    PaymentIntentId:
+      type: string
+      pattern: ^pi_[a-z0-9]{10,40}$
+    LedgerTransferId:
+      type: string
+      pattern: ^tf_[a-z0-9]{10,40}$
+      description: Id de una PATA asentada en pay-ledger (se deriva del asiento `tx_…` o de la retención `hd_…` y del índice de la pata; un
+        asiento de N patas publica N eventos con N ids distintos).
+    HoldId:
+      type: string
+      pattern: ^hd_[a-z0-9]{10,40}$
+    PayoutId:
+      type: string
+      pattern: ^po_[a-z0-9]{10,40}$
+    SettlementBatchId:
+      type: string
+      pattern: ^sb_[a-z0-9]{10,40}$
+    ReconciliationExceptionId:
+      type: string
+      pattern: ^rx_[a-z0-9]{10,40}$
+    ConnectorCode:
+      type: string
+      enum:
+      - mock
+      - simulator
+      - mercantil_qr
+      - mercantil_card
+      - bank_transfer
+      description: Conector (D-16). `mock` es el simulador, con el mismo nombre que en las APIs; `simulator` es un alias heredado que se sigue
+        aceptando mientras los productores migran. Un banco nuevo agrega un valor; no se renombran los existentes.
+    LedgerAccount:
+      type: string
+      pattern: ^(merchant|user|platform|connector|payout|schedule):[a-z0-9_.-]+(:[a-z_]+)?$|^platform:[a-z_]+$
+      description: Código lógico de cuenta del plan de cuentas (PLAN-MAESTRO §3.3). Solo ids, nunca números de cuenta
+        bancaria.
+    LedgerTransferPostedData:
+      type: object
+      additionalProperties: false
+      required:
+      - transfer_id
+      - ledger_ref
+      - attempt
+      - kind
+      - debit_account
+      - credit_account
+      - amount_minor
+      - currency
+      - posted_at
+      properties:
+        transfer_id:
+          $ref: '#/components/schemas/LedgerTransferId'
+        ledger_ref:
+          type: string
+          minLength: 3
+          maxLength: 120
+          description: Referencia de negocio estable (por ejemplo `pi_xxx:capture`). Junto con `attempt` determina
+            el id de 128 bits en TigerBeetle.
+        attempt:
+          type: integer
+          minimum: 1
+          description: 'Intento del ledger. Una transferencia RECHAZADA no se puede reintentar con el mismo id (`id_already_failed`,
+            spike TigerBeetle): el reintento usa attempt + 1.'
+        kind:
+          type: string
+          description: Tipo de movimiento (`code` de la pata en `internal-ledger-v1.yaml`). `release` (liberación `pending → available`) no tiene
+            `kind` porque no se publica.
+          enum:
+          - capture
+          - fee
+          - refund
+          - payout
+          - dispute
+          - wallet
+          - commission
+          - scheduled_payment
+          - adjustment
+        debit_account:
+          $ref: '#/components/schemas/LedgerAccount'
+        credit_account:
+          $ref: '#/components/schemas/LedgerAccount'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        posted_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se asentó una transferencia en el ledger
+    LedgerHoldCreatedData:
+      type: object
+      additionalProperties: false
+      required:
+      - hold_id
+      - ledger_ref
+      - attempt
+      - account
+      - amount_minor
+      - currency
+      - expires_at
+      properties:
+        hold_id:
+          $ref: '#/components/schemas/HoldId'
+        ledger_ref:
+          type: string
+          minLength: 3
+          maxLength: 120
+        attempt:
+          type: integer
+          minimum: 1
+        account:
+          $ref: '#/components/schemas/LedgerAccount'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        expires_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se creó una retención (transferencia pendiente en dos fases)
+    LedgerHoldPostedData:
+      type: object
+      additionalProperties: false
+      required:
+      - hold_id
+      - ledger_ref
+      - account
+      - posted_amount_minor
+      - currency
+      - transfer_id
+      - posted_at
+      properties:
+        hold_id:
+          $ref: '#/components/schemas/HoldId'
+        ledger_ref:
+          type: string
+          minLength: 3
+          maxLength: 120
+        account:
+          $ref: '#/components/schemas/LedgerAccount'
+        posted_amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        transfer_id:
+          $ref: '#/components/schemas/LedgerTransferId'
+        posted_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se confirmó la retención
+    LedgerHoldVoidedData:
+      type: object
+      additionalProperties: false
+      required:
+      - hold_id
+      - ledger_ref
+      - account
+      - amount_minor
+      - currency
+      - reason
+      - voided_at
+      properties:
+        hold_id:
+          $ref: '#/components/schemas/HoldId'
+        ledger_ref:
+          type: string
+          minLength: 3
+          maxLength: 120
+        account:
+          $ref: '#/components/schemas/LedgerAccount'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        reason:
+          type: string
+          enum:
+          - requested
+          - downstream_failed
+        voided_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se anuló la retención y el monto volvió a la cuenta
+    LedgerHoldExpiredData:
+      type: object
+      additionalProperties: false
+      required:
+      - hold_id
+      - ledger_ref
+      - account
+      - amount_minor
+      - currency
+      - expired_at
+      properties:
+        hold_id:
+          $ref: '#/components/schemas/HoldId'
+        ledger_ref:
+          type: string
+          minLength: 3
+          maxLength: 120
+        account:
+          $ref: '#/components/schemas/LedgerAccount'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        expired_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: La retención venció sin resolverse y el monto volvió a la cuenta
+    PayoutCreatedData:
+      type: object
+      additionalProperties: false
+      required:
+      - payout_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - status
+      - period_from
+      - period_to
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        payout_id:
+          $ref: '#/components/schemas/PayoutId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        settlement_batch_id:
+          description: Corte del que nace el pago. Ausente en un pago suelto (`manual`, `mandate_obligation`, `mandate_commission`).
+          $ref: '#/components/schemas/SettlementBatchId'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          const: pending
+        period_from:
+          $ref: '#/components/schemas/Timestamp'
+        period_to:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se creó una liquidación al comercio
+    PayoutPaidData:
+      type: object
+      additionalProperties: false
+      required:
+      - payout_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - status
+      - paid_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        payout_id:
+          $ref: '#/components/schemas/PayoutId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          const: paid
+        paid_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: La liquidación se pagó al comercio
+    PayoutFailedData:
+      type: object
+      additionalProperties: false
+      required:
+      - payout_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - status
+      - failure_code
+      - failed_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        payout_id:
+          $ref: '#/components/schemas/PayoutId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          - minimum: 1
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          const: failed
+        failure_code:
+          type: string
+          enum:
+          - insufficient_funds
+          - connector_unavailable
+          - ledger_unavailable
+          - rail_rejected
+          - internal_error
+        failed_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: La liquidación falló; la retención se anuló y el saldo quedó intacto
+    SettlementBatchClosedData:
+      type: object
+      additionalProperties: false
+      required:
+      - settlement_batch_id
+      - period_from
+      - period_to
+      - currency
+      - merchants_count
+      - payouts_count
+      - released_minor
+      - closed_at
+      properties:
+        settlement_batch_id:
+          $ref: '#/components/schemas/SettlementBatchId'
+        period_from:
+          $ref: '#/components/schemas/Timestamp'
+        period_to:
+          $ref: '#/components/schemas/Timestamp'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        merchants_count:
+          type: integer
+          minimum: 0
+        payouts_count:
+          type: integer
+          minimum: 0
+        released_minor:
+          allOf:
+          - $ref: '#/components/schemas/AmountMinor'
+          description: Total que pasó de pendiente a disponible en este corte.
+        closed_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: 'Se cerró el corte semanal de liquidación (D-19: lunes, T+7)'
+    ReconciliationExceptionOpenedData:
+      type: object
+      additionalProperties: false
+      required:
+      - exception_id
+      - connector
+      - kind
+      - difference_minor
+      - currency
+      - statement_line_ref
+      - opened_at
+      properties:
+        exception_id:
+          $ref: '#/components/schemas/ReconciliationExceptionId'
+        connector:
+          $ref: '#/components/schemas/ConnectorCode'
+        kind:
+          type: string
+          enum:
+          - missing_in_ledger
+          - missing_in_statement
+          - amount_mismatch
+          - duplicate_in_statement
+          - unknown_reference
+        difference_minor:
+          type: integer
+          description: Extracto menos ledger, en centavos; con signo.
+        currency:
+          $ref: '#/components/schemas/Currency'
+        payment_intent_id:
+          oneOf:
+          - $ref: '#/components/schemas/PaymentIntentId'
+          - type: 'null'
+        statement_line_ref:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Referencia opaca a la línea del extracto; nunca el texto de la línea.
+        opened_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: La conciliación encontró una diferencia; el ledger NO se ajusta solo
+    Mode:
+      type: string
+      enum:
+      - test
+      - live
+      description: Modo de la CLAVE que originó el hecho (D-28). Opcional mientras el productor no lo implemente (ola 2); los
+        eventos públicos lo llevan para que un consumidor distinga un hecho `test` de uno `live`. No es el modo del despliegue
+        (`sandbox|live`).

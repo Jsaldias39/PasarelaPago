@@ -1,0 +1,31 @@
+$ scripts/vendor-model-sql.sh --check
+modelo: /home/user/pasarelapago/../mantra-core-health-model @ af60b79
+PASS  pay-ledger: sql/ddl.sql coincide con el modelo (282 líneas)
+PASS  pay-settlement: sql/ddl.sql coincide con el modelo (463 líneas)
+exit=0
+
+$ MODEL_REPO=/nonexistent scripts/vendor-model-sql.sh --check   (el repo hermano no existe: no falla)
+SKIP  no hay repo del modelo en /nonexistent: no se puede comparar (no es un fallo)
+exit=0
+
+$ control negativo: se altera una línea de la copia y --check debe fallar
+modelo: /home/user/pasarelapago/../mantra-core-health-model @ af60b79
+FALLA pay-ledger: sql/ddl.sql difiere del modelo (o no existe): corré scripts/vendor-model-sql.sh
+PASS  pay-settlement: sql/ddl.sql coincide con el modelo (463 líneas)
+exit=1
+
+$ scripts/vendor-model-sql.sh --check   (tras restaurar)
+modelo: /home/user/pasarelapago/../mantra-core-health-model @ af60b79
+PASS  pay-ledger: sql/ddl.sql coincide con el modelo (282 líneas)
+PASS  pay-settlement: sql/ddl.sql coincide con el modelo (463 líneas)
+exit=0
+
+$ git -C ../mantra-core-health-model log --oneline -1
+af60b79 fix(modelo): TRUNCATE guardado, FKs de ledger_holds y monotonía de connector_charges en pay_* (revisión de seguridad)
+
+$ head -2 services/pay-ledger/sql/ddl.sql  (cabecera «generado, NO editar a mano»)
+-- SALUD v4.0.10 · perfil pay · base pay_ledger · DDL completo en orden (generado de diagram_72_pay_ledger.puml)
+-- Archivo SQL plano, apto para `pool.query(readFileSync(...))`. NO editar a mano.
+  282 services/pay-ledger/sql/ddl.sql
+  463 services/pay-settlement/sql/ddl.sql
+  745 total

@@ -1,0 +1,127 @@
+# 3a-autorizacion-connectors
+$ (cd services/pay-connectors && yarn test --maxWorkers=2 test/security.spec.ts test/pay-mode.spec.ts --verbose --reporters default)
+
+(node:31765) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:31766) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/security.spec.ts
+  REQ-P4-6 — ni credenciales del conector ni datos del pagador en logs, eventos, errores ni base
+    ✓ tras un recorrido completo (cobros, callbacks buenos y malos, reembolso, extracto, salud, poller) no aparece ningún dato sensible (856 ms)
+    ✓ el id de petición viaja en errores y respuestas para cruzarlo con el cliente, sin datos del pagador (7 ms)
+
+PASS test/pay-mode.spec.ts (6.797 s)
+  parsePayMode y modo de despliegue (nivel unitario: correcto, límite, inválido)
+    ✓ correcto: test y live (142 ms)
+    ✓ inválido (undefined) ⇒ 403 forbidden, jamás un valor por defecto (54 ms)
+    ✓ inválido ("") ⇒ 403 forbidden, jamás un valor por defecto (37 ms)
+    ✓ inválido (" test") ⇒ 403 forbidden, jamás un valor por defecto (55 ms)
+    ✓ inválido ("test ") ⇒ 403 forbidden, jamás un valor por defecto (37 ms)
+    ✓ inválido ("TEST") ⇒ 403 forbidden, jamás un valor por defecto (14 ms)
+    ✓ inválido ("Live") ⇒ 403 forbidden, jamás un valor por defecto (23 ms)
+    ✓ inválido ("test,live") ⇒ 403 forbidden, jamás un valor por defecto (31 ms)
+    ✓ inválido ("sandbox") ⇒ 403 forbidden, jamás un valor por defecto (47 ms)
+    ✓ inválido ("prod") ⇒ 403 forbidden, jamás un valor por defecto (60 ms)
+    ✓ inválido ("production") ⇒ 403 forbidden, jamás un valor por defecto (18 ms)
+    ✓ inválido ("1") ⇒ 403 forbidden, jamás un valor por defecto (42 ms)
+    ✓ inválido ("null") ⇒ 403 forbidden, jamás un valor por defecto (15 ms)
+    ✓ inválido (["test"]) ⇒ 403 forbidden, jamás un valor por defecto (23 ms)
+    ✓ inválido (["test", "live"]) ⇒ 403 forbidden, jamás un valor por defecto (44 ms)
+  las 8 operaciones exigen X-Pay-Mode ∈ {test, live}
+    ✓ el modo no se toma del cuerpo ni de la consulta (23 ms)
+    POST /charges
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (251 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (77 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (48 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (26 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (27 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (19 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 forbidden y SIN efecto (nunca se cae en live) (25 ms)
+      ✓ `test` contra un despliegue sandbox pasa la compuerta de modo (no es 403) (202 ms)
+    GET /charges/{id}
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (34 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (23 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (23 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (21 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (25 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (67 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 forbidden y SIN efecto (nunca se cae en live) (42 ms)
+      ✓ `test` contra un despliegue sandbox pasa la compuerta de modo (no es 403) (44 ms)
+    GET /charges/{id}/status
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (36 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (23 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (37 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (32 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (20 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (18 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 forbidden y SIN efecto (nunca se cae en live) (23 ms)
+      ✓ `test` contra un despliegue sandbox pasa la compuerta de modo (no es 403) (13 ms)
+    POST /charges/{id}/cancel
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (21 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (20 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (22 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (19 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (15 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (37 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 forbidden y SIN efecto (nunca se cae en live) (22 ms)
+      ✓ `test` contra un despliegue sandbox pasa la compuerta de modo (no es 403) (14 ms)
+    POST /charges/{id}/refunds
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (16 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (18 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (142 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (25 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (24 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (27 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 forbidden y SIN efecto (nunca se cae en live) (19 ms)
+      ✓ `test` contra un despliegue sandbox pasa la compuerta de modo (no es 403) (27 ms)
+    GET /refunds/{id}
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (19 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (19 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (43 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (21 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (17 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (20 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 forbidden y SIN efecto (nunca se cae en live) (23 ms)
+      ✓ `test` contra un despliegue sandbox pasa la compuerta de modo (no es 403) (20 ms)
+    POST /transfers
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (17 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (19 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (31 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (22 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (19 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (41 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 forbidden y SIN efecto (nunca se cae en live) (29 ms)
+      ✓ `test` contra un despliegue sandbox pasa la compuerta de modo (no es 403) (67 ms)
+    GET /transfers/{reference}
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (14 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (14 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (14 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (16 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (16 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (13 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 forbidden y SIN efecto (nunca se cae en live) (20 ms)
+      ✓ `test` contra un despliegue sandbox pasa la compuerta de modo (no es 403) (12 ms)
+  extractos y salud: el contrato declara el modo opcional
+    ✓ ausente ⇒ funciona; inválido o de otro despliegue ⇒ 403 (49 ms)
+  despliegue live: el modo de la petición tiene que ser live
+    ✓ `test` contra un despliegue live ⇒ 403 en las 8 operaciones y sin efecto; `live` pasa la compuerta (390 ms)
+  el modo del pedido se guarda y filtra TODA lectura por (id, modo)
+    ✓ un id (cobro, reembolso, transferencia) del OTRO modo da 404, igual que uno inexistente; el control del mismo modo sí se lee (108 ms)
+    ✓ cada registro guarda el modo de SU pedido (cobro, reembolso, transferencia) y el del conector va aparte (122 ms)
+    ✓ la base impide combinar una clave `live` con un conector `sandbox` (y al revés) (46 ms)
+    ✓ el ruteo solo ofrece conectores del modo de la clave: `live` no llega a `mock` (28 ms)
+    ✓ una transferencia `live` hacia un conector `mock` ⇒ 403 aunque se salte la compuerta HTTP, y sin efecto (86 ms)
+  la misma Idempotency-Key en test y en live son dos operaciones distintas
+    ✓ la clave se guarda por (llamador, modo) (59 ms)
+    ✓ la base admite la misma (caller, idempotency_key) en los dos modos y rechaza repetirla dentro de uno (25 ms)
+  los callbacks no traen X-Pay-Mode: el modo sale del registro del cobro
+    ✓ un callback de un cobro `test` con la cabecera `X-Pay-Mode: live` la ignora: se aplica y queda con el modo del cobro (90 ms)
+    ✓ un callback de un cobro `live` (registro) queda con modo `live` aunque no traiga cabecera, y uno de una referencia ajena queda sin modo (56 ms)
+    ✓ el callback sigue siendo público y sin identidad ni modo: su autenticación es la firma (60 ms)
+
+Test Suites: 2 passed, 2 total
+Tests:       94 passed, 94 total
+Snapshots:   0 total
+Time:        7.275 s
+Ran all test suites matching test/security.spec.ts|test/pay-mode.spec.ts.
+exit=0

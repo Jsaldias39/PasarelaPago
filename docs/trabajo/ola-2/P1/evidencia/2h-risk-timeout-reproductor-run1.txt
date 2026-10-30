@@ -1,0 +1,22 @@
+FAIL e2e/pending/risk-timeout.e2e.ts (65.372 s)
+  ● REPRODUCTOR — timeout del cliente de riesgo + 409 idempotency_request_in_progress › un cobro cuya primera evaluación de riesgo vence en el cliente NO queda en processing para siempre
+
+    No se cumplió «el intento pi_637f20781960c34f769b8a45 llega a un estado terminal» en 30000 ms; último valor: {"id":"pi_637f20781960c34f769b8a45","object":"payment_intent","amount_minor":10000,"currency":"BOB","status":"processing","payment_method_type":"qr","fee_minor":300,"net_minor":9700,"last_error":null,"metadata":{},"created_at":"2026-10-28T00:54:30.187Z","expires_at":"2026-10-28T01:54:30.182Z","succeeded_at":null}
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+          at async Promise.all (index 1)
+      at Object.<anonymous> (e2e/pending/risk-timeout.e2e.ts:34:21)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        65.564 s
+Ran all test suites matching e2e/pending/risk-timeout.

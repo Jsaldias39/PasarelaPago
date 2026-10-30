@@ -1,0 +1,229 @@
+{
+  "result": {
+    "config": {
+      "baseUrl": "http://127.0.0.1:38533",
+      "peakRps": 25,
+      "rampSeconds": 60,
+      "durationSeconds": 300,
+      "amounts": [
+        10000
+      ],
+      "duplicateFraction": 0.02,
+      "requestTimeoutMs": 30000,
+      "settleTimeoutSeconds": 120,
+      "pollConcurrency": 25,
+      "maxInFlight": 1500,
+      "runId": "659fc34d",
+      "keys": 3
+    },
+    "planned": 6750,
+    "sent": 6876,
+    "answered": 6876,
+    "byStatus": {
+      "201": 6876
+    },
+    "byErrorCode": {},
+    "status5xx": 0,
+    "status4xx": 0,
+    "status429": 0,
+    "noResponse": 0,
+    "runnerDropped": 0,
+    "createLatencyMs": {
+      "n": 6876,
+      "min": 233.5517260000015,
+      "p50": 9509.855255999995,
+      "p95": 10294.575370000006,
+      "p99": 10666.073158,
+      "max": 11396.265895999997,
+      "mean": 9395.330880191406
+    },
+    "sendLagMs": {
+      "n": 6750,
+      "min": 0,
+      "p50": 0,
+      "p95": 5.896868999989238,
+      "p99": 25.079097999987425,
+      "max": 133.23599299998023,
+      "mean": 1.250445606515413
+    },
+    "created": 6750,
+    "terminalByStatus": {
+      "succeeded": 1391,
+      "failed": 75
+    },
+    "failedByCode": {
+      "risk_denied": 75
+    },
+    "stuck": 5284,
+    "stuckSample": [
+      "pi_4e4ba0526c118c81b30cf2cf",
+      "pi_b352258910254c00b613f0c1",
+      "pi_00bd9e06a52b0f51c4310877",
+      "pi_7a716c5027bbd56f1333f0cb",
+      "pi_f8af8d4e664f672ffacabd5f",
+      "pi_69a5fcc09ae655feb8e52245",
+      "pi_99ee8fe0bf2b232e526b2773",
+      "pi_612685f6a7322fa752084a52",
+      "pi_9f19fa69e9df30ed22e1cb75",
+      "pi_c502f683195c764b3c7f1eed"
+    ],
+    "timeToTerminalMs": {
+      "n": 1466,
+      "min": 78,
+      "p50": 169218,
+      "p95": 314333,
+      "p99": 318235,
+      "max": 320719,
+      "mean": 169797.56275579808
+    },
+    "idempotencyViolations": 0,
+    "startedAt": "2026-10-28T03:18:07.985Z",
+    "sendPhaseMs": 308966.86084599997,
+    "settlePhaseMs": 127456.40606499999
+  },
+  "cpu": {
+    "mode": "proc",
+    "samples": 87,
+    "perProcess": {
+      "pay-ledger": {
+        "avg": 3.880590528851447,
+        "max": 8.2
+      },
+      "pay-risk": {
+        "avg": 3.0133187031016857,
+        "max": 7.398520295940811
+      },
+      "pay-qr": {
+        "avg": 1.6693850323230695,
+        "max": 5.4
+      },
+      "pay-vault": {
+        "avg": 0.683596849638988,
+        "max": 3.8
+      },
+      "pay-merchants": {
+        "avg": 0.6835875736886226,
+        "max": 3.5999999999999996
+      },
+      "pay-webhooks": {
+        "avg": 3.3086531810303375,
+        "max": 6.3987202559488106
+      },
+      "pay-schedules": {
+        "avg": 0.6859140756566412,
+        "max": 1.4000000000000001
+      },
+      "pay-mockbank": {
+        "avg": 3.5340533547614092,
+        "max": 7.598480303939212
+      },
+      "pay-connectors": {
+        "avg": 8.161022667373818,
+        "max": 13.402680536107223
+      },
+      "pay-payments": {
+        "avg": 55.40757951263657,
+        "max": 61.5876824635073
+      },
+      "pay-settlement": {
+        "avg": 1.2601951365053332,
+        "max": 5.7976809276289485
+      },
+      "pay-edge": {
+        "avg": 25.1924005118287,
+        "max": 40.99180163967206
+      },
+      "tigerbeetle": {
+        "avg": 0.4557135842419249,
+        "max": 0.8
+      }
+    },
+    "machine": {
+      "busyAvg": 90.09484135447705,
+      "busyMax": 93.78818737270875,
+      "loadavgMax": 21.5,
+      "cores": 4
+    },
+    "top": [
+      {
+        "name": "pay-payments",
+        "avg": 55.40757951263657
+      },
+      {
+        "name": "pay-edge",
+        "avg": 25.1924005118287
+      },
+      {
+        "name": "pay-connectors",
+        "avg": 8.161022667373818
+      },
+      {
+        "name": "pay-ledger",
+        "avg": 3.880590528851447
+      },
+      {
+        "name": "pay-mockbank",
+        "avg": 3.5340533547614092
+      }
+    ]
+  },
+  "ledger": {
+    "doubleEntries": 0,
+    "missingEntries": 0,
+    "amountMismatches": 0,
+    "checkedIntents": 1391,
+    "linesRead": 1508
+  },
+  "evaluation": {
+    "verdict": "NO_APRUEBA",
+    "checks": [
+      {
+        "name": "p99 de la creación",
+        "target": "< 2000 ms",
+        "observed": "10666 ms",
+        "result": "FALLA"
+      },
+      {
+        "name": "errores 5xx",
+        "target": "< 0.100 %",
+        "observed": "0.000 % (0 de 6876)",
+        "result": "PASA"
+      },
+      {
+        "name": "intentos colgados (sin estado terminal a tiempo)",
+        "target": "0",
+        "observed": "5284 de 6750",
+        "result": "FALLA"
+      },
+      {
+        "name": "doble asiento / intento duplicado",
+        "target": "0",
+        "observed": "0 asientos duplicados + 0 claves con intentos distintos",
+        "result": "PASA"
+      }
+    ],
+    "caveats": [
+      "la máquina estuvo saturada (CPU media 90 %): el resultado mide los límites de ESTA máquina, no el diseño."
+    ]
+  },
+  "measured": {
+    "sent": 6876,
+    "answered": 6876,
+    "status5xx": 0,
+    "status429": 0,
+    "noResponse": 0,
+    "runnerDropped": 0,
+    "p99Ms": 10666.073158,
+    "sendLagP99Ms": 25.079097999987425,
+    "created": 6750,
+    "stuck": 5284,
+    "doubleEntries": 0,
+    "idempotencyViolations": 0,
+    "missingEntries": 0,
+    "machineBusyPercentAvg": 90.09484135447705
+  },
+  "environment": {
+    "nproc": 4,
+    "note": "Esta máquina (4 vCPU compartidas, Postgres/NATS/Redis/Temporal/TigerBeetle/Watchman y los 12 servicios en el MISMO host) NO representa el despliegue de producción (Coolify multiservidor, T-01). El resultado sirve para encontrar cuellos de botella y errores de concurrencia, NO para certificar T-01."
+  }
+}

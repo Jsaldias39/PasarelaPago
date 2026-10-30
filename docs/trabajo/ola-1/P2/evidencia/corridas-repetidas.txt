@@ -1,0 +1,51 @@
+# Corridas repetidas de las suites completas (una suite a la vez; Postgres compartido, max_connections=100)
+
+## pay-ledger — $ TB_ADDRESS=127.0.0.1:54300 yarn test   (2 corridas consecutivas con el código final, tras la verificación de contenido de la adopción)
+run 1 exit=0
+Test Suites: 10 passed, 10 total
+Tests:       156 passed, 156 total
+Time:        12.723 s, estimated 15 s
+run 2 exit=0
+Test Suites: 10 passed, 10 total
+Tests:       156 passed, 156 total
+Time:        12.654 s, estimated 13 s
+
+## pay-settlement — $ yarn test   (2 corridas consecutivas con el código final; antes se rebuildeó pay-ledger para ledger-real.spec)
+run 1 exit=0
+Test Suites: 20 passed, 20 total
+Tests:       404 passed, 404 total
+Time:        39.853 s, estimated 44 s
+run 2 exit=0
+Test Suites: 20 passed, 20 total
+Tests:       404 passed, 404 total
+Time:        42.626 s
+
+## Fallas observadas durante el trabajo y su clase (regla: clasificar con evidencia)
+1. ENVIRONMENT — pay-ledger, corrida con 79 fallas y otra con 5: `53300 too many connections` / «remaining connection slots are reserved for roles with the
+   SUPERUSER attribute». Evidencia: `pg_stat_activity` mostraba ~50 conexiones de suites de otros carriles corriendo a la vez (pay_merchants, pay_payments…). Se
+   bajó `maxWorkers` a 2 en los dos servicios; las 3 corridas siguientes pasaron 116/116 sin otro cambio.
+2. PRODUCT_BUG (regresión introducida por mí, no un defecto de la prueba) — pay-ledger `ids.spec.ts › plan de cuentas › merchant:…:pending → merchant_pending
+   (… no negativo: true)`, determinista (1/119 en 5 corridas). Causa demostrada: había dejado `merchant:*:pending` sin invariante de no-negativo para que el
+   contracargo de P3 pudiera dejarlo negativo; la aserción original (`limited: true`) tenía razón y la revisión de seguridad también: sin el invariante cualquier débito o
+   liberación podía crear dinero. Corregido en el código y la aserción original quedó INTACTA: `pending` vuelve a ser no-negativo (`accounts.ts`) y el exceso de un
+   contracargo va a la cuenta deudora nueva `merchant:{id}:debt` (P2-D2). El ledger parte el contracargo (`chargeback.ts`). Pruebas nuevas (`transactions.spec.ts`, describe «contracargo perdido»): monto < pendiente (una pata), = pendiente,
+   = pendiente + 1 centavo (dos patas, deuda 1), pendiente 0 (todo deuda), repetición idempotente, recuperación tras caída (se adopta lo aplicado), concurrencia (2 y 10
+   contracargos sobre el mismo pendiente: lo debitado de `pending` nunca lo supera y pending + deuda iguala los montos), inválido (7 códigos y 2 destinos rechazados al
+   intentar dejar `pending` en negativo, liberación de más rechazada, deuda que no se paga de más, permisos) y `batch.spec.ts` (6: neteo de la deuda en el corte, incluido tres cortes sin doble descuento).
+3. PRODUCT_BUG (hallado por prueba nueva, corregido) — pay-settlement `batch.service.ts`: reanudar un corte con el pago ya retenido intentaba insertar un payout
+   de monto 0 (CHECK `amount_minor >= 1`). La prueba nueva `el ledger retiene el pago del corte pero la respuesta se perdió…` FALLÓ sin el arreglo y pasa con él.
+4. PRODUCT_BUG (hallado por prueba nueva, corregido) — pay-settlement `statement-parsers.ts`: un camt.053 truncado se aceptaba (el parser de XML es permisivo)
+   y una fecha inválida lanzaba RangeError dejando la corrida en `running`. Corregido con `XMLValidator`, `Date.parse` + rango y mapeo a `StatementMalformedError`.
+5. PRODUCT_BUG latente (hallado por la prueba de recuperación del contracargo, corregido) — pay-ledger `ledger.service.ts`: reintentar un asiento de VARIAS patas que TigerBeetle ya
+   había aplicado daba 500: en un lote enlazado un `exists` hace fallar la cadena (`linked_event_failed` en las demás). Ahora se verifica por id que están todas las patas y se
+   lo trata como repetición. Prueba: `un asiento de varias patas ya aplicado por TigerBeetle … también se retoma sin duplicar`.
+6. PRODUCT_BUG (hallazgo de seguridad MEDIUM del coordinador, corregido) — pay-ledger `ledger.service.ts` / `chargeback.ts`: en un lote enlazado con estados mezclados
+   `exists`/`linked_event_failed` se adoptaba TODO como «ya aplicado» solo por contar ids encontrados, sin comparar contenido: reutilizar el mismo (business_ref, attempt) con otro
+   monto/destino/código habría devuelto éxito sin mover dinero. Ahora `sameTransfer` (tb-engine.ts) compara id, cuenta débito, cuenta crédito, monto, ledger, código y flags de
+   CADA transferencia; solo si todas coinciden se adopta; si no, responde `422 idempotency_key_reused` (código del catálogo @pay/problem, el mismo que el servicio ya
+   devuelve cuando el hash del contenido difiere; el contrato lo declara para POST /transactions 422). `planLegs` exige además que cada mitad adoptada coincida con la
+   pata pedida (cuentas, ledger BOB, código adjustment) y `prior.main + prior.debt === bruto`; si no, mismo rechazo. Los estados `exists_with_different_*` también dan el mismo 422
+   (también en holds). Pruebas (`transactions.spec.ts`, describe «reutilizar (business_ref, attempt) con OTRO contenido tras una caída…» y `holds.spec.ts`):
+   correcto = reintento idéntico tras caída adopta; límite = +1 centavo en la 1.ª y en la 2.ª pata, destino distinto, código distinto, origen distinto, menos/más patas, solo una de
+   las dos patas aplicada, contracargo partido con bruto 151/149, otro clearing, solo una mitad, cuenta de otro comercio; inválido = en todos esos casos 422, 0 filas en
+   ledger_transactions/ledger_legs y saldos sin cambio (nunca éxito, nunca mueve dinero).

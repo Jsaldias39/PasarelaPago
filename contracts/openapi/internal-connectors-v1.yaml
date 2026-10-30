@@ -1,0 +1,557 @@
+# Contrato INTERNO de pay-connectors. BORRADOR de la ola 0 (`v1-draft`): no está congelado.
+openapi: 3.1.0
+info:
+  title: pay-connectors — API interna v1
+  version: 1.0.0-draft
+  description: |
+    Un adaptador por proveedor detrás de una sola interfaz (`Connector`), ruteo por reglas y recepción de callbacks.
+
+    - **Expone:** P4 (`pay-connectors`).
+    - **Consume:** `pay-payments` (P3) para cobrar, reembolsar y consultar estado; `pay-settlement` (P2) para los
+      extractos de conciliación y para ordenar payouts por el riel bancario.
+    - **Seguridad:** mTLS + `X-Service-Id` en todo salvo `callbacks`, que es público hacia el proveedor y se
+      autentica con la verificación propia de cada conector.
+
+    ## Conectores (`connector`) y modo (`mode`)
+
+    | `connector` | Qué es |
+    |---|---|
+    | `mock` | Simulador (capa sandbox). Mismas respuestas y errores que un proveedor real, sin mover dinero. |
+    | `mercantil_qr` | QR interoperable del Banco Mercantil Santa Cruz (D-16). |
+    | `mercantil_card` | Adquirencia de tarjetas del Banco Mercantil Santa Cruz (D-17). |
+    | `bank_transfer` | Transferencia bancaria conciliada por extracto (D-03). |
+
+    `mode` es `sandbox` o `live`: el modo del DESPLIEGUE (`PAY_MODE`, D-26), no el de la clave del comercio (`test|live`, D-28). Un
+    conector en `sandbox` nunca mueve dinero real; el servicio se niega a arrancar un conector `mock` si `PAY_MODE=live`.
+
+    **Un solo nombre para el simulador: `mock`.** Es el de esta API, de la base, de la configuración y de `pay-settlement`. Los eventos
+    (`connectors.yaml`, `payments.yaml`, `ledger-settlement.yaml`) aceptan además `simulator` como alias heredado mientras sus
+    productores migran; no se usa en ninguna API.
+
+    ## Identificadores
+
+    `ch_…` (cobro) y `cr_…` (reembolso) son los ids de esta API. El evento `connector.transaction.status_changed` cita la transacción
+    con ese mismo id (`ch_…` o `cr_…`); el `ct_…` histórico (el mismo cuerpo con otro prefijo) se acepta en los eventos mientras
+    `pay-connectors` migra, pero no es un recurso consultable.
+
+    ## Errores y resultado ambiguo
+
+    - `422 validation_failed` es todo cuerpo o parámetro inválido; `400` queda para `idempotency_key_required` y `bad_request`
+      (cuerpo ilegible, referencia mal formada).
+    - Esta API no responde `503`: la caída del proveedor es `502 connector_unavailable` (definitivo SOLO con ese cuerpo exacto, y
+      únicamente cuando el conector garantiza que no envió nada) y un resultado ambiguo es `500 internal_error` con la fila
+      conservada. Ni un `502` sin ese cuerpo, ni un `5xx` de un proxy, ni un `404` genérico prueban que no se ejecutó.
+
+    ## Modo (D-28)
+
+    `X-Pay-Mode: test|live` (parámetro `PayMode` de `common.yaml`) llega de `pay-payments` y `pay-settlement`. Su obligatoriedad y el
+    filtro por `(comercio, modo)` son de la ola 2.
+
+    ## Lo que NO está definido (no se inventa)
+
+    No hay documentación pública de las APIs del Banco Mercantil Santa Cruz (`docs/spikes/banco-mercantil.md`). Este contrato
+    fija **lo que `pay-connectors` promete hacia adentro**, no el formato del banco. Cómo cada adaptador habla con el banco se
+    define cuando el banco entregue su documentación (ver `x-open-question`).
+servers:
+  - url: http://pay-connectors:3000
+    description: Marcador de la red interna.
+security:
+  - mTLS: []
+tags:
+  - { name: Charges, description: Cobros y reembolsos }
+  - { name: Transfers, description: 'Transferencias SALIENTES (pagos a comercios, liquidaciones)' }
+  - { name: Statements, description: Extractos para conciliar }
+  - { name: Callbacks, description: Notificaciones del proveedor }
+  - { name: Health, description: Salud de los conectores }
+paths:
+  /charges:
+    post:
+      operationId: connectorsCreateCharge
+      tags: [Charges]
+      x-owner: P4
+      summary: Crea un cobro en el proveedor elegido por el ruteo
+      description: 'Idempotente por `Idempotency-Key`. `payment_intent_id` ata el cobro al intento. Para `card`, `card_token` es OPCIONAL (D-17: por defecto la página de pago alojada por el banco, sin token; nunca el número) y se rechaza para los demás medios; no se persiste. Para `qr` la respuesta trae el payload EMVCo MPM; para `bank_transfer`, las instrucciones con una referencia única. Un segundo cobro vivo del mismo `payment_intent_id` (pendiente, autorizado o cobrado) es `409 invalid_state_transition`. Si el resultado es ambiguo (`500 internal_error`) el cobro pudo crearse: se reintenta con la MISMA `Idempotency-Key`.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ChargeCreate' } } }
+      responses:
+        '201': { description: Cobro creado., content: { application/json: { schema: { $ref: '#/components/schemas/Charge' } } } }
+        '200': { description: Ya existía (misma Idempotency-Key)., content: { application/json: { schema: { $ref: '#/components/schemas/Charge' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '502':
+          description: '`connector_unavailable`: el proveedor no responde o ningún conector sirve para el medio. No se perdió ni se duplicó nada; el llamador reintenta o consulta el estado.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /charges/{id}:
+    get:
+      operationId: connectorsGetCharge
+      tags: [Charges]
+      x-owner: P4
+      summary: Consulta un cobro
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - $ref: '#/components/parameters/ChargeId'
+      responses:
+        '200': { description: El cobro., content: { application/json: { schema: { $ref: '#/components/schemas/Charge' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /charges/{id}/status:
+    get:
+      operationId: connectorsGetChargeStatus
+      tags: [Charges]
+      x-owner: P4
+      summary: Estado del cobro, consultado al proveedor si hace falta
+      description: 'Con `refresh=true` pregunta al proveedor (consulta de estado independiente del callback). Sirve cuando el callback no llegó. Si el proveedor no responde, devuelve el último estado conocido con `stale: true`.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - $ref: '#/components/parameters/ChargeId'
+        - { name: refresh, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200': { description: Estado del cobro., content: { application/json: { schema: { $ref: '#/components/schemas/ChargeStatus' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /charges/{id}/cancel:
+    post:
+      operationId: connectorsCancelCharge
+      tags: [Charges]
+      x-owner: P4
+      summary: Anula un cobro pendiente (por ejemplo, un QR vencido)
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - $ref: '#/components/parameters/ChargeId'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Cobro anulado., content: { application/json: { schema: { $ref: '#/components/schemas/Charge' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '409':
+          description: '`invalid_state_transition`: el cobro ya se pagó o ya terminó.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /charges/{id}/refunds:
+    post:
+      operationId: connectorsCreateRefund
+      tags: [Charges]
+      x-owner: P4
+      summary: Reembolsa total o parcialmente un cobro pagado
+      description: 'Idempotente por `Idempotency-Key`. Un resultado ambiguo (`500 internal_error`: el proveedor pudo ejecutar el reembolso) conserva la reserva del importe y se resuelve reintentando con la MISMA clave o consultando `GET /refunds/{id}`; nunca se anula la retención del ledger por esa duda.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - $ref: '#/components/parameters/ChargeId'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount_minor]
+              additionalProperties: false
+              properties:
+                amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+                reason: { type: string, maxLength: 200 }
+                refund_id: { type: string, pattern: '^re_[a-z0-9]{10,40}$', description: 'Id del reembolso en `pay-payments`. Opcional. El conector lo guarda y lo copia a `connector.transaction.status_changed.refund_id` (hoy va nulo: el conector no conoce el id de pay-payments), así el consumidor distingue varios reembolsos del mismo cobro.' }
+      responses:
+        '201': { description: Reembolso pedido al proveedor., content: { application/json: { schema: { $ref: '#/components/schemas/ConnectorRefund' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '409': { $ref: 'common.yaml#/components/responses/Conflict' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '502':
+          description: '`connector_unavailable` con ese cuerpo exacto: el conector garantiza que no envió nada, y solo entonces el llamador puede anular la retención del ledger. Cualquier otro `502` es ambiguo.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /refunds/{id}:
+    get:
+      operationId: connectorsGetRefund
+      tags: [Charges]
+      x-owner: P4
+      summary: Estado de un reembolso, consultado al proveedor si hace falta
+      description: |
+        Es la consulta autoritativa de un reembolso `pending` cuyo aviso no llegó (CLAUDE.md, regla 11): `pay-payments` no puede
+        anular la retención ni dar el reembolso por fallido mientras no sepa. Con `refresh=true` el conector pregunta al proveedor; si
+        no responde, o el conector no sabe consultar reembolsos, devuelve el último estado conocido con `stale: true`. `404` solo
+        significa que ESTE servicio no tiene ese reembolso (la fila se escribe antes de llamar al proveedor): no hay nada que consultar.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, pattern: '^cr_[a-z0-9]{10,40}$' }
+        - { name: refresh, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200': { description: El reembolso., content: { application/json: { schema: { $ref: '#/components/schemas/ConnectorRefund' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /transfers:
+    post:
+      operationId: connectorsCreateTransfer
+      tags: [Transfers]
+      x-owner: P4
+      summary: Ordena una transferencia SALIENTE (pago a un comercio)
+      description: |
+        Dinero que SALE hacia la cuenta de liquidación de un comercio (payouts; procesos 7.4 a 7.9). Solo la llama
+        `pay-settlement`.
+
+        - Idempotente por `business_ref` + `attempt`: el mismo par devuelve la misma transferencia (`200`) y nunca
+          genera un segundo pago.
+        - **Un fallo después de enviar la orden es AMBIGUO.** Un `502`, `503`, `504`, un timeout, un corte de
+          conexión o un cuerpo ilegible NO prueban que no se pagó (un proxy intermedio puede responder después de
+          que el proveedor ejecutó). Quien llama debe mantener la retención y consultar `GET /transfers/{reference}`
+          antes de decidir. Solo es un rechazo DEFINITIVO una respuesta `application/problem+json` con
+          `code: connector_unavailable` emitida por el conector, que garantiza que no se envió nada al proveedor.
+      x-open-question: >-
+        Dónde vive el registro de cuentas de liquidación de cada comercio no está definido (Q-22). Por ahora
+        `destination_ref` es una referencia opaca que el conector sabe resolver; la pasarela no mueve números de cuenta.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - $ref: 'common.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TransferCreate' } } }
+      responses:
+        '201': { description: Transferencia ordenada., content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } } }
+        '200': { description: 'Ya existía este `business_ref` + `attempt`. Misma transferencia.', content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '409':
+          description: '`invalid_state_transition`: ese `business_ref` ya tiene una transferencia pagada, o `attempt` no es el siguiente al último fallido.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '422':
+          description: '`validation_failed`, o `idempotency_key_reused` si el contenido difiere del primero con ese `attempt`.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500':
+          description: >-
+            `internal_error`. Tras un intento que pudo llegar al proveedor es un resultado AMBIGUO: la fila se conserva y se resuelve
+            con `GET /transfers/{reference}` (o repitiendo el mismo `business_ref` + `attempt`); no prueba que no se pagó.
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '502':
+          description: >-
+            Definitivo (no se ejecutó nada) SOLO si el cuerpo es problem+json con `code: connector_unavailable`. Cualquier otro
+            502 es ambiguo (ver la descripción de la operación).
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+  /transfers/{reference}:
+    get:
+      operationId: connectorsGetTransfer
+      tags: [Transfers]
+      x-owner: P4
+      summary: Estado de una transferencia saliente, por la referencia con la que se ordenó
+      description: |
+        Consulta autoritativa: el conector pregunta al proveedor. Es lo que resuelve un resultado ambiguo de
+        `POST /transfers`.
+
+        - `200`: la transferencia existe; `status` dice en qué punto está.
+        - `404` con `application/problem+json` y `code: transfer_not_found`: el conector consultó al proveedor y
+          **no hay registro**. Es la ÚNICA prueba de inexistencia. Un `404` con cualquier otro código (por ejemplo el
+          `resource_not_found` genérico de una ruta desconocida), sin cuerpo problem+json o devuelto por un proxy NO
+          prueba nada: quien llama lo trata como ambiguo y escala a una persona.
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - name: reference
+          in: path
+          required: true
+          description: '`business_ref:attempt` con el que se ordenó, por ejemplo `po_x:payout:1`.'
+          schema: { type: string, pattern: '^[A-Za-z0-9:._-]{3,200}$' }
+      responses:
+        '200': { description: La transferencia., content: { application/json: { schema: { $ref: '#/components/schemas/Transfer' } } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '404':
+          description: '`transfer_not_found` (y solo ese código) prueba que no hay registro.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /statements:
+    get:
+      operationId: connectorsGetStatement
+      tags: [Statements]
+      x-owner: P4
+      summary: Extracto de un conector para conciliar
+      description: 'Devuelve las líneas del periodo. Según `Accept`: `application/json` (por defecto), `application/xml` (camt.053) o `text/csv`. El formato en que cada banco entrega el extracto lo fija el banco; este endpoint normaliza a este contrato. La glosa del banco puede traer nombres o cuentas: `description` sale SIEMPRE `null` mientras no se revise el formato del banco.'
+      x-open-question: 'Falta confirmar con el Banco Mercantil si entrega extractos camt.053, CSV o por API, y qué campo devuelve nuestra referencia (pedidos 7 y siguientes de `docs/spikes/banco-mercantil.md`). Mientras tanto, el conector `mock` los genera.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+        - { name: connector, in: query, required: true, schema: { $ref: '#/components/schemas/Connector' } }
+        - { name: from, in: query, required: true, schema: { $ref: 'common.yaml#/components/schemas/Timestamp' } }
+        - { name: to, in: query, required: true, schema: { $ref: 'common.yaml#/components/schemas/Timestamp' } }
+        - $ref: 'common.yaml#/components/parameters/Limit'
+        - $ref: 'common.yaml#/components/parameters/StartingAfter'
+      responses:
+        '200':
+          description: Líneas del extracto, de la más nueva a la más vieja.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: 'common.yaml#/components/schemas/ListMeta'
+                  - type: object
+                    required: [data]
+                    properties: { data: { type: array, items: { $ref: '#/components/schemas/StatementLine' } } }
+            application/xml: { schema: { type: string, description: Documento ISO 20022 camt.053. } }
+            text/csv: { schema: { type: string, description: 'CSV con las mismas columnas que `StatementLine`.' } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '422': { $ref: 'common.yaml#/components/responses/Unprocessable' }
+        '502':
+          description: '`connector_unavailable`: no se pudo obtener el extracto.'
+          content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /callbacks/{connectorId}:
+    post:
+      operationId: connectorsReceiveCallback
+      tags: [Callbacks]
+      x-owner: P4
+      summary: Recibe la notificación de un proveedor
+      description: |
+        **Público hacia el proveedor** (sin mTLS). Se autentica con la verificación propia del conector
+        (`verifyCallback`: firma o credencial, endpoint registrado, ventana de tiempo).
+
+        - Firma, credencial o endpoint inválidos → **`401` sin efecto**: no se guarda el evento ni se publica nada.
+        - Válido → se decide con la máquina de estados qué significa respecto del estado conocido y se responde `200`:
+          `applied` (avance legítimo), `duplicate` (reentrega del mismo hecho), `stale` (hecho anterior ya superado,
+          por ejemplo `authorized` después de `captured`; se ignora sin retroceder) o `contradiction` (incompatible
+          con un estado terminal; no se sobrescribe y queda para conciliación humana).
+        - Siempre `200` para estos cuatro, así el proveedor no reintenta eternamente.
+      x-open-question: 'El formato del cuerpo y el mecanismo de firma del Banco Mercantil no están publicados (pedido 6 de `docs/spikes/banco-mercantil.md`). El cuerpo se declara libre y lo interpreta el adaptador de cada conector; para `mock` y el contrato de pruebas se firma con Standard Webhooks.'
+      security: []
+      parameters:
+        - { name: connectorId, in: path, required: true, schema: { $ref: '#/components/schemas/Connector' } }
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { type: object, additionalProperties: true, description: Cuerpo definido por el proveedor. } }
+          application/xml: { schema: { type: string } }
+      responses:
+        '200': { description: Notificación aceptada., content: { application/json: { schema: { $ref: '#/components/schemas/CallbackResult' } } } }
+        '400': { description: '`bad_request`: cuerpo ilegible (la firma se calcula sobre los bytes crudos).', content: { application/problem+json: { schema: { $ref: 'common.yaml#/components/schemas/Problem' } } } }
+        '401': { $ref: 'common.yaml#/components/responses/Unauthorized' }
+        '404': { $ref: 'common.yaml#/components/responses/NotFound' }
+        '429': { $ref: 'common.yaml#/components/responses/TooManyRequests' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+  /connectors/health:
+    get:
+      operationId: connectorsGetHealth
+      tags: [Health]
+      x-owner: P4
+      summary: Salud de cada conector
+      description: 'Un conector caído sale del ruteo (REQ-P4-3). `degraded` (fallos recientes, todavía en el ruteo) no publica nada; al pasar a `down` (sale del ruteo, tras varios fallos seguidos) se publica `connector.health.degraded`, y al volver a `up`, `connector.health.recovered`.'
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Traceparent'
+        - $ref: 'common.yaml#/components/parameters/PayMode'
+      responses:
+        '200':
+          description: Estado por conector.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { type: array, items: { $ref: '#/components/schemas/ConnectorHealth' } } }
+        '400': { $ref: 'common.yaml#/components/responses/BadRequest' }
+        '403': { $ref: 'common.yaml#/components/responses/Forbidden' }
+        '500': { $ref: 'common.yaml#/components/responses/ServerError' }
+components:
+  securitySchemes:
+    mTLS:
+      type: mutualTLS
+      description: Certificado de servicio. La identidad del llamador se confirma además con `X-Service-Id`.
+  parameters:
+    ServiceId:
+      name: X-Service-Id
+      in: header
+      required: true
+      description: Servicio llamador. Tiene que coincidir con la identidad del certificado mTLS.
+      schema: { type: string, pattern: '^pay-[a-z]+$', examples: [pay-payments] }
+    Traceparent:
+      name: traceparent
+      in: header
+      required: false
+      description: W3C Trace Context.
+      schema: { type: string, pattern: '^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$' }
+    ChargeId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, pattern: '^ch_[a-z0-9]{10,40}$' }
+  schemas:
+    Connector:
+      type: string
+      enum: [mock, mercantil_qr, mercantil_card, bank_transfer]
+    Mode:
+      type: string
+      enum: [sandbox, live]
+      description: '`sandbox` nunca mueve dinero real.'
+    Method:
+      type: string
+      enum: [qr, card, bank_transfer]
+    TransferStatus:
+      type: string
+      enum: [pending, in_transit, paid, failed]
+      description: '`paid` y `failed` son terminales. `failed` SIEMPRE trae `failure_code` (lo exige la base) y prueba que NO se pagó.'
+    TransferCreate:
+      type: object
+      required: [business_ref, attempt, connector, amount_minor, currency, destination_ref]
+      additionalProperties: false
+      properties:
+        business_ref: { type: string, pattern: '^[A-Za-z0-9:._-]{3,150}$', description: Referencia estable de la operación de negocio (por ejemplo `po_x:payout`). }
+        attempt: { type: integer, minimum: 1 }
+        connector: { allOf: [{ $ref: '#/components/schemas/Connector' }], description: 'En `sandbox` el riel es `mock`; en `live`, `bank_transfer` (`mock` no puede correr con `PAY_MODE=live`). Lo elige quien llama según el despliegue.' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        destination_ref: { type: string, minLength: 1, maxLength: 100, description: Referencia opaca de la cuenta de liquidación (Q-22); nunca un número de cuenta. Hoy `pay-settlement` manda el `merchant_id` y el conector la resuelve. }
+    Transfer:
+      type: object
+      required: [id, object, reference, connector, mode, amount_minor, currency, status, created_at, updated_at]
+      properties:
+        id: { type: string, pattern: '^tr_[a-z0-9]{10,40}$' }
+        object: { const: transfer }
+        reference: { type: string, description: '`business_ref:attempt`.' }
+        connector: { $ref: '#/components/schemas/Connector' }
+        mode: { $ref: '#/components/schemas/Mode' }
+        amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        status: { $ref: '#/components/schemas/TransferStatus' }
+        failure_code: { type: [string, 'null'], description: 'Presente (no nulo) cuando `status` es `failed`: `rejected_by_bank`, `rejected_by_provider`, `connector_unavailable` o `validation_failed`.' }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        updated_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+    ChargeStatus:
+      type: object
+      required: [charge_id, status, connector, mode, checked_at]
+      properties:
+        charge_id: { type: string, pattern: '^ch_[a-z0-9]{10,40}$' }
+        status: { type: string, enum: [pending, requires_action, succeeded, failed, expired, canceled] }
+        connector: { $ref: '#/components/schemas/Connector' }
+        mode: { $ref: '#/components/schemas/Mode' }
+        failure_code: { type: [string, 'null'], description: 'Código estable ya mapeado del proveedor (por ejemplo `card_declined`, `validation_failed`, `connector_unavailable`). El mensaje crudo del proveedor no sale de este servicio.' }
+        stale: { type: boolean, description: '`true` si no se pudo consultar al proveedor y se devuelve el último estado conocido.' }
+        checked_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+    ChargeCreate:
+      type: object
+      required: [payment_intent_id, merchant_id, amount_minor, currency, method, expires_at]
+      additionalProperties: false
+      properties:
+        payment_intent_id: { type: string, pattern: '^pi_[a-z0-9]{10,40}$' }
+        merchant_id: { type: string, pattern: '^mc_[a-z0-9]{10,40}$' }
+        amount_minor: { allOf: [{ $ref: 'common.yaml#/components/schemas/AmountMinor' }, { minimum: 1 }] }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        method: { $ref: '#/components/schemas/Method' }
+        preferred_connector: { $ref: '#/components/schemas/Connector' }
+        card_token: { type: string, pattern: '^tok_[a-z0-9]{10,60}$', description: 'Solo para `card` y OPCIONAL (D-17: sin token se usa la página alojada por el banco). Token de `pay-vault` o del banco; nunca el número. No se persiste.' }
+        expires_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        description: { type: string, maxLength: 200 }
+    Charge:
+      type: object
+      required: [id, object, payment_intent_id, connector, mode, method, amount_minor, currency, status, created_at]
+      properties:
+        id: { type: string, pattern: '^ch_[a-z0-9]{10,40}$' }
+        object: { const: charge }
+        payment_intent_id: { type: string, pattern: '^pi_[a-z0-9]{10,40}$' }
+        connector: { $ref: '#/components/schemas/Connector' }
+        mode: { $ref: '#/components/schemas/Mode' }
+        method: { $ref: '#/components/schemas/Method' }
+        amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        status: { type: string, enum: [pending, requires_action, succeeded, failed, expired, canceled] }
+        next_action: { $ref: '#/components/schemas/ChargeNextAction' }
+        provider_reference: { type: [string, 'null'], description: 'Referencia del proveedor, opaca. Nula hasta que el proveedor la asigna.' }
+        failure_code: { type: [string, 'null'] }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        expires_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+    ChargeNextAction:
+      description: Qué tiene que hacer el pagador. Ausente si no hay nada pendiente, y por tanto en todo cobro `succeeded`, `failed`, `expired` o `canceled`.
+      oneOf:
+        - type: object
+          required: [type, payload]
+          properties:
+            type: { const: display_qr }
+            payload: { type: string, description: 'Cadena EMVCo MPM generada por `pay-qr` (empieza con 000201, termina con 6304 + CRC16).' }
+            expires_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        - type: object
+          required: [type, reference]
+          properties:
+            type: { const: bank_transfer_instructions }
+            reference: { type: string, description: 'Referencia única que el pagador debe poner; con ella se concilia.' }
+            bank_name: { type: string, description: 'Banco de la cuenta recaudadora a la que transfiere el pagador. Lo informa el conector que atiende el cobro (con dos bancos en el ruteo, solo él sabe cuál).' }
+            account_holder: { type: string, description: Titular de esa cuenta. }
+            account_number: { type: string, description: 'Número de esa cuenta recaudadora (dato de la empresa, no del pagador). Mientras no exista la cuenta (T-03) el conector no puede informarlo y `pay-payments` responde `422 payment_method_unavailable`.' }
+        - type: object
+          required: [type, url]
+          properties:
+            type: { const: redirect_to_card_form }
+            url: { type: string, format: uri }
+    ConnectorRefund:
+      type: object
+      required: [id, object, charge_id, amount_minor, currency, status, created_at]
+      properties:
+        id: { type: string, pattern: '^cr_[a-z0-9]{10,40}$' }
+        object: { const: connector_refund }
+        charge_id: { type: string, pattern: '^ch_[a-z0-9]{10,40}$' }
+        refund_id: { type: [string, 'null'], pattern: '^re_[a-z0-9]{10,40}$', description: 'El `refund_id` que mandó el llamador, si lo mandó.' }
+        stale: { type: boolean, description: '`true` si se pidió `refresh` y no se pudo consultar al proveedor: se devuelve el último estado conocido.' }
+        amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        status: { type: string, enum: [pending, succeeded, failed] }
+        failure_code: { type: [string, 'null'], description: 'Presente cuando `status` es `failed`.' }
+        created_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+    StatementLine:
+      type: object
+      required: [provider_reference, direction, amount_minor, currency, value_date]
+      properties:
+        provider_reference: { type: string, description: 'Referencia del proveedor o del banco para esta línea.' }
+        our_reference: { type: [string, 'null'], description: 'Nuestra referencia (por ejemplo, la de la transferencia) si el banco la devuelve. Nula si no.' }
+        charge_id: { type: [string, 'null'], pattern: '^ch_[a-z0-9]{10,40}$', description: 'Cobro con el que se emparejó la línea, si se pudo.' }
+        payment_intent_id: { type: [string, 'null'], pattern: '^pi_[a-z0-9]{10,40}$', description: 'Intento de pago al que pertenece el cobro emparejado, si se pudo. Es la clave con la que `pay-settlement` cruza la línea con el libro mayor (el `business_ref` del ledger es `pi_…:operación`, nunca un `ch_…`). Opcional por compatibilidad; nula si no hay emparejamiento.' }
+        merchant_id: { type: [string, 'null'], pattern: '^mc_[a-z0-9]{10,40}$', description: 'Comercio dueño del cobro emparejado (el `merchant_id` del cobro), si se pudo emparejar. Permite a `pay-settlement` detectar un `payment_intent_id` que pertenece a otro comercio. Nulo si no hay emparejamiento. Opcional por compatibilidad.' }
+        direction: { type: string, enum: [credit, debit] }
+        amount_minor: { $ref: 'common.yaml#/components/schemas/AmountMinor' }
+        currency: { $ref: 'common.yaml#/components/schemas/Currency' }
+        value_date: { type: string, format: date }
+        booked_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }
+        description: { type: [string, 'null'], maxLength: 140, description: 'Glosa del banco. Hoy siempre `null`: puede traer datos personales y no sale de este servicio.' }
+    CallbackResult:
+      type: object
+      required: [result]
+      properties:
+        result: { type: string, enum: [applied, duplicate, stale, contradiction] }
+        charge_id: { type: [string, 'null'], pattern: '^ch_[a-z0-9]{10,40}$' }
+    ConnectorHealth:
+      type: object
+      required: [connector, mode, status, checked_at]
+      properties:
+        connector: { $ref: '#/components/schemas/Connector' }
+        mode: { $ref: '#/components/schemas/Mode' }
+        status: { type: string, enum: [up, degraded, down] }
+        latency_ms: { type: [integer, 'null'], minimum: 0 }
+        checked_at: { $ref: 'common.yaml#/components/schemas/Timestamp' }

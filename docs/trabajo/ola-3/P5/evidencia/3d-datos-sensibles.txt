@@ -1,0 +1,89 @@
+# Gate: DATOS SENSIBLES — sin PAN, CVV, documento ni nombre (razón social, nombre del pagador) en logs, trazas, eventos ni errores
+# Método: se envían datos CENTINELA sintéticos a cada servicio real (HTTP), se provocan errores, y se busca cada centinela en: el log del proceso,
+# las trazas OTel (Jaeger), el outbox + los mensajes publicados en JetStream, y los cuerpos de error devueltos. Además un detector de PAN (marca + Luhn) y de rótulos CVV.
+
+## pay-merchants
+PASS  pay-merchants arrancó (rol pay_merchants, NATS privado, OTel → Jaeger)
+     alta de comercio: 201
+PASS  POST /merchants con razón social, fantasía y NIT centinela ⇒ 201
+     documento KYC: 201
+PASS  POST /kyc/documents con contenido centinela (y un PAN de prueba dentro del archivo) ⇒ 201
+     error provocado «campos inválidos + cvv + card_number»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
+     error provocado «NIT repetido»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
+     error provocado «archivo que no es PDF»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
+     error provocado «comercio inexistente»: 404 {"type":"urn:alovida:pay:problem:resource_not_found","title":"No existe el recurso","status":404,"code":"resou
+     error provocado «sin credencial»: 401 {"type":"urn:alovida:pay:problem:unauthorized","title":"Falta una credencial válida","status":401,"code":"unau
+     error provocado «ruta inexistente con centinelas»: 404 {"type":"urn:alovida:pay:problem:resource_not_found","title":"No existe el recurso","status":404,"code":"resou
+PASS  los seis errores provocados responden 4xx (ninguno 5xx)
+     eventos: 1 en el outbox (merchant.created), 1 publicados en JetStream
+     trazas: 177 spans en Jaeger para el servicio p5gate-pay-merchants-5f592c91
+PASS  Jaeger recibió spans del servicio (si no, el grep de trazas no demostraría nada)
+   fuentes (la razón social solo puede aparecer en merchant.created / merchant.activated, D-33):
+     logs del proceso                       6484 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  logs del proceso: sin centinelas prohibidos ni PAN/CVV
+     trazas (Jaeger)                      239327 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  trazas (Jaeger): sin centinelas prohibidos ni PAN/CVV
+     eventos del outbox: merchant.created      423 bytes · centinelas: 0 (permitidos por contrato: razon_social×1) · PAN/CVV: 0
+PASS  eventos del outbox: merchant.created: sin centinelas prohibidos ni PAN/CVV
+     eventos del outbox: los demás             0 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  eventos del outbox: los demás: sin centinelas prohibidos ni PAN/CVV
+     mensajes publicados en JetStream        399 bytes · centinelas: 0 (permitidos por contrato: razon_social×1) · PAN/CVV: 0
+PASS  mensajes publicados en JetStream: sin centinelas prohibidos ni PAN/CVV
+     cuerpos de error devueltos             1626 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  cuerpos de error devueltos: sin centinelas prohibidos ni PAN/CVV
+PASS  merchant.created lleva la razón social (D-33): es el único dato nominal permitido en eventos
+PASS  lo publicado en JetStream no lleva NIT ni nombre de fantasía
+
+## pay-risk (cribado contra el Watchman REAL del Compose, listas estáticas de 2019 solo sandbox)
+PASS  pay-risk arrancó (rol pay_risk, NATS privado, OTel → Jaeger)
+     evaluación: 201 {"id":"ra_y6xmp22t3og35b2a","object":"risk_assessment","payment_intent_id":"pi_gate0000001","decision":"review","reason_code":"screening_una
+PASS  POST /assessments con razón social, nombre del pagador y una «huella» que es un PAN de prueba ⇒ 201
+PASS  segunda evaluación (otro intento) ⇒ 201
+     error provocado «campo extra cvv + dob»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
+     error provocado «servicio no autorizado»: 403 {"type":"urn:alovida:pay:problem:forbidden","title":"No tenés permiso para esta operación","status":403,"code"
+     error provocado «sin Idempotency-Key»: 400 {"type":"urn:alovida:pay:problem:idempotency_key_required","title":"Falta la cabecera Idempotency-Key","status
+     error provocado «evaluación inexistente»: 404 {"type":"urn:alovida:pay:problem:resource_not_found","title":"No existe el recurso","status":404,"code":"resou
+     error provocado «JSON truncado con los nombres»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
+     error provocado «ruta con razón social y PAN en el path»: 404 {"type":"urn:alovida:pay:problem:resource_not_found","title":"No existe el recurso","status":404,"code":"resou
+PASS  los seis errores provocados responden 4xx (ninguno 5xx)
+     base completa (3 tablas: risk_rule_sets, risk_assessments, idempotency_keys) volcada para el grep
+     trazas: 117 spans en Jaeger para p5gate-pay-risk-e967931e
+PASS  Jaeger recibió spans del servicio
+   fuentes (pay-risk NO guarda ni registra ningún nombre: tampoco en su base):
+     logs del proceso                       4690 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  logs del proceso: sin centinelas prohibidos ni PAN/CVV
+     trazas (Jaeger)                      129706 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  trazas (Jaeger): sin centinelas prohibidos ni PAN/CVV
+     eventos del outbox                        0 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  eventos del outbox: sin centinelas prohibidos ni PAN/CVV
+     cuerpos de error devueltos             1427 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  cuerpos de error devueltos: sin centinelas prohibidos ni PAN/CVV
+     toda la base (rastro, reglas, idempotencia)     1517 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  toda la base (rastro, reglas, idempotencia): sin centinelas prohibidos ni PAN/CVV
+
+## pay-schedules (libro mayor simulado por un doble que responde 500: el ejecutor falla en cada intento)
+PASS  pay-schedules arrancó (rol pay_schedules, NATS privado, OTel → Jaeger)
+     mandato: 201
+PASS  POST /mandates ⇒ 201
+     error provocado «cuerpo inválido con PAN en description + cvv»: 422 {"type":"urn:alovida:pay:problem:validation_failed","title":"La petición no es válida","status":422,"code":"va
+     error provocado «servicio no autorizado»: 403 {"type":"urn:alovida:pay:problem:forbidden","title":"No tenés permiso para esta operación","status":403,"code"
+     error provocado «comercio mal formado»: 403 {"type":"urn:alovida:pay:problem:forbidden","title":"No tenés permiso para esta operación","status":403,"code"
+     error provocado «cancelar inexistente»: 404 {"type":"urn:alovida:pay:problem:resource_not_found","title":"No existe el recurso","status":404,"code":"resou
+     error provocado «ruta con razón social y PAN en el path»: 404 {"type":"urn:alovida:pay:problem:resource_not_found","title":"No existe el recurso","status":404,"code":"resou
+PASS  los cinco errores provocados responden 4xx
+     el ejecutor llamó al libro mayor simulado 2 veces (POST /holds)
+PASS  el ejecutor corrió (el mandato vence hoy) y falló contra el doble — así se generan logs de error reales
+     eventos en el outbox: mandate.created
+     trazas: 207 spans en Jaeger para p5gate-pay-schedules-f2455157
+PASS  Jaeger recibió spans del servicio
+   fuentes (la descripción del mandato es dato del comercio: puede estar en la API y en su evento mandate.created si el contrato lo define; nunca en logs ni trazas):
+     logs del proceso                       4418 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  logs del proceso: sin centinelas prohibidos ni PAN/CVV
+     trazas (Jaeger)                      334125 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  trazas (Jaeger): sin centinelas prohibidos ni PAN/CVV
+     eventos del outbox                      587 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  eventos del outbox: sin centinelas prohibidos ni PAN/CVV
+     cuerpos de error devueltos             1163 bytes · centinelas: 0 · PAN/CVV: 0
+PASS  cuerpos de error devueltos: sin centinelas prohibidos ni PAN/CVV
+
+resultado: PASS

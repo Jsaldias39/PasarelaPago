@@ -1,0 +1,274 @@
+# 3d-h14-rojo: reproductor ANTES del arreglo (services/pay-mockbank/test/card-token-pan.spec.ts contra el dto.ts sin cambios)
+$ (cd services/pay-mockbank && yarn test --maxWorkers=1 test/card-token-pan.spec.ts --verbose --reporters default)
+(las líneas JSON de pino se omiten; todo lo demás es literal)
+
+(node:11148) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL test/card-token-pan.spec.ts
+  card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN
+    ✕ el token del reproductor del hallazgo 14 (12 dígitos seguidos) se acepta (7 ms)
+    ✕ una racha de 12 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final) (6 ms)
+    ✕ una racha de 13 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final) (2 ms)
+    ✕ una racha de 16 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final) (2 ms)
+    ✕ una racha de 19 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final) (2 ms)
+    ✕ una racha de 20 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final) (1 ms)
+    ✕ una racha de 24 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final) (1 ms)
+    ✕ también cuando la racha ES un número Luhn válido: la forma tok_ + 24 hex es un identificador opaco, no un PAN (1 ms)
+    ✕ una muestra determinista de 100 000 tokens con la forma de la bóveda se acepta TODA, y la muestra sí cae en la zona del defecto (3 ms)
+  card_token — nivel límite
+    ✕ fuera de la forma de la bóveda, 11 y 12 dígitos seguidos no son un PAN (13 a 19 es el rango): se aceptan (1 ms)
+    ✕ 13 y 19 dígitos: sin ventana Luhn válida se acepta; con ella se rechaza (2 ms)
+    ✓ 20 dígitos: se rechaza si CONTIENE una ventana de 13 a 19 que pase Luhn (un PAN con basura pegada), se acepta si ninguna lo pasa (1 ms)
+    ✓ la excepción es EXACTA: 23 o 25 hexadecimales, mayúsculas o sin el prefijo tok_ ya no son un token de la bóveda y se evalúan como cualquier otro valor (1 ms)
+    ✓ el patrón de la forma del token se mantiene: 7 caracteres, 65 caracteres y símbolos se rechazan (1 ms)
+  card_token — nivel inválido: un PAN real sigue dando 422, sin repetirlo
+    ✓ un PAN solo, con espacios o con guiones, o con el prefijo tok_ ⇒ se rechaza (6 ms)
+    ✓ un valor que no es texto o es un token mal formado ⇒ se rechaza (3 ms)
+    por HTTP, contra el servicio real
+      ✕ el token del hallazgo 14 se autoriza (201) y queda UNA autorización (32 ms)
+      ✓ un PAN en card_token ⇒ 422 que NO lo repite, y no se crea ninguna autorización (23 ms)
+      ✓ un PAN en OTRO campo de la autorización (referencia o campo no declarado) ⇒ 422 sin efecto (14 ms)
+
+  ● card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN › el token del reproductor del hallazgo 14 (12 dígitos seguidos) se acepta
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      72 | describe('card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN', () => {
+      73 |   it('el token del reproductor del hallazgo 14 (12 dígitos seguidos) se acepta', () => {
+    > 74 |     expect(accepted('tok_ab123456789012cdef0123ab')).toBe(true);
+         |                                                      ^
+      75 |   });
+      76 |
+      77 |   it.each([12, 13, 16, 19, 20, 24])('una racha de %i dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final)', (digits) => {
+
+      at Object.toBe (test/card-token-pan.spec.ts:74:54)
+
+  ● card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN › una racha de 12 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        "start",
+    -   true,
+    +   false,
+      ]
+
+      78 |     for (const at of ['start', 'middle', 'end'] as const) {
+      79 |       const run = '123456789012345678901234'.slice(0, digits);
+    > 80 |       expect([at, accepted(vaultToken(run, at))]).toEqual([at, true]);
+         |                                                   ^
+      81 |     }
+      82 |   });
+      83 |
+
+      at toEqual (test/card-token-pan.spec.ts:80:51)
+
+  ● card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN › una racha de 13 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        "start",
+    -   true,
+    +   false,
+      ]
+
+      78 |     for (const at of ['start', 'middle', 'end'] as const) {
+      79 |       const run = '123456789012345678901234'.slice(0, digits);
+    > 80 |       expect([at, accepted(vaultToken(run, at))]).toEqual([at, true]);
+         |                                                   ^
+      81 |     }
+      82 |   });
+      83 |
+
+      at toEqual (test/card-token-pan.spec.ts:80:51)
+
+  ● card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN › una racha de 16 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        "start",
+    -   true,
+    +   false,
+      ]
+
+      78 |     for (const at of ['start', 'middle', 'end'] as const) {
+      79 |       const run = '123456789012345678901234'.slice(0, digits);
+    > 80 |       expect([at, accepted(vaultToken(run, at))]).toEqual([at, true]);
+         |                                                   ^
+      81 |     }
+      82 |   });
+      83 |
+
+      at toEqual (test/card-token-pan.spec.ts:80:51)
+
+  ● card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN › una racha de 19 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        "start",
+    -   true,
+    +   false,
+      ]
+
+      78 |     for (const at of ['start', 'middle', 'end'] as const) {
+      79 |       const run = '123456789012345678901234'.slice(0, digits);
+    > 80 |       expect([at, accepted(vaultToken(run, at))]).toEqual([at, true]);
+         |                                                   ^
+      81 |     }
+      82 |   });
+      83 |
+
+      at toEqual (test/card-token-pan.spec.ts:80:51)
+
+  ● card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN › una racha de 20 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        "start",
+    -   true,
+    +   false,
+      ]
+
+      78 |     for (const at of ['start', 'middle', 'end'] as const) {
+      79 |       const run = '123456789012345678901234'.slice(0, digits);
+    > 80 |       expect([at, accepted(vaultToken(run, at))]).toEqual([at, true]);
+         |                                                   ^
+      81 |     }
+      82 |   });
+      83 |
+
+      at toEqual (test/card-token-pan.spec.ts:80:51)
+
+  ● card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN › una racha de 24 dígitos decimales dentro de 24 hexadecimales se acepta (al inicio, al medio y al final)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        "start",
+    -   true,
+    +   false,
+      ]
+
+      78 |     for (const at of ['start', 'middle', 'end'] as const) {
+      79 |       const run = '123456789012345678901234'.slice(0, digits);
+    > 80 |       expect([at, accepted(vaultToken(run, at))]).toEqual([at, true]);
+         |                                                   ^
+      81 |     }
+      82 |   });
+      83 |
+
+      at toEqual (test/card-token-pan.spec.ts:80:51)
+
+  ● card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN › también cuando la racha ES un número Luhn válido: la forma tok_ + 24 hex es un identificador opaco, no un PAN
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      83 |
+      84 |   it('también cuando la racha ES un número Luhn válido: la forma tok_ + 24 hex es un identificador opaco, no un PAN', () => {
+    > 85 |     expect(accepted(vaultToken(luhnComplete('411111111111111'), 'middle'))).toBe(true); // 16 dígitos Luhn
+         |                                                                             ^
+      86 |     expect(accepted('tok_000000000000000000000000')).toBe(true); // 24 ceros: contiene ventanas Luhn válidas
+      87 |     expect(accepted('tok_411111111111111111111111')).toBe(true); // 24 dígitos
+      88 |   });
+
+      at Object.toBe (test/card-token-pan.spec.ts:85:77)
+
+  ● card_token — nivel correcto: un token de la bóveda (tok_ + 24 hex) nunca se confunde con un PAN › una muestra determinista de 100 000 tokens con la forma de la bóveda se acepta TODA, y la muestra sí cae en la zona del defecto
+
+    rechazó un token legítimo: tok_a3b2cbb282708604818c9064
+
+       97 |       for (let j = 0; j < 24; j += 1) token += hex[Math.floor(next() * 16)];
+       98 |       if (OLD_PAN_LIKE.test(token)) trapped += 1;
+    >  99 |       if (!accepted(token)) throw new Error(`rechazó un token legítimo: ${token}`);
+          |                                   ^
+      100 |     }
+      101 |     expect(trapped).toBeGreaterThan(1_000); // ≈2 % de 100 000
+      102 |   });
+
+      at Object.<anonymous> (test/card-token-pan.spec.ts:99:35)
+
+  ● card_token — nivel límite › fuera de la forma de la bóveda, 11 y 12 dígitos seguidos no son un PAN (13 a 19 es el rango): se aceptan
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      106 |   it('fuera de la forma de la bóveda, 11 y 12 dígitos seguidos no son un PAN (13 a 19 es el rango): se aceptan', () => {
+      107 |     expect(accepted(`tok_prueba${'1'.repeat(11)}`)).toBe(true);
+    > 108 |     expect(accepted('tok_prueba123456789012')).toBe(true); // 12 dígitos
+          |                                                ^
+      109 |   });
+      110 |
+      111 |   it('13 y 19 dígitos: sin ventana Luhn válida se acepta; con ella se rechaza', () => {
+
+      at Object.toBe (test/card-token-pan.spec.ts:108:48)
+
+  ● card_token — nivel límite › 13 y 19 dígitos: sin ventana Luhn válida se acepta; con ella se rechaza
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      110 |
+      111 |   it('13 y 19 dígitos: sin ventana Luhn válida se acepta; con ella se rechaza', () => {
+    > 112 |     expect(accepted(`tok_prueba${noPanWindow(13)}`)).toBe(true);
+          |                                                      ^
+      113 |     expect(accepted(`tok_prueba${noPanWindow(19)}`)).toBe(true);
+      114 |     expect(accepted(`tok_prueba${luhnComplete('422222222222')}`)).toBe(false); // 13 dígitos, Visa de prueba
+      115 |     expect(accepted(`tok_prueba${luhnComplete('411111111111111111')}`)).toBe(false); // 19 dígitos
+
+      at Object.toBe (test/card-token-pan.spec.ts:112:54)
+
+  ● card_token — nivel inválido: un PAN real sigue dando 422, sin repetirlo › por HTTP, contra el servicio real › el token del hallazgo 14 se autoriza (201) y queda UNA autorización
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 422
+
+      166 |       const reference = chargeRef();
+      167 |       const response = await authorize({ reference, amount_minor: 10_000, card_token: 'tok_ab123456789012cdef0123ab' });
+    > 168 |       expect(response.status).toBe(201);
+          |                               ^
+      169 |       expect(await authCount()).toBe(1);
+      170 |     });
+      171 |
+
+      at Object.toBe (test/card-token-pan.spec.ts:168:31)
+
+Test Suites: 1 failed, 1 total
+Tests:       12 failed, 7 passed, 19 total
+Snapshots:   0 total
+Time:        1.235 s, estimated 2 s
+Ran all test suites matching test/card-token-pan.spec.ts.
+exit=1

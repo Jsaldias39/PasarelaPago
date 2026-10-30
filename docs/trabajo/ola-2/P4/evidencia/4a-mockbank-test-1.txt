@@ -1,0 +1,20 @@
+# 4a-mockbank-test-1
+$ (cd services/pay-mockbank && yarn test --maxWorkers=2)
+(las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
+
+(node:11107) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11106) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 11107  - [39m10/27/2026, 11:46:59 PM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'05e290c9-ded9-4224-bb87-2189d61a07e5'[39m
+}
+Error no controlado
+
+Test Suites: 11 passed, 11 total
+Tests:       93 passed, 93 total
+Snapshots:   0 total
+Time:        22.319 s
+Ran all test suites.
+exit=0

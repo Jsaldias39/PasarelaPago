@@ -1,0 +1,52 @@
+# P4.H2.M6 (parte 2) — secretos en el código
+$ git grep -nE "whsec_[A-Za-z0-9+/=]{16,}|PAY_SECRET_[A-Z_]+=.+" -- services/pay-connectors services/pay-qr
+services/pay-connectors/.env.example:17:PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET=whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==
+services/pay-connectors/test/env.ts:15:process.env.PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET ??= 'whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==';
+exit=0
+
+$ git grep ... -- services/pay-connectors/src services/pay-qr/src   (código desplegado)
+services/pay-connectors/src/config.ts:1:/** Configuración del servicio. Falla al arrancar si falta algo obligatorio: sin valores por defecto para secretos (regla 90.3.4). */
+services/pay-connectors/src/config.ts:5:  readonly db: { readonly host: string; readonly port: number; readonly name: string; readonly user: string; readonly password: string };
+services/pay-connectors/src/config.ts:58:      password: required(env, 'DB_PASSWORD'),
+services/pay-connectors/src/connectors.module.ts:21:import { EnvSecretProvider, type SecretProvider } from './domain/secrets';
+services/pay-connectors/src/connectors.module.ts:50:      useFactory: (config: ServiceConfig, pool: Pool, secrets: SecretProvider, qr: QrPort, bank: SimulatedBank, transferBank: SimulatedBank): ConnectorRegistry => {
+services/pay-connectors/src/connectors.module.ts:55:          registry.register(new MockConnector({ bank, secrets, qr }));
+services/pay-connectors/src/connectors/mock/mock.connector.ts:20:import { namespaceOf, ScopedSecretProvider, type SecretProvider } from '../../domain/secrets';
+services/pay-connectors/src/connectors/mock/mock.connector.ts:33:  readonly secrets: SecretProvider;
+services/pay-connectors/src/connectors/mock/mock.connector.ts:47:  private readonly secrets: SecretProvider;
+services/pay-connectors/src/connectors/mock/mock.connector.ts:51:    this.secrets = new ScopedSecretProvider(options.secrets, namespaceOf('mock'));
+services/pay-connectors/src/connectors/mock/mock.connector.ts:88:    const secrets = await this.secrets.getSecrets(SECRET_NAME);
+services/pay-connectors/src/connectors/mock/mock.connector.ts:89:    if (secrets.length === 0) return { ok: false }; // fail-closed: sin secreto no se acepta nada
+services/pay-connectors/src/connectors/mock/mock.connector.ts:91:      verify({ headers: input.headers, payload: input.rawBody, secrets, now: Math.floor(input.now.getTime() / 1000) });
+services/pay-connectors/src/connectors/mock/mock.connector.ts:119:    const secrets = await this.secrets.getSecrets(SECRET_NAME);
+services/pay-connectors/src/connectors/mock/mock.connector.ts:129:    return { headers: signedHeaders({ id: callback.eventId, timestamp: Math.floor(now.getTime() / 1000), payload: body, secrets: [...secrets] }), rawBody: Buffer.from(body, 'utf8') };
+services/pay-connectors/src/connectors/mock/mock.spec.ts:3:import { EnvSecretProvider } from '../../domain/secrets';
+services/pay-connectors/src/connectors/mock/mock.spec.ts:15:  const connector = new MockConnector({ bank, qr, secrets: new EnvSecretProvider({ PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET: SECRET }) });
+services/pay-connectors/src/connectors/mock/mock.spec.ts:199:    const make = (payload: string) => new MockConnector({ bank: new SimulatedBank(), secrets: new EnvSecretProvider({}), qr: { issue: async (i) => ({ payload, expiresAt: i.expiresAt }) } });
+services/pay-connectors/src/connectors/mock/mock.spec.ts:222:  const verify = (over: { payload?: string; ts?: number; secrets?: string[]; now?: Date } = {}) => {
+services/pay-connectors/src/connectors/mock/mock.spec.ts:224:    const headers = signedHeaders({ id: 'evt_1', timestamp: over.ts ?? Math.floor(NOW.getTime() / 1000), payload, secrets: over.secrets ?? [SECRET] });
+services/pay-connectors/src/connectors/mock/mock.spec.ts:239:  it('inválido: otro secreto, cuerpo alterado, sin firma ⇒ ok:false (sin motivo); firmado pero ilegible ⇒ malformed', async () => {
+services/pay-connectors/src/connectors/mock/mock.spec.ts:240:    expect(await verify({ secrets: [generateSecret()] })).toEqual({ ok: false });
+services/pay-connectors/src/connectors/mock/mock.spec.ts:241:    const tampered = connector.verifyCallback({ headers: signedHeaders({ id: 'evt_1', timestamp: Math.floor(NOW.getTime() / 1000), payload: body, secrets: [SECRET] }), rawBody: Buffer.from(body.replace('captured', 'failed')), now: NOW });
+services/pay-connectors/src/connectors/mock/mock.spec.ts:248:  it('sin secreto configurado: rechaza todo, aunque la firma sea «válida» para un secreto vacío', async () => {
+services/pay-connectors/src/connectors/mock/mock.spec.ts:249:    const empty = new MockConnector({ bank: new SimulatedBank(), qr, secrets: new EnvSecretProvider({}) });
+services/pay-connectors/src/connectors/mock/mock.spec.ts:250:    const headers = signedHeaders({ id: 'evt_1', timestamp: Math.floor(NOW.getTime() / 1000), payload: body, secrets: [SECRET] });
+services/pay-connectors/src/database.module.ts:21:        password: config.db.password,
+services/pay-connectors/src/database.module.ts:42:          password: config.db.password,
+services/pay-connectors/src/domain/domain.spec.ts:5:import { EnvSecretProvider, namespaceOf, ScopedSecretProvider } from './secrets';
+services/pay-connectors/src/domain/domain.spec.ts:158:describe('secretos (P4.H2.M6)', () => {
+services/pay-connectors/src/domain/domain.spec.ts:159:  it('lee PAY_SECRET_<NOMBRE> del entorno; una lista permite rotar; sin valor ⇒ []', async () => {
+services/pay-connectors/src/domain/domain.spec.ts:160:    const secrets = new EnvSecretProvider({ PAY_SECRET_CONNECTOR_MOCK_K: ' a , b ,', PAY_SECRET_CONNECTOR_MOCK_EMPTY: '' });
+services/pay-connectors/src/domain/domain.spec.ts:161:    expect(await secrets.getSecrets('CONNECTOR_MOCK_K')).toEqual(['a', 'b']);
+services/pay-connectors/src/domain/domain.spec.ts:162:    expect(await secrets.getSecrets('CONNECTOR_MOCK_EMPTY')).toEqual([]);
+services/pay-connectors/src/domain/domain.spec.ts:163:    expect(await secrets.getSecrets('CONNECTOR_MOCK_NADA')).toEqual([]);
+services/pay-connectors/src/domain/domain.spec.ts:167:    const secrets = new EnvSecretProvider({ PAY_SECRET_DB_PASSWORD: 'x', PATH: '/bin' });
+services/pay-connectors/src/domain/domain.spec.ts:168:    for (const name of ['DB_PASSWORD', 'PATH', '../CONNECTOR_X', 'connector_mock_k', '']) expect(await secrets.getSecrets(name)).toEqual([]);
+services/pay-connectors/src/domain/domain.spec.ts:172:    const all = new EnvSecretProvider({ PAY_SECRET_CONNECTOR_MOCK_K: 'mio', PAY_SECRET_CONNECTOR_MERCANTIL_QR_K: 'ajeno' });
+services/pay-connectors/src/domain/domain.spec.ts:181:  const sandboxConnector = () => new MockConnector({ bank: new SimulatedBank(), secrets: new EnvSecretProvider({}), qr: { issue: async () => ({ payload: '', expiresAt: new Date() }) } });
+services/pay-qr/src/config.ts:1:/** Configuración del servicio. Falla al arrancar si falta algo obligatorio: sin valores por defecto para secretos (regla 90.3.4). */
+services/pay-qr/src/config.ts:5:  readonly db: { readonly host: string; readonly port: number; readonly name: string; readonly user: string; readonly password: string };
+services/pay-qr/src/config.ts:34:      password: required(env, 'DB_PASSWORD'),
+services/pay-qr/src/database.module.ts:21:        password: config.db.password,
+services/pay-qr/src/database.module.ts:42:          password: config.db.password,
+(fin)

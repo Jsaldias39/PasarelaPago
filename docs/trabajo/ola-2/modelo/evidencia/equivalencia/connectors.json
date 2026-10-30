@@ -1,0 +1,225 @@
+{
+  "label": "connectors",
+  "verdict": "FAIL",
+  "problems": [
+    {
+      "aspecto": "triggers",
+      "solo_en_referencia": [],
+      "solo_en_modelo": [
+        [
+          "connector_charges",
+          "connector_charges_monotone_trg",
+          "CREATE TRIGGER connector_charges_monotone_trg BEFORE UPDATE ON connector_charges FOR EACH ROW EXECUTE FUNCTION connector_charges_send_claims_monotone()",
+          "O"
+        ],
+        [
+          "connector_charges",
+          "connector_charges_no_truncate",
+          "CREATE TRIGGER connector_charges_no_truncate BEFORE TRUNCATE ON connector_charges FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation()",
+          "O"
+        ],
+        [
+          "connector_refunds",
+          "connector_refunds_no_truncate",
+          "CREATE TRIGGER connector_refunds_no_truncate BEFORE TRUNCATE ON connector_refunds FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation()",
+          "O"
+        ],
+        [
+          "connector_transfers",
+          "connector_transfers_no_truncate",
+          "CREATE TRIGGER connector_transfers_no_truncate BEFORE TRUNCATE ON connector_transfers FOR EACH STATEMENT EXECUTE FUNCTION forbid_mutation()",
+          "O"
+        ]
+      ]
+    },
+    {
+      "aspecto": "functions",
+      "solo_en_referencia": [],
+      "solo_en_modelo": [
+        [
+          "connector_charges_send_claims_monotone",
+          "CREATE OR REPLACE FUNCTION connector_charges_send_claims_monotone() RETURNS trigger LANGUAGE plpgsql AS $function$ BEGIN IF NEW.send_claims < OLD.send_claims THEN RAISE EXCEPTION 'send_claims es monotono: no puede disminuir' USING ERRCODE = 'check_violation'; END IF; RETURN NEW; END; $function$"
+        ],
+        [
+          "forbid_mutation",
+          "CREATE OR REPLACE FUNCTION forbid_mutation() RETURNS trigger LANGUAGE plpgsql AS $function$ BEGIN RAISE EXCEPTION 'la tabla % es inmutable (%)', TG_TABLE_NAME, TG_OP USING ERRCODE = 'integrity_constraint_violation'; END; $function$"
+        ]
+      ]
+    }
+  ],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "bank_transfer_references",
+        "f",
+        "bank_transfer_references_charge_id_fkey"
+      ],
+      [
+        "bank_transfer_references",
+        "p",
+        "bank_transfer_references_pkey"
+      ],
+      [
+        "connector_api_attempts",
+        "p",
+        "connector_api_attempts_pkey"
+      ],
+      [
+        "connector_callback_endpoints",
+        "p",
+        "connector_callback_endpoints_pkey"
+      ],
+      [
+        "connector_callback_events",
+        "p",
+        "connector_callback_events_pkey"
+      ],
+      [
+        "connector_charges",
+        "p",
+        "connector_charges_pkey"
+      ],
+      [
+        "connector_health",
+        "p",
+        "connector_health_pkey"
+      ],
+      [
+        "connector_refunds",
+        "f",
+        "connector_refunds_charge_id_fkey"
+      ],
+      [
+        "connector_refunds",
+        "p",
+        "connector_refunds_pkey"
+      ],
+      [
+        "connector_transfers",
+        "p",
+        "connector_transfers_pkey"
+      ],
+      [
+        "idempotency_keys",
+        "p",
+        "idempotency_keys_pkey"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "inbox_events_pkey"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "outbox_events_pkey"
+      ],
+      [
+        "outbox_events",
+        "u",
+        "outbox_events_seq_key"
+      ],
+      [
+        "routing_rule_sets",
+        "p",
+        "routing_rule_sets_pkey"
+      ],
+      [
+        "statement_exceptions",
+        "p",
+        "statement_exceptions_pkey"
+      ]
+    ],
+    "modelo": [
+      [
+        "bank_transfer_references",
+        "f",
+        "fk_bank_transfer_references_charge_id"
+      ],
+      [
+        "bank_transfer_references",
+        "p",
+        "pk_bank_transfer_references"
+      ],
+      [
+        "connector_api_attempts",
+        "p",
+        "pk_connector_api_attempts"
+      ],
+      [
+        "connector_callback_endpoints",
+        "p",
+        "pk_connector_callback_endpoints"
+      ],
+      [
+        "connector_callback_events",
+        "p",
+        "pk_connector_callback_events"
+      ],
+      [
+        "connector_charges",
+        "p",
+        "pk_connector_charges"
+      ],
+      [
+        "connector_health",
+        "p",
+        "pk_connector_health"
+      ],
+      [
+        "connector_refunds",
+        "f",
+        "fk_connector_refunds_charge_id"
+      ],
+      [
+        "connector_refunds",
+        "p",
+        "pk_connector_refunds"
+      ],
+      [
+        "connector_transfers",
+        "p",
+        "pk_connector_transfers"
+      ],
+      [
+        "idempotency_keys",
+        "p",
+        "pk_idempotency_keys"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "pk_inbox_events"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "pk_outbox_events"
+      ],
+      [
+        "routing_rule_sets",
+        "p",
+        "pk_routing_rule_sets"
+      ],
+      [
+        "statement_exceptions",
+        "p",
+        "pk_statement_exceptions"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 13,
+    "columnas": 130,
+    "indices": 31,
+    "check": 45,
+    "fk": 2,
+    "triggers": 6,
+    "funciones": 3
+  }
+}

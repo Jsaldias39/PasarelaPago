@@ -1,0 +1,28 @@
+PROOF pay-vault viejo/live: {"http":503,"status":"error","checks":{"append_only_guards":{"ok":false,"missing":["reveal_audit_immutable","reveal_audit_no_truncate"]}}}
+PROOF pay-vault viejo/sandbox: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":false,"missing":["reveal_audit_immutable","reveal_audit_no_truncate"]}}}
+PROOF pay-vault reaplicado-completo/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+PROOF pay-vault reaplicado-completo-otra-vez/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+PROOF pay-vault viejo/live: {"append_only_guards":{"ok":false,"missing":["reveal_audit_immutable","reveal_audit_no_truncate"]}}
+PROOF pay-vault solo-bloque/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+Tests:       2 passed, 2 total
+PROOF pay-settlement viejo/live: {"http":503,"status":"error","checks":{"append_only_guards":{"ok":false,"missing":["settlement_audit_immutable","settlement_audit_no_truncate"]}}}
+PROOF pay-settlement viejo/sandbox: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":false,"missing":["settlement_audit_immutable","settlement_audit_no_truncate"]}}}
+PROOF pay-settlement reaplicado-completo/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+PROOF pay-settlement reaplicado-completo-otra-vez/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+PROOF pay-settlement viejo/live: {"append_only_guards":{"ok":false,"missing":["settlement_audit_immutable","settlement_audit_no_truncate"]}}
+PROOF pay-settlement solo-bloque/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+Tests:       2 passed, 2 total
+PROOF pay-connectors viejo/live: {"http":503,"status":"error","checks":{"append_only_guards":{"ok":false,"missing":["connector_callback_events_immutable","connector_callback_events_no_truncate","connector_api_attempts_immutable","connector_api_attempts_no_truncate"]}}}
+PROOF pay-connectors viejo/sandbox: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":false,"missing":["connector_callback_events_immutable","connector_callback_events_no_truncate","connector_api_attempts_immutable","connector_api_attempts_no_truncate"]}}}
+PROOF pay-connectors reaplicado-completo/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+PROOF pay-connectors reaplicado-completo-otra-vez/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+PROOF pay-connectors viejo/live: {"append_only_guards":{"ok":false,"missing":["connector_callback_events_immutable","connector_callback_events_no_truncate","connector_api_attempts_immutable","connector_api_attempts_no_truncate"]}}
+PROOF pay-connectors solo-bloque/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+Tests:       2 passed, 2 total
+PROOF pay-ledger viejo/live: {"http":503,"status":"error","checks":{"append_only_guards":{"ok":false,"missing":["ledger_transactions_immutable","ledger_transactions_no_truncate","ledger_legs_immutable","ledger_legs_no_truncate","ledger_statement_lines_immutable","ledger_statement_lines_no_truncate","ledger_rejections_immutable","ledger_rejections_no_truncate"]}}}
+PROOF pay-ledger viejo/sandbox: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":false,"missing":["ledger_transactions_immutable","ledger_transactions_no_truncate","ledger_legs_immutable","ledger_legs_no_truncate","ledger_statement_lines_immutable","ledger_statement_lines_no_truncate","ledger_rejections_immutable","ledger_rejections_no_truncate"]}}}
+PROOF pay-ledger reaplicado-completo/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+PROOF pay-ledger reaplicado-completo-otra-vez/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+PROOF pay-ledger viejo/live: {"append_only_guards":{"ok":false,"missing":["ledger_transactions_immutable","ledger_transactions_no_truncate","ledger_legs_immutable","ledger_legs_no_truncate","ledger_statement_lines_immutable","ledger_statement_lines_no_truncate","ledger_rejections_immutable","ledger_rejections_no_truncate"]}}
+PROOF pay-ledger solo-bloque/live: {"http":200,"status":"ok","checks":{"append_only_guards":{"ok":true,"missing":[]}}}
+Tests:       2 passed, 2 total

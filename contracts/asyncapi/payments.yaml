@@ -1,0 +1,1798 @@
+# Eventos de pay-payments (P3). BORRADOR `v1-draft`. Generado desde una descripción compacta; se edita a mano desde acá.
+asyncapi: 3.0.0
+info:
+  title: Eventos de pay-payments (P3)
+  version: 1.0.0-draft
+  description: |-
+    BORRADOR de la ola 0 (`v1-draft`): todavía NO está congelado. Dueño: P3 (`pay-payments`). Revisan los consumidores listados en cada operación.
+
+    **Sobre.** Todo evento es un CloudEvent 1.0 en modo estructurado JSON (`contracts/schemas/cloudevent.schema.json`),
+    publicado por el outbox del servicio hacia JetStream con el `id` del evento como `Nats-Msg-Id`.
+    `data` lleva SOLO ids, estados e importes (`amount_minor` en centavos, `currency`): nunca datos personales,
+    documentos, PAN, nombres ni cuentas bancarias completas (`x-pii: none`).
+
+    **Entrega: al menos una vez.** El consumidor DEBE tolerar duplicados y reordenamiento:
+    - Duplicado: el mismo `id` otra vez. Se descarta con el inbox (`processOnce`, clave `(consumidor, id)`).
+    - Reordenamiento: el orden solo se garantiza **por agregado** (mismo `subject`, publicados por un único relé).
+      Entre agregados distintos no hay orden. Un evento atrasado no puede hacer retroceder un estado terminal.
+    - Regla de decisión del consumidor ante un evento, tomando como modelo `payment-callback-machine` de la API:
+      `aplicar` (avance legítimo) · `duplicado` (reentrega del mismo hecho: no muta nada) · `obsoleto`
+      (hecho anterior ya superado: se ignora sin error) · `contradiccion` (incompatible con un estado terminal:
+      no se sobrescribe, se deja para conciliación humana).
+
+    **Publicador:** `pay-payments` (`source: /pay-payments`), stream `PAY_PAYMENTS`, temas `pay-payments.>`.
+    **Consumidores (PLAN-MAESTRO §4):** P1 (`pay-webhooks`), P2 (`pay-settlement`) y P5 (`pay-schedules`).
+
+    **Estados.** Los de `status` coinciden con `PaymentIntentStatus`, `Refund.status` de `public-v1.yaml`; los de
+    `failure_code`, con los `code` de `@pay/problem`. `succeeded`, `failed`, `canceled` y `expired` son terminales: un cobro
+    termina en uno solo, pase lo que pase en el medio (REQ-P3). `dispute.status` (`open`, `won`, `lost`) no existe aún en la API pública.
+
+    **Asiento del ledger.** `ledger_transfer_id` cita el asiento (`tx_…`) o la retención confirmada (`hd_…`) que `pay-ledger` le devolvió
+    a `pay-payments` (`internal-ledger-v1.yaml`); no se fabrica un `tf_…`, que en el ledger identifica una pata. Se sigue aceptando `tf_…`
+    por compatibilidad.
+
+    **Modo (D-28).** Todo evento público puede llevar `mode` (`test|live`), el de la clave que originó el hecho. Es opcional hasta que
+    `pay-payments` lo implemente (ola 2).
+
+    **Evento interno.** `payment_intent.contradiction_detected` NO es público (no sale por webhooks): lo consume la conciliación humana.
+servers:
+  nats:
+    host: nats.pay.internal:4222
+    protocol: nats
+    description: 'NATS JetStream (D-10). El host es un marcador: el real se define al desplegar. Stream `PAY_PAYMENTS`,
+      temas `pay-payments.>`.'
+defaultContentType: application/cloudevents+json
+channels:
+  paymentIntentCreated:
+    address: pay-payments.payment_intent.created
+    description: Tema NATS JetStream `pay-payments.payment_intent.created`. Lo publica `pay-payments` por outbox.
+    messages:
+      PaymentIntentCreated:
+        $ref: '#/components/messages/PaymentIntentCreated'
+  paymentIntentRequiresAction:
+    address: pay-payments.payment_intent.requires_action
+    description: Tema NATS JetStream `pay-payments.payment_intent.requires_action`. Lo publica `pay-payments` por
+      outbox.
+    messages:
+      PaymentIntentRequiresAction:
+        $ref: '#/components/messages/PaymentIntentRequiresAction'
+  paymentIntentProcessing:
+    address: pay-payments.payment_intent.processing
+    description: Tema NATS JetStream `pay-payments.payment_intent.processing`. Lo publica `pay-payments` por outbox.
+    messages:
+      PaymentIntentProcessing:
+        $ref: '#/components/messages/PaymentIntentProcessing'
+  paymentIntentSucceeded:
+    address: pay-payments.payment_intent.succeeded
+    description: Tema NATS JetStream `pay-payments.payment_intent.succeeded`. Lo publica `pay-payments` por outbox.
+    messages:
+      PaymentIntentSucceeded:
+        $ref: '#/components/messages/PaymentIntentSucceeded'
+  paymentIntentFailed:
+    address: pay-payments.payment_intent.failed
+    description: Tema NATS JetStream `pay-payments.payment_intent.failed`. Lo publica `pay-payments` por outbox.
+    messages:
+      PaymentIntentFailed:
+        $ref: '#/components/messages/PaymentIntentFailed'
+  paymentIntentCanceled:
+    address: pay-payments.payment_intent.canceled
+    description: Tema NATS JetStream `pay-payments.payment_intent.canceled`. Lo publica `pay-payments` por outbox.
+    messages:
+      PaymentIntentCanceled:
+        $ref: '#/components/messages/PaymentIntentCanceled'
+  paymentIntentExpired:
+    address: pay-payments.payment_intent.expired
+    description: Tema NATS JetStream `pay-payments.payment_intent.expired`. Lo publica `pay-payments` por outbox.
+    messages:
+      PaymentIntentExpired:
+        $ref: '#/components/messages/PaymentIntentExpired'
+  refundCreated:
+    address: pay-payments.refund.created
+    description: Tema NATS JetStream `pay-payments.refund.created`. Lo publica `pay-payments` por outbox.
+    messages:
+      RefundCreated:
+        $ref: '#/components/messages/RefundCreated'
+  refundSucceeded:
+    address: pay-payments.refund.succeeded
+    description: Tema NATS JetStream `pay-payments.refund.succeeded`. Lo publica `pay-payments` por outbox.
+    messages:
+      RefundSucceeded:
+        $ref: '#/components/messages/RefundSucceeded'
+  refundFailed:
+    address: pay-payments.refund.failed
+    description: Tema NATS JetStream `pay-payments.refund.failed`. Lo publica `pay-payments` por outbox.
+    messages:
+      RefundFailed:
+        $ref: '#/components/messages/RefundFailed'
+  disputeOpened:
+    address: pay-payments.dispute.opened
+    description: Tema NATS JetStream `pay-payments.dispute.opened`. Lo publica `pay-payments` por outbox.
+    messages:
+      DisputeOpened:
+        $ref: '#/components/messages/DisputeOpened'
+  disputeWon:
+    address: pay-payments.dispute.won
+    description: Tema NATS JetStream `pay-payments.dispute.won`. Lo publica `pay-payments` por outbox.
+    messages:
+      DisputeWon:
+        $ref: '#/components/messages/DisputeWon'
+  disputeLost:
+    address: pay-payments.dispute.lost
+    description: Tema NATS JetStream `pay-payments.dispute.lost`. Lo publica `pay-payments` por outbox.
+    messages:
+      DisputeLost:
+        $ref: '#/components/messages/DisputeLost'
+  paymentIntentContradictionDetected:
+    address: pay-payments.payment_intent.contradiction_detected
+    description: Tema NATS JetStream `pay-payments.payment_intent.contradiction_detected`. Lo publica `pay-payments` por outbox. Interno.
+    messages:
+      PaymentIntentContradictionDetected:
+        $ref: '#/components/messages/PaymentIntentContradictionDetected'
+operations:
+  publishPaymentIntentCreated:
+    action: send
+    channel:
+      $ref: '#/channels/paymentIntentCreated'
+    summary: pay-payments publica payment_intent.created
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/paymentIntentCreated/messages/PaymentIntentCreated'
+  consumePaymentIntentCreatedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentCreated'
+    summary: pay-webhooks (P1) consume payment_intent.created
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.payment_intent.created
+    messages:
+    - $ref: '#/channels/paymentIntentCreated/messages/PaymentIntentCreated'
+  consumePaymentIntentCreatedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentCreated'
+    summary: pay-settlement (P2) consume payment_intent.created
+    description: Sin efecto de negocio; el plan lo asigna a P2 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.payment_intent.created
+    messages:
+    - $ref: '#/channels/paymentIntentCreated/messages/PaymentIntentCreated'
+  consumePaymentIntentCreatedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentCreated'
+    summary: pay-schedules (P5) consume payment_intent.created
+    description: Sin efecto de negocio; el plan lo asigna a P5 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.payment_intent.created
+    messages:
+    - $ref: '#/channels/paymentIntentCreated/messages/PaymentIntentCreated'
+  publishPaymentIntentRequiresAction:
+    action: send
+    channel:
+      $ref: '#/channels/paymentIntentRequiresAction'
+    summary: pay-payments publica payment_intent.requires_action
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/paymentIntentRequiresAction/messages/PaymentIntentRequiresAction'
+  consumePaymentIntentRequiresActionByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentRequiresAction'
+    summary: pay-webhooks (P1) consume payment_intent.requires_action
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.payment_intent.requires_action
+    messages:
+    - $ref: '#/channels/paymentIntentRequiresAction/messages/PaymentIntentRequiresAction'
+  consumePaymentIntentRequiresActionByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentRequiresAction'
+    summary: pay-settlement (P2) consume payment_intent.requires_action
+    description: Sin efecto de negocio; el plan lo asigna a P2 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.payment_intent.requires_action
+    messages:
+    - $ref: '#/channels/paymentIntentRequiresAction/messages/PaymentIntentRequiresAction'
+  consumePaymentIntentRequiresActionByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentRequiresAction'
+    summary: pay-schedules (P5) consume payment_intent.requires_action
+    description: Sin efecto de negocio; el plan lo asigna a P5 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.payment_intent.requires_action
+    messages:
+    - $ref: '#/channels/paymentIntentRequiresAction/messages/PaymentIntentRequiresAction'
+  publishPaymentIntentProcessing:
+    action: send
+    channel:
+      $ref: '#/channels/paymentIntentProcessing'
+    summary: pay-payments publica payment_intent.processing
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/paymentIntentProcessing/messages/PaymentIntentProcessing'
+  consumePaymentIntentProcessingByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentProcessing'
+    summary: pay-webhooks (P1) consume payment_intent.processing
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.payment_intent.processing
+    messages:
+    - $ref: '#/channels/paymentIntentProcessing/messages/PaymentIntentProcessing'
+  consumePaymentIntentProcessingByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentProcessing'
+    summary: pay-settlement (P2) consume payment_intent.processing
+    description: Sin efecto de negocio; el plan lo asigna a P2 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.payment_intent.processing
+    messages:
+    - $ref: '#/channels/paymentIntentProcessing/messages/PaymentIntentProcessing'
+  consumePaymentIntentProcessingByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentProcessing'
+    summary: pay-schedules (P5) consume payment_intent.processing
+    description: Sin efecto de negocio; el plan lo asigna a P5 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.payment_intent.processing
+    messages:
+    - $ref: '#/channels/paymentIntentProcessing/messages/PaymentIntentProcessing'
+  publishPaymentIntentSucceeded:
+    action: send
+    channel:
+      $ref: '#/channels/paymentIntentSucceeded'
+    summary: pay-payments publica payment_intent.succeeded
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/paymentIntentSucceeded/messages/PaymentIntentSucceeded'
+  consumePaymentIntentSucceededByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentSucceeded'
+    summary: pay-webhooks (P1) consume payment_intent.succeeded
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.payment_intent.succeeded
+    messages:
+    - $ref: '#/channels/paymentIntentSucceeded/messages/PaymentIntentSucceeded'
+  consumePaymentIntentSucceededByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentSucceeded'
+    summary: pay-settlement (P2) consume payment_intent.succeeded
+    description: Ajusta los saldos a liquidar (pendiente → disponible) y la deuda por contracargo.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.payment_intent.succeeded
+    messages:
+    - $ref: '#/channels/paymentIntentSucceeded/messages/PaymentIntentSucceeded'
+  consumePaymentIntentSucceededByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentSucceeded'
+    summary: pay-schedules (P5) consume payment_intent.succeeded
+    description: Cierra el seguimiento del pago programado cuyo intento terminó.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.payment_intent.succeeded
+    messages:
+    - $ref: '#/channels/paymentIntentSucceeded/messages/PaymentIntentSucceeded'
+  publishPaymentIntentFailed:
+    action: send
+    channel:
+      $ref: '#/channels/paymentIntentFailed'
+    summary: pay-payments publica payment_intent.failed
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/paymentIntentFailed/messages/PaymentIntentFailed'
+  consumePaymentIntentFailedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentFailed'
+    summary: pay-webhooks (P1) consume payment_intent.failed
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.payment_intent.failed
+    messages:
+    - $ref: '#/channels/paymentIntentFailed/messages/PaymentIntentFailed'
+  consumePaymentIntentFailedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentFailed'
+    summary: pay-settlement (P2) consume payment_intent.failed
+    description: Sin efecto de negocio; el plan lo asigna a P2 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.payment_intent.failed
+    messages:
+    - $ref: '#/channels/paymentIntentFailed/messages/PaymentIntentFailed'
+  consumePaymentIntentFailedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentFailed'
+    summary: pay-schedules (P5) consume payment_intent.failed
+    description: Cierra el seguimiento del pago programado cuyo intento terminó.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.payment_intent.failed
+    messages:
+    - $ref: '#/channels/paymentIntentFailed/messages/PaymentIntentFailed'
+  publishPaymentIntentCanceled:
+    action: send
+    channel:
+      $ref: '#/channels/paymentIntentCanceled'
+    summary: pay-payments publica payment_intent.canceled
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/paymentIntentCanceled/messages/PaymentIntentCanceled'
+  consumePaymentIntentCanceledByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentCanceled'
+    summary: pay-webhooks (P1) consume payment_intent.canceled
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.payment_intent.canceled
+    messages:
+    - $ref: '#/channels/paymentIntentCanceled/messages/PaymentIntentCanceled'
+  consumePaymentIntentCanceledByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentCanceled'
+    summary: pay-settlement (P2) consume payment_intent.canceled
+    description: Sin efecto de negocio; el plan lo asigna a P2 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.payment_intent.canceled
+    messages:
+    - $ref: '#/channels/paymentIntentCanceled/messages/PaymentIntentCanceled'
+  consumePaymentIntentCanceledByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentCanceled'
+    summary: pay-schedules (P5) consume payment_intent.canceled
+    description: Cierra el seguimiento del pago programado cuyo intento terminó.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.payment_intent.canceled
+    messages:
+    - $ref: '#/channels/paymentIntentCanceled/messages/PaymentIntentCanceled'
+  publishPaymentIntentExpired:
+    action: send
+    channel:
+      $ref: '#/channels/paymentIntentExpired'
+    summary: pay-payments publica payment_intent.expired
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/paymentIntentExpired/messages/PaymentIntentExpired'
+  consumePaymentIntentExpiredByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentExpired'
+    summary: pay-webhooks (P1) consume payment_intent.expired
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.payment_intent.expired
+    messages:
+    - $ref: '#/channels/paymentIntentExpired/messages/PaymentIntentExpired'
+  consumePaymentIntentExpiredByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentExpired'
+    summary: pay-settlement (P2) consume payment_intent.expired
+    description: Sin efecto de negocio; el plan lo asigna a P2 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.payment_intent.expired
+    messages:
+    - $ref: '#/channels/paymentIntentExpired/messages/PaymentIntentExpired'
+  consumePaymentIntentExpiredByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentExpired'
+    summary: pay-schedules (P5) consume payment_intent.expired
+    description: Cierra el seguimiento del pago programado cuyo intento terminó.
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.payment_intent.expired
+    messages:
+    - $ref: '#/channels/paymentIntentExpired/messages/PaymentIntentExpired'
+  publishRefundCreated:
+    action: send
+    channel:
+      $ref: '#/channels/refundCreated'
+    summary: pay-payments publica refund.created
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/refundCreated/messages/RefundCreated'
+  consumeRefundCreatedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/refundCreated'
+    summary: pay-webhooks (P1) consume refund.created
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.refund.created
+    messages:
+    - $ref: '#/channels/refundCreated/messages/RefundCreated'
+  consumeRefundCreatedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/refundCreated'
+    summary: pay-settlement (P2) consume refund.created
+    description: Sin efecto de negocio; el plan lo asigna a P2 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.refund.created
+    messages:
+    - $ref: '#/channels/refundCreated/messages/RefundCreated'
+  consumeRefundCreatedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/refundCreated'
+    summary: pay-schedules (P5) consume refund.created
+    description: Sin efecto de negocio; el plan lo asigna a P5 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.refund.created
+    messages:
+    - $ref: '#/channels/refundCreated/messages/RefundCreated'
+  publishRefundSucceeded:
+    action: send
+    channel:
+      $ref: '#/channels/refundSucceeded'
+    summary: pay-payments publica refund.succeeded
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/refundSucceeded/messages/RefundSucceeded'
+  consumeRefundSucceededByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/refundSucceeded'
+    summary: pay-webhooks (P1) consume refund.succeeded
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.refund.succeeded
+    messages:
+    - $ref: '#/channels/refundSucceeded/messages/RefundSucceeded'
+  consumeRefundSucceededByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/refundSucceeded'
+    summary: pay-settlement (P2) consume refund.succeeded
+    description: Ajusta los saldos a liquidar (pendiente → disponible) y la deuda por contracargo.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.refund.succeeded
+    messages:
+    - $ref: '#/channels/refundSucceeded/messages/RefundSucceeded'
+  consumeRefundSucceededByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/refundSucceeded'
+    summary: pay-schedules (P5) consume refund.succeeded
+    description: Sin efecto de negocio; el plan lo asigna a P5 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.refund.succeeded
+    messages:
+    - $ref: '#/channels/refundSucceeded/messages/RefundSucceeded'
+  publishRefundFailed:
+    action: send
+    channel:
+      $ref: '#/channels/refundFailed'
+    summary: pay-payments publica refund.failed
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/refundFailed/messages/RefundFailed'
+  consumeRefundFailedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/refundFailed'
+    summary: pay-webhooks (P1) consume refund.failed
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.refund.failed
+    messages:
+    - $ref: '#/channels/refundFailed/messages/RefundFailed'
+  consumeRefundFailedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/refundFailed'
+    summary: pay-settlement (P2) consume refund.failed
+    description: Sin efecto de negocio; el plan lo asigna a P2 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.refund.failed
+    messages:
+    - $ref: '#/channels/refundFailed/messages/RefundFailed'
+  consumeRefundFailedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/refundFailed'
+    summary: pay-schedules (P5) consume refund.failed
+    description: Sin efecto de negocio; el plan lo asigna a P5 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.refund.failed
+    messages:
+    - $ref: '#/channels/refundFailed/messages/RefundFailed'
+  publishDisputeOpened:
+    action: send
+    channel:
+      $ref: '#/channels/disputeOpened'
+    summary: pay-payments publica dispute.opened
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/disputeOpened/messages/DisputeOpened'
+  consumeDisputeOpenedByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/disputeOpened'
+    summary: pay-webhooks (P1) consume dispute.opened
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.dispute.opened
+    messages:
+    - $ref: '#/channels/disputeOpened/messages/DisputeOpened'
+  consumeDisputeOpenedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/disputeOpened'
+    summary: pay-settlement (P2) consume dispute.opened
+    description: Sin efecto de negocio; el plan lo asigna a P2 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.dispute.opened
+    messages:
+    - $ref: '#/channels/disputeOpened/messages/DisputeOpened'
+  consumeDisputeOpenedByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/disputeOpened'
+    summary: pay-schedules (P5) consume dispute.opened
+    description: Sin efecto de negocio; el plan lo asigna a P5 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.dispute.opened
+    messages:
+    - $ref: '#/channels/disputeOpened/messages/DisputeOpened'
+  publishDisputeWon:
+    action: send
+    channel:
+      $ref: '#/channels/disputeWon'
+    summary: pay-payments publica dispute.won
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/disputeWon/messages/DisputeWon'
+  consumeDisputeWonByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/disputeWon'
+    summary: pay-webhooks (P1) consume dispute.won
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.dispute.won
+    messages:
+    - $ref: '#/channels/disputeWon/messages/DisputeWon'
+  consumeDisputeWonByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/disputeWon'
+    summary: pay-settlement (P2) consume dispute.won
+    description: Ajusta los saldos a liquidar (pendiente → disponible) y la deuda por contracargo.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.dispute.won
+    messages:
+    - $ref: '#/channels/disputeWon/messages/DisputeWon'
+  consumeDisputeWonByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/disputeWon'
+    summary: pay-schedules (P5) consume dispute.won
+    description: Sin efecto de negocio; el plan lo asigna a P5 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.dispute.won
+    messages:
+    - $ref: '#/channels/disputeWon/messages/DisputeWon'
+  publishDisputeLost:
+    action: send
+    channel:
+      $ref: '#/channels/disputeLost'
+    summary: pay-payments publica dispute.lost
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/disputeLost/messages/DisputeLost'
+  consumeDisputeLostByPayWebhooks:
+    action: receive
+    channel:
+      $ref: '#/channels/disputeLost'
+    summary: pay-webhooks (P1) consume dispute.lost
+    description: Reenvía el evento a los endpoints del comercio (Standard Webhooks).
+    x-consumer: pay-webhooks
+    x-lane: P1
+    x-inbox-consumer: pay-webhooks.dispute.lost
+    messages:
+    - $ref: '#/channels/disputeLost/messages/DisputeLost'
+  consumeDisputeLostByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/disputeLost'
+    summary: pay-settlement (P2) consume dispute.lost
+    description: Ajusta los saldos a liquidar (pendiente → disponible) y la deuda por contracargo.
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.dispute.lost
+    messages:
+    - $ref: '#/channels/disputeLost/messages/DisputeLost'
+  consumeDisputeLostByPaySchedules:
+    action: receive
+    channel:
+      $ref: '#/channels/disputeLost'
+    summary: pay-schedules (P5) consume dispute.lost
+    description: Sin efecto de negocio; el plan lo asigna a P5 y puede ignorarse (ver ambigüedad en el informe).
+    x-consumer: pay-schedules
+    x-lane: P5
+    x-inbox-consumer: pay-schedules.dispute.lost
+    messages:
+    - $ref: '#/channels/disputeLost/messages/DisputeLost'
+  publishPaymentIntentContradictionDetected:
+    action: send
+    channel:
+      $ref: '#/channels/paymentIntentContradictionDetected'
+    summary: pay-payments publica payment_intent.contradiction_detected
+    x-publisher: pay-payments
+    messages:
+    - $ref: '#/channels/paymentIntentContradictionDetected/messages/PaymentIntentContradictionDetected'
+  consumePaymentIntentContradictionDetectedByPaySettlement:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentIntentContradictionDetected'
+    summary: pay-settlement (P2) consume payment_intent.contradiction_detected
+    description: 'Lo suma a las excepciones de conciliación para que una persona lo resuelva. Sin efecto automático. (Consumidor a implementar en la ola 2.)'
+    x-consumer: pay-settlement
+    x-lane: P2
+    x-inbox-consumer: pay-settlement.payment_intent.contradiction_detected
+    messages:
+    - $ref: '#/channels/paymentIntentContradictionDetected/messages/PaymentIntentContradictionDetected'
+components:
+  messages:
+    PaymentIntentCreated:
+      name: payment_intent.created
+      title: Se creó un cobro
+      summary: Se creó un cobro
+      description: |-
+        Se creó un cobro
+
+        Se emite siempre al crear el cobro; `fee_minor + net_minor = amount_minor` (D-20).
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: payment_intent.created
+            subject:
+              $ref: '#/components/schemas/PaymentIntentId'
+            data:
+              $ref: '#/components/schemas/PaymentIntentCreatedData'
+      examples:
+      - name: payment_intent.created (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 61e784a6-2248-50b0-a976-bcdf25b26107
+          source: /pay-payments
+          type: payment_intent.created
+          subject: pi_c92215200m49
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            amount_minor: 10000
+            currency: BOB
+            payment_method_type: qr
+            status: requires_action
+            fee_minor: 300
+            net_minor: 9700
+            expires_at: '2026-10-27T16:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    PaymentIntentRequiresAction:
+      name: payment_intent.requires_action
+      title: El pagador tiene que hacer algo para completar el cobro
+      summary: El pagador tiene que hacer algo para completar el cobro
+      description: |-
+        El pagador tiene que hacer algo para completar el cobro
+
+        El contenido de `next_action` (QR, instrucciones) NO viaja en el evento: se consulta por la API.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: payment_intent.requires_action
+            subject:
+              $ref: '#/components/schemas/PaymentIntentId'
+            data:
+              $ref: '#/components/schemas/PaymentIntentRequiresActionData'
+      examples:
+      - name: payment_intent.requires_action (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: abfd2957-01b5-5b1c-a6e1-5ed002d378e7
+          source: /pay-payments
+          type: payment_intent.requires_action
+          subject: pi_c92215200m49
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            status: requires_action
+            next_action_type: display_qr
+            expires_at: '2026-10-27T16:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    PaymentIntentProcessing:
+      name: payment_intent.processing
+      title: El cobro está en proceso en el proveedor
+      summary: El cobro está en proceso en el proveedor
+      description: El cobro está en proceso en el proveedor
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: payment_intent.processing
+            subject:
+              $ref: '#/components/schemas/PaymentIntentId'
+            data:
+              $ref: '#/components/schemas/PaymentIntentProcessingData'
+      examples:
+      - name: payment_intent.processing (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: ebb386f4-5c35-51e1-a568-bde79e12c393
+          source: /pay-payments
+          type: payment_intent.processing
+          subject: pi_c92215200m49
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            status: processing
+            connector: mercantil_qr
+          merchantid: mc_5c048c31m1fb
+    PaymentIntentSucceeded:
+      name: payment_intent.succeeded
+      title: El cobro se completó y quedó asentado en el ledger
+      summary: El cobro se completó y quedó asentado en el ledger
+      description: |-
+        El cobro se completó y quedó asentado en el ledger
+
+        Estado terminal. Se publica DESPUÉS de registrar el asiento en `pay-ledger` (PLAN-MAESTRO §3.4, paso 4).
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: payment_intent.succeeded
+            subject:
+              $ref: '#/components/schemas/PaymentIntentId'
+            data:
+              $ref: '#/components/schemas/PaymentIntentSucceededData'
+      examples:
+      - name: payment_intent.succeeded (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 747c0291-1c64-535b-b4e2-0a3917719125
+          source: /pay-payments
+          type: payment_intent.succeeded
+          subject: pi_c92215200m49
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            amount_minor: 10000
+            currency: BOB
+            status: succeeded
+            payment_method_type: qr
+            fee_minor: 300
+            net_minor: 9700
+            ledger_transfer_id: tf_qq257k8cq755
+            succeeded_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    PaymentIntentFailed:
+      name: payment_intent.failed
+      title: El cobro falló
+      summary: El cobro falló
+      description: |-
+        El cobro falló
+
+        Estado terminal. `failure_code` es un `code` del catálogo de `@pay/problem`.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: payment_intent.failed
+            subject:
+              $ref: '#/components/schemas/PaymentIntentId'
+            data:
+              $ref: '#/components/schemas/PaymentIntentFailedData'
+      examples:
+      - name: payment_intent.failed (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 53a98b58-2704-54e3-be42-c2ac4f7c55d7
+          source: /pay-payments
+          type: payment_intent.failed
+          subject: pi_c92215200m49
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            status: failed
+            failure_code: connector_unavailable
+            failed_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    PaymentIntentCanceled:
+      name: payment_intent.canceled
+      title: El cobro se canceló antes de pagarse
+      summary: El cobro se canceló antes de pagarse
+      description: |-
+        El cobro se canceló antes de pagarse
+
+        Estado terminal.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: payment_intent.canceled
+            subject:
+              $ref: '#/components/schemas/PaymentIntentId'
+            data:
+              $ref: '#/components/schemas/PaymentIntentCanceledData'
+      examples:
+      - name: payment_intent.canceled (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: c6c5cd38-0cd9-5b47-b68c-e053fe95df58
+          source: /pay-payments
+          type: payment_intent.canceled
+          subject: pi_c92215200m49
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            status: canceled
+            canceled_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    PaymentIntentExpired:
+      name: payment_intent.expired
+      title: El cobro venció sin pagarse
+      summary: El cobro venció sin pagarse
+      description: |-
+        El cobro venció sin pagarse
+
+        Estado terminal. Se publica tras consultar el estado al conector y anular el QR.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: payment_intent.expired
+            subject:
+              $ref: '#/components/schemas/PaymentIntentId'
+            data:
+              $ref: '#/components/schemas/PaymentIntentExpiredData'
+      examples:
+      - name: payment_intent.expired (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 3bf5eed8-bf4e-58f3-8868-63cc93fdfec9
+          source: /pay-payments
+          type: payment_intent.expired
+          subject: pi_c92215200m49
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            status: expired
+            expired_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    RefundCreated:
+      name: refund.created
+      title: Se creó un reembolso
+      summary: Se creó un reembolso
+      description: Se creó un reembolso
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: refund.created
+            subject:
+              $ref: '#/components/schemas/RefundId'
+            data:
+              $ref: '#/components/schemas/RefundCreatedData'
+      examples:
+      - name: refund.created (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: d53a99d7-f5cf-5661-a492-db04d79c99ea
+          source: /pay-payments
+          type: refund.created
+          subject: re_b08q99k2466b
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            refund_id: re_b08q99k2466b
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            amount_minor: 4000
+            currency: BOB
+            status: pending
+            reason: requested_by_customer
+          merchantid: mc_5c048c31m1fb
+    RefundSucceeded:
+      name: refund.succeeded
+      title: El reembolso se completó
+      summary: El reembolso se completó
+      description: |-
+        El reembolso se completó
+
+        Estado terminal.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: refund.succeeded
+            subject:
+              $ref: '#/components/schemas/RefundId'
+            data:
+              $ref: '#/components/schemas/RefundSucceededData'
+      examples:
+      - name: refund.succeeded (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 7a46c2e1-c599-5928-bcd2-1c37489c84ef
+          source: /pay-payments
+          type: refund.succeeded
+          subject: re_b08q99k2466b
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            refund_id: re_b08q99k2466b
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            amount_minor: 4000
+            currency: BOB
+            status: succeeded
+            ledger_transfer_id: tf_4qc1k3764652
+          merchantid: mc_5c048c31m1fb
+    RefundFailed:
+      name: refund.failed
+      title: El reembolso falló; la retención del ledger se anuló
+      summary: El reembolso falló; la retención del ledger se anuló
+      description: |-
+        El reembolso falló; la retención del ledger se anuló
+
+        Estado terminal.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: refund.failed
+            subject:
+              $ref: '#/components/schemas/RefundId'
+            data:
+              $ref: '#/components/schemas/RefundFailedData'
+      examples:
+      - name: refund.failed (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: e7e23c43-31bd-54a6-b79e-36ab16988085
+          source: /pay-payments
+          type: refund.failed
+          subject: re_b08q99k2466b
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            refund_id: re_b08q99k2466b
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            amount_minor: 4000
+            currency: BOB
+            status: failed
+            failure_code: connector_unavailable
+          merchantid: mc_5c048c31m1fb
+    DisputeOpened:
+      name: dispute.opened
+      title: Se abrió una disputa sobre un cobro
+      summary: Se abrió una disputa sobre un cobro
+      description: Se abrió una disputa sobre un cobro
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: dispute.opened
+            subject:
+              $ref: '#/components/schemas/DisputeId'
+            data:
+              $ref: '#/components/schemas/DisputeOpenedData'
+      examples:
+      - name: dispute.opened (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: e8419289-d45a-5049-8e65-bbbd005dd42d
+          source: /pay-payments
+          type: dispute.opened
+          subject: dp_05km0mm9m82m
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            dispute_id: dp_05km0mm9m82m
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            amount_minor: 10000
+            currency: BOB
+            status: open
+            opened_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    DisputeWon:
+      name: dispute.won
+      title: La disputa se resolvió a favor del comercio
+      summary: La disputa se resolvió a favor del comercio
+      description: |-
+        La disputa se resolvió a favor del comercio
+
+        Estado terminal.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: dispute.won
+            subject:
+              $ref: '#/components/schemas/DisputeId'
+            data:
+              $ref: '#/components/schemas/DisputeWonData'
+      examples:
+      - name: dispute.won (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: df6e7970-ddee-58a3-a489-7daa7d1be298
+          source: /pay-payments
+          type: dispute.won
+          subject: dp_05km0mm9m82m
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            dispute_id: dp_05km0mm9m82m
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            amount_minor: 10000
+            currency: BOB
+            status: won
+            resolved_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+    DisputeLost:
+      name: dispute.lost
+      title: 'La disputa se perdió: el importe se debita del comercio (D-22)'
+      summary: 'La disputa se perdió: el importe se debita del comercio (D-22)'
+      description: |-
+        La disputa se perdió: el importe se debita del comercio (D-22)
+
+        Estado terminal. El asiento debita el saldo del comercio; si no alcanza, queda como deuda para el próximo corte (D-22).
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: dispute.lost
+            subject:
+              $ref: '#/components/schemas/DisputeId'
+            data:
+              $ref: '#/components/schemas/DisputeLostData'
+      examples:
+      - name: dispute.lost (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 75e790e2-5f62-54a0-be0b-f65f2044a452
+          source: /pay-payments
+          type: dispute.lost
+          subject: dp_05km0mm9m82m
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            dispute_id: dp_05km0mm9m82m
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            amount_minor: 10000
+            currency: BOB
+            status: lost
+            resolved_at: '2026-10-27T15:00:00.000Z'
+            ledger_transfer_id: tf_q8971q4kc264
+          merchantid: mc_5c048c31m1fb
+    PaymentIntentContradictionDetected:
+      name: payment_intent.contradiction_detected
+      title: El conector dijo algo incompatible con el estado del cobro, o un resultado de dinero quedó ambiguo
+      summary: El conector dijo algo incompatible con el estado del cobro, o un resultado de dinero quedó ambiguo
+      description: |-
+        El conector dijo algo incompatible con el estado del cobro, o un resultado de dinero quedó ambiguo
+
+        Interno: NO sale por webhooks. `pay-payments` no sobrescribe un estado terminal ni anula una retención por una duda (CLAUDE.md,
+        regla 11); lo deja registrado y lo publica para que una persona lo resuelva por conciliación (REQ-P3-3). Es único por
+        cobro y evento de origen: la reentrega no lo duplica.
+      contentType: application/cloudevents+json
+      x-pii: none
+      x-delivery: at-least-once
+      x-idempotency-key: cloudevent.id (el campo `id` del sobre; también viaja como `Nats-Msg-Id`)
+      payload:
+        allOf:
+        - $ref: ../schemas/cloudevent.schema.json
+        - type: object
+          required:
+          - subject
+          - merchantid
+          properties:
+            source:
+              const: /pay-payments
+            type:
+              const: payment_intent.contradiction_detected
+            subject:
+              $ref: '#/components/schemas/PaymentIntentId'
+            data:
+              $ref: '#/components/schemas/PaymentIntentContradictionDetectedData'
+      examples:
+      - name: payment_intent.contradiction_detected (ejemplo)
+        payload:
+          specversion: '1.0'
+          id: 3b7c1d3e-5a0f-5f0e-9c43-2a3f7c9d1e11
+          source: /pay-payments
+          type: payment_intent.contradiction_detected
+          subject: pi_c92215200m49
+          time: '2026-10-27T15:00:00.000Z'
+          datacontenttype: application/json
+          data:
+            payment_intent_id: pi_c92215200m49
+            merchant_id: mc_5c048c31m1fb
+            kind: status_conflict
+            current_status: failed
+            incoming_status: captured
+            detected_at: '2026-10-27T15:00:00.000Z'
+          merchantid: mc_5c048c31m1fb
+  schemas:
+    AmountMinor:
+      $ref: ../openapi/common.yaml#/components/schemas/AmountMinor
+    Currency:
+      $ref: ../openapi/common.yaml#/components/schemas/Currency
+    Timestamp:
+      $ref: ../openapi/common.yaml#/components/schemas/Timestamp
+    MerchantId:
+      type: string
+      pattern: ^mc_[a-z0-9]{10,40}$
+    PaymentIntentId:
+      type: string
+      pattern: ^pi_[a-z0-9]{10,40}$
+    RefundId:
+      type: string
+      pattern: ^re_[a-z0-9]{10,40}$
+    DisputeId:
+      type: string
+      pattern: ^dp_[a-z0-9]{10,40}$
+    LedgerTransferId:
+      type: string
+      pattern: ^(tx|hd|tf)_[a-z0-9]{10,40}$
+      description: Id del asiento (`tx_…`) o de la retención confirmada (`hd_…`) en pay-ledger, tal como los devolvió `internal-ledger-v1.yaml`.
+        `tf_…` (una pata del asiento) se acepta por compatibilidad y no es lo recomendado.
+    ConnectorCode:
+      type: string
+      enum:
+      - mock
+      - simulator
+      - mercantil_qr
+      - mercantil_card
+      - bank_transfer
+      description: Conector (D-16). `mock` es el simulador, con el mismo nombre que en `internal-connectors-v1.yaml`; `simulator` es un alias
+        heredado que se sigue aceptando mientras los productores migran y no se usa en ninguna API. Un banco nuevo agrega un valor; no se
+        renombran los existentes.
+    PaymentMethodType:
+      type: string
+      enum:
+      - qr
+      - card
+      - bank_transfer
+      - wallet
+    PaymentIntentCreatedData:
+      type: object
+      additionalProperties: false
+      required:
+      - payment_intent_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - payment_method_type
+      - status
+      - fee_minor
+      - net_minor
+      - expires_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        payment_method_type:
+          $ref: '#/components/schemas/PaymentMethodType'
+        status:
+          type: string
+          enum:
+          - requires_action
+          - processing
+          description: Estado al crearse. El enum público no tiene un estado inicial propio.
+        fee_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        net_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        expires_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se creó un cobro
+    PaymentIntentRequiresActionData:
+      type: object
+      additionalProperties: false
+      required:
+      - payment_intent_id
+      - merchant_id
+      - status
+      - next_action_type
+      - expires_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: requires_action
+        next_action_type:
+          type: string
+          enum:
+          - display_qr
+          - bank_transfer_instructions
+          - redirect_to_card_form
+        expires_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: El pagador tiene que hacer algo para completar el cobro
+    PaymentIntentProcessingData:
+      type: object
+      additionalProperties: false
+      required:
+      - payment_intent_id
+      - merchant_id
+      - status
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: processing
+        connector:
+          $ref: '#/components/schemas/ConnectorCode'
+      description: El cobro está en proceso en el proveedor
+    PaymentIntentSucceededData:
+      type: object
+      additionalProperties: false
+      required:
+      - payment_intent_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - status
+      - payment_method_type
+      - fee_minor
+      - net_minor
+      - ledger_transfer_id
+      - succeeded_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          const: succeeded
+        payment_method_type:
+          $ref: '#/components/schemas/PaymentMethodType'
+        fee_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        net_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        ledger_transfer_id:
+          $ref: '#/components/schemas/LedgerTransferId'
+        succeeded_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: El cobro se completó y quedó asentado en el ledger
+    PaymentIntentFailedData:
+      type: object
+      additionalProperties: false
+      required:
+      - payment_intent_id
+      - merchant_id
+      - status
+      - failure_code
+      - failed_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: failed
+        failure_code:
+          type: string
+          enum:
+          - insufficient_funds
+          - connector_unavailable
+          - risk_unavailable
+          - ledger_unavailable
+          - merchant_suspended
+          - risk_denied
+          - payment_declined
+          - validation_failed
+          - internal_error
+        failed_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: El cobro falló
+    PaymentIntentCanceledData:
+      type: object
+      additionalProperties: false
+      required:
+      - payment_intent_id
+      - merchant_id
+      - status
+      - canceled_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: canceled
+        canceled_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: El cobro se canceló antes de pagarse
+    PaymentIntentExpiredData:
+      type: object
+      additionalProperties: false
+      required:
+      - payment_intent_id
+      - merchant_id
+      - status
+      - expired_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        status:
+          const: expired
+        expired_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: El cobro venció sin pagarse
+    RefundCreatedData:
+      type: object
+      additionalProperties: false
+      required:
+      - refund_id
+      - payment_intent_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - status
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        refund_id:
+          $ref: '#/components/schemas/RefundId'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          const: pending
+        reason:
+          type: string
+          enum:
+          - requested_by_customer
+          - duplicate
+          - fraudulent
+          - other
+      description: Se creó un reembolso
+    RefundSucceededData:
+      type: object
+      additionalProperties: false
+      required:
+      - refund_id
+      - payment_intent_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - status
+      - ledger_transfer_id
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        refund_id:
+          $ref: '#/components/schemas/RefundId'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          const: succeeded
+        ledger_transfer_id:
+          $ref: '#/components/schemas/LedgerTransferId'
+      description: El reembolso se completó
+    RefundFailedData:
+      type: object
+      additionalProperties: false
+      required:
+      - refund_id
+      - payment_intent_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - status
+      - failure_code
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        refund_id:
+          $ref: '#/components/schemas/RefundId'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          const: failed
+        failure_code:
+          type: string
+          enum:
+          - insufficient_funds
+          - connector_unavailable
+          - ledger_unavailable
+          - invalid_state_transition
+          - internal_error
+      description: El reembolso falló; la retención del ledger se anuló
+    DisputeOpenedData:
+      type: object
+      additionalProperties: false
+      required:
+      - dispute_id
+      - payment_intent_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - status
+      - opened_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        dispute_id:
+          $ref: '#/components/schemas/DisputeId'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          const: open
+        opened_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se abrió una disputa sobre un cobro
+    DisputeWonData:
+      type: object
+      additionalProperties: false
+      required:
+      - dispute_id
+      - payment_intent_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - status
+      - resolved_at
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        dispute_id:
+          $ref: '#/components/schemas/DisputeId'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          const: won
+        resolved_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: La disputa se resolvió a favor del comercio
+    DisputeLostData:
+      type: object
+      additionalProperties: false
+      required:
+      - dispute_id
+      - payment_intent_id
+      - merchant_id
+      - amount_minor
+      - currency
+      - status
+      - resolved_at
+      - ledger_transfer_id
+      properties:
+        mode:
+          $ref: '#/components/schemas/Mode'
+        dispute_id:
+          $ref: '#/components/schemas/DisputeId'
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        amount_minor:
+          $ref: '#/components/schemas/AmountMinor'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        status:
+          const: lost
+        resolved_at:
+          $ref: '#/components/schemas/Timestamp'
+        ledger_transfer_id:
+          $ref: '#/components/schemas/LedgerTransferId'
+      description: 'La disputa se perdió: el importe se debita del comercio (D-22)'
+    Mode:
+      type: string
+      enum:
+      - test
+      - live
+      description: Modo de la CLAVE que originó el hecho (D-28). Opcional mientras el productor no lo implemente (ola 2); los
+        eventos públicos lo llevan para que un consumidor distinga un hecho `test` de uno `live`. No es el modo del despliegue
+        (`sandbox|live`).
+    PaymentIntentContradictionDetectedData:
+      type: object
+      additionalProperties: false
+      required:
+      - payment_intent_id
+      - merchant_id
+      - kind
+      - current_status
+      - incoming_status
+      - detected_at
+      properties:
+        payment_intent_id:
+          $ref: '#/components/schemas/PaymentIntentId'
+        merchant_id:
+          $ref: '#/components/schemas/MerchantId'
+        kind:
+          type: string
+          pattern: ^[a-z][a-z_]{2,39}$
+          description: 'Qué se detectó. `status_conflict`: el conector informó un estado incompatible con el ya aplicado.
+            `compensation_failed` y `refund_pending_timeout`: una compensación o un reembolso quedaron sin resolver.
+            `<paso>_outcome_unknown` (por ejemplo `charge_outcome_unknown`, `ledger_outcome_unknown`, `refund_outcome_unknown`):
+            una orden que mueve dinero terminó en un resultado ambiguo. Se agregan valores; no se renombran.'
+        current_status:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: Estado que tenía el cobro (o el reembolso o la disputa, con prefijo) cuando se detectó.
+        incoming_status:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: Estado que informó el conector, o `ambiguous` / `compensation_failed` cuando no hay un estado ajeno.
+        mode:
+          $ref: '#/components/schemas/Mode'
+        detected_at:
+          $ref: '#/components/schemas/Timestamp'
+      description: Se detectó una contradicción o un resultado ambiguo que requiere a una persona

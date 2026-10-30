@@ -1,0 +1,22 @@
+== reanudación tras reinicio del contenedor (la corrida 3f murió en la etapa e2e; uptime 28 min)
+== pay-schedules corrida 1
+Test Suites: 15 passed, 15 total
+Tests:       206 passed, 206 total
+== pay-schedules corrida 2
+FAIL test/pool-error.spec.ts (5.559 s)
+  ● conexión ociosa cortada por Postgres: el proceso sobrevive y el pool se repone › límite: se cortan TODAS las conexiones ociosas a la vez; las siguientes peticiones, incluso concurrentes, se atienden
+Test Suites: 1 failed, 14 passed, 15 total
+Tests:       1 failed, 205 passed, 206 total
+== e2e
+Test Suites: 23 passed, 23 total
+Tests:       179 passed, 179 total
+DONE
+
+== Clasificación del rojo de pay-schedules/test/pool-error.spec.ts (regla 80.4)
+Síntoma: en la suite completa, 1 de ~9 corridas fallaba; aislado 0/25 y bajo CPU saturada 0/3.
+Reproducido con la salida literal: `expect(all.length).toBeGreaterThan(1)` → Expected: > 1, Received: 1 (línea 101).
+Causa: la PRECONDICIÓN del test. En un equipo rápido, 3 peticiones concurrentes se atienden sobre una sola conexión del pool y queda una sola ociosa.
+Clase: TEST_BUG (el producto, guardPool, no interviene: el fallo ocurre antes de cortar nada). La aserción central no se debilitó:
+se repite la ráfaga concurrente hasta que existan >1 conexiones ociosas y se sigue exigiendo >1, y luego se cortan TODAS y se exige 200 en las 3 peticiones siguientes.
+Mismo patrón latente en pay-connectors, pay-merchants, pay-mockbank, pay-qr y pay-risk (no habían fallado): corregido igual.
+Después: pay-schedules suite completa 4/4 corridas 206/206; los 5 pool-error.spec restantes en verde; typecheck 0 y eslint 0.

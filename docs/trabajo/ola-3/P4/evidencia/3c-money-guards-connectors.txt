@@ -1,0 +1,22 @@
+# 3c-money-guards-connectors
+$ (cd services/pay-connectors && yarn test --maxWorkers=2 test/money-guards.spec.ts --verbose --reporters default)
+(las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
+
+(node:26120) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/money-guards.spec.ts
+  connector_charges: send_claims monótono, ambiguous libre
+    ✓ correcto: send_claims sube y `ambiguous` pasa true -> false (la resolución legítima de un cobro ambiguo) (22 ms)
+    ✓ límite: dejar send_claims igual y cambiar otras columnas está permitido; bajarlo en 1 no (28 ms)
+    ✓ inválido: send_claims no puede volver a cero ni quedar negativo (93 ms)
+  TRUNCATE de los registros de dinero
+    ✓ inválido: connector_charges (CASCADE), connector_transfers y connector_refunds rechazan TRUNCATE (62 ms)
+    ✓ límite: una tabla sin guardián (connector_health) se sigue pudiendo vaciar; DELETE no se prohíbe (el reset de las pruebas lo usa) (19 ms)
+    ✓ correcto: INSERT y SELECT normales no se ven afectados (3 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        3.016 s
+Ran all test suites matching test/money-guards.spec.ts.
+exit=0

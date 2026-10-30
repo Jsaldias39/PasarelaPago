@@ -1,0 +1,20 @@
+$ (modelo) python3 salud-db/gen_ddl_pay.py --check
+[81/pay_lib] 3 tablas · 0 FK intra · 0 FK diferidas · 0 inferidas · 3 índices · 1 saltadas
+SQL/pay/ coincide con los .puml
+exit=0
+$ (modelo) python3 -m unittest discover -s salud-db/tests
+----------------------------------------------------------------------
+Ran 21 tests in 0.027s
+
+OK
+
+$ bash scripts/vendor-model-sql.sh --check   (ledger, settlement)
+modelo: /home/user/pasarelapago/../mantra-core-health-model @ 5050446
+PASS  pay-ledger: sql/ddl.sql coincide con el modelo (318 líneas)
+PASS  pay-settlement: sql/ddl.sql coincide con el modelo (477 líneas)
+$ yarn sql:check (pay-vault)
+OK: sql/ddl.sql idéntico a /home/user/pasarelapago/../mantra-core-health-model/SQL/pay/79_pay_vault/ddl.sql
+$ yarn sql:check (pay-webhooks)
+OK: sql/ddl.sql idéntico a /home/user/pasarelapago/../mantra-core-health-model/SQL/pay/80_pay_webhooks/ddl.sql
+$ bash scripts/vendor-ddl.sh --check (pay-connectors)
+vendor-ddl --check: sql/ddl.sql coincide con el modelo (5050446, 70_pay_connectors)

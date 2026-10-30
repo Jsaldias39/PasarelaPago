@@ -1,0 +1,26 @@
+$ yarn contracts:lint
+OK    contracts/openapi/internal-connectors-v1.yaml
+OK    contracts/openapi/internal-ledger-v1.yaml
+OK    contracts/openapi/internal-payments-v1.yaml
+OK    contracts/openapi/internal-risk-v1.yaml
+OK    contracts/openapi/internal-settlement-v1.yaml
+OK    contracts/openapi/internal-vault-v1.yaml
+OK    contracts/openapi/public-v1.yaml
+OK    contracts/asyncapi/connectors.yaml
+OK    contracts/asyncapi/ledger-settlement.yaml
+OK    contracts/asyncapi/merchants-schedules.yaml
+OK    contracts/asyncapi/payments.yaml
+
+11 contrato(s) válido(s)
+exit=0
+
+$ (cd services/pay-edge && yarn test test/contract-mandate.spec.ts test/proxy.spec.ts)
+Tests:       70 passed, 70 total
+
+$ yarn contracts:events
+payments: 13 canales, 13 mensajes, 13 ejemplos válidos, operaciones 13 send / 39 receive
+connectors: 3 canales, 3 mensajes, 3 ejemplos válidos, operaciones 3 send / 6 receive
+ledger-settlement: 10 canales, 10 mensajes, 10 ejemplos válidos, operaciones 10 send / 20 receive
+merchants-schedules: 12 canales, 12 mensajes, 12 ejemplos válidos, operaciones 12 send / 42 receive
+{"files":4,"channels":38,"messages":38,"sends":38,"receives":107,"valid":38,"mutantsRejected":333,"mutants":333,"piiHits":0,"noExamples":0,"bad":0}
+exit=0

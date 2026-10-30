@@ -1,0 +1,19 @@
+$ yarn test test/replica.spec.ts (corrida 1/5)
+Tests:       28 passed, 28 total
+exit=0
+$ yarn test test/replica.spec.ts (corrida 2/5)
+Tests:       28 passed, 28 total
+exit=0
+$ yarn test test/replica.spec.ts (corrida 3/5)
+Tests:       28 passed, 28 total
+exit=0
+$ yarn test test/replica.spec.ts (corrida 4/5)
+Tests:       28 passed, 28 total
+exit=0
+$ yarn test test/replica.spec.ts (corrida 5/5)
+Tests:       28 passed, 28 total
+exit=0
+
+Mutación (salida de la sesión): quitando `WHERE api_key_replica.key_hash IS NULL`, `LEAST(revoked_at…)` y la guarda de estado del comercio en
+test/replica.spec.ts fallan 4 pruebas: «closed es terminal», «un evento más VIEJO…», «la revocación más temprana manda» y
+«un hash replicado no se pisa». Restaurado el código, 28/28.

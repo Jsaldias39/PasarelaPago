@@ -1,0 +1,27 @@
+Paridad mock/real de conectores (suite de contrato de P4)
+  PARIDAD    conector mock: 21 pruebas · en proceso 19 verdes · contra pay-mockbank 18 verdes · 3 NO APLICA declarados
+      NO APLICA declarado (solo pay-mockbank): createCharge / getStatus / cancel › límite: un cobro que nadie paga sigue `pending` hasta su vencimiento y recién entonces se informa `expired`
+          → services/pay-connectors/test/mockbank.spec.ts caso 08 (escenario …08: pasa a `expired` al llegar `expires_at`); el reloj del banco remoto no es el de la prueba
+      NO APLICA declarado (ambos lados): createCharge / getStatus / cancel › inválido: un medio que el conector no declara se rechaza
+          → services/pay-connectors/test/contract/contract.spec.ts (capacidades del enlace) y connector-contract.ts `only(...)`
+      NO APLICA declarado (ambos lados): fetchStatement › correcto: el depósito del pagador con la referencia de las instrucciones aparece en el extracto (el banco no avisa)
+          → services/pay-connectors/test/contract/contract.spec.ts (capacidades del enlace) y connector-contract.ts `only(...)`
+  PARIDAD    conector bank_transfer: 21 pruebas · en proceso 13 verdes · contra pay-mockbank 13 verdes · 8 NO APLICA declarados
+      NO APLICA declarado (ambos lados): resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › timeout ambiguo: ConnectorTimeoutError (la orden PUDO ejecutarse) y repetir la MISMA referencia devuelve el mismo cobro
+          → services/pay-connectors/test/contract/contract.spec.ts (capacidades del enlace) y connector-contract.ts `only(...)`: bank_transfer cobra por depósito del pagador conciliado por extracto
+      NO APLICA declarado (ambos lados): resultados ambiguos y caída (regla 11: ambiguo ≠ fallo) › rechazo síncrono: el importe «rechazado» devuelve `failed` con un código estable
+          → services/pay-connectors/test/contract/contract.spec.ts (capacidades del enlace) y connector-contract.ts `only(...)`: bank_transfer cobra por depósito del pagador conciliado por extracto
+      NO APLICA declarado (ambos lados): refund / getRefund › correcto: reembolso parcial de un cobro cobrado, idempotente por referencia y consultable; el excedente se rechaza
+          → services/pay-connectors/test/contract/contract.spec.ts (capacidades del enlace) y connector-contract.ts `only(...)`: bank_transfer cobra por depósito del pagador conciliado por extracto
+      NO APLICA declarado (ambos lados): refund / getRefund › límite: getRefund de una referencia que el banco no tiene devuelve `not_found` EXPLÍCITO (no un error)
+          → services/pay-connectors/test/contract/contract.spec.ts (capacidades del enlace) y connector-contract.ts `only(...)`: bank_transfer cobra por depósito del pagador conciliado por extracto
+      NO APLICA declarado (ambos lados): verifyCallback › correcto: un callback bien firmado se interpreta en un evento con su id, referencia, estado e importe
+          → services/pay-connectors/test/contract/contract.spec.ts (capacidades del enlace) y connector-contract.ts `only(...)`: bank_transfer cobra por depósito del pagador conciliado por extracto
+      NO APLICA declarado (ambos lados): fetchStatement › correcto: un cobro cobrado aparece como crédito con NUESTRA referencia y el importe cobrado
+          → services/pay-connectors/test/contract/contract.spec.ts (capacidades del enlace) y connector-contract.ts `only(...)`: bank_transfer cobra por depósito del pagador conciliado por extracto
+      NO APLICA declarado (ambos lados): createTransfer / getTransfer › correcto: la orden se paga, es idempotente por referencia y se puede consultar; una desconocida da `not_found` EXPLÍCITO
+          → services/pay-connectors/test/contract/contract.spec.ts (capacidades del enlace) y connector-contract.ts `only(...)`: bank_transfer cobra por depósito del pagador conciliado por extracto
+      NO APLICA declarado (ambos lados): createTransfer / getTransfer › límite/inválido: Bs …01 la rechaza (`rejected_by_bank`); Bs …07 se EJECUTA y la respuesta se pierde (ambiguo), y la consulta demuestra que se pagó
+          → services/pay-connectors/test/contract/contract.spec.ts (capacidades del enlace) y connector-contract.ts `only(...)`: bank_transfer cobra por depósito del pagador conciliado por extracto
+  BLOQUEADO  mercantil_qr: BLOQUEADO — el Banco Mercantil Santa Cruz no entregó documentación de API ni ambiente de pruebas (docs/spikes/banco-mercantil.md, Q-01, Q-11); no hay adaptador real que probar
+  BLOQUEADO  mercantil_card: BLOQUEADO — ídem (docs/spikes/banco-mercantil.md, Q-01, Q-11); la tarjeta además exige el vault real y el alcance PCI (docs/cumplimiento/pci-alcance.md)

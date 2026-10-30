@@ -1,0 +1,30 @@
+# Gate: FALLOS — experimentos de inyección de fallos (cada uno: hipótesis, inyección, observación)
+
+## F1 · pay-risk con Watchman caído
+   Hipótesis: si el cribado no responde, la evaluación termina en `review` (`screening_unavailable`, screened=false) y NUNCA en `allow`; el servicio sigue sano.
+PASS  pay-risk arranca con WATCHMAN_URL inalcanzable (127.0.0.1:1)
+     observado: 201 {"decision":"review","reason_code":"screening_unavailable","screened":false}
+PASS  Watchman caído ⇒ 201 review, screened=false, nunca allow
+PASS  el servicio sigue respondiendo /health/ready 200
+
+## F2 · pay-risk con las conexiones de Postgres cortadas en caliente (pg_terminate_backend)
+   Hipótesis: el servicio no se cae; la siguiente petición reconecta y responde; no queda una evaluación duplicada.
+PASS  antes del corte: 201
+     inyección: 2 conexiones del servicio terminadas
+     observado tras el corte: la evaluación 2 terminó en 0 (no se recuperó)
+     proceso: {"code":1,"signal":null}; cola del log:
+           at Socket.<anonymous> (/home/user/pasarelapago/node_modules/pg/lib/connection.js:64:12)
+           at Socket.emit (node:events:519:28)
+           at TCP.<anonymous> (node:net:346:12)
+           at TCP.callbackTrampoline (node:internal/async_hooks:130:17)
+       
+       Node.js v22.22.0
+FAIL  el servicio se recupera solo: una evaluación posterior responde 201
+FAIL  error inesperado: TypeError: fetch failed
+    at node:internal/deps/undici/undici:14902:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async http (file:///home/user/pasarelapago/scripts/p5-gates.mjs:250:15)
+    at async Object.faults (file:///home/user/pasarelapago/scripts/p5-gates.mjs:657:23)
+    at async file:///home/user/pasarelapago/scripts/p5-gates.mjs:897:27
+
+resultado: FAIL (2)

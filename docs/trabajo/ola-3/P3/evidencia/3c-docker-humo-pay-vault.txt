@@ -1,0 +1,17 @@
+# Humo del contenedor vault (imagen pay-vault-gate:p3, --network host, rol pay_vault de la base propia) · 3c (2026-10-28T01:50:24Z)
+$ curl /health/live
+{"status":"ok"}
+$ curl /health/ready
+{"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"database":{"status":"up"}}}
+$ docker exec p3-smoke-vault id
+uid=1000(node) gid=1000(node) groups=1000(node)
+$ docker exec ... ls /repo/services
+pay-vault
+$ docker logs (últimas 6 líneas)
+{"level":30,"time":1793152229111,"pid":1,"hostname":"vm","context":"RouterExplorer","msg":"Mapped {/capture_sessions/:id, GET} route"}
+{"level":30,"time":1793152229111,"pid":1,"hostname":"vm","context":"RouterExplorer","msg":"Mapped {/tokens/:token, GET} route"}
+{"level":30,"time":1793152229111,"pid":1,"hostname":"vm","context":"RouterExplorer","msg":"Mapped {/tokens/:token, DELETE} route"}
+{"level":30,"time":1793152229111,"pid":1,"hostname":"vm","context":"RouterExplorer","msg":"Mapped {/tokens/:token/reveal, POST} route"}
+{"level":30,"time":1793152229111,"pid":1,"hostname":"vm","context":"NestApplication","msg":"Nest application successfully started"}
+{"level":50,"time":1793152229147,"pid":1,"hostname":"vm","context":"EventsModule","err":"error","code":"42P01","msg":"El relé del outbox falló"}
+(contenedor detenido y borrado)

@@ -1,0 +1,109 @@
+FAIL e2e/pending/e5.e2e.ts (57.165 s)
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › SIEMBRA [DOBLE]: el médico tiene Bs 500,00 por un asiento de apertura sintético (idempotente); el proveedor, nada
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › el médico programa Bs 1.000,00 mensuales al proveedor por la API pública, con sk_test_ (el modo lo fija el borde)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › PRIMER INTENTO: con Bs 500,00 de Bs 1.000,00 espera fondos, avisa UNA vez y no mueve dinero (aunque haya 5 ejecutores)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › REINTENTO: al llegar los otros Bs 500,00 el pago se ejecuta UNA vez, con asiento tx_ del ledger, y el proveedor cobra Bs 1.000,00
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › REINTENTO SEGURO: repetir la retención y la liberación con la MISMA clave devuelve lo mismo y no mueve dinero otra vez
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+  ● E5 — pago mensual del médico con saldo AloVida: sin fondos → reintento → éxito › UN SOLO EFECTO con 5 ejecutores en carrera: un solo `executed` en el bus y en el webhook, una sola fila, ningún pago más
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      68 |     expect((await waitForEdgeToKnow(stack, doctor)).ok).toBe(true);
+      69 |     // El mandato se valida contra la réplica de comercios de pay-schedules (eventos merchant.* por NATS): se espera a que conozca a los dos.
+    > 70 |     expect((await waitForReplica(stack, [doctor.merchantId, supplier.merchantId])).ok).toBe(true);
+         |                                                                                        ^
+      71 |     extra = await startExtraExecutors(stack, EXECUTORS - 1, SCHEDULES_ENV);
+      72 |     receiver = new MerchantReceiver({ port: stack.receiver.port, certFile: stack.receiver.certFile, keyFile: stack.receiver.keyFile });
+      73 |     await receiver.listen();
+
+      at Object.toBe (e2e/pending/e5.e2e.ts:70:88)
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 6 total
+Snapshots:   0 total
+Time:        57.243 s
+Ran all test suites matching e2e/pending/e5.e2e.ts.
+exit=1

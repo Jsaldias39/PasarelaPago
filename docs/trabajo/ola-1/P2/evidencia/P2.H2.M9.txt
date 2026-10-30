@@ -1,0 +1,24 @@
+# Evidencia P2.H2.M9
+
+Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
+
+Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
+
+## pay-settlement/test/netting.spec.ts
+✓ abono mensual (P2.H2.M9, D-07) › el corte cobra el abono contra el saldo ANTES de pagar: payout = liberado − abono; una sola vez por mes (550 ms)
+✓ abono mensual (P2.H2.M9, D-07) › el mes siguiente sí se cobra otro abono (cortes del 28/9 y del 5/10) (399 ms)
+✓ abono mensual (P2.H2.M9, D-07) › repetir el corte del mismo lunes no vuelve a cobrar el abono (383 ms)
+✓ abono mensual (P2.H2.M9, D-07) › si el saldo no alcanza, cobra lo que hay, deja la DEUDA abierta y no paga nada; el corte siguiente la netea primero (431 ms)
+✓ abono mensual (P2.H2.M9, D-07) › un comercio con abono y sin ventas queda debiendo el abono (no se inventa saldo) y entra al corte por el tarifario (340 ms)
+✓ abono mensual (P2.H2.M9, D-07) › tarifario (fee_schedule.published): versión, vigencia y duplicados › una versión vieja que llega tarde no pisa a la nueva; la misma versión repetida y un evento duplicado no cambian nada (246 ms)
+✓ abono mensual (P2.H2.M9, D-07) › tarifario (fee_schedule.published): versión, vigencia y duplicados › sin monthly_fee_minor no hay abono; con la vigencia vencida o futura tampoco (431 ms)
+✓ abono mensual (P2.H2.M9, D-07) › tarifario (fee_schedule.published): versión, vigencia y duplicados › un evento inválido (sin merchant_id) se descarta sin tocar nada (226 ms)
+✓ abono mensual (P2.H2.M9, D-07) › tarifario (fee_schedule.published): versión, vigencia y duplicados › un evento inválido (versión 0) se descarta sin tocar nada (277 ms)
+✓ abono mensual (P2.H2.M9, D-07) › tarifario (fee_schedule.published): versión, vigencia y duplicados › un evento inválido (abono negativo) se descarta sin tocar nada (229 ms)
+✓ abono mensual (P2.H2.M9, D-07) › tarifario (fee_schedule.published): versión, vigencia y duplicados › un evento inválido (moneda distinta) se descarta sin tocar nada (196 ms)
+✓ abono mensual (P2.H2.M9, D-07) › tarifario (fee_schedule.published): versión, vigencia y duplicados › un evento inválido (fecha ilegible) se descarta sin tocar nada (209 ms)
+✓ abono mensual (P2.H2.M9, D-07) › tarifario (fee_schedule.published): versión, vigencia y duplicados › el sobre inválido, un evento de otro origen y un tipo que no es nuestro se descartan o ignoran (216 ms)
+✓ abono mensual (P2.H2.M9, D-07) › el ledger responde mal justo al cobrar el abono (el asiento SÍ se aplicó): el reintento no cobra dos veces (367 ms)
+✓ comisión programada de proveedores y deuda por contracargo (P2.H2.M5, 7.8, D-22) › rechaza tipo abono mensual (lo crea el corte, no un llamador) con 422 y no crea nada (205 ms)
+
+RESULTADO P2.H2.M9: 15 pasan, 0 fallan, de 15.

@@ -1,0 +1,5 @@
+# CONTROL (variante P5): solo pool.on('error') SIN el manejador del cliente prestado -> pasan las pruebas de conexión ociosa y MUERE el proceso en el corte a mitad de transacción
+  ● conexión ociosa cortada por Postgres: el proceso sobrevive y el pool se repone › límite (regla 11): corte DESPUÉS de enviar al proveedor, en la escritura de «cobro enviado»: 5xx del contrato, el cobro NO se anula ni se da por inexistente y reinten
+    TypeError: fetch failed
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 5 passed, 6 total

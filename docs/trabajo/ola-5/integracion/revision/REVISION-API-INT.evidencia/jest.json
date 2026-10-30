@@ -1,0 +1,23 @@
+{
+ "rootDir": "<carpeta-de-la-evidencia>",
+ "roots": [
+  "<carpeta-de-la-evidencia>"
+ ],
+ "testMatch": [
+  "**/*.int-spec.ts",
+  "**/*.spec.ts"
+ ],
+ "moduleDirectories": [
+  "node_modules",
+  "/home/user/mantra-core-health-api/node_modules"
+ ],
+ "extensionsToTreatAsEsm": [
+  ".ts"
+ ],
+ "transform": {
+  "^.+\\.(t|j)s$": "/home/user/mantra-core-health-api/node_modules/@swc/jest"
+ },
+ "testEnvironment": "node",
+ "testTimeout": 120000,
+ "cacheDirectory": "/tmp/claude-0/-home-user/e2a1ca80-8ad4-54a7-8e83-0b9ce0655bff/scratchpad/jestcache"
+}

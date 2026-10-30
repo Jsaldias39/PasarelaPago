@@ -1,0 +1,61 @@
+## e2e:typecheck
+exit=0
+## yarn lint (raíz)
+
+/home/user/pasarelapago/services/pay-mockbank/test/idempotency-parallel.spec.ts
+  17:19  error  'T' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 2 problems (2 errors, 0 warnings)
+
+exit=1
+## yarn lint (raíz) — salida completa
+
+/home/user/pasarelapago/services/pay-ledger/test/sensitive-data.spec.ts
+  2:47  error  'checked' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/user/pasarelapago/services/pay-mockbank/test/idempotency-parallel.spec.ts
+  17:19  error  'T' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 2 problems (2 errors, 0 warnings)
+
+exit=1
+## eslint solo de lo mío (e2e, platform, pay-edge, pay-webhooks)
+exit=0
+## pay-edge typecheck
+exit=0
+## pay-edge build
+exit=0
+## pay-webhooks typecheck
+exit=0
+## pay-webhooks build
+exit=0
+## pay-edge test run 1 (--maxWorkers=2)
+Test Suites: 12 passed, 12 total
+Tests:       381 passed, 381 total
+Time:        21.622 s
+exit=0
+## pay-edge test run 2 (--maxWorkers=2)
+Test Suites: 12 passed, 12 total
+Tests:       381 passed, 381 total
+Time:        17.329 s, estimated 21 s
+exit=0
+## pay-edge test run 3 (--maxWorkers=2)
+Test Suites: 12 passed, 12 total
+Tests:       381 passed, 381 total
+Time:        14.48 s, estimated 16 s
+exit=0
+## pay-webhooks test run 1 (--maxWorkers=2)
+Test Suites: 10 passed, 10 total
+Tests:       388 passed, 388 total
+Time:        10.092 s
+exit=0
+## pay-webhooks test run 2 (--maxWorkers=2)
+Test Suites: 10 passed, 10 total
+Tests:       388 passed, 388 total
+Time:        13.563 s
+exit=0
+## pay-webhooks test run 3 (--maxWorkers=2)
+Test Suites: 10 passed, 10 total
+Tests:       388 passed, 388 total
+Time:        11.256 s, estimated 13 s
+exit=0

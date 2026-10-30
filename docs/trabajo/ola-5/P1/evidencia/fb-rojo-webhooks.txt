@@ -1,0 +1,82 @@
+# ROJO: las pruebas NUEVAS contra el src ANTERIOR (HEAD a641f96) en un worktree aparte; solo se añadieron dos shims de NOMBRES (consumer-redelivery.ts y append-only-guards.ts nuevos y sin uso; constantes ORPHAN_REVIEW_* y una función isDefiniteDatabaseError con la lógica anterior) para que el módulo cargue. flock /tmp/pay-heavy.lock … jest
+
+## corrida 1 (event-redelivery, append-only-guards, definite-database-error, orphan-action, health, reconciler-guards)
+  ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › el consumidor real de pay-webhooks › CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver se entrega y el efecto ocurre UNA vez
+  ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › el consumidor real de pay-webhooks › INVÁLIDO: lo que nunca se podrá procesar se descarta (term) y NO gira para siempre aunque no haya tope
+  ● F-B2 · consumidor durable sin tope de entregas (NATS JetStream real) › el consumidor real de pay-webhooks › el durable viejo se migró al arrancar el servicio
+  ● GET /health/ready con PAY_MODE=live y una base SIN guardianes (DDL anterior) › responde 503 y expone checks.append_only_guards con el mismo nombre y forma
+  ● GET /health/ready con PAY_MODE=sandbox y una base SIN guardianes (DDL anterior) › responde 200 y expone checks.append_only_guards con el mismo nombre y forma
+  ● GET /health/ready con la base y el DDL vigentes › CORRECTO: ok:true, missing vacío, 200; reaplicando el DDL a una base sin guardianes vuelve a ok sin reiniciar el servicio
+  ● loadConfig — falla al arrancar con configuración inválida (regla 90.3.4) › WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble) › CORRECTO: sandbox con svix carga la configuración del servidor con sus valores por defecto
+  ● loadConfig — falla al arrancar con configuración inválida (regla 90.3.4) › WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble) › REVISION-DINERO F2/F5: espacio de nombres, tope de borrados, margen de reloj y gracia mínima › RE-REVISION-DINERO F-B1: WEBHOOKS_SVIX_ORPHAN_ACTION (deshabilitar por defecto; borrar solo a propósito) › CORRECTO: sin declararlo, y declarando «disable», se deshabilita (también en live); «delete» en sandbox se admite
+  ● loadConfig — falla al arrancar con configuración inválida (regla 90.3.4) › WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble) › REVISION-DINERO F2/F5: espacio de nombres, tope de borrados, margen de reloj y gracia mínima › RE-REVISION-DINERO F-B1: WEBHOOKS_SVIX_ORPHAN_ACTION (deshabilitar por defecto; borrar solo a propósito) › INVÁLIDO: WEBHOOKS_SVIX_ORPHAN_ACTION=" delete" ⇒ no arranca
+  ● loadConfig — falla al arrancar con configuración inválida (regla 90.3.4) › WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble) › REVISION-DINERO F2/F5: espacio de nombres, tope de borrados, margen de reloj y gracia mínima › RE-REVISION-DINERO F-B1: WEBHOOKS_SVIX_ORPHAN_ACTION (deshabilitar por defecto; borrar solo a propósito) › INVÁLIDO: WEBHOOKS_SVIX_ORPHAN_ACTION="Delete" ⇒ no arranca
+  ● loadConfig — falla al arrancar con configuración inválida (regla 90.3.4) › WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble) › REVISION-DINERO F2/F5: espacio de nombres, tope de borrados, margen de reloj y gracia mínima › RE-REVISION-DINERO F-B1: WEBHOOKS_SVIX_ORPHAN_ACTION (deshabilitar por defecto; borrar solo a propósito) › INVÁLIDO: WEBHOOKS_SVIX_ORPHAN_ACTION="purge" ⇒ no arranca
+  ● loadConfig — falla al arrancar con configuración inválida (regla 90.3.4) › WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble) › REVISION-DINERO F2/F5: espacio de nombres, tope de borrados, margen de reloj y gracia mínima › RE-REVISION-DINERO F-B1: WEBHOOKS_SVIX_ORPHAN_ACTION (deshabilitar por defecto; borrar solo a propósito) › INVÁLIDO: WEBHOOKS_SVIX_ORPHAN_ACTION="remove" ⇒ no arranca
+  ● loadConfig — falla al arrancar con configuración inválida (regla 90.3.4) › WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble) › REVISION-DINERO F2/F5: espacio de nombres, tope de borrados, margen de reloj y gracia mínima › RE-REVISION-DINERO F-B1: WEBHOOKS_SVIX_ORPHAN_ACTION (deshabilitar por defecto; borrar solo a propósito) › INVÁLIDO: WEBHOOKS_SVIX_ORPHAN_ACTION="true" ⇒ no arranca
+  ● loadConfig — falla al arrancar con configuración inválida (regla 90.3.4) › WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble) › REVISION-DINERO F2/F5: espacio de nombres, tope de borrados, margen de reloj y gracia mínima › RE-REVISION-DINERO F-B1: WEBHOOKS_SVIX_ORPHAN_ACTION (deshabilitar por defecto; borrar solo a propósito) › INVÁLIDO: en live, «delete» sin la confirmación deliberada (o con otro valor) ⇒ no arranca; con ella, arranca
+  ● loadConfig — falla al arrancar con configuración inválida (regla 90.3.4) › WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble) › REVISION-DINERO F2/F5: espacio de nombres, tope de borrados, margen de reloj y gracia mínima › RE-REVISION-DINERO F-B1: WEBHOOKS_SVIX_ORPHAN_ACTION (deshabilitar por defecto; borrar solo a propósito) › LÍMITE: la confirmación sola, sin pedir «delete», no cambia nada (en live sigue deshabilitando)
+FAIL test/append-only-guards.spec.ts
+FAIL test/definite-database-error.spec.ts
+FAIL test/event-redelivery.spec.ts (18.607 s)
+FAIL test/health.spec.ts
+FAIL test/svix/svix-reconciler-orphan-action.spec.ts
+Test Suites: 5 failed, 1 passed, 6 total
+Tests:       15 failed, 102 passed, 117 total
+
+## corrida 2 (con los shims de nombres: definite-database-error y orphan-action contra la lógica anterior)
+  ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › CORRECTO (el procedimiento): reactivar con la marca de liberado restablece la entrega; el reconciliador lo respeta y, al re-adoptar la fila, queda gestionado
+  ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › CORRECTO (la sonda B de la revisión): tras la restauración ningún endpoint posterior se borra; se deshabilitan, su secreto sigue en Svix y los anteriores no se tocan
+  ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › CORRECTO: un huérfano deshabilitado ya no recibe eventos del comercio, y las pasadas siguientes no lo vuelven a tocar (ni cuentan como nuevo)
+  ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › INVÁLIDO: la fila aparece (el alta se confirma) entre el ciclo y la acción ⇒ no se deshabilita
+  ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › INVÁLIDO: reactivar SIN la marca de liberado no alcanza: la siguiente pasada lo vuelve a deshabilitar (por eso el runbook exige la marca)
+  ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › INVÁLIDO: un huérfano liberado NUNCA se borra, ni siquiera con orphanAction=delete
+  ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › LÍMITE: con orphanAction=delete EXPLÍCITO y dentro del tope sí se borra (el comportamiento anterior, ahora opt-in); con más candidatos que el tope no se borra ninguno y se DESHABILITAN
+  ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › LÍMITE: un orphanAction desconocido no construye el reconciliador (falla al arrancar, no al actuar)
+  ● isDefiniteDatabaseError › INVÁLIDO: el código de Node EBADF (aunque tenga 5 caracteres) NO es un SQLSTATE ⇒ ambiguo
+  ● isDefiniteDatabaseError › INVÁLIDO: el código de Node ELOOP (aunque tenga 5 caracteres) NO es un SQLSTATE ⇒ ambiguo
+  ● isDefiniteDatabaseError › INVÁLIDO: el código de Node EPIPE (aunque tenga 5 caracteres) NO es un SQLSTATE ⇒ ambiguo
+  ● isDefiniteDatabaseError › INVÁLIDO: un SQLSTATE válido con severidad FATAL o PANIC (puede llegar tras un COMMIT aplicado: 57P01) o sin severidad ⇒ ambiguo
+  ● isDefiniteDatabaseError › LÍMITE: {"code":"Z9999","severity":"ERROR"} ⇒ ambiguo
+  ● isDefiniteDatabaseError › contra Postgres real (errores de verdad del driver) › una terminación administrativa de la conexión (57P01, FATAL) NO es definitiva
+FAIL test/definite-database-error.spec.ts
+FAIL test/svix/svix-reconciler-orphan-action.spec.ts
+Test Suites: 2 failed, 2 total
+Tests:       14 failed, 30 passed, 44 total
+
+## detalle de la sonda B de la revisión contra el código anterior
+101:  ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › CORRECTO (la sonda B de la revisión): tras la restauración ningún endpoint posterior se borra; se deshabilitan, su secreto sigue en Svix y los anteriores no se tocan
+102-
+103-    expect(received).toBe(expected) // Object.is equality
+104-
+105-    Expected: "disable"
+106-    Received: undefined
+107-
+108-      49 |     const world = await Promise.all([restoredMerchant(), restoredMerchant(), restoredMerchant()]);
+109-      50 |     const pass = reconciler();
+110-    > 51 |     expect(pass.action).toBe('disable'); // el defecto del reconciliador
+111-         |                         ^
+112-      52 |     const summary = await pass.runOnce();
+113-      53 |
+114-      54 |     expect(summary).toMatchObject({ merchants: 3, orphansDeleted: 0, orphansWithheld: 0, orphansDisabled: 3, orphansHeldDisabled: 0 });
+115-
+
+## sonda B de la revisión contra el reconciliador ANTERIOR (3 comercios, 1 endpoint posterior al respaldo cada uno)
+  ● F-B1 · huérfanos propios: se deshabilitan (reversible), el borrado solo es explícito › CORRECTO (la sonda B de la revisión): tras la restauración ningún endpoint posterior se borra; se deshabilitan, su secreto sigue en Svix y los anteriores no se tocan
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 3
+    + Received  + 1
+
+      Object {
+        "merchants": 3,
+    -   "orphansDeleted": 0,
+    -   "orphansDisabled": 3,
+    -   "orphansHeldDisabled": 0,
+    +   "orphansDeleted": 3,
+        "orphansWithheld": 0,
+      }
+
+      51 |     const summary = await pass.runOnce();
+      52 |

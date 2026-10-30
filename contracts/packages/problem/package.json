@@ -1,0 +1,20 @@
+{
+  "name": "@pay/problem",
+  "version": "0.1.0",
+  "description": "Errores RFC 9457 (Problem Details) y catálogo de códigos estables",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "yarn run -T tsc -p tsconfig.build.json",
+    "typecheck": "yarn run -T tsc -p tsconfig.json --noEmit",
+    "test": "yarn run -T jest --config jest.config.cjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1"
+  }
+}

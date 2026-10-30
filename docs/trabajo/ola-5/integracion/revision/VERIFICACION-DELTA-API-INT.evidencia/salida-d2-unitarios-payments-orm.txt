@@ -1,0 +1,25 @@
+(node:7685) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 7685  - [39m10/30/2026, 9:11:36 AM [31m  ERROR[39m [38;5;3m[RuntimeRoleGuardService] [39m[31mEl rol de conexión es superusuario: las políticas RLS no aíslan por tenant. DB_ALLOW_PRIVILEGED_RUNTIME_ROLE=true lo tolera; es una excepción transitoria.[39m
+[32m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [32m    LOG[39m [38;5;3m[SchemaBootstrapService] [39m[32mMaterialización del esquema en modo "safe": 1 capas[39m
+[32m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [32m    LOG[39m [38;5;3m[SchemaBootstrapService] [39m[32mCapa 01 fake: 0 aplicados, 0 ya existían, 1 incidencias (1 ms)[39m
+[32m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [32m    LOG[39m [38;5;3m[SchemaBootstrapService] [39m[32mEsquema materializado en 2 ms (modo safe): 0 objetos aplicados, 0 ya presentes[39m
+[31m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [31m  ERROR[39m [38;5;3m[SchemaBootstrapService] [39m[31mIncidencias de integridad que niegan la readiness (1):
+  - lote de FKs 1-50: x[39m
+[32m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [32m    LOG[39m [38;5;3m[SchemaBootstrapService] [39m[32mMaterialización del esquema en modo "safe": 1 capas[39m
+[32m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [32m    LOG[39m [38;5;3m[SchemaBootstrapService] [39m[32mCapa 01 fake: 0 aplicados, 0 ya existían, 1 incidencias (0 ms)[39m
+[32m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [32m    LOG[39m [38;5;3m[SchemaBootstrapService] [39m[32mEsquema materializado en 0 ms (modo safe): 0 objetos aplicados, 0 ya presentes[39m
+[33m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [33m   WARN[39m [38;5;3m[SchemaBootstrapService] [39m[33mIncidencias no bloqueantes durante la materialización (1):
+  - lote de índices: y[39m
+[32m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [32m    LOG[39m [38;5;3m[SchemaBootstrapService] [39m[32mMaterialización del esquema en modo "dry-run": 1 capas[39m
+[32m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [32m    LOG[39m [38;5;3m[SchemaBootstrapService] [39m[32mCapa 01 fake: 0 aplicados, 0 ya existían, 1 incidencias (0 ms)[39m
+[32m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [32m    LOG[39m [38;5;3m[SchemaBootstrapService] [39m[32mEsquema materializado en 1 ms (modo dry-run): 0 objetos aplicados, 0 ya presentes[39m
+[31m[Nest] 7685  - [39m10/30/2026, 9:11:40 AM [31m  ERROR[39m [38;5;3m[SchemaBootstrapService] [39m[31mIncidencias de integridad que niegan la readiness (1):
+  - x[39m
+
+Test Suites: 29 passed, 29 total
+Tests:       616 passed, 616 total
+Snapshots:   0 total
+Time:        25.985 s
+Ran all test suites matching src/modules/payments|src/orm.
+EXIT 0

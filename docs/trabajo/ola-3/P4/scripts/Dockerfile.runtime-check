@@ -1,0 +1,17 @@
+# NO es la imagen de producción: es la comprobación del ESCENARIO DE EJECUCIÓN de esa imagen (node:22-alpine, USER node, CMD node dist/main.js, puerto del servicio)
+# SIN registro de paquetes. Reusa lo ya compilado en el árbol de trabajo (node_modules, contracts/packages/*/dist, services/<svc>/dist) porque dentro de un
+# `docker build` el registro no es alcanzable (ver gate-docker.sh). Uso: docker build -f Dockerfile.runtime-check --build-arg SVC=pay-qr -t p4gate-runtime-pay-qr .
+ARG HUB=mirror.gcr.io
+FROM ${HUB}/library/node:22-alpine
+ARG SVC
+ENV NODE_ENV=production
+WORKDIR /repo
+COPY node_modules ./node_modules
+COPY package.json tsconfig.base.json ./
+COPY contracts/packages ./contracts/packages
+COPY services/${SVC}/package.json ./services/${SVC}/package.json
+COPY services/${SVC}/dist ./services/${SVC}/dist
+COPY services/${SVC}/sql ./services/${SVC}/sql
+USER node
+WORKDIR /repo/services/${SVC}
+CMD ["node", "dist/main.js"]

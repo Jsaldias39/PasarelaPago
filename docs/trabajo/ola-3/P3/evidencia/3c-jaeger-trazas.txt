@@ -1,0 +1,45 @@
+# Trazas reales en Jaeger (pay-payments y pay-vault con OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:54318) · 3c (2026-10-28T01:52:53Z)
+## pay-payments
+$ GET /payment_intents/1023456028 (NIT sintético) y /4111111111111111 (PAN de prueba) con y sin identidad
+403 404 403 404 403 404 
+$ curl Jaeger /api/services
+{"data":["p5gate-pay-merchants-3a13f132"
+"p5gate-pay-risk-a8e9a5d3"
+"p5gate-pay-schedules-91032535"
+"p5gate-pay-merchants-7024c63a"
+"p5gate-pay-risk-4d43cf26"
+$ curl Jaeger /api/traces?service=pay-payments&limit=50 → atributos de URL de los spans
+spans leídos de Jaeger: 96
+  http.route = /
+  http.route = /health/ready
+  http.route = /payment_intents/:x
+  url.full = /health/ready
+  url.full = /payment_intents/:x
+  url.path = /health/ready
+  url.path = /payment_intents/:x
+  url.query = [redacted]
+  contiene 1023456028 : False
+  contiene 4111111111111111 : False
+  contiene 7654321 : False
+## pay-vault
+$ GET /tokens/1023456028 (NIT sintético) y /4111111111111111 (PAN de prueba) con y sin identidad
+403 404 403 404 403 404 
+$ curl Jaeger /api/services
+{"data":["pay-payments"
+"pay-vault"
+"p5gate-pay-merchants-ddab925a"
+"p5gate-pay-risk-4d43cf26"
+"p5gate-pay-schedules-dc7ea345"
+$ curl Jaeger /api/traces?service=pay-vault&limit=50 → atributos de URL de los spans
+spans leídos de Jaeger: 96
+  http.route = /
+  http.route = /health/ready
+  http.route = /tokens/:x
+  url.full = /health/ready
+  url.full = /tokens/:x
+  url.path = /health/ready
+  url.path = /tokens/:x
+  url.query = [redacted]
+  contiene 1023456028 : False
+  contiene 4111111111111111 : False
+  contiene 7654321 : False

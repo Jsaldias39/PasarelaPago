@@ -1,0 +1,81 @@
+(node:17727) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+R3> 3-way RLS_ENFORCE=false (superusuario, sin transaccion de peticion): {"ok":20,"e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE":40}
+R3> same-intent x5 round 0 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 1 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 2 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 3 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 4 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 5 RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ok,ok,ok,ok,ok
+R3> 3-way RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): {"ok":20,"e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE":40}
+R3> same-intent x5 round 0 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 1 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 2 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 3 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 4 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> same-intent x5 round 5 RLS_ENFORCE=true (rol NOBYPASSRLS + transaccion de peticion): ok,ok,ok,ok,ok
+R3> deadlock-soak: {"e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE":160,"ok":80}
+R3> N5 con RLS: {"payment_debts":"libre","payment_intents":"libre","idleInTx":"1"}
+R3> POOL RLS pool=4 x8 simultaneas: eError:timeout exceeded when trying to connect | eError:timeout exceeded when trying to connect | eError:timeout exceeded when trying to connect | eError:timeout exceeded when trying to connect | eError:timeout exceeded when trying to connect | eError:timeout exceeded when trying to connect | eError:timeout exceeded when trying to connect | eError:timeout exceeded when trying to connect en 6021ms
+R3> POOL sin RLS (control) pool=4 x8: e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND | e404:PAYMENT_INTENT_NOT_FOUND en 16ms
+R3> 504->retry RLS_ENFORCE=false (superusuario, sin transaccion de peticion): ref pi_dbl0000000134, posts 4
+R3> TypeError tras reservar: ref=dispatching:10c986d6-c0a0-4432-ad2e-e2bc72d8fe84
+R3> EXP-a: cobros vivos en la pasarela = 2; B ref pi_dbl0000000138
+R3> EXP-a: reintento de A con la misma clave => e409 PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE
+R3> EXP-a: refs en la deuda: [{"id":"f66297b8-06dd-4f7c-b35c-18c7ae6756cd","gateway_intent_ref":"dispatching:e529b200-1591-4864-a9ce-216e44ac6084"},{"id":"812387e5-bcb9-4786-b81e-c422a97afb14","gateway_intent_ref":"pi_dbl0000000138"}]
+R3> EXP-b: pi_dbl0000000139, creados=1
+R3> EXP-c: A=pi_dbl0000000141 B=pi_dbl0000000140 creados=2
+R3> EXP-c: [{"id":"c033e0a2-1522-4b81-92ee-e67ed48b081c","gateway_intent_ref":"pi_dbl0000000140"},{"id":"f3cd7a23-c06d-4ce6-9d05-ae7a419ed09d","gateway_intent_ref":"pi_dbl0000000141"}]
+R3> MARK(no hubo cobro real: drop_before) DECLINE=>e409 PAYMENT_INTENT_VIA_GATEWAY; flag apagado=>e409 PAYMENT_INTENT_VIA_GATEWAY
+R3> 4xx 404: respuesta=e503 PAYMENT_GATEWAY_UNAVAILABLE; reserva tras el fallo=null
+R3> 4xx 400: respuesta=e422 PAYMENT_GATEWAY_REJECTED; reserva tras el fallo=null
+R3> 4xx 408: respuesta=e422 PAYMENT_GATEWAY_REJECTED; reserva tras el fallo=null
+R3> 4xx 413: respuesta=e422 PAYMENT_GATEWAY_REJECTED; reserva tras el fallo=null
+R3> 4xx 499: respuesta=e422 PAYMENT_GATEWAY_REJECTED; reserva tras el fallo=null
+R3> SAME-INTENT-RACE: ref de A durante la ventana=null; B=ok; A1/A2=e503,ok; cobros vivos=2; posts=5
+FAIL test/integration/rev3-charge.int-spec.ts (37.543 s)
+  ● Cobro por la pasarela (createIntent + processTransaction) contra PostgreSQL real › (3/POOL) con RLS_ENFORCE=true cada peticion toma 1 conexion (interceptor) y pide OTRA (runCommitted): con N peticiones simultaneas y pool N hay hold-and-wait
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      713 |       const res2 = await Promise.allSettled(cs2.map((c) => onP.transactions.processTransaction(c.id, sale(), actor)));
+      714 |       log(`POOL sin RLS (control) pool=4 x8: ${res2.map(outcome).join(' | ')} en ${Date.now() - t1}ms`);
+    > 715 |       expect(res2.every((r) => r.status === 'fulfilled')).toBe(true);
+          |                                                           ^
+      716 |     }, 120000);
+      717 |
+      718 |     it('(2) 504 -> la propia intencion reintenta con la MISMA clave: un solo cobro (ambos modos)', async () => {
+
+      at Object.toBe (test/integration/rev3-charge.int-spec.ts:715:59)
+
+  ● Cobro por la pasarela (createIntent + processTransaction) contra PostgreSQL real › (2) 504 -> la propia intencion reintenta con la MISMA clave: un solo cobro (ambos modos)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 0
+    + Received  + 1
+
+      Set {
+        "mantra-pi-v1-58e3e6f8e3e7bc801832805e1515096c8d6afc9dbbb0af8c216587ab70aecbf7",
+    +   "mantra-pi-v1-6a1700b4057189c2167136ae28d33846a48f7929151389650c562a6b3789f517",
+      }
+
+      727 |         const r = await wrap(() => svc().transactions.processTransaction(a.id, sale(), actor));
+      728 |         expect(double.createdCount).toBe(1);
+    > 729 |         expect(new Set(double.postCalls.map((p) => p.idempotencyKey))).toEqual(new Set([a.gatewayKey]));
+          |                                                                        ^
+      730 |         log(`504->retry ${name}: ref ${r.gatewayTransactionRef}, posts ${double.postCalls.length}`);
+      731 |       }
+      732 |     });
+
+      at Object.toEqual (test/integration/rev3-charge.int-spec.ts:729:72)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 13 passed, 15 total
+Snapshots:   0 total
+Time:        38.479 s
+Ran all test suites matching rev3-charge.
+EXIT 1

@@ -1,0 +1,14 @@
+# Limpieza de Docker tras los builds · 3c (2026-10-28T01:50:35Z)
+$ df -h / (antes)
+/dev/vda        252G   34G  4.8G  88% /
+$ docker image rm pay-payments-gate:p3 pay-vault-gate:p3 localhub/library/node:22-alpine localhub/library/node:22-bookworm-slim
+Untagged: pay-vault-gate:p3
+Untagged: localhub/library/node:22-alpine
+Untagged: localhub/library/node:22-bookworm-slim
+Error response from daemon: No such image: pay-payments-gate:p3
+$ docker builder prune -f
+Total:	5.059GB
+$ docker images | grep -E "gate|localhub"  (vacío = limpio)
+$ docker ps -a | grep p3-  (vacío = limpio)
+$ df -h / (después)
+/dev/vda        252G   29G   11G  74% /

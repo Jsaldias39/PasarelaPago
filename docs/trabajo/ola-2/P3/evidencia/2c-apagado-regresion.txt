@@ -1,0 +1,23 @@
+# Apagado limpio (IllegalStateError: Not running) · tanda 2c (2026-10-27)
+Prueba: services/pay-payments/test/ola2.tanda2c.spec.ts §5 (levanta dist/main.js con el worker embebido, espera /health/live, envía SIGTERM).
+Comando: yarn test --maxWorkers=2 test/ola2.tanda2c.spec.ts -t "apagado limpio"
+
+## A) Código ORIGINAL (sin Runtime.install({shutdownSignals: []}) y con shutdown() no idempotente) → ROJO
+  ● 5 · apagado limpio … › la API con el worker embebido (dist/main.js) se apaga solo y sin IllegalStateError al recibir SIGTERM
+    Expected: "clean"
+    Received: "code=1 signal=null"
+  ● 5 · apagado limpio … › el worker en proceso (el de Nest) se puede apagar dos veces sin error: shutdown() es idempotente
+    Received promise rejected instead of resolved
+Tests:       2 failed, 22 skipped, 24 total
+
+Causa (reproducida a mano con el mismo dist/main.js, salida del proceso):
+  IllegalStateError: Not running. Current state: DRAINING
+    at Worker.shutdown (@temporalio/worker/lib/worker.js:623)
+    at Object.shutdown (dist/temporal/worker.js)
+    at PaymentsModule.onApplicationShutdown (dist/payments/payments.module.js)
+  → "Error happened during shutdown" y exit=1. El Runtime de Temporal atrapa SIGTERM/SIGINT por su cuenta y detiene el worker ANTES del hook de Nest.
+
+## B) Con el arreglo → VERDE
+Tests:       22 skipped, 2 passed, 24 total
+
+Arreglo: src/temporal/worker.ts — Runtime.install({ shutdownSignals: [] }) (el ciclo de vida es de Nest / worker-main) y shutdown() idempotente.

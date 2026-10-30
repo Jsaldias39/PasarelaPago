@@ -1,0 +1,119 @@
+FAIL e2e/pending/e1.e2e.ts (30.119 s)
+  ● E1 — primer cobro QR de punta a punta › el cobro de Bs 100 por QR pasa a succeeded, el ledger deja 97,00 en pending y 3,00 en fees (débitos = créditos), y el comercio recibe UN payment_intent.succeeded
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 5
+
+      Object {
+    -   "error": null,
+    -   "status": "succeeded",
+    +   "error": Object {
+    +     "code": "risk_denied",
+    +     "message": "El control de riesgo rechazó el cobro.",
+    +   },
+    +   "status": "failed",
+      }
+
+      57 |     // El callback lo firma y lo entrega el simulador (MockPumpService) a pay-connectors; el intento lo ve por JetStream.
+      58 |     const settled = await api.settle(created.intent.id);
+    > 59 |     expect({ status: settled.status, error: settled.last_error }).toEqual({ status: 'succeeded', error: null });
+         |                                                                   ^
+      60 |     expect(settled.succeeded_at).toBeTruthy();
+      61 |
+      62 |     const ledger = await ledgerOfCapture(stack, merchant.merchantId, created.intent.id);
+
+      at Object.toEqual (e2e/pending/e1.e2e.ts:59:67)
+
+FAIL e2e/pending/e2.e2e.ts (16.384 s)
+  ● E2 — callbacks duplicados, fuera de orden y perdidos, de punta a punta › DUPLICADO (…03): el mismo callback ×3 deja UN solo asiento y UN evento del conector
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 5
+
+      Object {
+    -   "error": null,
+    -   "status": "succeeded",
+    +   "error": Object {
+    +     "code": "risk_denied",
+    +     "message": "El control de riesgo rechazó el cobro.",
+    +   },
+    +   "status": "failed",
+      }
+
+      31 |     expect(created.status).toBe(201);
+      32 |     const settled = await client.settle(created.intent.id);
+    > 33 |     expect({ status: settled.status, error: settled.last_error }).toEqual({ status: 'succeeded', error: null });
+         |                                                                   ^
+      34 |     const ledger = await ledgerOfCapture(stack, merchant.merchantId, created.intent.id);
+      35 |     // Una sola captura: el neto del intento, la comisión del intento, y la partida doble cierra por el bruto.
+      36 |     expect(ledger).toMatchObject({ pending: created.intent.net_minor, fees: expect.any(Number), debits: created.intent.amount_minor, credits: created.intent.amount_minor, captureLinesOnPending: 1 });
+
+      at toEqual (e2e/pending/e2.e2e.ts:33:67)
+      at Object.<anonymous> (e2e/pending/e2.e2e.ts:41:26)
+
+  ● E2 — callbacks duplicados, fuera de orden y perdidos, de punta a punta › FUERA DE ORDEN (…04): captured y después authorized — el intento no retrocede y el asiento es uno
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 5
+
+      Object {
+    -   "error": null,
+    -   "status": "succeeded",
+    +   "error": Object {
+    +     "code": "risk_denied",
+    +     "message": "El control de riesgo rechazó el cobro.",
+    +   },
+    +   "status": "failed",
+      }
+
+      31 |     expect(created.status).toBe(201);
+      32 |     const settled = await client.settle(created.intent.id);
+    > 33 |     expect({ status: settled.status, error: settled.last_error }).toEqual({ status: 'succeeded', error: null });
+         |                                                                   ^
+      34 |     const ledger = await ledgerOfCapture(stack, merchant.merchantId, created.intent.id);
+      35 |     // Una sola captura: el neto del intento, la comisión del intento, y la partida doble cierra por el bruto.
+      36 |     expect(ledger).toMatchObject({ pending: created.intent.net_minor, fees: expect.any(Number), debits: created.intent.amount_minor, credits: created.intent.amount_minor, captureLinesOnPending: 1 });
+
+      at toEqual (e2e/pending/e2.e2e.ts:33:67)
+      at Object.<anonymous> (e2e/pending/e2.e2e.ts:47:36)
+
+  ● E2 — callbacks duplicados, fuera de orden y perdidos, de punta a punta › PERDIDO (…05): nunca llega el callback; la consulta de estado de pay-payments revela captured y el asiento es uno
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 5
+
+      Object {
+    -   "error": null,
+    -   "status": "succeeded",
+    +   "error": Object {
+    +     "code": "risk_denied",
+    +     "message": "El control de riesgo rechazó el cobro.",
+    +   },
+    +   "status": "failed",
+      }
+
+      31 |     expect(created.status).toBe(201);
+      32 |     const settled = await client.settle(created.intent.id);
+    > 33 |     expect({ status: settled.status, error: settled.last_error }).toEqual({ status: 'succeeded', error: null });
+         |                                                                   ^
+      34 |     const ledger = await ledgerOfCapture(stack, merchant.merchantId, created.intent.id);
+      35 |     // Una sola captura: el neto del intento, la comisión del intento, y la partida doble cierra por el bruto.
+      36 |     expect(ledger).toMatchObject({ pending: created.intent.net_minor, fees: expect.any(Number), debits: created.intent.amount_minor, credits: created.intent.amount_minor, captureLinesOnPending: 1 });
+
+      at toEqual (e2e/pending/e2.e2e.ts:33:67)
+      at Object.<anonymous> (e2e/pending/e2.e2e.ts:53:26)
+
+Test Suites: 2 failed, 2 total
+Tests:       4 failed, 4 total
+Snapshots:   0 total
+Time:        46.606 s, estimated 68 s
+Ran all test suites.
+exit=1

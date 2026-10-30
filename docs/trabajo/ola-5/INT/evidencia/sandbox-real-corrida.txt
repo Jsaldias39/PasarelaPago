@@ -1,0 +1,17 @@
+edge_conoce_la_clave: true
+webhook_endpoint_status: 201
+SONDA_CRUDA: {"status":201,"text":"{\"id\":\"pi_f7fabc664a19c30f18e1c5e5\",\"object\":\"payment_intent\",\"amount_minor\":15000,\"currency\":\"BOB\",\"status\":\"requires_action\",\"payment_method_type\":\"qr\",\"fee_minor\":425,\"net_minor\":14575,\"next_action\":{\"qr\":{\"payload\":\"00020101021226430016e2e.sandbox.guid0119mc_2fecqi4wsd7v5qpf5204000053030685406150.005802BO5911ALOVIDA PAY6010Santa Cruz62200516PQNZFKZTD5M3UQYO6304B1F1\",\"expires_at\":\"2026-10-30T03:58:13.761Z\"},\"type\":\"display_qr\"},\"last_error\":null,\"metadata\":{},\"created_at\":\"2026-10-30T02:58:13.761Z\",\"expires_at\":\"2026-10-30T03:58:13.761Z\",\"succeeded_at\":null}"}
+crear_1: {"replayed":false,"id":"pi_bdafd943ab245b2441ed1d9e","status":"requires_action","amount_minor":15000,"fee_minor":425,"next_action":"display_qr"}
+crear_2_misma_clave: {"replayed":true,"mismo_id":true}
+estado_final: {"status":"succeeded","succeeded_at":"2026-10-30T02:58:19.760Z"}
+entregas_recibidas: 8
+entrega: {"type":"payment_intent.created","mode":"test","webhook_id_igual_al_id":true,"verifica_con_NUESTRO_verificador":"ok","claves_data_object":["amount_minor","currency","expires_at","fee_minor","merchant_id","mode","net_minor","payment_intent_id","payment_method_type","status"],"payment_intent_id_coincide":false}
+entrega: {"type":"payment_intent.requires_action","mode":"test","webhook_id_igual_al_id":true,"verifica_con_NUESTRO_verificador":"ok","claves_data_object":["expires_at","merchant_id","mode","next_action_type","payment_intent_id","status"],"payment_intent_id_coincide":false}
+entrega: {"type":"payment_intent.created","mode":"test","webhook_id_igual_al_id":true,"verifica_con_NUESTRO_verificador":"ok","claves_data_object":["amount_minor","currency","expires_at","fee_minor","merchant_id","mode","net_minor","payment_intent_id","payment_method_type","status"],"payment_intent_id_coincide":true}
+entrega: {"type":"payment_intent.requires_action","mode":"test","webhook_id_igual_al_id":true,"verifica_con_NUESTRO_verificador":"ok","claves_data_object":["expires_at","merchant_id","mode","next_action_type","payment_intent_id","status"],"payment_intent_id_coincide":true}
+entrega: {"type":"payment_intent.processing","mode":"test","webhook_id_igual_al_id":true,"verifica_con_NUESTRO_verificador":"ok","claves_data_object":["connector","merchant_id","mode","payment_intent_id","status"],"payment_intent_id_coincide":false}
+entrega: {"type":"payment_intent.succeeded","mode":"test","webhook_id_igual_al_id":true,"verifica_con_NUESTRO_verificador":"ok","claves_data_object":["amount_minor","currency","fee_minor","ledger_transfer_id","merchant_id","mode","net_minor","payment_intent_id","payment_method_type","status","succeeded_at"],"payment_intent_id_coincide":false}
+entrega: {"type":"payment_intent.processing","mode":"test","webhook_id_igual_al_id":true,"verifica_con_NUESTRO_verificador":"ok","claves_data_object":["connector","merchant_id","mode","payment_intent_id","status"],"payment_intent_id_coincide":true}
+entrega: {"type":"payment_intent.succeeded","mode":"test","webhook_id_igual_al_id":true,"verifica_con_NUESTRO_verificador":"ok","claves_data_object":["amount_minor","currency","fee_minor","ledger_transfer_id","merchant_id","mode","net_minor","payment_intent_id","payment_method_type","status","succeeded_at"],"payment_intent_id_coincide":true}
+entrega_alterada: no_matching_signature
+apagado: {"leftoverPids":[]}

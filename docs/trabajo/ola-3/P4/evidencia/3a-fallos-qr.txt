@@ -1,0 +1,42 @@
+# 3a-fallos-qr
+$ (cd services/pay-qr && yarn test --maxWorkers=2 test/faults.spec.ts --verbose --reporters default)
+(las líneas JSON de pino de las pruebas se omiten; todo lo demás es literal)
+
+(node:29890) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 29890  - [39m10/28/2026, 1:43:13 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'593a8d1f-df5e-4553-b1e2-75e8ece2ab5f'[39m
+}
+Error no controlado
+[31m[Nest] 29890  - [39m10/28/2026, 1:43:13 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'110a5205-b03d-4e80-a680-0c81fa0c65e3'[39m
+}
+Error no controlado
+[31m[Nest] 29890  - [39m10/28/2026, 1:43:13 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'db234207-9917-44e8-ba90-229b0e2d7374'[39m
+}
+Error no controlado
+[31m[Nest] 29890  - [39m10/28/2026, 1:43:13 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'652ed107-da75-491d-b7da-547cda89471c'[39m
+}
+Error no controlado
+[31m[Nest] 29890  - [39m10/28/2026, 1:43:13 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'c3b3f8d6-4d7c-4103-9a82-40ae14fb24ce'[39m
+}
+Error no controlado
+PASS test/faults.spec.ts
+  base propia caída a mitad de servicio
+    ✓ cada operación responde 500 `internal_error` sin filtrar la cadena de conexión, el SQL ni la pila; la salud lo dice (503) y el proceso sigue vivo (69 ms)
+    ✓ al volver la base, REINTENTAR con la misma Idempotency-Key converge: UN solo QR, y un reintento posterior devuelve el mismo (50 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        1.333 s, estimated 2 s
+Ran all test suites matching test/faults.spec.ts.
+exit=0

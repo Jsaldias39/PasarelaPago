@@ -1,0 +1,47 @@
+### pay-vault M1 sin comprobar tgtype (evento)
+Tests:       1 failed, 12 passed, 13 total
+● checkAppendOnlyGuards · qué ve el servicio en pg_trigger › inválido · un trigger con el NOMBRE correcto pero el evento equivocado (solo UPDATE, o a nivel de sentencia) no cuenta
+### pay-vault M2 sin filtrar tgenabled
+Tests:       2 failed, 11 passed, 13 total
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › límite · UN guardián apagado en live ⇒ 503 con solo ese nombre en missing
+● checkAppendOnlyGuards · qué ve el servicio en pg_trigger › límite · UN solo guardián apagado (DISABLE TRIGGER) o solo para réplica (ENABLE REPLICA) ⇒ solo ese falta
+### pay-vault M3 live nunca bloquea
+Tests:       2 failed, 11 passed, 13 total
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › inválido · live con una base VIEJA ⇒ 503 (no listo), el campo lista lo que falta y el log sale como error; reaplicar 
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › límite · UN guardián apagado en live ⇒ 503 con solo ese nombre en missing
+### pay-vault M4 fail-open si la consulta falla
+Tests:       1 failed, 12 passed, 13 total
+● checkAppendOnlyGuards · qué ve el servicio en pg_trigger › inválido · si la consulta falla (no se puede verificar) es FAIL-CLOSED: ok:false con todos los guardianes como faltantes
+### pay-vault M5 sin comprobar la función (forbid_mutation)
+Tests:       1 failed, 12 passed, 13 total
+● checkAppendOnlyGuards · qué ve el servicio en pg_trigger › inválido · un trigger con el nombre correcto que llama a OTRA función no cuenta
+### pay-vault M6 el aviso se repite en cada sondeo
+Tests:       2 failed, 11 passed, 13 total
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › inválido · live con una base VIEJA ⇒ 503 (no listo), el campo lista lo que falta y el log sale como error; reaplicar 
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › límite · sandbox con una base vieja ⇒ sigue LISTO (200) pero ok:false es visible y se avisa con un warn (una sola vez
+### pay-ledger M3 live nunca bloquea
+Tests:       2 failed, 11 passed, 13 total
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › inválido · live con una base VIEJA ⇒ 503 (no listo), el campo lista lo que falta y el log sale como error; reaplicar 
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › límite · UN guardián apagado en live ⇒ 503 con solo ese nombre en missing
+### pay-settlement M3 live nunca bloquea
+Tests:       2 failed, 11 passed, 13 total
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › inválido · live con una base VIEJA ⇒ 503 (no listo), el campo lista lo que falta y el log sale como error; reaplicar 
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › límite · UN guardián apagado en live ⇒ 503 con solo ese nombre en missing
+### pay-connectors M3 live nunca bloquea
+Tests:       2 failed, 11 passed, 13 total
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › inválido · live con una base VIEJA ⇒ 503 (no listo), el campo lista lo que falta y el log sale como error; reaplicar 
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › límite · UN guardián apagado en live ⇒ 503 con solo ese nombre en missing
+### pay-ledger M7 faltan tablas en la lista (ledger_rejections)
+Tests:       5 failed, 8 passed, 13 total
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › inválido · live con una base VIEJA ⇒ 503 (no listo), el campo lista lo que falta y el log sale como error; reaplicar 
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › límite · sandbox con una base vieja ⇒ sigue LISTO (200) pero ok:false es visible y se avisa con un warn (una sola vez
+● checkAppendOnlyGuards · qué ve el servicio en pg_trigger › correcto · la lista de tablas es exactamente la de las tablas de solo-agregar del servicio
+● checkAppendOnlyGuards · qué ve el servicio en pg_trigger › inválido · base creada con el DDL VIEJO (sin guardianes) ⇒ ok:false y missing nombra los 8 triggers
+● checkAppendOnlyGuards · qué ve el servicio en pg_trigger › inválido · si la consulta falla (no se puede verificar) es FAIL-CLOSED: ok:false con todos los guardianes como faltantes
+### pay-connectors M7 faltan tablas en la lista (connector_api_attempts)
+Tests:       5 failed, 8 passed, 13 total
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › inválido · live con una base VIEJA ⇒ 503 (no listo), el campo lista lo que falta y el log sale como error; reaplicar 
+● GET /health/ready · checks.append_only_guards y el modo de despliegue › límite · sandbox con una base vieja ⇒ sigue LISTO (200) pero ok:false es visible y se avisa con un warn (una sola vez
+● checkAppendOnlyGuards · qué ve el servicio en pg_trigger › correcto · la lista de tablas es exactamente la de las tablas de solo-agregar del servicio
+● checkAppendOnlyGuards · qué ve el servicio en pg_trigger › inválido · base creada con el DDL VIEJO (sin guardianes) ⇒ ok:false y missing nombra los 4 triggers
+● checkAppendOnlyGuards · qué ve el servicio en pg_trigger › inválido · si la consulta falla (no se puede verificar) es FAIL-CLOSED: ok:false con todos los guardianes como faltantes

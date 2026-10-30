@@ -1,0 +1,57 @@
+ÁRBOL DEL COBRO 18b07846ee7f5163f458ee1bd5ff870f (span del cliente 5eb209815f8233c8; servicios: pay-connectors, pay-edge, pay-ledger, pay-payments, pay-qr, pay-risk; 200 spans):
+pay-edge  POST /v1/*path  (45180f211f9a53d0)  kind=server route=/v1/:x status=201 [padre ausente de la traza: 5eb209815f8233c8]
+  pay-edge  request handler - /v1/*path  (39743a2221901407)  kind=internal route=/v1/:x
+    pay-edge  EdgeController.handle  (43b738b670898425)  kind=internal route=/v1/:x
+      pay-edge  handle  (575752c8406ac4cf)  kind=internal
+        pay-edge  forward pay-payments  (e6ef94215167b1a7)  kind=client status=201
+          pay-payments  POST /payment_intents  (548cc1ec0f840fa1)  kind=server route=/payment_intents status=201
+            pay-payments  request handler - /payment_intents  (8f85a8f125137a97)  kind=internal route=/payment_intents
+              pay-payments  PaymentsController.create  (518759f67bb8ee1e)  kind=internal route=/payment_intents
+                pay-payments  create  (6e42ec8843cc70ac)  kind=internal
+                  pay-payments  start PaymentWorkflow  (2e608dd06e84c173)  kind=client
+                    pay-payments  activity assessRisk  (1187a131248b6d00)  kind=internal
+                      pay-payments  POST pay-risk  (ae805689983e3446)  kind=client status=201
+                        pay-risk  POST /assessments  (95a29408eb338a1b)  kind=server route=/assessments status=201
+                          pay-risk  request handler - /assessments  (36c0040636232965)  kind=internal route=/assessments
+                            pay-risk  AssessmentsController.create  (cd128b9b68d60927)  kind=internal route=/assessments
+                              pay-risk  create  (e096f08aa60cf85c)  kind=internal
+                                … 12 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                          … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                      … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                    pay-payments  activity createCharge  (a91880135fa415e3)  kind=internal
+                      pay-payments  POST pay-connectors  (f30290b73f64422e)  kind=client status=201
+                        pay-connectors  POST /charges  (765536c412690775)  kind=server route=/charges status=201
+                          pay-connectors  request handler - /charges  (35b4e173ae89edfa)  kind=internal route=/charges
+                            pay-connectors  ChargesController.create  (5d82af8d3919bb94)  kind=internal route=/charges
+                              pay-connectors  create  (c152294bfb001606)  kind=internal
+                                pay-connectors  pg-pool.connect  (77d0adacbd8367fb)  kind=client
+                                  … 1 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                                pay-connectors  pg-pool.connect  (1764bc73785499d6)  kind=client
+                                  … 1 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                                pay-qr  POST /qr  (509d63c7e03442af)  kind=server route=/qr status=201
+                                  pay-qr  request handler - /qr  (e2cfc62d07a6081c)  kind=internal route=/qr
+                                    pay-qr  QrController.create  (519ecf69ef4ee572)  kind=internal route=/qr
+                                      pay-qr  create  (21fec13e72166179)  kind=internal
+                                        … 8 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                                  … 7 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                                … 37 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                          … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                      … 7 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                    pay-payments  activity recordLedger  (9ace7aa946ebfb31)  kind=internal
+                      pay-payments  POST pay-ledger  (66004fa0e61d8683)  kind=client status=201
+                        pay-ledger  POST /transactions  (0979d9b5cda311ba)  kind=server route=/transactions status=201
+                          pay-ledger  request handler - /transactions  (49eb55088ca082c6)  kind=internal route=/transactions
+                            pay-ledger  LedgerController.createTransaction  (094749988d847610)  kind=internal route=/transactions
+                              pay-ledger  createTransaction  (f70782e7b53c1b9f)  kind=internal
+                                … 17 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                          … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                      … 2 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                  … 37 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+            … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+        … 4 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+  … 3 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        37.057 s
+Ran all test suites matching flows/traza-jaeger-arbol.

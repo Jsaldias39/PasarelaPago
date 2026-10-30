@@ -1,0 +1,61 @@
+### docker build -f services/pay-merchants/Dockerfile --build-arg HUB=mirror.gcr.io -t p5gate-pay-merchants:local .
+inicio 2026-10-28T00:01:52Z
+exit=1
+1.871 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p8d76f5), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+1.871 ➤ YN0086: │ Some peer dependencies are incorrectly met by your project; run yarn explain peer-requirements <hash> for details, where <hash> is the six-letter p-prefixed code.
+1.934 ➤ YN0028: │ The lockfile would have been modified by this install, which is explicitly forbidden.
+1.935 ➤ YN0000: └ Completed
+1.937 ➤ YN0000: · Failed with errors in 0s 449ms
+------
+Dockerfile:11
+--------------------
+   9 |     COPY contracts/packages ./contracts/packages
+  10 |     COPY services/pay-merchants ./services/pay-merchants
+  11 | >>> RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
+  12 |     RUN node .yarn/releases/yarn-4.14.1.cjs workspaces foreach -A --topological-dev --from pay-merchants run build
+  13 |     
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+### docker build -f services/pay-risk/Dockerfile --build-arg HUB=mirror.gcr.io -t p5gate-pay-risk:local .
+inicio 2026-10-28T00:01:57Z
+exit=1
+1.097 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p84876a), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+1.097 ➤ YN0086: │ Some peer dependencies are incorrectly met by your project; run yarn explain peer-requirements <hash> for details, where <hash> is the six-letter p-prefixed code.
+1.158 ➤ YN0028: │ The lockfile would have been modified by this install, which is explicitly forbidden.
+1.159 ➤ YN0000: └ Completed
+1.161 ➤ YN0000: · Failed with errors in 0s 324ms
+------
+Dockerfile:11
+--------------------
+   9 |     COPY contracts/packages ./contracts/packages
+  10 |     COPY services/pay-risk ./services/pay-risk
+  11 | >>> RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
+  12 |     RUN node .yarn/releases/yarn-4.14.1.cjs workspaces foreach -A --topological-dev --from pay-risk run build
+  13 |     
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+### docker build -f services/pay-schedules/Dockerfile --build-arg HUB=mirror.gcr.io -t p5gate-pay-schedules:local .
+inicio 2026-10-28T00:01:59Z
+exit=1
+1.136 ➤ YN0060: │ @opentelemetry/api is listed by your project with version 1.10.0 (p543d20), which doesn't satisfy what @opentelemetry/sdk-node and other dependencies request (>=1.9.0 <1.10.0).
+1.136 ➤ YN0086: │ Some peer dependencies are incorrectly met by your project; run yarn explain peer-requirements <hash> for details, where <hash> is the six-letter p-prefixed code.
+1.229 ➤ YN0028: │ The lockfile would have been modified by this install, which is explicitly forbidden.
+1.230 ➤ YN0000: └ Completed
+1.231 ➤ YN0000: · Failed with errors in 0s 474ms
+------
+Dockerfile:11
+--------------------
+   9 |     COPY contracts/packages ./contracts/packages
+  10 |     COPY services/pay-schedules ./services/pay-schedules
+  11 | >>> RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
+  12 |     RUN node .yarn/releases/yarn-4.14.1.cjs workspaces foreach -A --topological-dev --from pay-schedules run build
+  13 |     
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+### limpieza
+Error response from daemon: No such image: p5gate-pay-merchants:local
+Error response from daemon: No such image: p5gate-pay-risk:local
+Error response from daemon: No such image: p5gate-pay-schedules:local
+Total reclaimed space: 0B
+sin imágenes p5gate restantes
+DONE

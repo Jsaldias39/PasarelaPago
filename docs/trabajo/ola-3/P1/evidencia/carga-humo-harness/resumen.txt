@@ -1,0 +1,20 @@
+PRUEBA DE CARGA (T-01) — corrida ed6b418a — 2026-10-28T03:15:40.126Z
+Plan: pico 5 rps, rampa 10 s, duración 60 s, 3 clave(s) sk_test_, 2.0 % de pedidos repetidos con la misma clave
+Enviados 283 (planificados 275) · con respuesta 283 · sin respuesta (ambiguos) 0 · descartados por el generador 0
+Estados HTTP: 201×283
+Latencia de POST /v1/payment_intents: p50 341 ms · p95 546 ms · p99 643 ms · máx 741 ms
+Retraso de salida del generador: p99 5 ms · máx 17 ms
+Intentos creados 275: succeeded×275 · colgados 0
+Tiempo hasta terminal: p50 1111 ms · p95 1186 ms · p99 1213 ms
+Ledger: 275 intentos succeeded revisados · 275 líneas leídas · asientos duplicados 0 · faltantes 0 · importes distintos 0
+Idempotencia: claves que devolvieron intentos distintos 0
+Saturación (proc, 12 muestras): CPU de la máquina media 68 % / máx 77 % de 4 núcleos · carga del sistema máx 3.74
+Procesos con más CPU (media, 100 % = un núcleo): pay-payments 41 % · pay-connectors 11 % · pay-edge 7 % · pay-ledger 6 % · pay-mockbank 5 %
+
+CRITERIO (escrito antes: docs/trabajo/ola-3/P1/CARGA.md): p99 < 2000 ms · 5xx < 0.1 % · colgados = 0 · doble asiento = 0
+  PASA      p99 de la creación: objetivo < 2000 ms · observado 643 ms
+  PASA      errores 5xx: objetivo < 0.100 % · observado 0.000 % (0 de 283)
+  PASA      intentos colgados (sin estado terminal a tiempo): objetivo 0 · observado 0 de 275
+  PASA      doble asiento / intento duplicado: objetivo 0 · observado 0 asientos duplicados + 0 claves con intentos distintos
+VEREDICTO: APRUEBA
+Esta máquina (4 vCPU compartidas, Postgres/NATS/Redis/Temporal/TigerBeetle/Watchman y los 12 servicios en el MISMO host) NO representa el despliegue de producción (Coolify multiservidor, T-01). El resultado sirve para encontrar cuellos de botella y errores de concurrencia, NO para certificar T-01.

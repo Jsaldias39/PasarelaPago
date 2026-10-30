@@ -1,0 +1,49 @@
+# Evidencia transversal (contrato, salud, NATS, API pública)
+
+## pay-ledger/test/contract.spec.ts
+✓ el servicio implementa TODO el contrato › cada operación de internal-ledger-v1.yaml tiene su ruta, y no hay rutas internas que el contrato no declare
+✓ el servicio implementa TODO el contrato › `GET /balance` de public-v1.yaml está implementado (la parte de P2 en pay-ledger)
+✓ identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista › sin identidad de servicio ⇒ 403 en TODAS las rutas internas
+✓ identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista › pay-edge (solo atiende rutas públicas) ⇒ 403 en TODAS las rutas internas
+✓ identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista › pay-risk (no está en la política de cuentas) ⇒ 403 en TODAS las rutas internas
+✓ identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista › un valor con forma inválida ⇒ 403 en TODAS las rutas internas
+✓ identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista › un servicio de la política SÍ pasa el guard (la ruta responde otra cosa que 403)
+✓ identidad entre servicios: cada ruta niega sin identidad y a los servicios que no están en su lista › `GET /balance` público: solo pay-edge
+✓ divergencias conocidas del contrato (PROPUESTAS.md #4) › siguen siendo ciertas: si el contrato ya declara el 422, hay que borrar la entrada de KNOWN_422_GAPS
+
+## pay-ledger/test/health.spec.ts
+✓ pay-ledger (arranque real contra su base) › GET /health/live responde ok
+✓ pay-ledger (arranque real contra su base) › GET /health/ready consulta la base propia
+✓ pay-ledger (arranque real contra su base) › un ProblemError sale como RFC 9457 con su request_id
+✓ pay-ledger (arranque real contra su base) › un error inesperado NO expone el mensaje, la pila ni lo que contenía
+✓ pay-ledger (arranque real contra su base) › una ruta inexistente es 404 resource_not_found en RFC 9457
+✓ pay-ledger (arranque real contra su base) › un x-request-id mal formado se reemplaza por uno nuevo
+
+## pay-settlement/test/public-payouts.spec.ts
+✓ GET /payouts público (vía pay-edge), contrato public-v1 › el comercio ve SOLO sus liquidaciones, con la forma pública y sin campos internos
+✓ GET /payouts público (vía pay-edge), contrato public-v1 › IDOR: probar otro comercio por la consulta no filtra nada (merchant_id y status no existen en la API pública)
+✓ GET /payouts público (vía pay-edge), contrato public-v1 › sin X-Merchant-Id válido, 401: pay-edge no autenticó a nadie
+✓ GET /payouts público (vía pay-edge), contrato public-v1 › pagina del más nuevo al más viejo sin repetir ni saltar, y el cursor roto es 422
+✓ GET /payouts público (vía pay-edge), contrato public-v1 › un pago fallido muestra su failure_code y uno en tránsito su estado, sin detalles del riel
+✓ GET /payouts público (vía pay-edge), contrato public-v1 › el mismo recurso lo ven los servicios internos con la forma interna (completa) y con filtros; pay-edge no lee /payouts/{id}
+
+## pay-settlement/test/nats.spec.ts
+✓ consumidores durables sobre NATS JetStream real › ledger.transfer.posted de pay-ledger registra al comercio; fee_schedule.published de pay-merchants guarda el abono
+✓ consumidores durables sobre NATS JetStream real › un mensaje duplicado (mismo id, entregado dos veces) tiene efecto una sola vez
+✓ consumidores durables sobre NATS JetStream real › basura, JSON inválido, sobres inválidos y eventos ajenos no traban el consumidor ni se reintentan sin fin; el siguiente evento válido pasa
+✓ el relé del outbox publica los eventos propios en PAY_SETTLEMENT › un payout.paid encolado en el outbox llega al stream, con el contrato y su Nats-Msg-Id
+
+## pay-settlement/test/contract.spec.ts
+✓ el servicio implementa el contrato interno de liquidación y nada más que lo propuesto › cada operación de internal-settlement-v1.yaml tiene su ruta
+✓ el servicio implementa el contrato interno de liquidación y nada más que lo propuesto › cada operación de public-v1.yaml que es de P2 (GET /payouts) tiene su ruta
+✓ el servicio implementa el contrato interno de liquidación y nada más que lo propuesto › las únicas rutas fuera del contrato son las dos PROPUESTAS declaradas (POST /charges, GET /exports/accounting)
+✓ el servicio implementa el contrato interno de liquidación y nada más que lo propuesto › toda ruta exige identidad de servicio: sin X-Service-Id válido ninguna responde distinto de 403
+
+## pay-settlement/test/health.spec.ts
+✓ pay-settlement (arranque real contra su base) › GET /health/live responde ok
+✓ pay-settlement (arranque real contra su base) › GET /health/ready consulta la base propia
+✓ pay-settlement (arranque real contra su base) › un ProblemError sale como RFC 9457 con su request_id
+✓ pay-settlement (arranque real contra su base) › un error inesperado NO expone el mensaje, la pila ni lo que contenía
+✓ pay-settlement (arranque real contra su base) › una ruta inexistente es 404 resource_not_found en RFC 9457
+✓ pay-settlement (arranque real contra su base) › un x-request-id mal formado se reemplaza por uno nuevo
+

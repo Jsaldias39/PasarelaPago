@@ -1,0 +1,52 @@
+# Evidencia P3.H2.M3 (REQ-P3-4: matar el worker a mitad de la saga)
+fecha: 2026-10-27T17:40:21Z
+directorio: services/pay-payments
+El worker corre como PROCESO APARTE (dist/worker-main.js, compilado por la propia prueba con tsc) y se mata con SIGKILL por PID; cada corrida del archivo hace 7 pruebas (5 muertes con el asiento del ledger en vuelo + muerte mientras espera al pagador + dos workers a la vez).
+conexiones activas: 24 (< 60)
+
+==== corrida 1 de 5 (yarn test test/payment.kill.spec.ts --verbose --runInBand) ====
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        125.102 s, estimated 138 s
+Ran all test suites matching test/payment.kill.spec.ts.
+exit: 0
+conexiones activas: 19 (< 60)
+
+==== corrida 2 de 5 (yarn test test/payment.kill.spec.ts --verbose --runInBand) ====
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        125.874 s
+Ran all test suites matching test/payment.kill.spec.ts.
+exit: 0
+conexiones activas: 26 (< 60)
+
+==== corrida 3 de 5 (yarn test test/payment.kill.spec.ts --verbose --runInBand) ====
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        129.032 s
+Ran all test suites matching test/payment.kill.spec.ts.
+exit: 0
+conexiones activas: 16 (< 60)
+
+==== corrida 4 de 5 (yarn test test/payment.kill.spec.ts --verbose --runInBand) ====
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        115.419 s, estimated 129 s
+Ran all test suites matching test/payment.kill.spec.ts.
+exit: 0
+conexiones activas: 12 (< 60)
+
+==== corrida 5 de 5, con el código FINAL (tras el cambio de la regla de PAN) ====
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        117.612 s, estimated 124 s
+Ran all test suites matching test/payment.kill.spec.ts.
+exit: 0
+
+==== idempotencia/retoma (workflow M3) ====
+Tests:       22 skipped, 4 passed, 26 total

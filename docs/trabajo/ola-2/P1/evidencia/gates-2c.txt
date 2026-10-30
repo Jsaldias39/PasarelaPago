@@ -1,0 +1,52 @@
+## e2e:typecheck
+exit=0
+## yarn lint (eslint desde la raiz)
+exit=0
+## pay-edge typecheck
+exit=0
+## pay-edge build
+exit=0
+## pay-webhooks typecheck
+exit=0
+## pay-webhooks build
+exit=0
+## pay-edge test run 1
+Test Suites: 11 passed, 11 total
+Tests:       370 passed, 370 total
+Time:        18.306 s
+## pay-edge test run 2
+FAIL test/replica.spec.ts (9.885 s)
+  ● [DOBLE] réplica de claves por eventos (NATS JetStream real) › D-32: cierre revoca las claves, suspensión solo bloquea › nivel inválido › un merchant.closed de un comercio desconocido para la réplica se acepta sin error y no afecta a otros
+Test Suites: 1 failed, 10 passed, 11 total
+Tests:       1 failed, 369 passed, 370 total
+Time:        16.545 s, estimated 18 s
+## pay-edge test run 3
+Test Suites: 11 passed, 11 total
+Tests:       370 passed, 370 total
+Time:        14.851 s, estimated 16 s
+## pay-webhooks test run 1
+Test Suites: 10 passed, 10 total
+Tests:       379 passed, 379 total
+Time:        10.962 s
+## pay-webhooks test run 2
+Test Suites: 10 passed, 10 total
+Tests:       379 passed, 379 total
+Time:        15 s
+## pay-webhooks test run 3
+Test Suites: 10 passed, 10 total
+Tests:       379 passed, 379 total
+Time:        14.733 s, estimated 15 s
+## NOTA: la corrida 2 de pay-edge de arriba falló por 429 (tope de 300 peticiones/min por IP) en la suite replica.spec.ts: causa raíz = los casos D-32 consultan el borde en bucle desde una sola IP. Se subieron los topes SOLO en esa suite; 8 corridas seguidas de replica.spec.ts en verde; las 3 corridas siguientes de pay-edge se hicieron después del arreglo.
+eslint pay-edge exit=0
+## pay-edge test run (post-fix) 1
+Test Suites: 11 passed, 11 total
+Tests:       370 passed, 370 total
+Time:        12.834 s, estimated 14 s
+## pay-edge test run (post-fix) 2
+Test Suites: 11 passed, 11 total
+Tests:       370 passed, 370 total
+Time:        11.023 s, estimated 13 s
+## pay-edge test run (post-fix) 3
+Test Suites: 11 passed, 11 total
+Tests:       370 passed, 370 total
+Time:        12.277 s

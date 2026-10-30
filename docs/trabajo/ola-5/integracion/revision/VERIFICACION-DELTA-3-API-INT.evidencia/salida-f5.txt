@@ -1,0 +1,13 @@
+(node:31742) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+R5I> D9 RLS_ENFORCE=false dos close: deuda=PENDING sesiones=EXPIRED+EXPIRED
+R5DL> Process 76732 waits for ShareLock on transaction 2101738; blocked by process 76731. // Process 76731 waits for ShareLock on transaction 2101739; blocked by process 76732. :: where=while locking tuple (0,3) in relation "payment_debts"
+R5I> D9 RLS_ENFORCE=false deadlock-soak (40 close): ok=21 errores={"eundefined:[40P01]":19}
+R5I> D9 RLS_ENFORCE=true (NOBYPASSRLS) dos close: deuda=PENDING sesiones=EXPIRED+EXPIRED
+R5I> D9 RLS_ENFORCE=true (NOBYPASSRLS) deadlock-soak (40 close): ok=40 errores={}
+Test Suites: 1 passed, 1 total
+Tests:       10 skipped, 2 passed, 12 total
+Snapshots:   0 total
+Time:        24.471 s, estimated 25 s
+Ran all test suites matching rev5-charge with tests matching "sin deadlocks".
+EXIT 0

@@ -1,0 +1,43 @@
+# corrida {"RUN":"cc33dd44","ADDR":"127.0.0.1:19002"}
+## E0 crear cuentas ["created(4294967295)","created(4294967295)","created(4294967295)","created(4294967295)"]
+## E0b crear la misma cuenta otra vez (idempotencia de cuentas) ["exists(21)"]
+## E0c id = 0 ["id_must_not_be_zero(6)"]
+## fondeo 50,00 BOB ["created(4294967295)"]
+saldo AVAIL {"debits_pending":"0","debits_posted":"0","credits_pending":"0","credits_posted":"5000","disponible":"5000"}
+## E2 débito 5001 con 5000 disponibles ["exceeds_credits(54)"]
+saldo AVAIL tras el rechazo (debe seguir igual) {"debits_pending":"0","debits_posted":"0","credits_pending":"0","credits_posted":"5000","disponible":"5000"}
+## E2b débito 200 (comisión) ["created(4294967295)"]
+saldo AVAIL {"debits_pending":"0","debits_posted":"200","credits_pending":"0","credits_posted":"5000","disponible":"4800"}
+## E3 pending 1000 ["created(4294967295)"]
+saldo con la retención (disponible baja, no hay gasto doble) {"debits_pending":"1000","debits_posted":"200","credits_pending":"0","credits_posted":"5000","disponible":"3800"}
+## E3b gastar 4000 con 3800 disponibles tras la retención ["exceeds_credits(54)"]
+## E3c post ["created(4294967295)"]
+saldo tras post {"debits_pending":"0","debits_posted":"1200","credits_pending":"0","credits_posted":"5000","disponible":"3800"}
+## E3d post otra vez sobre la misma retención ["pending_transfer_already_posted(33)"]
+## E3e void ["created(4294967295)"]
+saldo tras void (el monto vuelve) {"debits_pending":"0","debits_posted":"1200","credits_pending":"0","credits_posted":"5000","disponible":"3800"}
+## E3f pending 700 con timeout=2 s {"debits_pending":"700","debits_posted":"1200","credits_pending":"0","credits_posted":"5000","disponible":"3100"}
+saldo 6 s después (el vencimiento devuelve el monto) {"debits_pending":"0","debits_posted":"1200","credits_pending":"0","credits_posted":"5000","disponible":"3800"}
+## E3g post sobre una retención vencida ["pending_transfer_expired(35)"]
+## E4 mismo id x10 en paralelo, un cliente {"created(4294967295)":1,"exists(46)":9}
+delta de disponible (esperado -100) {"antes":"3800","despues":"3700","delta":"-100"}
+## E4b mismo id x10, diez clientes distintos {"created(4294967295)":1,"exists(46)":9}
+delta de disponible (esperado -100) {"delta":"-100"}
+## E4c mismo id con otro monto ["exists_with_different_amount(39)"]
+## E5 cadena enlazada de 3 donde la última falla ["linked_event_failed(1)","linked_event_failed(1)","exceeds_credits(54)"]
+delta (esperado 0: ninguna se aplica) {"delta":"0"}
+## E5b cadena válida ["created(4294967295)","created(4294967295)"]
+saldo {"debits_pending":"0","debits_posted":"1420","credits_pending":"0","credits_posted":"5000","disponible":"3580"}
+## E6 id derivado es determinista {"igual":true,"id":"1208a719ecd6fb6cda1ef9c9cbc30994"}
+lookupTransfers de [fund, over(rechazada), exact] [{"amount":"5000","flags":0},{"amount":"200","flags":0}]
+getAccountTransfers(AVAIL) cantidad (las rechazadas no figuran) {"n":11}
+getAccountBalances (flag history) primeras 3 filas [{"dp":"0","cp":"5000","dpend":"0"},{"dp":"200","cp":"5000","dpend":"0"},{"dp":"200","cp":"5000","dpend":"1000"}]
+## E4d reintentar con el mismo id una transferencia que ya fue rechazada (E2) ["id_already_failed(68)"]
+## E4e mismo id rechazado, ahora con un monto que sí alcanza ["id_already_failed(68)"]
+## E4f id nuevo (por intento) con el monto que sí alcanza ["created(4294967295)"]
+## E7 lote de 8189 transferencias {"resultados":8189,"creadas":8189}
+## E7 lote de 8190 transferencias → EXCEPCIÓN {"name":"RequestError","message":"Too much data was sent or requested in this batch."}
+## E7 lote de 8191 transferencias → EXCEPCIÓN {"name":"RequestError","message":"Too much data was sent or requested in this batch."}
+## E7b cliente con cluster_id=7 contra el cluster 0 "sin respuesta en 8 s (el cliente reintenta)"
+saldo final AVAIL (para recovery.cjs) {"debits_pending":"0","debits_posted":"1421","credits_pending":"0","credits_posted":"5000","disponible":"3579"}
+# fin

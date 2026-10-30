@@ -1,0 +1,180 @@
+{
+  "label": "ledger",
+  "verdict": "FAIL",
+  "problems": [
+    {
+      "aspecto": "fk",
+      "solo_en_referencia": [],
+      "solo_en_modelo": [
+        [
+          "ledger_holds",
+          "FOREIGN KEY (mode, credit_account) REFERENCES ledger_accounts(mode, account)"
+        ],
+        [
+          "ledger_holds",
+          "FOREIGN KEY (mode, debit_account) REFERENCES ledger_accounts(mode, account)"
+        ]
+      ]
+    }
+  ],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "idempotency_keys",
+        "p",
+        "idempotency_keys_pkey"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "inbox_events_pkey"
+      ],
+      [
+        "ledger_accounts",
+        "p",
+        "ledger_accounts_pkey"
+      ],
+      [
+        "ledger_accounts",
+        "u",
+        "ledger_accounts_tb_id_unique"
+      ],
+      [
+        "ledger_holds",
+        "p",
+        "ledger_holds_pkey"
+      ],
+      [
+        "ledger_holds",
+        "u",
+        "ledger_holds_ref_attempt_key"
+      ],
+      [
+        "ledger_legs",
+        "p",
+        "ledger_legs_pkey"
+      ],
+      [
+        "ledger_legs",
+        "u",
+        "ledger_legs_source_index_key"
+      ],
+      [
+        "ledger_rejections",
+        "p",
+        "ledger_rejections_pkey"
+      ],
+      [
+        "ledger_rejections",
+        "u",
+        "ledger_rejections_ref_attempt_kind_key"
+      ],
+      [
+        "ledger_statement_lines",
+        "f",
+        "ledger_statement_lines_leg_id_fkey"
+      ],
+      [
+        "ledger_statement_lines",
+        "p",
+        "ledger_statement_lines_pkey"
+      ],
+      [
+        "ledger_transactions",
+        "p",
+        "ledger_transactions_pkey"
+      ],
+      [
+        "ledger_transactions",
+        "u",
+        "ledger_transactions_ref_attempt_key"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "outbox_events_pkey"
+      ],
+      [
+        "outbox_events",
+        "u",
+        "outbox_events_seq_key"
+      ]
+    ],
+    "modelo": [
+      [
+        "idempotency_keys",
+        "p",
+        "pk_idempotency_keys"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "pk_inbox_events"
+      ],
+      [
+        "ledger_accounts",
+        "p",
+        "pk_ledger_accounts"
+      ],
+      [
+        "ledger_holds",
+        "f",
+        "ledger_holds_credit_account_fkey"
+      ],
+      [
+        "ledger_holds",
+        "f",
+        "ledger_holds_debit_account_fkey"
+      ],
+      [
+        "ledger_holds",
+        "p",
+        "pk_ledger_holds"
+      ],
+      [
+        "ledger_legs",
+        "p",
+        "pk_ledger_legs"
+      ],
+      [
+        "ledger_rejections",
+        "p",
+        "pk_ledger_rejections"
+      ],
+      [
+        "ledger_statement_lines",
+        "f",
+        "fk_ledger_statement_lines_leg_id"
+      ],
+      [
+        "ledger_statement_lines",
+        "p",
+        "pk_ledger_statement_lines"
+      ],
+      [
+        "ledger_transactions",
+        "p",
+        "pk_ledger_transactions"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "pk_outbox_events"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 9,
+    "columnas": 89,
+    "indices": 20,
+    "check": 24,
+    "fk": 6,
+    "triggers": 0,
+    "funciones": 0
+  }
+}

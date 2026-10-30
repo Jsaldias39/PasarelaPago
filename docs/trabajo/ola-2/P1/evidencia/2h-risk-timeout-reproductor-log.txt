@@ -1,0 +1,17 @@
+# Reproductor risk-timeout (RISK_TIMEOUT_MS=40): líneas del log de pay-payments en e2e/.run/e2emvreiw2w/
+  activityType: 'assessRisk',
+  workflowId: 'payment-pi_637f20781960c34f769b8a45',
+  workflowRunId: 'b3b1e42b-235b-4e47-8f84-66784b9d4997',
+  workflowType: 'PaymentWorkflow',
+  error: ApplicationFailure: pay-risk rechazó la petición: pay-risk rechazó la operación (409 idempotency_request_in_progress)
+      at ApplicationFailure.nonRetryable (/home/user/pasarelapago/node_modules/@temporalio/common/lib/failure.js:209:16)
+      at assessRisk (/home/user/pasarelapago/services/pay-payments/dist/temporal/activities.js:175:57)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async wrapped.<computed> (/home/user/pasarelapago/services/pay-payments/dist/temporal/activities.js:348:24)
+      at async Activity.execute (/home/user/pasarelapago/node_modules/@temporalio/worker/lib/activity.js:104:20)
+      at async NativeConnection.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/worker/lib/connection.js:172:16)
+      at async Client.withAbortSignal (/home/user/pasarelapago/node_modules/@temporalio/client/lib/base-client.js:65:16)
+      at async /home/user/pasarelapago/node_modules/@temporalio/worker/lib/activity.js:164:32
+      at async /home/user/pasarelapago/node_modules/@temporalio/worker/lib/worker.js:813:30 {
+    cause: undefined,
+    failure: undefined,

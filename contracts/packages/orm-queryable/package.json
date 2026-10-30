@@ -1,0 +1,25 @@
+{
+  "name": "@pay/orm-queryable",
+  "version": "0.1.0",
+  "description": "Expone la transacción del EntityManager de MikroORM 7 como Queryable de @pay/outbox: escribir una entidad y encolar su evento en la MISMA transacción",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "yarn run -T tsc -p tsconfig.build.json",
+    "typecheck": "yarn run -T tsc -p tsconfig.json --noEmit",
+    "test": "node --experimental-vm-modules ../../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs"
+  },
+  "dependencies": {
+    "@pay/outbox": "workspace:*"
+  },
+  "devDependencies": {
+    "@mikro-orm/core": "^7.1.7",
+    "@mikro-orm/postgresql": "^7.1.7",
+    "@pay/testing": "workspace:*"
+  }
+}

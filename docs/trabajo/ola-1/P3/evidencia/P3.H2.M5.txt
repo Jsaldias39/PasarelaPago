@@ -1,0 +1,141 @@
+# Evidencia P3.H2.M5
+fecha: 2026-10-27T17:58:06Z
+directorio: services/pay-payments
+comando: yarn test test/refunds.disputes.spec.ts -t P3.H2.M5 --verbose --runInBand
+---- salida ----
+2026-10-27T17:58:15.418Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:58:16.428Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:58:17.423Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:58:18.421Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:58:19.606Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:58:20.609Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'refundAtConnector',
+  error: UpstreamError: pay-connectors: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-connectors',
+    status: 500,
+    problemCode: 'internal_error'
+  },
+}
+2026-10-27T17:58:22.196Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:58:23.204Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:58:23.680Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:58:24.565Z [WARN] Activity failed {
+  attempt: 4,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:58:25.756Z [WARN] Activity failed {
+  attempt: 1,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:58:26.767Z [WARN] Activity failed {
+  attempt: 2,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+2026-10-27T17:58:27.767Z [WARN] Activity failed {
+  attempt: 3,
+  activityType: 'holdRefund',
+  error: UpstreamError: pay-ledger: server_error (500)
+    kind: 'server_error',
+    upstream: 'pay-ledger',
+    status: 500,
+    problemCode: 'ledger_unavailable'
+  },
+}
+Test Suites: 1 passed, 1 total
+Tests:       5 skipped, 13 passed, 18 total
+Snapshots:   0 total
+Time:        31.966 s, estimated 42 s
+Ran all test suites matching test/refunds.disputes.spec.ts with tests matching "P3.H2.M5".
+---- código de salida: 0 ----

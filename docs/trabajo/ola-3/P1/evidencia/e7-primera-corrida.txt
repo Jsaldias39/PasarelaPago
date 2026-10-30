@@ -1,0 +1,81 @@
+FAIL e2e/flows/e7.e2e.ts (87.965 s)
+  ● E7 — tarjeta por campos alojados, sin un PAN fuera de pay-vault › CORRECTO (doble: la prueba hace de pay-connectors): reveal entrega la tarjeta SOLO al conector y queda auditado; el banco simulado autoriza y captura con el token, sin ver el PAN
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 422
+    Received array: [201, 200]
+
+      111 |     const bank = (method: string, path: string, json?: unknown) => asService('pay-connectors', 'pay-mockbank', method, path, { payMode: 'test', ...(json !== undefined ? { json } : {}) });
+      112 |     const authorized = await bank('POST', '/sandbox/card-authorizations', { reference: chargeId, amount_minor: 10_000, card_token: token });
+    > 113 |     expect([201, 200]).toContain(authorized.status);
+          |                        ^
+      114 |     expectNoPan(authorized.text);
+      115 |     const captured = await bank('POST', `/sandbox/card-authorizations/${chargeId}/capture`, {});
+      116 |     expect(captured.status).toBe(200);
+
+      at Object.toContain (e2e/flows/e7.e2e.ts:113:24)
+
+  ● E7 — tarjeta por campos alojados, sin un PAN fuera de pay-vault › LÍMITE: un PAN pegado por error en cualquier campo del comercio (seguido, con espacios, guiones o puntos; Visa, Mastercard, Amex) se rechaza sin repetirlo y no crea ningún intento
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+        422,
+    -   "card_number_detected",
+    +   "validation_failed",
+      ]
+
+      134 |         const res = await edge('POST', '/v1/payment_intents', { key: `e7-hostil-body-${String(n).padStart(4, '0')}`, json });
+      135 |         liveTexts.push(res.text);
+    > 136 |         expect([res.status, (res.json as { code?: string }).code]).toEqual([422, 'card_number_detected']);
+          |                                                                    ^
+      137 |         expectNoPan(res.text);
+      138 |       }
+      139 |     }
+
+      at Object.toEqual (e2e/flows/e7.e2e.ts:136:68)
+
+  ● E7 — tarjeta por campos alojados, sin un PAN fuera de pay-vault › ESCANEO: 0 apariciones del PAN en logs, bus, filas de todas las bases, historiales de Temporal y trazas (y el escaneo no fue vacío)
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "e7-canary-marcador-no-pan"
+    Received string:    "pay-payments.payment_intent.created
+    content-type=application/cloudevents+json
+    Nats-Msg-Id=e51a06b4-d5ae-42d0-b454-445838d18ace
+    {\"id\":\"e51a06b4-d5ae-42d0-b454-445838d18ace\",\"data\":{\"mode\":\"test\",\"status\":\"processing\",\"currency\":\"BOB\",\"fee_minor\":325,\"net_minor\":9675,\"expires_at\":\"2026-10-28T16:38:35.964Z\",\"merchant_id\":\"mc_ctog4y3u27qbaykn\",\"amount_minor\":10000,\"payment_intent_id\":\"pi_aa4296eca62b3295e1c67011\",\"payment_method_type\":\"card\"},\"time\":\"2026-10-28T15:38:35.973Z\",\"type\":\"payment_intent.created\",\"source\":\"/pay-payments\",\"subject\":\"pi_aa4296eca62b3295e1c67011\",\"merchantid\":\"mc_ctog4y3u27qbaykn\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\"}
+    ---
+    pay-payments.payment_intent.requires_action
+    content-type=application/cloudevents+json
+    Nats-Msg-Id=c1ca3233-65b4-4770-ac73-1c64d08a8086
+    {\"id\":\"c1ca3233-65b4-4770-ac73-1c64d08a8086\",\"data\":{\"mode\":\"test\",\"status\":\"requires_action\",\"expires_at\":\"2026-10-28T16:38:35.964Z\",\"merchant_id\":\"mc_ctog4y3u27qbaykn\",\"next_action_type\":\"redirect_to_card_form\",\"payment_intent_id\":\"pi_aa4296eca62b3295e1c67011\"},\"time\":\"2026-10-28T15:38:38.140Z\",\"type\":\"payment_intent.requires_action\",\"source\":\"/pay-payments\",\"subject\":\"pi_aa4296eca62b3295e1c67011\",\"merchantid\":\"mc_ctog4y3u27qbaykn\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\"}
+    ---
+    pay-payments.payment_intent.processing
+    content-type=application/cloudevents+json
+    Nats-Msg-Id=ca156c24-91fd-4c56-838c-31f02f9e3d8e
+    {\"id\":\"ca156c24-91fd-4c56-838c-31f02f9e3d8e\",\"data\":{\"mode\":\"test\",\"status\":\"processing\",\"connector\":\"mock\",\"merchant_id\":\"mc_ctog4y3u27qbaykn\",\"payment_intent_id\":\"pi_aa4296eca62b3295e1c67011\"},\"time\":\"2026-10-28T15:38:38.498Z\",\"type\":\"payment_intent.processing\",\"source\":\"/pay-payments\",\"subject\":\"pi_aa4296eca62b3295e1c67011\",\"merchantid\":\"mc_ctog4y3u27qbaykn\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\"}
+    ---
+    pay-payments.payment_intent.succeeded
+    content-type=application/cloudevents+json
+    Nats-Msg-Id=ef4200fd-2999-49e5-83c7-9af3aa0bac03
+    {\"id\":\"ef4200fd-2999-49e5-83c7-9af3aa0bac03\",\"data\":{\"mode\":\"test\",\"status\":\"succeeded\",\"currency\":\"BOB\",\"fee_minor\":325,\"net_minor\":9675,\"merchant_id\":\"mc_ctog4y3u27qbaykn\",\"amount_minor\":10000,\"succeeded_at\":\"2026-10-28T15:38:38.813Z\",\"payment_intent_id\":\"pi_aa4296eca62b3295e1c67011\",\"ledger_transfer_id\":\"tx_me4qlyavpusul3jomc5a\",\"payment_method_type\":\"card\"},\"time\":\"2026-10-28T15:38:38.816Z\",\"type\":\"payment_intent.succeeded\",\"source\":\"/pay-payments\",\"subject\":\"pi_aa4296eca62b3295e1c67011\",\"merchantid\":\"mc_ctog4y3u27qbaykn\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\"}"
+
+      184 |     const text = (list: CollectedSource[], prefix: string) => list.filter((x) => x.source.startsWith(prefix)).map((x) => x.text).join('\n');
+      185 |     expect(text(dbs, 'db:pay_payments.')).toContain(CANARY);
+    > 186 |     expect(text(bus, 'nats:PAY_PAYMENTS')).toContain(CANARY);
+          |                                            ^
+      187 |     expect(text(dbs, 'db:pay_vault.')).toContain(token);
+      188 |     expect(dbs.map((d) => d.source.split('.')[0]).filter((v, i, a) => a.indexOf(v) === i)).toHaveLength(ALL_SERVICES.length);
+      189 |     expect(temporal[0]!.items).toBeGreaterThan(3);
+
+      at Object.toContain (e2e/flows/e7.e2e.ts:186:44)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 3 passed, 6 total
+Snapshots:   0 total
+Time:        88.098 s
+Ran all test suites matching e2e/flows/e7.

@@ -1,0 +1,9 @@
+Test Suites: 28 passed, 28 total
+Tests:       216 passed, 216 total
+Time:        447.996 s
+
+Verificación del integrador (distinto de quien implementó): yarn lint exit 0; yarn e2e:typecheck exit 0; E3 6/6 aislado; E7 6/6 aislado; suite completa arriba.
+Defectos de producto hallados por E3/E7 y NO corregidos (ver docs/trabajo/ola-2/P1/ARNES.md hallazgos 13–15; reproductores en e2e/pending/):
+ 13. P3/P4 — un 502 connector_unavailable en un reembolso se reintenta y el segundo envío es ambiguo (500): el camino `failed` del RefundWorkflow es inalcanzable hoy (seguro para el dinero).
+ 14. P4 pay-mockbank — PAN_LIKE sin anclar rechaza (422) cualquier card_token con 12 dígitos seguidos (≈2 % de los tokens tok_+24 hex).
+ 15. P3/P4 — el tramo de tarjeta no está cableado (conector mock ignora card_token; pay-payments acepta un tok_ que la bóveda no conoce; pay-vault sin ruta HTTP del pagador).

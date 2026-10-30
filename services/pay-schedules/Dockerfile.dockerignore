@@ -1,0 +1,13 @@
+# Contexto de la imagen de pay-schedules: todo se excluye salvo lo que el build necesita.
+*
+!.yarn
+!.yarnrc.yml
+!package.json
+!yarn.lock
+!tsconfig.base.json
+!contracts/packages
+!services/*/package.json
+!services/pay-schedules
+**/node_modules
+**/dist
+**/.env

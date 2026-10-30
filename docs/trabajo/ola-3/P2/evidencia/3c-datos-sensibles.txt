@@ -1,0 +1,20 @@
+$ scripts/check-sensitive-data.sh
+== Etapa estática ==
+PASS  ningún console.* en el código desplegado (src)
+PASS  ningún log vuelca cuerpos, DTO, extractos ni glosas (logger.*(… body|dto|payload|req|statement|line|description …))
+PASS  ningún campo de tarjeta, titular ni documento en el código ni en el SQL (pan, card_number, cvv, cvc, holder, full/first/last_name, document_number, national_id)
+PASS  ningún campo de tarjeta, titular ni documento en los contratos de eventos y de API internos de P2
+PASS  ningún literal de 15 a 19 dígitos (con forma de PAN) en el código ni en el SQL
+PASS  la telemetría no activa captura de sentencias con valores ni ganchos que copien cuerpos
+PASS  el importador descarta la glosa (description) del extracto
+
+== Etapa dinámica (canarios en logs, respuestas de error, eventos y filas) ==
+-- services/pay-ledger: test/sensitive-data.spec.ts
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+-- services/pay-settlement: test/sensitive-data.spec.ts
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+
+datos sensibles: LIMPIO (0 fallas)
+exit=0

@@ -1,0 +1,69 @@
+################ MUTACIÓN pay-ledger: se quitan los triggers (<tabla>_immutable / _no_truncate) de: ledger_transactions|ledger_legs|ledger_statement_lines|ledger_rejections
+líneas de trigger quitadas: 8
+  ● alcance del guardián › límite: el modelo declara los guardianes como triggers habilitados (UPDATE/DELETE por fila y TRUNCATE por sentencia) en cada tabla
+  ● alcance del guardián › límite: la limpieza de las pruebas apaga SOLO el guardián de esa tabla, dentro de su transacción, y lo deja armado (también si falla)
+  ● ledger_legs es de solo-agregar › inválido: DELETE rechazado y la fila sigue
+  ● ledger_legs es de solo-agregar › inválido: INSERT … ON CONFLICT DO UPDATE rechazado (es un UPDATE por la puerta de atrás)
+  ● ledger_legs es de solo-agregar › inválido: TRUNCATE (también con CASCADE) rechazado: no pasa por los triggers de fila, por eso tiene el suyo
+  ● ledger_legs es de solo-agregar › inválido: UPDATE rechazado (23000, tabla y operación en el mensaje) y la fila queda intacta
+  ● ledger_rejections es de solo-agregar › inválido: DELETE rechazado y la fila sigue
+  ● ledger_rejections es de solo-agregar › inválido: INSERT … ON CONFLICT DO UPDATE rechazado (es un UPDATE por la puerta de atrás)
+  ● ledger_rejections es de solo-agregar › inválido: TRUNCATE (también con CASCADE) rechazado: no pasa por los triggers de fila, por eso tiene el suyo
+  ● ledger_rejections es de solo-agregar › inválido: UPDATE rechazado (23000, tabla y operación en el mensaje) y la fila queda intacta
+  ● ledger_statement_lines es de solo-agregar › inválido: DELETE rechazado y la fila sigue
+  ● ledger_statement_lines es de solo-agregar › inválido: INSERT … ON CONFLICT DO UPDATE rechazado (es un UPDATE por la puerta de atrás)
+  ● ledger_statement_lines es de solo-agregar › inválido: TRUNCATE (también con CASCADE) rechazado: no pasa por los triggers de fila, por eso tiene el suyo
+  ● ledger_statement_lines es de solo-agregar › inválido: UPDATE rechazado (23000, tabla y operación en el mensaje) y la fila queda intacta
+  ● ledger_transactions es de solo-agregar › inválido: DELETE rechazado y la fila sigue
+  ● ledger_transactions es de solo-agregar › inválido: INSERT … ON CONFLICT DO UPDATE rechazado (es un UPDATE por la puerta de atrás)
+  ● ledger_transactions es de solo-agregar › inválido: TRUNCATE (también con CASCADE) rechazado: no pasa por los triggers de fila, por eso tiene el suyo
+  ● ledger_transactions es de solo-agregar › inválido: UPDATE rechazado (23000, tabla y operación en el mensaje) y la fila queda intacta
+Test Suites: 1 failed, 1 total
+Tests:       18 failed, 9 passed, 27 total
+ddl.sql restaurado (idéntico)
+################ MUTACIÓN pay-settlement: se quitan los triggers (<tabla>_immutable / _no_truncate) de: settlement_audit
+líneas de trigger quitadas: 2
+  ● alcance del guardián › límite: el modelo declara los guardianes como triggers habilitados (UPDATE/DELETE por fila y TRUNCATE por sentencia) en cada tabla
+  ● settlement_audit es de solo-agregar › inválido: DELETE rechazado y la fila sigue
+  ● settlement_audit es de solo-agregar › inválido: INSERT … ON CONFLICT DO UPDATE rechazado (es un UPDATE por la puerta de atrás)
+  ● settlement_audit es de solo-agregar › inválido: TRUNCATE (también con CASCADE) rechazado: no pasa por los triggers de fila, por eso tiene el suyo
+  ● settlement_audit es de solo-agregar › inválido: UPDATE rechazado (23000, tabla y operación en el mensaje) y la fila queda intacta
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 3 passed, 8 total
+ddl.sql restaurado (idéntico)
+################ MUTACIÓN pay-vault: se quitan los triggers (<tabla>_immutable / _no_truncate) de: reveal_audit
+líneas de trigger quitadas: 2
+  ● alcance del guardián › límite: el modelo declara los guardianes como triggers habilitados (UPDATE/DELETE por fila y TRUNCATE por sentencia) en cada tabla
+  ● reveal_audit es de solo-agregar › inválido: DELETE rechazado y la fila sigue
+  ● reveal_audit es de solo-agregar › inválido: INSERT … ON CONFLICT DO UPDATE rechazado (es un UPDATE por la puerta de atrás)
+  ● reveal_audit es de solo-agregar › inválido: TRUNCATE (también con CASCADE) rechazado: no pasa por los triggers de fila, por eso tiene el suyo
+  ● reveal_audit es de solo-agregar › inválido: UPDATE rechazado (23000, tabla y operación en el mensaje) y la fila queda intacta
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 3 passed, 8 total
+ddl.sql restaurado (idéntico)
+################ MUTACIÓN pay-webhooks: se quitan los triggers (<tabla>_immutable / _no_truncate) de: webhook_delivery_attempts
+líneas de trigger quitadas: 2
+  ● alcance del guardián › límite: el modelo declara los guardianes como triggers habilitados (UPDATE/DELETE por fila y TRUNCATE por sentencia) en cada tabla
+  ● alcance del guardián › límite: la limpieza de las pruebas apaga SOLO el guardián de esa tabla, dentro de su transacción, y lo deja armado (también si falla)
+  ● webhook_delivery_attempts es de solo-agregar › inválido: DELETE rechazado y la fila sigue
+  ● webhook_delivery_attempts es de solo-agregar › inválido: INSERT … ON CONFLICT DO UPDATE rechazado (es un UPDATE por la puerta de atrás)
+  ● webhook_delivery_attempts es de solo-agregar › inválido: TRUNCATE (también con CASCADE) rechazado: no pasa por los triggers de fila, por eso tiene el suyo
+  ● webhook_delivery_attempts es de solo-agregar › inválido: UPDATE rechazado (23000, tabla y operación en el mensaje) y la fila queda intacta
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 3 passed, 9 total
+ddl.sql restaurado (idéntico)
+################ MUTACIÓN pay-connectors: se quitan los triggers (<tabla>_immutable / _no_truncate) de: connector_callback_events|connector_api_attempts
+líneas de trigger quitadas: 4
+  ● alcance del guardián › límite: el modelo declara los guardianes como triggers habilitados (UPDATE/DELETE por fila y TRUNCATE por sentencia) en cada tabla
+  ● alcance del guardián › límite: la limpieza de las pruebas apaga SOLO el guardián de esa tabla, dentro de su transacción, y lo deja armado (también si falla)
+  ● connector_api_attempts es de solo-agregar › inválido: DELETE rechazado y la fila sigue
+  ● connector_api_attempts es de solo-agregar › inválido: INSERT … ON CONFLICT DO UPDATE rechazado (es un UPDATE por la puerta de atrás)
+  ● connector_api_attempts es de solo-agregar › inválido: TRUNCATE (también con CASCADE) rechazado: no pasa por los triggers de fila, por eso tiene el suyo
+  ● connector_api_attempts es de solo-agregar › inválido: UPDATE rechazado (23000, tabla y operación en el mensaje) y la fila queda intacta
+  ● connector_callback_events es de solo-agregar › inválido: DELETE rechazado y la fila sigue
+  ● connector_callback_events es de solo-agregar › inválido: INSERT … ON CONFLICT DO UPDATE rechazado (es un UPDATE por la puerta de atrás)
+  ● connector_callback_events es de solo-agregar › inválido: TRUNCATE (también con CASCADE) rechazado: no pasa por los triggers de fila, por eso tiene el suyo
+  ● connector_callback_events es de solo-agregar › inválido: UPDATE rechazado (23000, tabla y operación en el mensaje) y la fila queda intacta
+Test Suites: 1 failed, 1 total
+Tests:       10 failed, 5 passed, 15 total
+ddl.sql restaurado (idéntico)

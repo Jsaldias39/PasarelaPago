@@ -7,5 +7,25 @@ coverage/
 *.log
 .yarn/*
 !.yarn/releases
-!.yarn/plugins
 .DS_Store
+*.tsbuildinfo
+.tools/
+
+# Salida de compilación dentro de src/: Jest resuelve .js antes que .ts y esconde los cambios del código fuente.
+contracts/packages/*/src/**/*.js
+contracts/packages/*/src/**/*.js.map
+contracts/packages/*/src/**/*.d.ts
+services/*/src/**/*.js
+services/*/src/**/*.js.map
+services/*/src/**/*.d.ts
+
+# Arnés e2e: logs y estado de la corrida
+e2e/.run/
+
+# Borradores temporales de los agentes (no se versionan)
+e2e/.scratch/
+__pycache__/
+*.pyc
+
+# Sandbox en Compose: secretos SINTÉTICOS generados por platform/scripts/sandbox-secrets.mjs y estado de la siembra (con claves sk_test_)
+platform/.sandbox/

@@ -1,0 +1,38 @@
+FAIL e2e/flows/sandbox-mockbank.e2e.ts (163.492 s)
+  ● Capa sandbox — pay-mockbank como banco del conector mock › CORRECTO: un cobro QR de Bs 100,00 pasa por pay-mockbank, queda succeeded y el ledger real deja 97,00 en pending y 3,00 en fees
+
+    No se cumplió «el intento pi_fb1e54e7e3a86f5fe5586c33 llega a un estado terminal» en 60000 ms; último valor: {"id":"pi_fb1e54e7e3a86f5fe5586c33","object":"payment_intent","amount_minor":10000,"currency":"BOB","status":"processing","payment_method_type":"qr","fee_minor":300,"net_minor":9700,"last_error":null,"metadata":{},"created_at":"2026-10-28T01:57:40.642Z","expires_at":"2026-10-28T02:57:40.642Z","succeeded_at":null}
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/flows/sandbox-mockbank.e2e.ts:58:21)
+
+  ● Capa sandbox — pay-mockbank como banco del conector mock › LÍMITE: rechazado (…01) termina failed y no asienta nada; duplicado (…03) deja UN asiento y UNA línea en el extracto
+
+    No se cumplió «el intento pi_38334d497ee8424924c5e62a llega a un estado terminal» en 60000 ms; último valor: {"id":"pi_38334d497ee8424924c5e62a","object":"payment_intent","amount_minor":10003,"currency":"BOB","status":"processing","payment_method_type":"qr","fee_minor":300,"net_minor":9703,"last_error":null,"metadata":{},"created_at":"2026-10-28T01:58:50.274Z","expires_at":"2026-10-28T02:58:50.274Z","succeeded_at":null}
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/flows/sandbox-mockbank.e2e.ts:80:18)
+
+
+Test Suites: 1 failed, 14 passed, 15 total
+Tests:       2 failed, 81 passed, 83 total
+Snapshots:   0 total
+Time:        425.826 s
+Ran all test suites.
+exit=1

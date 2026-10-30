@@ -1,0 +1,6 @@
+# connectors SIN adaptar el helper de pruebas: reset() hace TRUNCATE de connector_charges/transfers/refunds, ahora rechazado (costo esperado del guardián)
+== connectors: drift.spec contra SQL GENERADO (/home/user/pasarelapago/../mantra-core-health-model/SQL/pay/70_pay_connectors/ddl.sql, sha256 bbea117d128799c5)
+Test Suites: 11 failed, 7 passed, 18 total
+Tests:       330 failed, 143 passed, 473 total
+    error: la tabla connector_charges es inmutable (TRUNCATE)
+    error: la tabla connector_charges es inmutable (TRUNCATE)

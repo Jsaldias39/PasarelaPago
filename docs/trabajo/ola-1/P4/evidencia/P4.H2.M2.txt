@@ -1,0 +1,17 @@
+# P4.H2.M2
+$ yarn test test/ops.spec.ts test/routing.spec.ts -t salud|conmutación
+(cwd: services/pay-connectors; PAY_TEST_DATABASE_URL=postgres://pay_connectors:***@127.0.0.1:54321/pay_connectors)
+
+[31m[Nest] 23572  - [39m10/27/2026, 5:43:43 PM [31m  ERROR[39m [38;5;3m[EventsModule] [39mObject(3) {
+  err: [32m'NatsError'[39m,
+  code: [32m'CONNECTION_DRAINING'[39m,
+  event_id: [32m'22431cb7-4e26-4891-a01a-0614eea8dbfc'[39m
+}
+El relé del outbox falló
+
+Test Suites: 2 passed, 2 total
+Tests:       13 skipped, 14 passed, 27 total
+Snapshots:   0 total
+Time:        6.411 s
+Ran all test suites matching test/ops.spec.ts|test/routing.spec.ts with tests matching "salud|conmutación".
+exit=0

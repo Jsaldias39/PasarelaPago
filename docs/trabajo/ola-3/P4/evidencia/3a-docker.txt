@@ -1,0 +1,135 @@
+# 3a-docker
+$ bash docs/trabajo/ola-3/P4/scripts/gate-docker.sh
+
+docker 29.9.2 · imagen base: mirror.gcr.io/library/node:22-alpine
+antes de empezar:
+   disco (df -h /): usado 28G de 252G, libre 11G (73%)
+
+══ pay-connectors ══
+$ docker build -f services/pay-connectors/Dockerfile --build-arg HUB=mirror.gcr.io -t p4gate-pay-connectors:prod .
+   #1 [internal] load build definition from Dockerfile
+   #1 DONE 0.0s
+   #2 [internal] load metadata for mirror.gcr.io/library/node:22-alpine
+   #2 DONE 0.0s
+   #3 [internal] load .dockerignore
+   #3 DONE 0.0s
+   #4 [internal] load build context
+   #4 DONE 0.0s
+   #5 [build 1/8] FROM mirror.gcr.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+   #5 DONE 0.0s
+   #6 [build 2/8] WORKDIR /repo
+   #6 CACHED
+   #4 [internal] load build context
+   #4 DONE 0.1s
+   #7 [build 3/8] COPY .yarn ./.yarn
+   #7 CACHED
+   #8 [build 4/8] COPY .yarnrc.yml package.json yarn.lock tsconfig.base.json ./
+   #8 CACHED
+   #9 [build 5/8] COPY contracts/packages ./contracts/packages
+   #9 DONE 0.1s
+   #10 [build 6/8] COPY services/pay-connectors ./services/pay-connectors
+   #10 DONE 0.0s
+   #11 [build 7/8] RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
+   #11 0.870 ➤ YN0000: · Yarn 4.14.1
+   #11 1.134 ➤ YN0028: │ The lockfile would have been modified by this install, which is explicitly forbidden.
+   #11 1.136 ➤ YN0000: · Failed with errors in 0s 266ms
+   #11 ERROR: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+   1.134 ➤ YN0028: │ The lockfile would have been modified by this install, which is explicitly forbidden.
+   1.136 ➤ YN0000: · Failed with errors in 0s 266ms
+   ERROR: failed to build: failed to solve: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+GAP   docker build de producción: exit 1
+$ docker build -f docs/trabajo/ola-3/P4/scripts/Dockerfile.runtime-check --build-arg SVC=pay-connectors  (escenario de ejecución, sin registro)
+PASS  imagen de ejecución construida: 981795705 bytes, usuario "node", cmd [node dist/main.js]
+PASS  el contenedor arranca como usuario "node" y /health/ready = 200: {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"databa
+      X-Pay-Mode de la respuesta: X-Pay-Mode: sandbox
+limpieza de pay-connectors: imágenes p4gate-* restantes = 0, caché del constructor purgada
+   disco (df -h /): usado 28G de 252G, libre 11G (73%)
+
+══ pay-qr ══
+$ docker build -f services/pay-qr/Dockerfile --build-arg HUB=mirror.gcr.io -t p4gate-pay-qr:prod .
+   #1 [internal] load build definition from Dockerfile
+   #1 DONE 0.0s
+   #2 [internal] load metadata for mirror.gcr.io/library/node:22-alpine
+   #2 DONE 0.0s
+   #3 [internal] load .dockerignore
+   #3 DONE 0.0s
+   #4 [build 1/8] FROM mirror.gcr.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+   #4 DONE 0.0s
+   #5 [build 2/8] WORKDIR /repo
+   #5 CACHED
+   #6 [internal] load build context
+   #6 DONE 0.1s
+   #7 [build 3/8] COPY .yarn ./.yarn
+   #7 CACHED
+   #8 [build 4/8] COPY .yarnrc.yml package.json yarn.lock tsconfig.base.json ./
+   #8 CACHED
+   #9 [build 5/8] COPY contracts/packages ./contracts/packages
+   #9 CACHED
+   #10 [build 6/8] COPY services/pay-qr ./services/pay-qr
+   #10 DONE 0.2s
+   #11 [build 7/8] RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
+   #11 0.786 ➤ YN0000: · Yarn 4.14.1
+   #11 1.186 ➤ YN0028: │ The lockfile would have been modified by this install, which is explicitly forbidden.
+   #11 1.200 ➤ YN0000: · Failed with errors in 0s 415ms
+   #11 ERROR: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+   0.786 ➤ YN0000: · Yarn 4.14.1
+   1.186 ➤ YN0028: │ The lockfile would have been modified by this install, which is explicitly forbidden.
+   1.200 ➤ YN0000: · Failed with errors in 0s 415ms
+   ERROR: failed to build: failed to solve: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+GAP   docker build de producción: exit 1
+$ docker build -f docs/trabajo/ola-3/P4/scripts/Dockerfile.runtime-check --build-arg SVC=pay-qr  (escenario de ejecución, sin registro)
+PASS  imagen de ejecución construida: 981091262 bytes, usuario "node", cmd [node dist/main.js]
+PASS  el contenedor arranca como usuario "node" y /health/ready = 200: {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"databa
+      X-Pay-Mode de la respuesta: X-Pay-Mode: sandbox
+limpieza de pay-qr: imágenes p4gate-* restantes = 0, caché del constructor purgada
+   disco (df -h /): usado 30G de 252G, libre 9.5G (76%)
+
+══ pay-mockbank ══
+$ docker build -f services/pay-mockbank/Dockerfile --build-arg HUB=mirror.gcr.io -t p4gate-pay-mockbank:prod .
+   #1 [internal] load build definition from Dockerfile
+   #1 DONE 0.0s
+   #2 [internal] load metadata for mirror.gcr.io/library/node:22-alpine
+   #2 DONE 0.0s
+   #3 [internal] load .dockerignore
+   #3 DONE 0.0s
+   #4 [build 1/8] FROM mirror.gcr.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+   #4 DONE 0.0s
+   #5 [build 2/8] WORKDIR /repo
+   #5 CACHED
+   #6 [internal] load build context
+   #6 DONE 0.1s
+   #7 [build 3/8] COPY .yarn ./.yarn
+   #7 CACHED
+   #8 [build 4/8] COPY .yarnrc.yml package.json yarn.lock tsconfig.base.json ./
+   #8 CACHED
+   #9 [build 5/8] COPY contracts/packages ./contracts/packages
+   #9 DONE 0.1s
+   #10 [build 6/8] COPY services/pay-mockbank ./services/pay-mockbank
+   #10 DONE 0.0s
+   #11 [build 7/8] RUN node .yarn/releases/yarn-4.14.1.cjs install --immutable
+   #11 0.874 ➤ YN0000: · Yarn 4.14.1
+   #11 1.207 ➤ YN0028: │ The lockfile would have been modified by this install, which is explicitly forbidden.
+   #11 1.207 ➤ YN0000: · Failed with errors in 0s 313ms
+   #11 ERROR: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+   1.207 ➤ YN0028: │ The lockfile would have been modified by this install, which is explicitly forbidden.
+   1.207 ➤ YN0000: · Failed with errors in 0s 313ms
+   ERROR: failed to build: failed to solve: process "/bin/sh -c node .yarn/releases/yarn-4.14.1.cjs install --immutable" did not complete successfully: exit code: 1
+GAP   docker build de producción: exit 1
+$ docker build -f docs/trabajo/ola-3/P4/scripts/Dockerfile.runtime-check --build-arg SVC=pay-mockbank  (escenario de ejecución, sin registro)
+PASS  imagen de ejecución construida: 981192451 bytes, usuario "node", cmd [node dist/main.js]
+PASS  el contenedor arranca como usuario "node" y /health/ready = 200: {"status":"ok","info":{"database":{"status":"up"}},"error":{},"details":{"databa
+      X-Pay-Mode de la respuesta: X-Pay-Mode: sandbox
+limpieza de pay-mockbank: imágenes p4gate-* restantes = 0, caché del constructor purgada
+   disco (df -h /): usado 29G de 252G, libre 9.8G (75%)
+
+causa del GAP de la construcción real (comprobación independiente): ¿alcanza el registro desde un contenedor?
+registro: ERROR SELF_SIGNED_CERT_IN_CHAIN
+
+limpieza (sin registro: nada se publicó):
+  imágenes p4gate-* restantes: 0
+  contenedores p4gate en ejecución: 0
+  al terminar:
+   disco (df -h /): usado 29G de 252G, libre 9.7G (75%)
+
+RESULTADO: construcciones reales con GAP: 3 (ver causa arriba); el escenario de ejecución de la imagen se comprueba aparte.
+exit=0

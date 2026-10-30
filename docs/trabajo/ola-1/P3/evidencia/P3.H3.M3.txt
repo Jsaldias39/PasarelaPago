@@ -1,0 +1,33 @@
+# Evidencia P3.H3.M3
+fecha: 2026-10-27T17:59:56Z
+directorio: services/pay-vault
+comando: yarn test test/pan-leak.spec.ts test/redact.spec.ts test/pan-rule.spec.ts --verbose --runInBand
+---- salida ----
+Test Suites: 3 passed, 3 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        1.597 s, estimated 2 s
+Ran all test suites matching test/pan-leak.spec.ts|test/redact.spec.ts|test/pan-rule.spec.ts.
+---- código de salida: 0 ----
+
+fecha: 2026-10-27T17:59:59Z
+directorio: services/pay-payments
+comando: yarn test test/pan-leak.spec.ts test/redact.spec.ts src/domain/pan.spec.ts --verbose --runInBand
+---- salida ----
+Test Suites: 3 passed, 3 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        4.699 s, estimated 7 s
+Ran all test suites matching test/pan-leak.spec.ts|test/redact.spec.ts|src/domain/pan.spec.ts.
+---- código de salida: 0 ----
+
+fecha: 2026-10-27T18:00:05Z
+directorio: services/pay-payments
+comando: yarn test test/media.spec.ts -t tarjeta --verbose --runInBand
+---- salida ----
+Test Suites: 1 passed, 1 total
+Tests:       4 skipped, 1 passed, 5 total
+Snapshots:   0 total
+Time:        3.765 s, estimated 6 s
+Ran all test suites matching test/media.spec.ts with tests matching "tarjeta".
+---- código de salida: 0 ----

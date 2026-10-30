@@ -1,0 +1,52 @@
+{
+  "name": "pasarela-pago",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Pasarela de pagos ALOVIDA — monorepo de microservicios",
+  "packageManager": "yarn@4.14.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "contracts/packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "build": "yarn workspaces foreach -A --topological-dev run build",
+    "typecheck": "yarn workspaces foreach -A --topological-dev run typecheck",
+    "lint": "eslint --no-error-on-unmatched-pattern \"contracts/**/*.ts\" \"services/**/*.ts\" \"platform/**/*.ts\" \"e2e/**/*.ts\"",
+    "test": "yarn workspaces foreach -A --topological-dev run test",
+    "contracts:lint": "node contracts/scripts/lint-contracts.mjs",
+    "contracts:events": "node contracts/scripts/validate-events.mjs",
+    "contracts:breaking": "node contracts/scripts/check-breaking.mjs",
+    "e2e:up": "node --no-warnings e2e/cli.ts up",
+    "e2e:down": "node --no-warnings e2e/cli.ts down",
+    "e2e:boot": "node --no-warnings e2e/cli.ts boot",
+    "e2e:smoke": "node --no-warnings e2e/cli.ts smoke",
+    "e2e": "jest --config e2e/jest.config.cjs --runInBand",
+    "e2e:typecheck": "tsc -p e2e/tsconfig.json",
+    "e2e:pending": "jest --config e2e/jest.pending.config.cjs --runInBand --passWithNoTests",
+    "seed:sandbox": "node --no-warnings e2e/seed-sandbox.ts",
+    "test:parity": "node --no-warnings e2e/parity.ts",
+    "load": "node --no-warnings e2e/load/run.ts",
+    "sandbox:secrets": "node platform/scripts/sandbox-secrets.mjs",
+    "load:harness": "node --no-warnings e2e/load/harness.ts"
+  },
+  "devDependencies": {
+    "@asyncapi/parser": "^3.6.6",
+    "@eslint/js": "^9.18.0",
+    "@redocly/cli": "^2.71.2",
+    "@swc/core": "^1.15.47",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8",
+    "eslint": "^9.18.0",
+    "jest": "^30.0.0",
+    "nats": "^2.29.3",
+    "pg": "^8.22.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0",
+    "yaml": "^2.9.1"
+  }
+}

@@ -1,0 +1,33 @@
+Carga (arnés) 25460cab: levantando el stack real con pay-mockbank; topes de tasa del borde subidos; tiempos de riesgo del arnés (2000/250 ms, ARNES.md)
+3 comercio(s) sembrados y comprobados con un cobro real.
+Carga 25460cab: 10 rps pico, rampa 30 s, 3 min, 3 clave(s) → http://127.0.0.1:37533
+
+PRUEBA DE CARGA (T-01) — corrida 25460cab — 2026-10-28T03:37:31.798Z
+Plan: pico 10 rps, rampa 30 s, duración 180 s, 3 clave(s) sk_test_, 2.0 % de pedidos repetidos con la misma clave
+Enviados 1682 (planificados 1650) · con respuesta 1682 · sin respuesta (ambiguos) 0 · descartados por el generador 0
+Estados HTTP: 201×1682
+Latencia de POST /v1/payment_intents: p50 8570 ms · p95 9173 ms · p99 9664 ms · máx 10295 ms
+Retraso de salida del generador: p99 17 ms · máx 78 ms
+Intentos creados 1650: succeeded×1581  failed×69 · colgados 0
+Intentos failed por código: risk_denied×69
+Tiempo hasta terminal: p50 84945 ms · p95 126564 ms · p99 129432 ms
+Ledger: 1581 intentos succeeded revisados · 1581 líneas leídas · asientos duplicados 0 · faltantes 0 · importes distintos 0
+Idempotencia: claves que devolvieron intentos distintos 0
+Saturación (proc, 60 muestras): CPU de la máquina media 87 % / máx 93 % de 4 núcleos · carga del sistema máx 19.12
+Procesos con más CPU (media, 100 % = un núcleo): pay-payments 53 % · pay-edge 25 % · pay-connectors 8 % · pay-ledger 4 % · pay-mockbank 4 %
+
+CRITERIO (escrito antes: docs/trabajo/ola-3/P1/CARGA.md): p99 < 2000 ms · 5xx < 0.1 % · colgados = 0 · doble asiento = 0
+  FALLA     p99 de la creación: objetivo < 2000 ms · observado 9664 ms
+  PASA      errores 5xx: objetivo < 0.100 % · observado 0.000 % (0 de 1682)
+  PASA      intentos colgados (sin estado terminal a tiempo): objetivo 0 · observado 0 de 1650
+  PASA      doble asiento / intento duplicado: objetivo 0 · observado 0 asientos duplicados + 0 claves con intentos distintos
+VEREDICTO: NO APRUEBA
+Esta máquina (4 vCPU compartidas, Postgres/NATS/Redis/Temporal/TigerBeetle/Watchman y los 12 servicios en el MISMO host) NO representa el despliegue de producción (Coolify multiservidor, T-01). El resultado sirve para encontrar cuellos de botella y errores de concurrencia, NO para certificar T-01.
+
+Informe en /home/user/pasarelapago/docs/trabajo/ola-3/P1/evidencia/carga-25460cab
+
+Apagado: {"leftoverPids":[],"tigerbeetleStopped":true,"databasesReset":12}
+
+real	5m47.595s
+user	4m51.450s
+sys	1m15.568s

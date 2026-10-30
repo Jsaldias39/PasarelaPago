@@ -1,0 +1,206 @@
+$ docs/trabajo/ola-2/modelo/evidencia/herramientas/run_equivalencia.sh
+[B] connectors: 130 columnas, 13 tablas, 31 índices, 45 CHECK, 2 FK, 2 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] connectors: 130 columnas, 13 tablas, 31 índices, 45 CHECK, 2 FK, 2 triggers
+[=] tables: 13 elementos idénticos
+[=] columns: 130 elementos idénticos
+[=] pk: 13 elementos idénticos
+[=] fk: 2 elementos idénticos
+[=] check: 45 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 31 elementos idénticos
+[=] triggers: 2 elementos idénticos
+[=] functions: 1 elementos idénticos
+[=] sequences: 5 elementos idénticos
+[=] rows: 13 elementos idénticos
+[nombres] restricciones con nombre distinto: 16 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO connectors: PASS
+
+[B] edge: 16 columnas, 3 tablas, 4 índices, 3 CHECK, 0 FK, 0 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] edge: 16 columnas, 3 tablas, 4 índices, 3 CHECK, 0 FK, 0 triggers
+[=] tables: 3 elementos idénticos
+[=] columns: 16 elementos idénticos
+[=] pk: 3 elementos idénticos
+[=] fk: 0 elementos idénticos
+[=] check: 3 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 4 elementos idénticos
+[=] triggers: 0 elementos idénticos
+[=] functions: 0 elementos idénticos
+[=] sequences: 0 elementos idénticos
+[=] rows: 3 elementos idénticos
+[nombres] restricciones con nombre distinto: 3 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO edge: PASS
+
+[B] ledger: 89 columnas, 9 tablas, 20 índices, 24 CHECK, 4 FK, 0 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] ledger: 89 columnas, 9 tablas, 20 índices, 24 CHECK, 4 FK, 0 triggers
+[=] tables: 9 elementos idénticos
+[=] columns: 89 elementos idénticos
+[=] pk: 9 elementos idénticos
+[=] fk: 4 elementos idénticos
+[=] check: 24 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 20 elementos idénticos
+[=] triggers: 0 elementos idénticos
+[=] functions: 0 elementos idénticos
+[=] sequences: 2 elementos idénticos
+[=] rows: 9 elementos idénticos
+[nombres] restricciones con nombre distinto: 16 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO ledger: PASS
+
+[B] merchants: 89 columnas, 11 tablas, 19 índices, 25 CHECK, 7 FK, 6 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] merchants: 89 columnas, 11 tablas, 19 índices, 25 CHECK, 7 FK, 6 triggers
+[=] tables: 11 elementos idénticos
+[=] columns: 89 elementos idénticos
+[=] pk: 11 elementos idénticos
+[=] fk: 7 elementos idénticos
+[=] check: 25 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 19 elementos idénticos
+[=] triggers: 6 elementos idénticos
+[=] functions: 1 elementos idénticos
+[=] sequences: 1 elementos idénticos
+[=] rows: 11 elementos idénticos
+[nombres] restricciones con nombre distinto: 19 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO merchants: PASS
+
+[B] payments: 109 columnas, 11 tablas, 23 índices, 16 CHECK, 3 FK, 0 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] payments: 109 columnas, 11 tablas, 23 índices, 16 CHECK, 3 FK, 0 triggers
+[=] tables: 11 elementos idénticos
+[=] columns: 109 elementos idénticos
+[=] pk: 11 elementos idénticos
+[=] fk: 3 elementos idénticos
+[=] check: 16 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 23 elementos idénticos
+[=] triggers: 0 elementos idénticos
+[=] functions: 0 elementos idénticos
+[=] sequences: 3 elementos idénticos
+[=] rows: 11 elementos idénticos
+[nombres] restricciones con nombre distinto: 16 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO payments: PASS
+
+[B] qr: 23 columnas, 2 tablas, 6 índices, 10 CHECK, 0 FK, 0 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] qr: 23 columnas, 2 tablas, 6 índices, 10 CHECK, 0 FK, 0 triggers
+[=] tables: 2 elementos idénticos
+[=] columns: 23 elementos idénticos
+[=] pk: 2 elementos idénticos
+[=] fk: 0 elementos idénticos
+[=] check: 10 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 6 elementos idénticos
+[=] triggers: 0 elementos idénticos
+[=] functions: 0 elementos idénticos
+[=] sequences: 0 elementos idénticos
+[=] rows: 2 elementos idénticos
+[nombres] restricciones con nombre distinto: 2 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO qr: PASS
+
+[B] risk: 44 columnas, 3 tablas, 8 índices, 17 CHECK, 1 FK, 4 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] risk: 44 columnas, 3 tablas, 8 índices, 17 CHECK, 1 FK, 4 triggers
+[=] tables: 3 elementos idénticos
+[=] columns: 44 elementos idénticos
+[=] pk: 3 elementos idénticos
+[=] fk: 1 elementos idénticos
+[=] check: 17 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 8 elementos idénticos
+[=] triggers: 4 elementos idénticos
+[=] functions: 1 elementos idénticos
+[=] sequences: 0 elementos idénticos
+[=] rows: 3 elementos idénticos
+[nombres] restricciones con nombre distinto: 5 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO risk: PASS
+
+[B] schedules: 62 columnas, 6 tablas, 13 índices, 19 CHECK, 1 FK, 0 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] schedules: 62 columnas, 6 tablas, 13 índices, 19 CHECK, 1 FK, 0 triggers
+[=] tables: 6 elementos idénticos
+[=] columns: 62 elementos idénticos
+[=] pk: 6 elementos idénticos
+[=] fk: 1 elementos idénticos
+[=] check: 19 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 13 elementos idénticos
+[=] triggers: 0 elementos idénticos
+[=] functions: 0 elementos idénticos
+[=] sequences: 1 elementos idénticos
+[=] rows: 6 elementos idénticos
+[nombres] restricciones con nombre distinto: 9 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO schedules: PASS
+
+[B] settlement: 163 columnas, 16 tablas, 29 índices, 48 CHECK, 7 FK, 0 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] settlement: 163 columnas, 16 tablas, 29 índices, 48 CHECK, 7 FK, 0 triggers
+[=] tables: 16 elementos idénticos
+[=] columns: 163 elementos idénticos
+[=] pk: 16 elementos idénticos
+[=] fk: 7 elementos idénticos
+[=] check: 48 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 29 elementos idénticos
+[=] triggers: 0 elementos idénticos
+[=] functions: 0 elementos idénticos
+[=] sequences: 3 elementos idénticos
+[=] rows: 16 elementos idénticos
+[nombres] restricciones con nombre distinto: 28 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO settlement: PASS
+
+[B] vault: 40 columnas, 4 tablas, 8 índices, 7 CHECK, 0 FK, 0 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] vault: 40 columnas, 4 tablas, 8 índices, 7 CHECK, 0 FK, 0 triggers
+[=] tables: 4 elementos idénticos
+[=] columns: 40 elementos idénticos
+[=] pk: 4 elementos idénticos
+[=] fk: 0 elementos idénticos
+[=] check: 7 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 8 elementos idénticos
+[=] triggers: 0 elementos idénticos
+[=] functions: 0 elementos idénticos
+[=] sequences: 1 elementos idénticos
+[=] rows: 4 elementos idénticos
+[nombres] restricciones con nombre distinto: 4 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO vault: PASS
+
+[B] webhooks: 51 columnas, 6 tablas, 10 índices, 8 CHECK, 3 FK, 0 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] webhooks: 51 columnas, 6 tablas, 10 índices, 8 CHECK, 3 FK, 0 triggers
+[=] tables: 6 elementos idénticos
+[=] columns: 51 elementos idénticos
+[=] pk: 6 elementos idénticos
+[=] fk: 3 elementos idénticos
+[=] check: 8 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 10 elementos idénticos
+[=] triggers: 0 elementos idénticos
+[=] functions: 0 elementos idénticos
+[=] sequences: 0 elementos idénticos
+[=] rows: 6 elementos idénticos
+[nombres] restricciones con nombre distinto: 10 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO webhooks: PASS
+
+[B] lib: 25 columnas, 3 tablas, 6 índices, 1 CHECK, 0 FK, 0 triggers
+[B x2] idempotencia (aplicar dos veces == una): PASS
+[A] lib: 25 columnas, 3 tablas, 6 índices, 1 CHECK, 0 FK, 0 triggers
+[=] tables: 3 elementos idénticos
+[=] columns: 25 elementos idénticos
+[=] pk: 3 elementos idénticos
+[=] fk: 0 elementos idénticos
+[=] check: 1 elementos idénticos
+[=] other_constraints: 0 elementos idénticos
+[=] indexes: 6 elementos idénticos
+[=] triggers: 0 elementos idénticos
+[=] functions: 0 elementos idénticos
+[=] sequences: 1 elementos idénticos
+[=] rows: 3 elementos idénticos
+[nombres] restricciones con nombre distinto: 4 (PK/FK/UNIQUE por convención del modelo); CHECK/otros con nombre distinto: 0; índices con nombre distinto (excluye los de PK/UNIQUE-constraint): 0
+VEREDICTO lib: PASS
+
+exit=0

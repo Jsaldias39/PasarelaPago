@@ -1,0 +1,84 @@
+$ (cd services/pay-edge && yarn typecheck)
+exit=0
+
+$ (cd services/pay-edge && yarn build)
+exit=0
+
+$ (cd services/pay-edge && yarn test)
+
+Test Suites: 9 passed, 9 total
+Tests:       255 passed, 255 total
+Snapshots:   0 total
+Time:        9.646 s
+Ran all test suites.
+exit=0
+
+$ (cd services/pay-webhooks && yarn typecheck)
+exit=0
+
+$ (cd services/pay-webhooks && yarn build)
+exit=0
+
+$ (cd services/pay-webhooks && yarn test)
+
+Test Suites: 9 passed, 9 total
+Tests:       344 passed, 344 total
+Snapshots:   0 total
+Time:        11.314 s
+Ran all test suites.
+exit=0
+
+$ (cd contracts/packages/orm-queryable && yarn typecheck)
+exit=0
+
+$ (cd contracts/packages/orm-queryable && yarn build)
+exit=0
+
+$ (cd contracts/packages/orm-queryable && yarn test)
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        1.434 s, estimated 2 s
+Ran all test suites.
+exit=0
+
+$ yarn lint   (raíz)
+
+/home/user/pasarelapago/services/pay-edge/src/proxy/pan-guard.ts
+  19:22  error  Irregular whitespace not allowed  no-irregular-whitespace
+  19:26  error  Irregular whitespace not allowed  no-irregular-whitespace
+  21:24  error  Irregular whitespace not allowed  no-irregular-whitespace
+
+✖ 3 problems (3 errors, 0 warnings)
+
+exit=1
+
+$ yarn lint  — solo los archivos de P1
+  19:26  error  Irregular whitespace not allowed  no-irregular-whitespace
+  21:24  error  Irregular whitespace not allowed  no-irregular-whitespace
+
+✖ 3 problems (3 errors, 0 warnings)
+
+exit=1
+
+$ OASDIFF=/tmp/gobin/oasdiff node --test contracts/scripts/check-breaking.test.mjs
+# tests 11
+# pass 11
+# fail 0
+
+$ yarn contracts:lint
+OK    contracts/asyncapi/payments.yaml
+
+11 contrato(s) válido(s)
+
+
+--- Actualización final (tras el endurecimiento de pan-guard) ---
+$ yarn eslint services/pay-edge services/pay-webhooks contracts/packages/orm-queryable
+exit=0
+$ yarn lint  (raíz: errores ajenos a P1)
+$ (cd services/pay-webhooks && yarn test)
+Test Suites: 9 passed, 9 total
+Tests:       344 passed, 344 total
+$ (cd services/pay-edge && yarn test)
+Test Suites: 9 passed, 9 total
+Tests:       295 passed, 295 total

@@ -1,0 +1,71 @@
+# 3a-autorizacion-qr
+$ (cd services/pay-qr && yarn test --maxWorkers=2 test/pay-mode.spec.ts --verbose --reporters default)
+
+(node:32259) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/pay-mode.spec.ts
+  parsePayMode (correcto, límite, inválido)
+    ✓ acepta solo test y live (212 ms)
+  toda ruta interna exige X-Pay-Mode ∈ {test, live} y que coincida con el despliegue
+    ✓ el modo no se toma del cuerpo ni de la consulta (24 ms)
+    POST /qr
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (205 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (13 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (13 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (26 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (14 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (13 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 y SIN efecto; `test` contra uno live ⇒ 403; cada uno pasa en SU despliegue (127 ms)
+    POST /qr/decode
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (56 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (45 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (38 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (14 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (13 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (16 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 y SIN efecto; `test` contra uno live ⇒ 403; cada uno pasa en SU despliegue (37 ms)
+    GET /qr/{id}
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (21 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (11 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (15 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (44 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (48 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (15 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 y SIN efecto; `test` contra uno live ⇒ 403; cada uno pasa en SU despliegue (49 ms)
+    GET /qr/{id}/image
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (26 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (20 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (59 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (20 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (31 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (30 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 y SIN efecto; `test` contra uno live ⇒ 403; cada uno pasa en SU despliegue (50 ms)
+    POST /qr/{id}/cancel
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (23 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (43 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (98 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (21 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (10 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (9 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 y SIN efecto; `test` contra uno live ⇒ 403; cada uno pasa en SU despliegue (27 ms)
+    GET /qr-references/{reference}
+      ✓ ausente ⇒ 403 forbidden y SIN efecto (11 ms)
+      ✓ vacío ⇒ 403 forbidden y SIN efecto (12 ms)
+      ✓ en mayúsculas ⇒ 403 forbidden y SIN efecto (19 ms)
+      ✓ con otro valor ⇒ 403 forbidden y SIN efecto (22 ms)
+      ✓ el del despliegue (sandbox) ⇒ 403 forbidden y SIN efecto (11 ms)
+      ✓ dos valores ⇒ 403 forbidden y SIN efecto (183 ms)
+      ✓ `live` contra un despliegue sandbox ⇒ 403 y SIN efecto; `test` contra uno live ⇒ 403; cada uno pasa en SU despliegue (28 ms)
+  el modo se guarda y toda lectura filtra por (id, modo)
+    ✓ cada QR guarda el modo de SU pedido (48 ms)
+    ✓ un QR del OTRO modo da 404 en las 5 lecturas/escrituras por id o referencia, y no cambia (99 ms)
+  la misma Idempotency-Key, el mismo intento y el mismo comercio en test y en live son operaciones distintas
+    ✓ misma clave y mismo cuerpo en los dos modos ⇒ dos QR distintos, sin repetir la respuesta del otro modo ni chocar (54 ms)
+    ✓ el mismo intento admite un QR vigente por modo, y un solo QR estático vigente por comercio y modo (107 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       48 passed, 48 total
+Snapshots:   0 total
+Time:        4.731 s
+Ran all test suites matching test/pay-mode.spec.ts.
+exit=0

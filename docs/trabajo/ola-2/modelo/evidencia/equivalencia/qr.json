@@ -1,0 +1,45 @@
+{
+  "label": "qr",
+  "verdict": "PASS",
+  "problems": [],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "idempotency_keys",
+        "p",
+        "idempotency_keys_pkey"
+      ],
+      [
+        "qr_codes",
+        "p",
+        "qr_codes_pkey"
+      ]
+    ],
+    "modelo": [
+      [
+        "idempotency_keys",
+        "p",
+        "pk_idempotency_keys"
+      ],
+      [
+        "qr_codes",
+        "p",
+        "pk_qr_codes"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 2,
+    "columnas": 23,
+    "indices": 6,
+    "check": 10,
+    "fk": 0,
+    "triggers": 0,
+    "funciones": 0
+  }
+}

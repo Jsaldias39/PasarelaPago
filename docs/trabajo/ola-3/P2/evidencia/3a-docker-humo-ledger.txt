@@ -1,0 +1,9 @@
+$ docker run --name pay-ledger-gate --network host -e PORT=3199 -e PAY_MODE=sandbox -e DB_HOST=127.0.0.1 -e DB_PORT=54321 -e DB_NAME=pay_ledger -e DB_USER=pay_ledger -e DB_PASSWORD=dev_only_ledger -e TB_ADDRESS=127.0.0.1:54300 -e LOG_LEVEL=info pay-ledger-gate:p2
+error(io): io_uring is not available
+error(io): likely cause: the syscall is disabled by sysctl, try 'sysctl -w kernel.io_uring_disabled=0'
+error(tb_client_context): 333644812470424366798359680075763548599: failed to initialize IO: PermissionDenied
+thread 1 panic: attempt to unwrap error: PermissionDenied
+Unable to dump stack trace: debug info stripped
+
+Clasificación (regla 80.4): ENVIRONMENT. El cliente nativo de TigerBeetle necesita io_uring y este kernel de pruebas lo tiene deshabilitado DENTRO de contenedores
+(el mismo cliente corre bien en el host, que es donde corren las suites). La imagen arranca node y carga el módulo; el arranque completo del contenedor queda BLOQUEADO aquí.

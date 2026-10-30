@@ -1,0 +1,30 @@
+servicio   nivel     referencia A  modelo B  sonda
+merchants  límite    0A000         0A000     OK    TRUNCATE contract_versions a secas: lo frena la FK de contract_acceptances (0A000), no el trigger
+merchants  límite    23000         23000     OK    TRUNCATE contract_versions CASCADE: en A lo frena indirectamente el trigger del hijo contract_acceptances
+merchants  inválido  OK            23000     OK    TRUNCATE contract_versions CASCADE con el guardián del hijo apagado (aísla el guardián PROPIO de contract_versions)  <- DIFERENCIA DECLARADA
+merchants  inválido  OK            23000     OK    TRUNCATE fee_schedule_channels  <- DIFERENCIA DECLARADA
+merchants  correcto  23000         23000     OK    control existente: TRUNCATE contract_acceptances ya estaba protegido
+merchants  correcto  23000         23000     OK    control existente: TRUNCATE fee_schedule_versions CASCADE ya estaba protegido
+merchants  límite    OK            OK        OK    TRUNCATE de una tabla NO inmutable (api_keys) sigue permitido
+merchants  correcto  OK            OK        OK    INSERT en la tabla inmutable sigue permitido
+merchants  inválido  23000         23000     OK    UPDATE de la tabla inmutable sigue rechazado
+connectors límite    0A000         0A000     OK    TRUNCATE connector_charges a secas: lo frena la FK de refunds (0A000)
+connectors inválido  OK            23000     OK    TRUNCATE connector_charges CASCADE (arrastra refunds y referencias de transferencia)  <- DIFERENCIA DECLARADA
+connectors inválido  OK            23000     OK    TRUNCATE connector_transfers  <- DIFERENCIA DECLARADA
+connectors inválido  OK            23000     OK    TRUNCATE connector_refunds  <- DIFERENCIA DECLARADA
+connectors límite    OK            OK        OK    TRUNCATE de una tabla sin guardián (connector_health) sigue permitido
+connectors correcto  OK            OK        OK    send_claims sube en 1
+connectors límite    OK            OK        OK    send_claims igual (UPDATE de otra columna) sigue permitido
+connectors límite    OK            23514     OK    send_claims baja en 1 (1 -> 0)  <- DIFERENCIA DECLARADA
+connectors inválido  OK            23514     OK    send_claims baja a un valor negativo  <- DIFERENCIA DECLARADA
+connectors correcto  OK            OK        OK    ambiguous true -> false PERMITIDO (lo resuelve un callback o una consulta autoritativa)
+connectors límite    OK            OK        OK    ambiguous false -> true permitido (se marca al reclamar el envío)
+connectors límite    23514         23514     OK    regresión: transfers sigue rechazando may_have_reached_provider true -> false
+ledger     correcto  OK            OK        OK    retención con las dos cuentas registradas en su modo
+ledger     límite    OK            23503     OK    cuentas registradas en 'test', retención en 'live'  <- DIFERENCIA DECLARADA
+ledger     límite    OK            23503     OK    solo la cuenta de débito registrada  <- DIFERENCIA DECLARADA
+ledger     límite    OK            23503     OK    solo la cuenta de crédito registrada  <- DIFERENCIA DECLARADA
+ledger     inválido  OK            23503     OK    ninguna de las dos cuentas existe  <- DIFERENCIA DECLARADA
+ledger     inválido  OK            23503     OK    retención 'rejected' con cuentas inexistentes (el servicio también registra las cuentas antes de insertarla)  <- DIFERENCIA DECLARADA
+
+RESUMEN: PASS — 27 sondas; A = SQL de referencia (huecos), B = SQL del modelo (corregido)

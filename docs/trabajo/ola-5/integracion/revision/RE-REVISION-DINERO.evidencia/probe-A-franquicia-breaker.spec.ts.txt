@@ -1,0 +1,23 @@
+// Copiar a services/pay-payments/test/zz-probe-a.spec.ts y correr con: flock /tmp/pay-heavy.lock yarn test test/zz-probe-a.spec.ts
+// Resultado observado: "PROBE-A resultado B: requires_action llamadas a riesgo por B: 0 breaker: open charge: true constancias: []"
+import { MC, seedMerchant, startDirectIntent, startStack, statusOf, waitFor, type Stack } from './helpers/stack';
+const THRESHOLD = '1000000';
+const DEFAULTS = { ACTIVITY_TIMEOUT_MS: '10000', ACTIVITY_MAX_ATTEMPTS: '6', ACTIVITY_INITIAL_MS: '500', ACTIVITY_MAX_MS: '5000', ACTIVITY_SLOW_RETRY_MS: '30000', RISK_TIMEOUT_MS: '300' };
+const idn = () => `pi_${Math.random().toString(16).slice(2).padEnd(12, '0').slice(0, 12)}${Date.now().toString(16).slice(-6)}`;
+const breakerOf = (s: Stack) => (s.deps.clients.risk as unknown as { http: { breaker: { state: string } } }).http.breaker;
+describe('PROBE A · franquicia + breaker abierto por 5xx', () => {
+  let s: Stack;
+  beforeAll(async () => { s = await startStack({ env: { ...DEFAULTS, CIRCUIT_FAILURE_THRESHOLD: '5', RISK_ALLOW_BELOW_THRESHOLD: 'true', RISK_FAIL_CLOSED_THRESHOLD_MINOR: THRESHOLD } }); await seedMerchant(s, MC); });
+  afterAll(async () => s.stop());
+  it('un pagador SANCIONADO pasa sin evaluación mientras el breaker (abierto por 5xx de OTROS cobros) sigue abierto', async () => {
+    s.risk.sanctions.add('persona sancionada');
+    s.risk.mode = 'down';
+    for (let i = 0; i < 3; i++) await startDirectIntent(s, { id: idn(), expiresInMs: 120_000 });
+    await waitFor(async () => breakerOf(s).state === 'open', 20_000, 'breaker open');
+    s.risk.mode = 'allow'; // riesgo vuelve a estar sano; el breaker sigue abierto ~10 s
+    const before = s.risk.callCount; const b = idn();
+    await startDirectIntent(s, { id: b, expiresInMs: 120_000, payerName: 'Persona Sancionada' });
+    const st = await waitFor(async () => { const x = await statusOf(s, b); return x && x !== 'processing' ? x : undefined; }, 20_000, 'B');
+    console.log('PROBE-A resultado B:', st, 'llamadas a riesgo por B:', s.risk.callCount - before, 'breaker:', breakerOf(s).state, 'charge:', !!s.connectors.chargeFor(b));
+  });
+});

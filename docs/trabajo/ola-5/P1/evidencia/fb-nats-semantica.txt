@@ -1,0 +1,30 @@
+# F-B2: semántica real de JetStream (nats-server 2.10.29, nats 2.29.3). Scripts: fb-nats-sem*.mjs, fb-nats-recover.mjs (scratchpad).
+
+## $ node fb-nats-sem.mjs
+ADVISORY MAX_DELIVERIES $JS.EVENT.ADVISORY.CONSUMER.MAX_DELIVERIES.FB_SEM.fb-maxd3
+maxd3 {"deliveries":3,"times":[2,103,205],"num_ack_pending":0,"num_pending":0,"num_redelivered":1,"ack_floor":0,"delivered":1}
+stream msgs still in stream: 1
+unlim-plain-nak-backoff {"deliveries":15339,"times":[1,2,3,3,4],"num_ack_pending":1,"num_pending":0,"num_redelivered":1,"ack_floor":0,"delivered":1}
+
+## $ node fb-nats-sem2.mjs
+backoff sobre ack_wait vencido (ms): [ 1, 303, 904, 2107, 3307 ]
+max_deliver 5 con backoff de 3 => OK
+max_deliver 3 con backoff de 3 => OK
+max_deliver -1 con backoff de 3 => OK
+max_deliver 0 => OK
+add() con config distinta sobre existente => ERROR consumer already exists 10148
+add() con config IDÉNTICA => OK
+update() => -1 [ 30000000000, 60000000000 ]
+info tras update: -1 [ 30000000000, 60000000000 ]
+delivered/ack_floor: {"consumer_seq":0,"stream_seq":0} {"consumer_seq":0,"stream_seq":0}
+
+## $ node fb-nats-sem3.mjs
+sinbackoff nak(100) [1,103,204,306,408,509,611,714,816,918,1019,1120] n=15
+conbackoff nak(100) [1,102] n=2
+backoffcorto nak(100) [5,107,1209,2311,3413] n=5
+
+## $ node fb-nats-recover.mjs
+1) con max_deliver=2 se entregó 2 veces y se varó
+   estado: num_ack_pending=0 ack_floor=0 delivered=1
+2) tras subir el tope a -1 (update), entregas nuevas: 0
+3) tras borrar y recrear el durable (deliver_policy all), el evento varado se entregó: 1 vez

@@ -1,0 +1,18 @@
+# Evidencia P2.H1.M6
+
+Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
+
+Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
+
+## pay-ledger/test/statements.spec.ts
+✓ GET /balances › cuenta acreedora: balance = créditos − débitos − débitos pendientes; cuenta deudora: valor absoluto con nature debit (610 ms)
+✓ GET /balances › cuenta que el ledger nunca vio ⇒ 404; cuenta fuera del plan o sin parámetro ⇒ 422 (18 ms)
+✓ GET /statements — orden estable y paginación (P2.H1.M6) › las páginas, en orden y sin repetir ni saltear, suman exactamente el extracto completo (423 ms)
+✓ GET /statements — orden estable y paginación (P2.H1.M6) › un movimiento nuevo entre dos páginas NO corre la segunda página (el cursor es por posición, no por desplazamiento) (174 ms)
+✓ GET /statements — orden estable y paginación (P2.H1.M6) › cada pata aparece como una línea de débito en una cuenta y una de crédito en la otra, con su contraparte (25 ms)
+✓ GET /statements — orden estable y paginación (P2.H1.M6) › filtra por rango de fechas (22 ms)
+✓ GET /statements — orden estable y paginación (P2.H1.M6) › valida los parámetros: límite fuera de rango, cursor inválido, fecha mal formada, cuenta desconocida (33 ms)
+✓ GET /balance público (lo atiende pay-edge) › devuelve pendiente y disponible del comercio autenticado, validado contra public-v1.yaml (107 ms)
+✓ GET /balance público (lo atiende pay-edge) › sin comercio identificado ⇒ 401; con una identidad de servicio que no es pay-edge ⇒ 403 (12 ms)
+
+RESULTADO P2.H1.M6: 9 pasan, 0 fallan, de 9.

@@ -1,0 +1,105 @@
+{
+  "label": "schedules",
+  "verdict": "PASS",
+  "problems": [],
+  "idempotent": true,
+  "nombres_inesperados": {
+    "referencia": [],
+    "modelo": []
+  },
+  "restricciones_con_nombre_distinto_por_convencion": {
+    "referencia": [
+      [
+        "idempotency_keys",
+        "p",
+        "idempotency_keys_pkey"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "inbox_events_pkey"
+      ],
+      [
+        "mandates",
+        "p",
+        "mandates_pkey"
+      ],
+      [
+        "merchant_replica",
+        "p",
+        "merchant_replica_pkey"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "outbox_events_pkey"
+      ],
+      [
+        "outbox_events",
+        "u",
+        "outbox_events_seq_key"
+      ],
+      [
+        "scheduled_payments",
+        "f",
+        "scheduled_payments_mandate_fk"
+      ],
+      [
+        "scheduled_payments",
+        "p",
+        "scheduled_payments_pkey"
+      ],
+      [
+        "scheduled_payments",
+        "u",
+        "scheduled_payments_period_uq"
+      ]
+    ],
+    "modelo": [
+      [
+        "idempotency_keys",
+        "p",
+        "pk_idempotency_keys"
+      ],
+      [
+        "inbox_events",
+        "p",
+        "pk_inbox_events"
+      ],
+      [
+        "mandates",
+        "p",
+        "pk_mandates"
+      ],
+      [
+        "merchant_replica",
+        "p",
+        "pk_merchant_replica"
+      ],
+      [
+        "outbox_events",
+        "p",
+        "pk_outbox_events"
+      ],
+      [
+        "scheduled_payments",
+        "f",
+        "fk_scheduled_payments_mandate_id"
+      ],
+      [
+        "scheduled_payments",
+        "p",
+        "pk_scheduled_payments"
+      ]
+    ]
+  },
+  "catalogo_modelo": {
+    "tablas": 6,
+    "columnas": 62,
+    "indices": 13,
+    "check": 19,
+    "fk": 1,
+    "triggers": 0,
+    "funciones": 0
+  }
+}

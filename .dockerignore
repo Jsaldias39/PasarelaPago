@@ -1,0 +1,13 @@
+# Contexto de los Dockerfiles de servicios (la raíz del repo): solo lo que `COPY` necesita. Nada de dependencias ni compilados del host.
+.git
+.github
+.tools
+node_modules
+**/node_modules
+**/dist
+.yarn/cache
+.yarn/install-state.gz
+e2e/.run
+e2e/.scratch
+docs
+platform/.sandbox

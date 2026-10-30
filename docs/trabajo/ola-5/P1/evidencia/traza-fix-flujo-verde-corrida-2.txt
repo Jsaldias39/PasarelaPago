@@ -1,0 +1,68 @@
+TRAZA 06d20afb0ebbdfaa8a4f68afdf3dc46a (continuada del cliente, span del cliente a35eca1925adc3a2):
+pay-edge  POST /v1/*path  (4960018092652164)  kind=server route=/v1/:x status=201 [padre ausente de la traza: a35eca1925adc3a2]
+  pay-edge  request handler - /v1/*path  (d735e967ea02ae35)  kind=internal route=/v1/:x
+    pay-edge  EdgeController.handle  (20f4dc3bc8be6804)  kind=internal route=/v1/:x
+      pay-edge  handle  (2ff9bd8f3a235bba)  kind=internal
+        pay-edge  forward pay-payments  (23c50f40a04bbb34)  kind=client status=201
+          pay-payments  POST /payment_intents  (a3267e089b82cdc3)  kind=server route=/payment_intents status=201
+            pay-payments  request handler - /payment_intents  (87b125b63d605afa)  kind=internal route=/payment_intents
+              pay-payments  PaymentsController.create  (3d5d870f728ed6e5)  kind=internal route=/payment_intents
+                pay-payments  create  (761a4913a529bf98)  kind=internal
+                  pay-payments  start PaymentWorkflow  (955c740231612cba)  kind=client
+                    pay-payments  activity assessRisk  (1f13c19b5432cfff)  kind=internal
+                      pay-payments  POST pay-risk  (80913f7efc55f251)  kind=client status=201
+                        pay-risk  POST /assessments  (87fd7e9eac90957d)  kind=server route=/assessments status=201
+                          pay-risk  request handler - /assessments  (170d95029a902035)  kind=internal route=/assessments
+                            pay-risk  AssessmentsController.create  (be490e67237e0e0f)  kind=internal route=/assessments
+                              pay-risk  create  (a0bcbe7b546a4baf)  kind=internal
+                                … 12 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                          … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                      … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                    pay-payments  activity createCharge  (5d7038b33128f80c)  kind=internal
+                      pay-payments  POST pay-connectors  (d971166377affc09)  kind=client status=201
+                        pay-connectors  POST /charges  (c170dbbdacd27b3c)  kind=server route=/charges status=201
+                          pay-connectors  request handler - /charges  (41ebd5463060fc04)  kind=internal route=/charges
+                            pay-connectors  ChargesController.create  (0f28cefdbeaf9703)  kind=internal route=/charges
+                              pay-connectors  create  (89589271af2b8f31)  kind=internal
+                                pay-connectors  pg-pool.connect  (8b123aab725380ef)  kind=client
+                                  … 1 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                                pay-connectors  pg-pool.connect  (0fa309b5f33b5eac)  kind=client
+                                  … 1 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                                pay-qr  POST /qr  (426262e179201c41)  kind=server route=/qr status=201
+                                  pay-qr  request handler - /qr  (8a704870a37de152)  kind=internal route=/qr
+                                    pay-qr  QrController.create  (b1888531e6d6efe8)  kind=internal route=/qr
+                                      pay-qr  create  (c57675241defb87c)  kind=internal
+                                        … 8 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                                  … 7 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                                … 37 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                          … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                      … 7 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                    pay-payments  activity recordLedger  (dc851421c3bdfe66)  kind=internal
+                      pay-payments  POST pay-ledger  (968997d801ae0fa0)  kind=client status=201
+                        pay-ledger  POST /transactions  (b4856c86d5f0bd46)  kind=server route=/transactions status=201
+                          pay-ledger  request handler - /transactions  (d07f326e80e4dce8)  kind=internal route=/transactions
+                            pay-ledger  LedgerController.createTransaction  (ec7607799ea8b9e4)  kind=internal route=/transactions
+                              pay-ledger  createTransaction  (6426b02dbafb2480)  kind=internal
+                                … 17 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                          … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                      … 2 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+                  … 39 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+            … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+        … 4 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+  … 3 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+padres ausentes de la traza: pay-edge:POST /v1/*path→a35eca1925adc3a2
+MEDIDO traceparent de versión futura: el borde CONTINÚA la traza del cliente (span padre 2c74cd300a3997f2).
+MEDIDO sin traceparent: traza del borde 433e445b84e5c7609baab0b815502414; span de pay-payments de la misma petición en la traza 433e445b84e5c7609baab0b815502414 (LA MISMA).
+SONDA con PAN en ruta y query: el span servidor del borde dejó url.path=/v1/payment_intents/:x url.query=[redacted] http.route=/v1/:x
+ESCANEO DE FUGAS: 6898 trazas, 10022 spans, 15399386 bytes; 0 apariciones de clave de API, cuerpo ni PAN.
+MEDIDO aguas abajo (sin afirmar):
+  pay-risk: spans servidor de negocio {"POST /assessments":15}, en trazas que contienen a pay-edge: 12
+  pay-connectors: spans servidor de negocio {"POST /charges":12}, en trazas que contienen a pay-edge: 12
+  pay-qr: spans servidor de negocio {"POST /qr":12}, en trazas que contienen a pay-edge: 12
+  pay-ledger: spans servidor de negocio {"POST /transactions":12}, en trazas que contienen a pay-edge: 12
+  pay-vault: spans servidor de negocio {}, en trazas que contienen a pay-edge: 0
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        60.96 s, estimated 81 s
+Ran all test suites matching flows/traza-jaeger\.e2e.

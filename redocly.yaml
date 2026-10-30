@@ -1,0 +1,11 @@
+extends:
+  - recommended
+rules:
+  # Los servidores son marcadores hasta que se defina el dominio real (no se inventa).
+  no-server-example.com: off
+  # Las rutas internas no exponen licencia pública.
+  info-license: off
+  info-license-strict: off
+  operation-4xx-response: error
+  operation-operationId: error
+  operation-summary: error

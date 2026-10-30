@@ -1,0 +1,16 @@
+$ bash -c yarn workspace @pay/idempotency test --verbose; for i in 1 2 3 4 5 6; do echo "corrida repetida $i: $(yarn workspace @pay/idempotency test 2>&1 | grep -E "^Tests:")"; done
+# 2026-10-27T15:29:07Z
+
+Test Suites: 1 passed, 1 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        1.045 s
+Ran all test suites.
+corrida repetida 1: Tests:       11 passed, 11 total
+corrida repetida 2: Tests:       11 passed, 11 total
+corrida repetida 3: Tests:       11 passed, 11 total
+corrida repetida 4: Tests:       11 passed, 11 total
+corrida repetida 5: Tests:       11 passed, 11 total
+corrida repetida 6: Tests:       11 passed, 11 total
+
+# exit=0

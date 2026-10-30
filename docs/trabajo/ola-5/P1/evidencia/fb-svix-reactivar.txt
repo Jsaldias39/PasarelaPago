@@ -1,0 +1,17 @@
+# F-B1: comportamiento medido de svix-server 1.104.0 al deshabilitar/reactivar un endpoint (fb-svix-explore.mjs)
+app 201
+et 201
+ep 201
+disable 200 true {"pay_owner":"sandbox"}
+enable+metadata 200 false {"pay_orphan":"released"}
+enable+metadata2 200 false {"pay_owner":"sandbox","pay_orphan":"released"}
+disable again 200 {"pay_orphan":"released","pay_owner":"sandbox"}
+recover on disabled 202 {"id":"qtask_3LPAOR6WwYuRzn1GH2Sksh72F8w","status":"running","task":"endpoint.recover","updatedAt":"2026-10-30T07:28:16.448Z"}
+get 200 true
+msg 202 {"eventId":"ev-while-disabled","eventType":"payment_intent.succeeded","payload":
+attempts while disabled 200 0
+msg endpoints 200 {"data":[],"iterator":null,"done":true}
+re-enable 200 false {"pay_owner":"sandbox","pay_orphan":"released"}
+resend 202 {}
+attempts after resend 200 1 https://receptor.comercio.example/hook 0
+recover on enabled 202

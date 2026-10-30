@@ -1,0 +1,52 @@
+{
+  "name": "pay-risk",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "pay-risk — servicio de la pasarela de pagos ALOVIDA",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "yarn run -T tsc -p tsconfig.build.json",
+    "typecheck": "yarn run -T tsc -p tsconfig.json --noEmit",
+    "test": "node --experimental-vm-modules ../../node_modules/jest-cli/bin/jest.js --config jest.config.cjs",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@mikro-orm/core": "^7.1.7",
+    "@mikro-orm/nestjs": "^7.0.2",
+    "@mikro-orm/postgresql": "^7.1.7",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/terminus": "^11.1.1",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.221.0",
+    "@opentelemetry/instrumentation-express": "^0.69.0",
+    "@opentelemetry/instrumentation-http": "^0.221.0",
+    "@opentelemetry/instrumentation-nestjs-core": "^0.67.0",
+    "@opentelemetry/instrumentation-pg": "^0.73.0",
+    "@opentelemetry/sdk-node": "^0.221.0",
+    "@pay/idempotency": "workspace:*",
+    "@pay/money": "workspace:*",
+    "@pay/outbox": "workspace:*",
+    "@pay/problem": "workspace:*",
+    "@pay/service-auth": "workspace:*",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "nats": "^2.29.3",
+    "nestjs-pino": "^4.6.1",
+    "pg": "^8.22.0",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^11.0.1",
+    "@pay/testing": "workspace:*",
+    "@types/express": "^5.0.0",
+    "@types/pg": "^8",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0"
+  }
+}

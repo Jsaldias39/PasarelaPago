@@ -1,0 +1,243 @@
+### corrida 1 pay-merchants
+FAIL test/operator-credential.spec.ts (7.644 s)
+  ● alta del PRIMER comercio con una credencial de operador real (sin la siembra del arnés ni el [DOBLE]) › camino completo con una credencial por rol (mínimo privilegio): alta → documentos → KYC → contrato → activación → tarifario → clave de API
+  ● alta del PRIMER comercio con una credencial de operador real (sin la siembra del arnés ni el [DOBLE]) › negativa: CREDENCIAL DE OTRO MODO (emitida para live) en un despliegue sandbox ⇒ 401; y la de sandbox en un despliegue live ⇒ 401
+FAIL test/authz.spec.ts (5.982 s)
+  ● matriz de autorización negativa (REQ-P5-5, regla 80.2.3) › las rutas públicas solo las abre pay-edge: cualquier otro servicio, o ninguno, es rechazado
+  ● matriz de autorización negativa (REQ-P5-5, regla 80.2.3) › un operador autenticado pero sin llamar por pay-backoffice no entra (la credencial sola no basta)
+  ● privacidad: nombres, NIT y documentos no salen por logs, eventos ni errores (regla 90.2) › con datos sintéticos centinela recorriendo todo el flujo, ningún canal de salida los contiene
+FAIL test/api-keys.spec.ts
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › el secreto se muestra UNA vez, tiene la forma de D-27 y la base guarda solo el hash que lo verifica
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › publica api_key.created con el hash (D-27), el modo y los últimos 4, válido contra el AsyncAPI y sin el secreto
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › modos: `test` para comercios pending/active; `live` solo activo; suspendido ⇒ merchant_suspended; cerrado ⇒ forbidden
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › idempotencia: repetir la misma petición NO crea otra clave ni devuelve el secreto (200); con otro cuerpo es 422
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › concurrencia ×5 con la misma Idempotency-Key: una sola clave y un solo evento
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › concurrencia ×5 con claves distintas respeta el tope de claves activas (5 en la prueba)
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › una clave test no crea claves live y una live no crea test: 403 forbidden y no se escribe nada
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › una clave de un modo no lista, rota ni revoca claves del otro: 404 (no 403), y nada cambia
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › sin X-Pay-Mode o con un valor inválido, TODAS las rutas públicas responden 403 (seguro por defecto)
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › el modo nunca sale del cuerpo: el cuerpo no puede traer otro campo de modo ni sobreescribir el de la cabecera
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › el back-office de seguridad sí revoca una clave comprometida de cualquier modo
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › multi-tenant (BOLA) › otro comercio no ve, no rota ni revoca mis claves: 404 igual que si no existieran
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › revocación › DELETE revoca (204), es idempotente y publica un solo api_key.revoked con motivo revoked_by_merchant
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › revocación › revocar libera cupo del tope y una clave revocada no se puede rotar (409)
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › revocación › back-office: security_operator revoca una clave comprometida (motivo compromised); otros roles 403; ajena 404
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › revocación › revocar con concurrencia ×5 produce un solo evento
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › rotación con periodo de gracia › la clave nueva trae su secreto; la anterior sigue válida (sin revocar) y muestra cuándo vence
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › rotación con periodo de gracia › rotar la misma clave dos veces es 409; repetir la MISMA petición de rotación es 200 sin secreto y sin otra clave
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › rotación con periodo de gracia › el barrido revoca SOLO las que terminaron su gracia, con motivo rotated, una vez, aunque corran 5 a la vez
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › rotación con periodo de gracia › un comercio suspendido no puede rotar; rotar una clave ajena es 404
+FAIL test/merchant-close-keys.spec.ts
+  ● cerrar un comercio revoca sus claves (D-32) › una clave YA revocada no resucita ni cambia: conserva su motivo y su hora, y no se anuncia otra vez
+  ● cerrar un comercio revoca sus claves (D-32) › después de cerrar no se crea, rota ni reactiva ninguna clave (403), y nunca queda una clave viva aunque se creen claves a la vez que se cierra
+  ● suspender solo bloquea: las claves siguen vivas y reactivar las restaura (D-32) › suspender NO revoca ninguna clave ni emite api_key.revoked; reactivar deja las mismas claves operativas, con el mismo secreto verificable
+  ● suspender solo bloquea: las claves siguen vivas y reactivar las restaura (D-32) › suspender, reactivar y suspender otra vez nunca revoca; solo el cierre lo hace
+FAIL test/idempotency-parallel.spec.ts
+  ● mutaciones repetidas en paralelo ⇒ un solo efecto › aceptar la misma versión del contrato ×10: una aceptación (201), el resto 409, una sola fila
+  ● mutaciones repetidas en paralelo ⇒ un solo efecto › rotar la misma clave con la MISMA Idempotency-Key ×5: una clave nueva, un solo api_key.created adicional, las demás respuestas sin secreto
+  ● mutaciones repetidas en paralelo ⇒ un solo efecto › revocar una clave comprometida desde el back-office ×5: todas 204 y UN solo api_key.revoked
+FAIL test/merchants-state.spec.ts
+  ● alta de comercio (7.1) › crea un comercio `pending`, lo devuelve según el contrato y publica merchant.created en el outbox
+  ● alta de comercio (7.1) › rechaza lo inválido con el campo y sin repetir el valor recibido: tipo societario fuera de la lista, campo extra, NIT repetido, sin Idempotency-Key
+### corrida 1 pay-schedules
+FAIL test/executor.spec.ts (22.92 s)
+  ● kill-test del carril y flujo E5 (REQ-P5-6, P5.H3.M3 y M5) › límite: con exactamente el monto se ejecuta; con un centavo menos, no
+  ● kill-test del carril y flujo E5 (REQ-P5-6, P5.H3.M3 y M5) › la reserva `schedule:{mandato}:reserve` retiene el monto entre las dos fases y queda en cero al liberar
+  ● kill-test del carril y flujo E5 (REQ-P5-6, P5.H3.M3 y M5) › política agotada: tras el último reintento sin fondos queda `failed` con aviso, el mandato vuelve a `active` y no queda ninguna retención
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › corrida 1: 5 ejecutores simultáneos sobre 4 mandatos ⇒ cada periodo se ejecuta exactamente una vez
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › corrida 2: 5 ejecutores simultáneos sobre 4 mandatos ⇒ cada periodo se ejecuta exactamente una vez
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › corrida 3: 5 ejecutores simultáneos sobre 4 mandatos ⇒ cada periodo se ejecuta exactamente una vez
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › corrida 4: 5 ejecutores simultáneos sobre 4 mandatos ⇒ cada periodo se ejecuta exactamente una vez
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › corrida 5: 5 ejecutores simultáneos sobre 4 mandatos ⇒ cada periodo se ejecuta exactamente una vez
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › la base lo impide aunque el ejecutor falle: no hay dos pagos para el mismo (mandato, periodo)
+  ● periodos y calendario › cada mes es un periodo propio y se ejecuta una vez; el mandato avanza su próxima fecha
+  ● periodos y calendario › no se adelanta: antes de la fecha de inicio no se materializa nada ni se toca el libro mayor
+  ● periodos y calendario › con fecha de fin: al ejecutar el último periodo el mandato queda `completed` y no hay más pagos
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › la respuesta del hold se pierde (se creó, se cortó la conexión) ⇒ se reintenta y el dinero se mueve UNA vez
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › la confirmación del hold se pierde ⇒ se reintenta y el dinero se mueve UNA vez
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › la liberación al beneficiario se aplica pero la respuesta se pierde ⇒ se reintenta y el dinero se mueve UNA vez
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › 500 antes de aplicar sobre la confirmación del hold ⇒ ambiguo, se conserva el estado y se completa en el reintento
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › 503 después de aplicar sobre la confirmación del hold ⇒ ambiguo, se conserva el estado y se completa en el reintento
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › 502 con HTML sobre la confirmación del hold ⇒ ambiguo, se conserva el estado y se completa en el reintento
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › 404 sin el cuerpo del contrato sobre la confirmación del hold ⇒ ambiguo, se conserva el estado y se completa en el reintento
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › 403 de red sobre la confirmación del hold ⇒ ambiguo, se conserva el estado y se completa en el reintento
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › libro mayor caído de forma persistente: al agotar la política queda `failed` `ledger_unavailable` A REVISIÓN, sin anular la retención
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › una retención ya resuelta por otro (409 + consulta autoritativa distinta de `posted`) ⇒ `failed` `invalid_state_transition` a revisión
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › un rechazo `validation_failed` del libro mayor es un defecto nuestro: `failed` `internal_error`, sin reintentos ciegos
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › un 422 sin el cuerpo exacto del contrato NO se toma por «sin fondos»: es ambiguo
+  ● comercio suspendido o cerrado › un pagador suspendido no ejecuta: `failed` `merchant_suspended` sin tocar el libro mayor
+  ● comercio suspendido o cerrado › suspendido DESPUÉS de reservar: nada se libera ni se anula solo; queda a revisión con el dinero en la reserva
+  ● beneficiario suspendido, cerrado o inexistente: no se le acredita nada › beneficiario suspendido ANTES de reservar ⇒ `failed` `merchant_suspended`, sin tocar el libro mayor y sin revisión (no hay dinero en vuelo)
+  ● beneficiario suspendido, cerrado o inexistente: no se le acredita nada › beneficiario cerrado ANTES de reservar ⇒ `failed` `merchant_suspended`, sin tocar el libro mayor y sin revisión (no hay dinero en vuelo)
+  ● beneficiario suspendido, cerrado o inexistente: no se le acredita nada › se suspende ENTRE la retención y la confirmación: se anula la retención (void), queda a revisión y no se acredita
+  ● beneficiario suspendido, cerrado o inexistente: no se le acredita nada › void ⇒ 409 porque la confirmación SÍ se había aplicado (respuesta perdida): consulta autoritativa y asiento inverso
+  ● beneficiario suspendido, cerrado o inexistente: no se le acredita nada › comisión hacia la plataforma: NO se consulta el estado de comercio del beneficiario (aunque no esté en la réplica); sí el del pagador
+  ● cancelación › cancelar antes de ejecutar: el pago pendiente se cancela sin tocar el libro mayor y no se materializa nada más
+  ● modo test / live (D-28) › cada llamada al libro mayor lleva el modo del mandato; los saldos de test y de live no se mezclan
+  ● aviso (P5.H3.M6): solo ids y montos, nada sensible › todos los eventos de mandatos y pagos programados llevan el `mode` del mandato (D-28)
+FAIL test/outbound.spec.ts (6.687 s)
+  ● cada llamada saliente al libro mayor propaga servicio y modo del mandato (test) › consulta de saldo para el aviso (GET /balances)
+  ● sin modo el libro mayor responde 403: el pago NO se cuenta como ejecutado ni queda en un estado terminal erróneo (regla 11) › modo "prod": se rechaza, se reintenta con la misma clave y al volver el modo se ejecuta UNA vez
+  ● sin modo el libro mayor responde 403: el pago NO se cuenta como ejecutado ni queda en un estado terminal erróneo (regla 11) › si el modo no vuelve nunca: al agotar la política queda `failed` `ledger_unavailable` A REVISIÓN (lo mira una persona); nada se ejecuta ni se anula
+FAIL test/mandates.spec.ts
+### corrida 1 pay-risk
+FAIL test/latency.spec.ts
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 1 búsqueda en Watchman (solo el comercio: pagador invitado sin nombre): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › concurrencia moderada (4 clientes en paralelo), ≥ 400 llamadas — INFORMATIVA: el Watchman (monohilo por búsqueda) es el cuello de botella
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › el servicio SIN Watchman (cribado instantáneo [DOBLE]) aporta una fracción del presupuesto: p99 propio, ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › cada llamada medida dejó su rastro, con su duración interna registrada
+FAIL test/assessments.spec.ts
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › decisiones con el Watchman REAL › coincidencia aproximada ⇒ review `sanctions_possible_match` (entre el umbral de revisión y el de rechazo)
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › idempotencia (Idempotency-Key) › la repetición conserva la versión de reglas original aunque se publique otra después (reproducible)
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › idempotencia (Idempotency-Key) › con el Watchman de pruebas contado, repetir no vuelve a cribar
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › límite por transacción: el borde se permite y un centavo más se rechaza
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › velocidad por pagador: el 4.º intento distinto dentro de la ventana se rechaza; repetir el mismo intento no cuenta; la ventana se desliza
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › velocidad por comercio: independiente del pagador y de otros comercios
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › simultaneidad: 12 intentos distintos del mismo pagador con tope 3 ⇒ exactamente 3 allow y 9 deny (candado por pagador)
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › tope diario por pagador: lo rechazado no cuenta, la suma llega justo al tope y a las 24 h se libera
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › horario permitido en hora de La Paz (UTC-4): el inicio es inclusivo y el fin exclusivo
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › varias reglas a la vez: gana el motivo más grave y TODOS quedan en el rastro
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › una versión con vigencia futura no rige todavía
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › validación y autorización › el contrato admite nombres en blanco y una huella vacía: no se rechazan, se tratan como ausentes (D-29: el del comercio falta ⇒ review; el del pagador falta ⇒ no pasa nada)
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › validación y autorización › solo pay-payments puede evaluar y consultar: sin identidad o con otro servicio es 403
+  ● rastro auditable (P5.H2.M5) y privacidad (regla 90.2) › cada decisión deja su rastro, con la versión de reglas y sin el nombre ni la huella en claro
+  ● [DOBLE] de Watchman en el flujo completo › un puntaje entre umbrales ⇒ review; con un 5xx ⇒ review `screening_unavailable`; con 0,95 ⇒ deny — y siempre con rastro
+FAIL test/screening-parties.spec.ts
+  ● D-29 con el Watchman REAL: se criba siempre el nombre legal del comercio y, si el pagador dio nombre, también › el COMERCIO en una lista ⇒ deny, y el rastro dice que fue el comercio (sin guardar su nombre)
+  ● D-29 con el Watchman REAL: se criba siempre el nombre legal del comercio y, si el pagador dio nombre, también › el PAGADOR en una lista ⇒ deny aunque el comercio esté limpio, y el rastro dice que fue el pagador
+  ● D-29 con el Watchman REAL: se criba siempre el nombre legal del comercio y, si el pagador dio nombre, también › SIN nombre del comercio ⇒ review `screening_not_provided` (es lo que siempre debe venir), aunque el pagador esté limpio o no tenga nombre
+  ● D-29 con el Watchman REAL: se criba siempre el nombre legal del comercio y, si el pagador dio nombre, también › privacidad: ni el nombre del comercio ni el del pagador aparecen en el rastro, la idempotencia, las respuestas ni los logs
+  ● [DOBLE] de Watchman: qué se le manda y qué pasa si una de las dos búsquedas falla › el cribado del pagador no se puede hacer pero el comercio está limpio ⇒ review `screening_unavailable` (no se afirma que está limpio)
+  ● [DOBLE] de Watchman: qué se le manda y qué pasa si una de las dos búsquedas falla › pagador con coincidencia fuerte y comercio sin cribar ⇒ deny (lo fuerte manda)
+FAIL test/intent-grouping.spec.ts
+  ● un intento evaluado dos veces cuenta UNA vez (PROP-19) › límites diarios › límite: re-evaluar con un importe MAYOR cuenta el mayor (conservador), igual si las dos evaluaciones tienen la misma hora
+FAIL test/contract-conformance.spec.ts
+  ● conformidad con internal-risk-v1.yaml › el esquema vigente NO exige ningún campo de `screening`: sin `merchant_name` (o sin `screening`, o `screening: {}`) responde 201 `review`/`screening_not_provided`, nunca 422
+  ● conformidad con internal-risk-v1.yaml › el servicio acepta EXACTAMENTE los campos de `screening` del contrato: 1 y 300 caracteres de razón social sí; 0, 301, un tipo ajeno o un campo extra se rechazan (422) igual que lo hace el contrato
+Test Suites: 5 failed, 12 passed, 17 total
+Tests:       29 failed, 203 passed, 232 total
+### corrida 2 pay-merchants
+FAIL test/authz.spec.ts (5.422 s)
+  ● matriz de autorización negativa (REQ-P5-5, regla 80.2.3) › cada ruta de back-office exige servicio pay-backoffice, token válido y el rol declarado en el contrato
+  ● matriz de autorización negativa (REQ-P5-5, regla 80.2.3) › un operador autenticado pero sin llamar por pay-backoffice no entra (la credencial sola no basta)
+  ● matriz de autorización negativa (REQ-P5-5, regla 80.2.3) › el operador de otra credencial no puede hacerse pasar por otro: `recorded_by`/`uploaded_by`/`published_by` salen del token
+  ● privacidad: nombres, NIT y documentos no salen por logs, eventos ni errores (regla 90.2) › con datos sintéticos centinela recorriendo todo el flujo, ningún canal de salida los contiene
+  ● privacidad: nombres, NIT y documentos no salen por logs, eventos ni errores (regla 90.2) › regresión: repetir con la misma Idempotency-Key una petición que falló devuelve el MISMO error (422), no un 2xx
+FAIL test/operator-credential.spec.ts (7.08 s)
+  ● alta del PRIMER comercio con una credencial de operador real (sin la siembra del arnés ni el [DOBLE]) › camino completo con una credencial por rol (mínimo privilegio): alta → documentos → KYC → contrato → activación → tarifario → clave de API
+  ● scripts/sandbox-operator-token.mjs: el secreto sintético se emite SOLO en sandbox y sirve contra el servicio › correcto: con PAY_MODE=sandbox emite clave pública + credencial que el servicio acepta
+FAIL test/fees.spec.ts (6.504 s)
+  ● tarifario versionado (REQ-P5-3, P5.H1.M5 y M7) › el canal directo (7.9) se cotiza con su propia tasa
+  ● tarifario versionado (REQ-P5-3, P5.H1.M5 y M7) › rechaza comercio inexistente (404), comercio cerrado (409) y effective_from en el pasado (422)
+  ● tarifario versionado (REQ-P5-3, P5.H1.M5 y M7) › publicar con concurrencia numera las versiones sin huecos ni repetidos
+  ● tarifario versionado (REQ-P5-3, P5.H1.M5 y M7) › cotización › sin tarifario es 404; canal no configurado, importe inválido o canal inválido son 422
+  ● tarifario versionado (REQ-P5-3, P5.H1.M5 y M7) › cotización › si la comisión (con su fijo) supera el importe es 422 fee_exceeds_amount; igualarlo es válido
+  ● tarifario versionado (REQ-P5-3, P5.H1.M5 y M7) › autorización: publicar exige pricing_admin; cotizar y leer exigen merchant_operator; sin token es 401
+  ● tarifario versionado (REQ-P5-3, P5.H1.M5 y M7) › publicar el tarifario no es idempotente por clave: repetir el mismo cuerpo crea otra versión (decisión registrada)
+FAIL test/merchant-close-keys.spec.ts (5.469 s)
+  ● cerrar un comercio revoca sus claves (D-32) › cerrar de nuevo es 409 y no vuelve a revocar ni a anunciar nada
+  ● cerrar un comercio revoca sus claves (D-32) › después de cerrar no se crea, rota ni reactiva ninguna clave (403), y nunca queda una clave viva aunque se creen claves a la vez que se cierra
+  ● suspender solo bloquea: las claves siguen vivas y reactivar las restaura (D-32) › suspender NO revoca ninguna clave ni emite api_key.revoked; reactivar deja las mismas claves operativas, con el mismo secreto verificable
+  ● suspender solo bloquea: las claves siguen vivas y reactivar las restaura (D-32) › suspender, reactivar y suspender otra vez nunca revoca; solo el cierre lo hace
+FAIL test/merchants-state.spec.ts
+  ● activación (REQ-P5-1) — el kill-test del carril › 10 activaciones simultáneas: exactamente una tiene efecto y se publica UN solo evento
+  ● ciclo de vida: pending → active → suspended → closed › suspende solo un comercio activo, con motivo, y lo puede reactivar mientras sus condiciones sigan
+  ● ciclo de vida: pending → active → suspended → closed › un motivo de suspensión que no está en el contrato, o ninguno, se rechaza
+  ● ciclo de vida: pending → active → suspended → closed › el cierre es terminal: publica merchant.closed y después ninguna transición, subida ni tarifa es posible
+FAIL test/api-keys.spec.ts
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › el secreto se muestra UNA vez, tiene la forma de D-27 y la base guarda solo el hash que lo verifica
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › el secreto no queda en NINGÚN lado: ni en la tabla de claves, ni en el outbox, ni en la idempotencia, ni en los logs
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › modos: `test` para comercios pending/active; `live` solo activo; suspendido ⇒ merchant_suspended; cerrado ⇒ forbidden
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › valida el cuerpo: modo inválido, campos de más, etiqueta larga y cuerpo vacío son 422; sin Idempotency-Key es 400
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › concurrencia ×5 con la misma Idempotency-Key: una sola clave y un solo evento
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › concurrencia ×5 con claves distintas respeta el tope de claves activas (5 en la prueba)
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › una clave test no crea claves live y una live no crea test: 403 forbidden y no se escribe nada
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › una clave de un modo no lista, rota ni revoca claves del otro: 404 (no 403), y nada cambia
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › sin X-Pay-Mode o con un valor inválido, TODAS las rutas públicas responden 403 (seguro por defecto)
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › el modo nunca sale del cuerpo: el cuerpo no puede traer otro campo de modo ni sobreescribir el de la cabecera
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › separación test / live (D-28) › el back-office de seguridad sí revoca una clave comprometida de cualquier modo
+  ● claves de API (REQ-P5-4, P5.H1.M6, D-27) › multi-tenant (BOLA) › otro comercio no ve, no rota ni revoca mis claves: 404 igual que si no existieran
+### corrida 2 pay-schedules
+FAIL test/outbound.spec.ts (5.966 s)
+  ● cada llamada saliente al libro mayor propaga servicio y modo del mandato (test) › retención, confirmación y liberación (POST /holds, /holds/{id}/post, /transactions)
+  ● cada llamada saliente al libro mayor propaga servicio y modo del mandato (live) › anulación de la retención (POST /holds/{id}/void) y consulta autoritativa (GET /holds/{id})
+  ● sin modo el libro mayor responde 403: el pago NO se cuenta como ejecutado ni queda en un estado terminal erróneo (regla 11) › modo "sandbox": se rechaza, se reintenta con la misma clave y al volver el modo se ejecuta UNA vez
+  ● sin modo el libro mayor responde 403: el pago NO se cuenta como ejecutado ni queda en un estado terminal erróneo (regla 11) › sin modo en la consulta de saldo del aviso: no se emite un aviso con datos inventados (queda reintento)
+FAIL test/mandates.spec.ts
+  ● POST /mandates (REQ-P5-6, P5.H3.M2) › crea el mandato, cumple el contrato público y publica mandate.created (válido contra el AsyncAPI, sin datos personales)
+  ● POST /mandates (REQ-P5-6, P5.H3.M2) › la primera fecha es la primera con ese día del mes en o después del inicio (cruza mes y año)
+  ● POST /mandates (REQ-P5-6, P5.H3.M2) › idempotencia › la misma clave con otro cuerpo es 422 `idempotency_key_reused`; sin clave es 400
+  ● POST /mandates (REQ-P5-6, P5.H3.M2) › beneficiarios y reglas de negocio (Q-15: supuesto conservador) › beneficiario desconocido, suspendido o cerrado ⇒ 422 con el motivo; a sí mismo ⇒ 422
+  ● POST /mandates (REQ-P5-6, P5.H3.M2) › beneficiarios y reglas de negocio (Q-15: supuesto conservador) › un pagador suspendido ⇒ 403 `merchant_suspended`; cerrado ⇒ 403 `forbidden`; no se escribe nada
+  ● POST /mandates (REQ-P5-6, P5.H3.M2) › beneficiarios y reglas de negocio (Q-15: supuesto conservador) › comisión (7.8): solo a AloVida; a otro comercio o sin comercio de plataforma configurado ⇒ 422
+  ● POST /mandates (REQ-P5-6, P5.H3.M2) › beneficiarios y reglas de negocio (Q-15: supuesto conservador) › el tope por mandato (si se configura) se aplica en el borde: igual al tope pasa, un centavo más no; sin tope configurado no hay tope
+  ● POST /mandates (REQ-P5-6, P5.H3.M2) › calendario › inicio en el pasado ⇒ 422
+  ● POST /mandates (REQ-P5-6, P5.H3.M2) › calendario › fin antes del inicio ⇒ 422
+  ● GET /mandates y DELETE /mandates/{id} › lista paginada del más nuevo al más viejo, con desempate estable y cursor opaco; cumple el contrato
+  ● GET /mandates y DELETE /mandates/{id} › cancelar: 204, el mandato queda `canceled` sin próxima fecha, se publica mandate.canceled una sola vez y repetir no hace nada
+  ● GET /mandates y DELETE /mandates/{id} › cancelar con concurrencia ×5 produce un solo evento
+  ● multi-tenant y modo (D-28) › otro comercio no ve ni cancela mis mandatos: 404, y la lista del otro está vacía
+  ● multi-tenant y modo (D-28) › sin X-Pay-Mode o con un valor inválido, TODAS las rutas responden 403 (seguro por defecto)
+  ● autorización (matriz negativa) › solo pay-edge abre las rutas públicas; sin X-Merchant-Id o con uno mal formado es 403
+FAIL test/executor.spec.ts (22.051 s)
+  ● kill-test del carril y flujo E5 (REQ-P5-6, P5.H3.M3 y M5) › la reserva `schedule:{mandato}:reserve` retiene el monto entre las dos fases y queda en cero al liberar
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › corrida 1: 5 ejecutores simultáneos sobre 4 mandatos ⇒ cada periodo se ejecuta exactamente una vez
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › corrida 2: 5 ejecutores simultáneos sobre 4 mandatos ⇒ cada periodo se ejecuta exactamente una vez
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › corrida 3: 5 ejecutores simultáneos sobre 4 mandatos ⇒ cada periodo se ejecuta exactamente una vez
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › corrida 4: 5 ejecutores simultáneos sobre 4 mandatos ⇒ cada periodo se ejecuta exactamente una vez
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › corrida 5: 5 ejecutores simultáneos sobre 4 mandatos ⇒ cada periodo se ejecuta exactamente una vez
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › la base lo impide aunque el ejecutor falle: no hay dos pagos para el mismo (mandato, periodo)
+  ● ejecución única por (mandato, periodo) (REQ-P5-6) › un ejecutor con el arriendo vigente no es pisado; al vencer el arriendo, otro retoma
+  ● periodos y calendario › cada mes es un periodo propio y se ejecuta una vez; el mandato avanza su próxima fecha
+  ● periodos y calendario › no se adelanta: antes de la fecha de inicio no se materializa nada ni se toca el libro mayor
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › la conexión se corta antes de crear el hold ⇒ se reintenta y el dinero se mueve UNA vez
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › 403 de red sobre la confirmación del hold ⇒ ambiguo, se conserva el estado y se completa en el reintento
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › una retención ya resuelta por otro (409 + consulta autoritativa distinta de `posted`) ⇒ `failed` `invalid_state_transition` a revisión
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › un rechazo `validation_failed` del libro mayor es un defecto nuestro: `failed` `internal_error`, sin reintentos ciegos
+  ● resultado ambiguo del libro mayor ≠ fallo (regla 11): se reintenta con la MISMA clave y nunca se anula › un 422 sin el cuerpo exacto del contrato NO se toma por «sin fondos»: es ambiguo
+  ● comercio suspendido o cerrado › un pagador suspendido no ejecuta: `failed` `merchant_suspended` sin tocar el libro mayor
+  ● comercio suspendido o cerrado › suspendido DESPUÉS de reservar: nada se libera ni se anula solo; queda a revisión con el dinero en la reserva
+  ● comercio suspendido o cerrado › un comercio desconocido para la réplica (evento todavía sin llegar) no bloquea: manda lo que autenticó pay-edge
+### corrida 2 pay-risk
+FAIL test/latency.spec.ts
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 1 búsqueda en Watchman (solo el comercio: pagador invitado sin nombre): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › concurrencia moderada (4 clientes en paralelo), ≥ 400 llamadas — INFORMATIVA: el Watchman (monohilo por búsqueda) es el cuello de botella
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › el servicio SIN Watchman (cribado instantáneo [DOBLE]) aporta una fracción del presupuesto: p99 propio, ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › cada llamada medida dejó su rastro, con su duración interna registrada
+FAIL test/contract-conformance.spec.ts
+  ● conformidad con internal-risk-v1.yaml › el servicio acepta EXACTAMENTE los campos de `screening` del contrato: 1 y 300 caracteres de razón social sí; 0, 301, un tipo ajeno o un campo extra se rechazan (422) igual que lo hace el contrato
+FAIL test/assessments.spec.ts (6.163 s)
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › decisiones con el Watchman REAL › sin límites cargados y nombre limpio: allow `no_limits_configured`, screened true, regla v1, y el GET devuelve lo mismo
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › decisiones con el Watchman REAL › entrada de la lista pública (Hizballah) ⇒ deny `sanctions_match`; el rastro guarda puntaje, lista e id de la entrada pública
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › idempotencia (Idempotency-Key) › repetir la misma petición devuelve 200 con la MISMA decisión y no escribe otro rastro
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › idempotencia (Idempotency-Key) › la misma clave con OTRO cuerpo (importe, o solo el nombre) es 422 `idempotency_key_reused`
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › idempotencia (Idempotency-Key) › la repetición conserva la versión de reglas original aunque se publique otra después (reproducible)
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › límite por transacción: el borde se permite y un centavo más se rechaza
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › velocidad por pagador: el 4.º intento distinto dentro de la ventana se rechaza; repetir el mismo intento no cuenta; la ventana se desliza
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › velocidad por comercio: independiente del pagador y de otros comercios
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › simultaneidad: 12 intentos distintos del mismo pagador con tope 3 ⇒ exactamente 3 allow y 9 deny (candado por pagador)
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › tope diario por pagador: lo rechazado no cuenta, la suma llega justo al tope y a las 24 h se libera
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › límites (D-23): configurables, versionados, sin valores por defecto › horario permitido en hora de La Paz (UTC-4): el inicio es inclusivo y el fin exclusivo
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › validación y autorización › el contrato admite nombres en blanco y una huella vacía: no se rechazan, se tratan como ausentes (D-29: el del comercio falta ⇒ review; el del pagador falta ⇒ no pasa nada)
+  ● POST /assessments (REQ-P5-5, P5.H2.M2–M5) › validación y autorización › solo pay-payments puede evaluar y consultar: sin identidad o con otro servicio es 403
+  ● rastro auditable (P5.H2.M5) y privacidad (regla 90.2) › cada decisión deja su rastro, con la versión de reglas y sin el nombre ni la huella en claro
+  ● rastro auditable (P5.H2.M5) y privacidad (regla 90.2) › el rastro es INMUTABLE: UPDATE, DELETE y TRUNCATE fallan aunque se llegue con SQL directo
+FAIL test/intent-grouping.spec.ts
+  ● un intento evaluado dos veces cuenta UNA vez (PROP-19) › velocidad › inválido: 5 evaluaciones simultáneas del MISMO intento con claves distintas cuentan una vez y no se rechazan entre sí
+  ● un intento evaluado dos veces cuenta UNA vez (PROP-19) › límites diarios › inválido: un intento rechazado (deny) en CUALQUIERA de sus evaluaciones no consume el límite, aunque su primera evaluación haya sido allow
+  ● un intento evaluado dos veces cuenta UNA vez (PROP-19) › límites diarios › inválido: re-evaluar el mismo intento con un importe MENOR no esquiva el límite: cuenta el mayor evaluado
+  ● un intento evaluado dos veces cuenta UNA vez (PROP-19) › límites diarios › límite: re-evaluar con un importe MAYOR cuenta el mayor (conservador), igual si las dos evaluaciones tienen la misma hora
+FAIL test/screening-parties.spec.ts
+  ● D-29 con el Watchman REAL: se criba siempre el nombre legal del comercio y, si el pagador dio nombre, también › el COMERCIO en una lista ⇒ deny, y el rastro dice que fue el comercio (sin guardar su nombre)
+  ● D-29 con el Watchman REAL: se criba siempre el nombre legal del comercio y, si el pagador dio nombre, también › SIN nombre del comercio ⇒ review `screening_not_provided` (es lo que siempre debe venir), aunque el pagador esté limpio o no tenga nombre
+  ● D-29 con el Watchman REAL: se criba siempre el nombre legal del comercio y, si el pagador dio nombre, también › sin nombre del comercio pero con el PAGADOR en una lista ⇒ deny (una coincidencia fuerte no se esconde detrás del review)
+  ● D-29 con el Watchman REAL: se criba siempre el nombre legal del comercio y, si el pagador dio nombre, también › el tipo del comercio por defecto es empresa; se puede declarar persona
+  ● D-29 con el Watchman REAL: se criba siempre el nombre legal del comercio y, si el pagador dio nombre, también › privacidad: ni el nombre del comercio ni el del pagador aparecen en el rastro, la idempotencia, las respuestas ni los logs
+  ● [DOBLE] de Watchman: qué se le manda y qué pasa si una de las dos búsquedas falla › pagador invitado sin nombre: UNA sola búsqueda (la del comercio)
+  ● [DOBLE] de Watchman: qué se le manda y qué pasa si una de las dos búsquedas falla › el cribado del pagador no se puede hacer pero el comercio está limpio ⇒ review `screening_unavailable` (no se afirma que está limpio)
+  ● [DOBLE] de Watchman: qué se le manda y qué pasa si una de las dos búsquedas falla › pagador con coincidencia fuerte y comercio sin cribar ⇒ deny (lo fuerte manda)
+Test Suites: 5 failed, 12 passed, 17 total
+Tests:       33 failed, 199 passed, 232 total
+DONE

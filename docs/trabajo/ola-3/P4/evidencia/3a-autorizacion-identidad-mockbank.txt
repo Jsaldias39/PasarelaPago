@@ -1,0 +1,56 @@
+# 3a-autorizacion-identidad-mockbank
+$ (cd services/pay-mockbank && yarn test --maxWorkers=2 test/bank-api.spec.ts -t compuerta de modo e identidad --verbose --reporters default)
+
+(node:1735) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS test/bank-api.spec.ts
+  compuerta de modo e identidad (D-28, regla de separación #8)
+    ✓ GET /sandbox/probe: X-Pay-Mode ausente, `live`, inválido o repetido ⇒ 403 SIN efecto (81 ms)
+    ✓ POST /sandbox/charges: X-Pay-Mode ausente, `live`, inválido o repetido ⇒ 403 SIN efecto (51 ms)
+    ✓ GET /sandbox/charges/{r}: X-Pay-Mode ausente, `live`, inválido o repetido ⇒ 403 SIN efecto (87 ms)
+    ✓ POST /sandbox/transfers: X-Pay-Mode ausente, `live`, inválido o repetido ⇒ 403 SIN efecto (48 ms)
+    ✓ GET /sandbox/statement: X-Pay-Mode ausente, `live`, inválido o repetido ⇒ 403 SIN efecto (40 ms)
+    ✓ POST /sandbox/card-authorizations: X-Pay-Mode ausente, `live`, inválido o repetido ⇒ 403 SIN efecto (32 ms)
+    ✓ GET /sandbox/probe: otro servicio (o ninguno) ⇒ 403 (89 ms)
+    ✓ POST /sandbox/charges: otro servicio (o ninguno) ⇒ 403 (33 ms)
+    ✓ GET /sandbox/charges/{r}: otro servicio (o ninguno) ⇒ 403 (33 ms)
+    ✓ POST /sandbox/transfers: otro servicio (o ninguno) ⇒ 403 (32 ms)
+    ✓ GET /sandbox/statement: otro servicio (o ninguno) ⇒ 403 (67 ms)
+    ✓ POST /sandbox/card-authorizations: otro servicio (o ninguno) ⇒ 403 (117 ms)
+    ✓ el pagador y el administrador solo los llama `pay-mockbank`; el conector NO (90 ms)
+  cobros y QR
+    ○ skipped correcto: crear, repetir (idempotente por referencia), consultar y anular; cumple el contrato
+    ○ skipped límite: referencia de 10 y de 40 caracteres, importe mínimo (1) y techo; una referencia desconocida da 404 charge_not_found
+    ○ skipped inválido: campos que faltan, no declarados, moneda, método, importe decimal/negativo/cero/enorme ⇒ 422 sin efecto
+    ○ skipped QR: se registra (idempotente), el mismo QR para otro cobro o un QR distinto para el mismo cobro ⇒ 409 qr_conflict
+  reembolsos
+    ○ skipped correcto: parcial + parcial, idempotente por referencia, consultable; cumple el contrato
+    ○ skipped límite: reembolsar justo el total pasa; un centavo de más lo rechaza el banco (failed) y NO guarda la referencia
+    ○ skipped inválido: cobro desconocido 404, cobro sin pagar 409, referencia mal formada 422
+  transferencias salientes
+    ○ skipped correcto (00): pagada, idempotente por referencia (no paga dos veces) y consultable
+    ○ skipped límite: 01 fallida rejected_by_bank · 02 en tránsito hasta el retraso · 08 en tránsito para siempre · 06 banco caído (nada se registra)
+    ○ skipped ambiguas (la orden SE EJECUTA y la respuesta se pierde): 07 sin respuesta · 17 proxy 502 con HTML · 27 socket reseteado
+    ○ skipped inválido: referencia vacía o enorme, destino que parece un número de cuenta con espacios, importe 0 ⇒ 422
+  tarjeta: autorización → captura | anulación (solo token de prueba; NUNCA un PAN)
+    ○ skipped correcto: autoriza, captura (callback captured) y repetir la captura no duplica nada
+    ○ skipped límite: captura PARCIAL (la mitad), captura de más ⇒ 409, anular una capturada ⇒ 409, anular una autorizada es idempotente
+    ○ skipped escenarios por importe: 01 declined (card_declined, no se captura) · 06 caído 503 · 07 se autoriza pero la conexión se corta
+    ○ skipped inválido: un PAN en `card_token` (con o sin separadores) o un token mal formado ⇒ 422 que NO repite el valor; referencia desconocida ⇒ 404
+  extracto: JSON, CSV y camt.053
+    ○ skipped correcto: las tres formas traen las mismas líneas (cobro + línea ajena inyectada) y el CSV neutraliza fórmulas
+    ○ skipped límite: rango vacío ⇒ extracto vacío válido en las tres formas; los bordes del rango son inclusivos
+    ○ skipped inválido: rango invertido, fechas rotas o formato desconocido ⇒ 422
+  banco caído a la fuerza (probar salud y ruteo)
+    ○ skipped con down=true TODA operación del banco da 503 bank_unavailable y la sonda también; al levantarlo vuelve todo
+  depósito del pagador por transferencia bancaria (E8)
+    ○ skipped correcto: el depósito aparece SOLO en la cuenta `transfers` del extracto, con la referencia de las instrucciones, y el banco no avisa a nadie
+    ○ skipped límite: cada llamada es un depósito distinto (mismo importe dos veces = dos líneas); importe mínimo 1
+    ○ skipped inválido: referencia con caracteres raros, importe 0/decimal, campos de más ⇒ 422; sin identidad pay-mockbank ⇒ 403; banco caído ⇒ 503; `account` desconocida en el extracto ⇒ 422
+
+Test Suites: 1 passed, 1 total
+Tests:       22 skipped, 13 passed, 35 total
+Snapshots:   0 total
+Time:        2.125 s, estimated 5 s
+Ran all test suites matching test/bank-api.spec.ts with tests matching "compuerta de modo e identidad".
+exit=0

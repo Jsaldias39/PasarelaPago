@@ -1,0 +1,38 @@
+# Evidencia P2.H2.M2
+
+Fecha: 2026-10-27 · peldaño: TESTED (ver REPORTE.md para lo que NO cubre)
+
+Comandos: `cd services/<servicio> && yarn test --json` (Jest 30 + SWC, Postgres/NATS/TigerBeetle reales del compose; dobles declarados donde el nombre del archivo lo dice).
+
+## pay-settlement/test/batch.spec.ts
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › libera lo vencido (T+7) y paga una vez por comercio; lo cobrado después sigue pendiente (721 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › correr el corte dos veces el mismo lunes devuelve el mismo lote y no mueve dinero otra vez (380 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › la misma Idempotency-Key repite la respuesta guardada (278 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › cinco cortes simultáneos del mismo lunes: un solo lote, un solo pago por comercio, el dinero sale una vez (381 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › el corte siguiente solo mira lo que vence en su ventana (la marca de agua avanza) (356 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › un reembolso posterior al vencimiento no deja liberar de más y se descuenta en la ventana que le toca (296 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › límite: un comercio sin ventas, un comercio sin nada que liberar y un monto de 1 centavo (331 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › un comercio que aparece a mitad del corte entra en el siguiente, no en este (297 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › política del corte › rechaza un martes (D-19: el corte es el lunes) (328 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › política del corte › rechaza un lunes futuro (286 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › política del corte › rechaza una fecha que no existe (267 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › política del corte › rechaza una fecha mal escrita (276 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › política del corte › rechaza campos que el contrato no declara y un desfase fuera de rango (313 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › política del corte › el mismo lunes con otro desfase no es el mismo lote: se rechaza en vez de reinterpretarlo (317 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › política del corte › con SETTLEMENT_CUTOFF_WEEKDAY=any acepta cualquier día (561 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › política del corte › el desfase por defecto sale de la configuración (T+N) y release_days lo pisa (529 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › fallos a mitad del corte › el ledger rechaza la liberación de un comercio: el lote queda `failed`, los demás se pagan y repetir el corte reintenta solo a ese con attempt + 1 (389 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › fallos a mitad del corte › el ledger se cae a mitad: 503 sin guardar la respuesta; reintentar con la misma clave retoma y no libera dos veces (355 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › fallos a mitad del corte › el ledger no responde al planear: el corte no escribe nada de ese comercio y se retoma limpio (345 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › fallos a mitad del corte › el ledger retiene el pago del corte pero la respuesta se pierde: el reintento retoma ESE pago (no inserta otro con monto 0) y paga una sola vez (380 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › fallos a mitad del corte › resumeRunning retoma un lote que quedó a medias (el proceso murió) (327 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible › mueve min(deuda, disponible) de available a debt con el monto fijado antes de llamar al ledger, y paga el resto (315 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible › si el disponible no alcanza, netea lo que hay, deja el resto como deuda y no paga nada; el corte siguiente la termina (378 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible › sin deuda no hay neteo y la deuda nunca se paga de más (484 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible › repetir el corte, o cortarse justo después de asentar el neteo, no lo mueve dos veces (360 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible › si el ledger rechaza el neteo (el saldo cambió), ese corte lo omite sin romper el lote y la deuda sigue (324 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › deuda por contracargo (D-22): el exceso sobre `pending` está en `merchant:{id}:debt` y el corte la netea contra el disponible › tres cortes seguidos: la deuda se paga UNA vez y las ventanas de liberación no se distorsionan (el contracargo ya salió de `pending`) (382 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › autorización: solo la consola de operación corre y lista cortes; sin identidad, 403 (226 ms)
+✓ corte semanal (P2.H2.M2, REQ-P2-5) › lista los lotes del más nuevo al más viejo, con paginación estable (308 ms)
+
+RESULTADO P2.H2.M2: 29 pasan, 0 fallan, de 29.

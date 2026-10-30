@@ -1,0 +1,60 @@
+=== pay-merchants corrida 1 ===
+Test Suites: 7 passed, 7 total
+Tests:       90 passed, 90 total
+=== pay-merchants corrida 2 ===
+Test Suites: 7 passed, 7 total
+Tests:       90 passed, 90 total
+=== pay-merchants corrida 3 ===
+Test Suites: 7 passed, 7 total
+Tests:       90 passed, 90 total
+=== pay-merchants corrida 4 ===
+Test Suites: 7 passed, 7 total
+Tests:       90 passed, 90 total
+=== pay-merchants corrida 5 ===
+Test Suites: 7 passed, 7 total
+Tests:       90 passed, 90 total
+=== pay-risk corrida 1 ===
+LATENCIA {"label":"secuencial-1-busqueda","n":200,"p50":56.6,"p95":161.8,"p99":204.1,"max":238.1}
+LATENCIA {"label":"secuencial-2-busquedas","n":200,"p50":46.1,"p95":95,"p99":142.7,"max":155.7}
+LATENCIA {"label":"concurrente-4","n":400,"p50":110.4,"p95":223.9,"p99":356.8,"max":536.1}
+LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":13.1,"p95":21.1,"p99":25.2,"max":30.1}
+LATENCIA-RASTRO {"n":810,"duracion_interna_ge_300ms":4,"sin_cribar_por_timeout":13}
+Test Suites: 7 passed, 7 total
+Tests:       149 passed, 149 total
+=== pay-risk corrida 2 ===
+LATENCIA {"label":"secuencial-1-busqueda","n":200,"p50":45.8,"p95":135.3,"p99":186.4,"max":244.4}
+LATENCIA {"label":"secuencial-2-busquedas","n":200,"p50":52.2,"p95":72.3,"p99":80.1,"max":94}
+LATENCIA {"label":"concurrente-4","n":400,"p50":67.3,"p95":103.5,"p99":120.9,"max":158.4}
+LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":12.3,"p95":17,"p99":18.9,"max":19.2}
+LATENCIA-RASTRO {"n":810,"duracion_interna_ge_300ms":0,"sin_cribar_por_timeout":0}
+Test Suites: 7 passed, 7 total
+Tests:       149 passed, 149 total
+=== pay-risk corrida 3 ===
+LATENCIA {"label":"secuencial-1-busqueda","n":200,"p50":36.9,"p95":108,"p99":158.1,"max":190.5}
+LATENCIA {"label":"secuencial-2-busquedas","n":200,"p50":51.8,"p95":81.3,"p99":108.3,"max":185.7}
+LATENCIA {"label":"concurrente-4","n":400,"p50":102.3,"p95":187,"p99":242.1,"max":324.2}
+LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":10.8,"p95":21.4,"p99":33.2,"max":45.9}
+LATENCIA-RASTRO {"n":810,"duracion_interna_ge_300ms":1,"sin_cribar_por_timeout":5}
+Test Suites: 7 passed, 7 total
+Tests:       149 passed, 149 total
+=== pay-risk corrida 4 ===
+LATENCIA {"label":"secuencial-1-busqueda","n":200,"p50":62.9,"p95":171.7,"p99":208.7,"max":254.6}
+LATENCIA {"label":"secuencial-2-busquedas","n":200,"p50":84.5,"p95":189.4,"p99":225.2,"max":258}
+LATENCIA {"label":"concurrente-4","n":400,"p50":175.7,"p95":272.1,"p99":316.9,"max":419.1}
+LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":14.9,"p95":37.1,"p99":54.9,"max":63.5}
+LATENCIA-RASTRO {"n":810,"duracion_interna_ge_300ms":2,"sin_cribar_por_timeout":76}
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 2 búsquedas en Watchman (tipo desconocido: persona y empresa): ≥ 200 llamadas
+Test Suites: 1 failed, 6 passed, 7 total
+Tests:       1 failed, 148 passed, 149 total
+=== pay-risk corrida 5 ===
+LATENCIA {"label":"secuencial-1-busqueda","n":200,"p50":165.5,"p95":305.2,"p99":351.9,"max":402.8}
+LATENCIA {"label":"secuencial-2-busquedas","n":200,"p50":226.5,"p95":331.3,"p99":364.7,"max":422.5}
+LATENCIA {"label":"servicio-solo-sin-watchman","n":200,"p50":19.2,"p95":82.5,"p99":133.1,"max":171.7}
+LATENCIA-RASTRO {"n":805,"duracion_interna_ge_300ms":39,"sin_cribar_por_timeout":540}
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 1 búsqueda en Watchman (entity_type conocido): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 2 búsquedas en Watchman (tipo desconocido: persona y empresa): ≥ 200 llamadas
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › concurrencia moderada (4 clientes en paralelo), ≥ 400 llamadas — INFORMATIVA: el Watchman (monohilo por búsqueda) es el cuello de botella
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › cada llamada medida dejó su rastro, con su duración interna registrada
+       97 |     process.stdout.write(`LATENCIA-RASTRO ${JSON.stringify({ n, duracion_interna_ge_300ms: slow, sin_cribar_por_timeout: unscreened })}\n`);
+Test Suites: 1 failed, 6 passed, 7 total
+Tests:       4 failed, 145 passed, 149 total

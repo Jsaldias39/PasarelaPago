@@ -1,0 +1,81 @@
+FAIL e2e/pending/traza-jaeger-arbol.e2e.ts (33.953 s)
+  ● PENDIENTE — árbol completo de la traza en Jaeger › borde → pay-payments: el span servidor de pay-payments CUELGA de un span del borde que está en la traza (no de un span-id que nadie exportó)
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+    -   "parentPresent": true,
+    -   "parentService": "pay-edge",
+    +   "parentPresent": false,
+    +   "parentService": undefined,
+      }
+
+      63 |     const payments = serverSpanOf(views, 'pay-payments')!;
+      64 |     const parent = views.find((v) => v.spanId === payments.parentId);
+    > 65 |     expect({ parentPresent: parent !== undefined, parentService: parent?.service }).toEqual({ parentPresent: true, parentService: 'pay-edge' });
+         |                                                                                     ^
+      66 |   });
+      67 |
+      68 |   it('SIN traceparent entrante, el borde y pay-payments quedan en la MISMA traza (una sola traza por petición)', async () => {
+
+      at Object.toEqual (e2e/pending/traza-jaeger-arbol.e2e.ts:65:85)
+
+  ● PENDIENTE — árbol completo de la traza en Jaeger › SIN traceparent entrante, el borde y pay-payments quedan en la MISMA traza (una sola traza por petición)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "c5aede99cd8cc650e86e57c051d864e8"
+    Received: "3faf0b06c67431ae78631be74b5372aa"
+
+      71 |     const edgeTrace = await probe.traceOf('sin traceparent', sent);
+      72 |     const counterpart = await probe.paymentsCounterpart(edgeTrace);
+    > 73 |     expect(counterpart?.trace.traceID).toBe(edgeTrace.traceID);
+         |                                        ^
+      74 |   });
+      75 |
+      76 |   it('la traza del cobro llega aguas abajo: contiene al menos un span servidor de pay-risk, pay-connectors o pay-qr', async () => {
+
+      at Object.toBe (e2e/pending/traza-jaeger-arbol.e2e.ts:73:40)
+
+  ● PENDIENTE — árbol completo de la traza en Jaeger › la traza del cobro llega aguas abajo: contiene al menos un span servidor de pay-risk, pay-connectors o pay-qr
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      79 |     const trace = (await jaeger.trace(traceId))!;
+      80 |     const downstream = servicesOf(viewsOf(trace)).filter((s) => ['pay-risk', 'pay-connectors', 'pay-qr'].includes(s));
+    > 81 |     expect(downstream.length).toBeGreaterThan(0);
+         |                               ^
+      82 |   });
+      83 |
+      84 |   it('el x-request-id del cliente llega a pay-risk (o pay-connectors) en los logs, no un UUID nuevo por llamada', async () => {
+
+      at Object.toBeGreaterThan (e2e/pending/traza-jaeger-arbol.e2e.ts:81:31)
+
+  ● PENDIENTE — árbol completo de la traza en Jaeger › el x-request-id del cliente llega a pay-risk (o pay-connectors) en los logs, no un UUID nuevo por llamada
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      85 |     await until('pay-risk registró alguna evaluación', async () => accessLines('pay-risk'), (lines) => lines.some((l) => l.url.startsWith('/assessments')), 60_000, 300);
+      86 |     const carrying = (['pay-risk', 'pay-connectors'] as const).filter((s) => accessLines(s).some((l) => l.id === requestId));
+    > 87 |     expect(carrying.length).toBeGreaterThan(0);
+         |                             ^
+      88 |   });
+      89 | });
+      90 |
+
+      at Object.toBeGreaterThan (e2e/pending/traza-jaeger-arbol.e2e.ts:87:29)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 4 total
+Snapshots:   0 total
+Time:        34.03 s
+Ran all test suites matching e2e/pending/traza-jaeger-arbol.e2e.ts.

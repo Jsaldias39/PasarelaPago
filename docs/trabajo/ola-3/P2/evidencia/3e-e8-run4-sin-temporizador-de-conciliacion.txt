@@ -1,0 +1,78 @@
+FAIL e2e/pending/e8.e2e.ts (118.129 s)
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › CONFIRMACIÓN POR EL EXTRACTO: el crédito con la referencia y el importe exactos captura el cobro; el ledger deja neto en pending y comisión en fees, débitos = créditos
+
+    No se cumplió «el intento pi_69dcefdf5b1d169275fc6c52 llega a un estado terminal» en 60000 ms; último valor: {"id":"pi_69dcefdf5b1d169275fc6c52","object":"payment_intent","amount_minor":20000,"currency":"BOB","status":"requires_action","payment_method_type":"bank_transfer","fee_minor":200,"net_minor":19800,"next_action":{"type":"bank_transfer_instructions","bank_transfer":{"bank_name":"BANCO SIMULADO (SANDBOX)","reference":"TRK2X2DDNVLN","account_holder":"ALOVIDA PAY (SANDBOX)","account_number":"SANDBOX-0000-0001"}},"last_error":null,"metadata":{},"created_at":"2026-10-28T02:37:12.176Z","expires_at":"2026-10-28T03:37:12.175Z","succeeded_at":null}
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:79:21)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › UNA SOLA VEZ: el conector vuelve a leer la misma línea en cada ciclo y NO captura dos veces: un evento captured, una captura en el ledger
+
+    No se cumplió «el conector publicó la captura» en 30000 ms; último valor: []
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/pending/e8.e2e.ts:90:20)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › CONCILIACIÓN (P2): la línea del extracto cruza con el asiento de la captura; la corrida termina sin excepciones y no mueve el ledger
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "exception_count": 0,
+    +   "exception_count": 1,
+        "status": "completed",
+      }
+
+      105 |     const run = await until('la corrida termina', async () => (await backoffice(stack, 'GET', `/reconciliation_runs/${(started.json as { id: string }).id}`)).json as { status: string; matched_count: number; exception_count: number }, (r) => r.status !== 'running', 60_000, 250);
+      106 |     // Con `payment_intent_id` en la línea: 1 cruzada, 0 excepciones. Sin el campo, la línea trae la referencia de la TRANSFERENCIA, no cruza y sale una excepción (FLUJOS-E4-E8.md).
+    > 107 |     expect(run).toMatchObject({ status: 'completed', exception_count: 0 });
+          |                 ^
+      108 |     expect(run.matched_count).toBeGreaterThanOrEqual(1);
+      109 |     expect(await Promise.all([`merchant:${merchant.merchantId}:pending`, 'platform:fees', `connector:${CONNECTOR}:clearing`].map((a) => view.balance(a)))).toEqual(before);
+      110 |     expect(((await backoffice(stack, 'GET', '/reconciliation_exceptions?status=open')).json as { data: unknown[] }).data).toEqual([]);
+
+      at Object.toMatchObject (e2e/pending/e8.e2e.ts:107:17)
+
+  ● E8 — transferencia bancaria confirmada por la línea del extracto › IMPORTE DISTINTO: un crédito con la referencia correcta pero otro importe NO captura el cobro; queda a la vista como excepción para una persona
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 2
+    Received array:  [{"business_ref": "pi_b209f44df20b106152c7a931:capture", "created_at": "2026-10-28T02:38:44.040Z", "id": "rx_fz5p5i2lloatkwzlvyck", "kind": "missing_in_ledger", "ledger_amount_minor": null, "object": "reconciliation_exception", "provider_reference": "SIM-X-000002", "resolution_note": null, "resolved_by": null, "run_id": "rr_dtuahrxa5mgfs3j3kbsj", "statement_amount_minor": 19000, "status": "open"}, {"business_ref": "pi_69dcefdf5b1d169275fc6c52:capture", "created_at": "2026-10-28T02:38:43.292Z", "id": "rx_s6rbp7sxx6h6eamn4fvj", "kind": "missing_in_ledger", "ledger_amount_minor": null, "object": "reconciliation_exception", "provider_reference": "SIM-X-000001", "resolution_note": null, "resolved_by": null, "run_id": "rr_twxyt7h3maekoujcj4py", "statement_amount_minor": 20000, "status": "open"}]
+
+      121 |     const open = (await backoffice(stack, 'GET', '/reconciliation_exceptions?status=open')).json as { data: { kind: string; statement_amount_minor: number | null; ledger_amount_minor: number | null }[] };
+      122 |     // La línea existe en el banco y el ledger no tiene nada para esa referencia: `missing_in_ledger`, por el importe que trae el extracto.
+    > 123 |     expect(open.data).toHaveLength(1);
+          |                       ^
+      124 |     expect(open.data[0]).toMatchObject({ kind: 'missing_in_ledger', statement_amount_minor: BANK_TRANSFER_WRONG_AMOUNT, ledger_amount_minor: null });
+      125 |
+      126 |     expect((await api.getIntent(wrong.id)).status).toBe('requires_action');
+
+      at Object.toHaveLength (e2e/pending/e8.e2e.ts:123:23)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 2 passed, 6 total
+Snapshots:   0 total
+Time:        118.216 s, estimated 123 s
+Ran all test suites matching e2e/pending/e8.e2e.ts.
+rc=1

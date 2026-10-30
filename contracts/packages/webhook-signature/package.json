@@ -1,0 +1,20 @@
+{
+  "name": "@pay/webhook-signature",
+  "version": "0.1.0",
+  "description": "Firma y verificación de webhooks (Standard Webhooks v1 HMAC y v1a Ed25519)",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "yarn run -T tsc -p tsconfig.build.json",
+    "typecheck": "yarn run -T tsc -p tsconfig.json --noEmit",
+    "test": "yarn run -T jest --config jest.config.cjs"
+  },
+  "devDependencies": {
+    "standardwebhooks": "^1.0.0"
+  }
+}

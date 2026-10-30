@@ -1,0 +1,94 @@
+$ yarn test test/svix --json   (svix-server 1.104.0 REAL, Postgres real, NATS real; salida del runner, una línea por prueba)
+Test Suites: 4 passed, 4 total
+Tests:       63 passed, 0 failed, 63 total
+
+test/svix/svix-client.spec.ts PASSED
+   OK        6 ms  SvixClient › CORRECTO: autentica con Bearer, apunta a /api/v1, manda el cuerpo y no sigue redirecciones
+   OK        1 ms  SvixClient › el 409 de un mensaje es «ya existe», no un error
+   OK        3 ms  SvixClient › AMBIGUO: un 500 se reintenta con la MISMA petición y, si sigue, sube como SvixUnavailableError
+   OK        2 ms  SvixClient › AMBIGUO: un 502 se reintenta con la MISMA petición y, si sigue, sube como SvixUnavailableError
+   OK        2 ms  SvixClient › AMBIGUO: un 503 se reintenta con la MISMA petición y, si sigue, sube como SvixUnavailableError
+   OK        2 ms  SvixClient › AMBIGUO: un 504 se reintenta con la MISMA petición y, si sigue, sube como SvixUnavailableError
+   OK        2 ms  SvixClient › AMBIGUO: un 429 se reintenta con la MISMA petición y, si sigue, sube como SvixUnavailableError
+   OK        1 ms  SvixClient › AMBIGUO: un corte de red o un timeout se reintenta y una respuesta posterior lo resuelve
+   OK        1 ms  SvixClient › AMBIGUO: agotados los intentos por timeout sube SvixUnavailableError(DOMException [TimeoutError]: x
+    at new DOMException (node:internal/per_context/domexception:76:18)
+    at /home/user/pasarelapago/services/pay-webhooks/test/svix/svix-client.spec.ts:50:24
+    at _dispatchDescribe (/home/user/pasarelapago/node_modules/jest-circus/build/jestAdapterInit.js:626:26)
+    at describe (/home/user/pasarelapago/node_modules/jest-circus/build/jestAdapterInit.js:594:44)
+    at describe (/home/user/pasarelapago/services/pay-webhooks/test/svix/svix-client.spec.ts:22:1)
+    at SourceTextModule.evaluate (node:internal/vm/module:217:23)
+    at EsmLoader.linkAndEvaluateModule (/home/user/pasarelapago/node_modules/jest-runtime/build/index.js:2021:47)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at jestAdapter (/home/user/pasarelapago/node_modules/jest-circus/build/runner.js:94:5)
+    at runTestInternal (/home/user/pasarelapago/node_modules/jest-runner/build/testWorker.js:247:16)
+    at runTest (/home/user/pasarelapago/node_modules/jest-runner/build/testWorker.js:315:7)
+    at Object.worker (/home/user/pasarelapago/node_modules/jest-runner/build/testWorker.js:479:12))
+   OK        1 ms  SvixClient › AMBIGUO: agotados los intentos por network sube SvixUnavailableError(TypeError: fetch failed
+    at /home/user/pasarelapago/services/pay-webhooks/test/svix/svix-client.spec.ts:50:76
+    at _dispatchDescribe (/home/user/pasarelapago/node_modules/jest-circus/build/jestAdapterInit.js:626:26)
+    at describe (/home/user/pasarelapago/node_modules/jest-circus/build/jestAdapterInit.js:594:44)
+    at describe (/home/user/pasarelapago/services/pay-webhooks/test/svix/svix-client.spec.ts:22:1)
+    at SourceTextModule.evaluate (node:internal/vm/module:217:23)
+    at EsmLoader.linkAndEvaluateModule (/home/user/pasarelapago/node_modules/jest-runtime/build/index.js:2021:47)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at jestAdapter (/home/user/pasarelapago/node_modules/jest-circus/build/runner.js:94:5)
+    at runTestInternal (/home/user/pasarelapago/node_modules/jest-runner/build/testWorker.js:247:16)
+    at runTest (/home/user/pasarelapago/node_modules/jest-runner/build/testWorker.js:315:7)
+    at Object.worker (/home/user/pasarelapago/node_modules/jest-runner/build/testWorker.js:479:12))
+   OK        1 ms  SvixClient › DEFINITIVO: un 400 NO se reintenta y sube como SvixApiError
+   OK        8 ms  SvixClient › DEFINITIVO: un 401 NO se reintenta y sube como SvixApiError
+   OK        1 ms  SvixClient › DEFINITIVO: un 403 NO se reintenta y sube como SvixApiError
+   OK        1 ms  SvixClient › DEFINITIVO: un 404 NO se reintenta y sube como SvixApiError
+   OK        1 ms  SvixClient › DEFINITIVO: un 422 NO se reintenta y sube como SvixApiError
+   OK        1 ms  SvixClient › un 2xx distinto del esperado no se da por bueno
+   OK        6 ms  SvixClient › el token, el cuerpo enviado y el texto del servidor NO aparecen en los errores
+   OK        1 ms  SvixClient › un cuerpo de error cuyo `code` no tiene la forma esperada no se copia al error
+   OK        2 ms  SvixClient › rotateSecret NO reintenta por su cuenta (lo hace el motor, mirando la clave antes)
+   OK        2 ms  SvixClient › los identificadores de la ruta se codifican (un uid con «/» o «?» no cambia el destino)
+   OK       11 ms  SvixClient › listEndpoints recorre todas las páginas y devuelve undefined si la aplicación no existe
+   OK        2 ms  SvixClient › deleteEndpoint trata el 404 como «ya no está» y getMessage como «no hay»; ningún otro 4xx se disimula
+   OK      311 ms  SvixClient › AMBIGUO [servidor REAL que no contesta]: el plazo se corta (AbortSignal.timeout), se reintenta y sube como timeout
+test/svix/svix-e6.spec.ts PASSED
+   OK    10698 ms  E6 contra svix-server REAL — eventos por NATS real, endpoint con 500 y luego 200, otro con 410 › 12 eventos (3 publicados DOS veces en NATS) ⇒ UN mensaje de Svix y UNA entrega aceptada por evento; el 410 se deshabilita solo y no recibe más
+test/svix/svix-engine-contract.spec.ts PASSED
+   OK      153 ms  contrato DeliveryEngine — SvixEngine (svix-server real) › provisionEndpoint v1 devuelve un whsec_ y v1a una whpk_
+   OK       32 ms  contrato DeliveryEngine — SvixEngine (svix-server real) › rotateEndpointSecret devuelve un secreto distinto del anterior
+   OK       46 ms  contrato DeliveryEngine — SvixEngine (svix-server real) › publish: repetir el mismo eventId no crea otra entrega; un evento sin suscriptores crea 0
+   OK       19 ms  contrato DeliveryEngine — SvixEngine (svix-server real) › publish no entrega a un comercio ajeno
+test/svix/svix-integration.spec.ts PASSED
+   OK     2247 ms  SvixEngine contra svix-server REAL › (1) idempotencia: el mismo evento dos veces ⇒ UN mensaje en Svix y UNA entrega › inbox + 409 de Svix: republicar, y republicar tras perder el inbox (caída antes del commit), no duplica nada
+   OK     1551 ms  SvixEngine contra svix-server REAL › (1) idempotencia: el mismo evento dos veces ⇒ UN mensaje en Svix y UNA entrega › la transacción del inbox se revierte DESPUÉS de crear el mensaje en Svix: la reentrega converge en un solo mensaje y una sola entrega
+   OK     1555 ms  SvixEngine contra svix-server REAL › (1) idempotencia: el mismo evento dos veces ⇒ UN mensaje en Svix y UNA entrega › un evento con DOS endpoints suscriptos es UN mensaje; cada endpoint lo recibe una vez; republicar el mensaje no suma entregas
+   OK      138 ms  SvixEngine contra svix-server REAL › (2) correcto: entrega firmada que el comercio verifica › llega por HTTPS con las cabeceras Standard Webhooks, el cuerpo es el payload público y @pay/webhook-signature lo verifica; una alteración se rechaza
+   OK      153 ms  SvixEngine contra svix-server REAL › (2) correcto: entrega firmada que el comercio verifica › rotación v1: la entrega lleva DOS firmas; verifica con el secreto VIEJO y con el NUEVO, no con uno ajeno
+   OK      268 ms  SvixEngine contra svix-server REAL › (2) correcto: entrega firmada que el comercio verifica › esquema v1a (Ed25519): el comercio recibe la whpk_, verifica con ella y sigue verificando con la vieja y la nueva durante la rotación
+   OK     2671 ms  SvixEngine contra svix-server REAL › (2) correcto: entrega firmada que el comercio verifica › vencida la gracia, la entrega lleva UNA sola firma (la nueva) y el secreto viejo ya no verifica
+   OK     4644 ms  SvixEngine contra svix-server REAL › (2) correcto: entrega firmada que el comercio verifica › endpoint caído que luego vuelve: 500, 500 y 200 con el MISMO webhook-id; el receptor lo acepta una vez
+   OK     5593 ms  SvixEngine contra svix-server REAL › (3) 410, baja por fallos y convergencia con Svix › un 410 deshabilita el endpoint (gone_410) en Svix y en la tabla; no llegan más intentos ni mensajes nuevos
+   OK       76 ms  SvixEngine contra svix-server REAL › (3) 410, baja por fallos y convergencia con Svix › Svix da de baja el endpoint por fallos continuos (sin 410) ⇒ too_many_failures [el disparador de 120 h se SIMULA con PATCH disabled]
+   OK       80 ms  SvixEngine contra svix-server REAL › (3) 410, baja por fallos y convergencia con Svix › un endpoint deshabilitado aquí que Svix sigue teniendo activo se deshabilita también en Svix
+   OK      158 ms  SvixEngine contra svix-server REAL › (3) 410, baja por fallos y convergencia con Svix › un endpoint de Svix sin fila local (alta revertida) se borra pasada la gracia; con gracia vigente no se toca; los que sí tienen fila quedan
+   OK       48 ms  SvixEngine contra svix-server REAL › (3) 410, baja por fallos y convergencia con Svix › un endpoint local que Svix no tiene se REPORTA (missingInSvix) y no se recrea: el comercio perdería su secreto
+   OK     1032 ms  SvixEngine contra svix-server REAL › (3) 410, baja por fallos y convergencia con Svix › la baja por la API borra el endpoint en Svix: no recibe nada más y repetirla da 404
+   OK     1034 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › LÍMITE: evento sin endpoint, de un tipo no suscripto o de un comercio ajeno ⇒ 0 entregas y NINGÚN mensaje en Svix
+   OK     1154 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › LÍMITE: «*» recibe todos los tipos públicos; un tipo exacto, solo ese
+   OK       35 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › INVÁLIDO: payload un arreglo ⇒ EngineRejectedError(payload_invalid) y nada en Svix
+   OK       23 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › INVÁLIDO: payload una cadena ⇒ EngineRejectedError(payload_invalid) y nada en Svix
+   OK       25 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › INVÁLIDO: payload null ⇒ EngineRejectedError(payload_invalid) y nada en Svix
+   OK       26 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › INVÁLIDO: payload un número ⇒ EngineRejectedError(payload_invalid) y nada en Svix
+   OK       25 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › INVÁLIDO: payload no es JSON ⇒ EngineRejectedError(payload_invalid) y nada en Svix
+   OK       26 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › INVÁLIDO: un eventId que Svix rechaza (257 caracteres) ⇒ EngineRejectedError(rejected_by_engine), definitivo
+   OK       63 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › LÍMITE: el eventId es único POR APLICACIÓN en Svix 1.104.0 (el OpenAPI dice «por entorno»): el mismo eventId en dos comercios crea dos mensajes
+   OK       37 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › INVÁLIDO [Svix SIMULADO: el servidor real no produce este caso]: un 409 cuyo mensaje no está en la aplicación del comercio ⇒ EngineRejectedError(event_id_conflict)
+   OK       38 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › INVÁLIDO [defensa de Svix, la nuestra queda saltada a propósito]: un endpoint que llegó a Svix apuntando a una IP privada, al loopback o a «localhost» NO recibe nada
+   OK        9 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › INVÁLIDO: el ingest convierte un rechazo definitivo del motor en «rejected» (se descarta, no se reintenta) y no deja rastro en el inbox
+   OK       24 ms  SvixEngine contra svix-server REAL › (4) límite e inválido › INVÁLIDO: una URL a la red interna se rechaza con 422 ANTES de tocar Svix (ni aplicación ni endpoint)
+   OK     1534 ms  SvixEngine contra svix-server REAL › (5) resultado ambiguo (CLAUDE.md regla 11): timeout, 5xx o corte NO prueban que no se ejecutó › crear el mensaje: Svix lo creó pero se perdió la respuesta ⇒ se reintenta con el MISMO eventId, el 409 se resuelve y hay UN mensaje y UNA entrega
+   OK      133 ms  SvixEngine contra svix-server REAL › (5) resultado ambiguo (CLAUDE.md regla 11): timeout, 5xx o corte NO prueban que no se ejecutó › crear el mensaje: Svix no responde NUNCA ⇒ el error sube (SvixUnavailableError), no se borra ni anula nada y la reentrega con el mismo eventId lo crea
+   OK        3 ms  SvixEngine contra svix-server REAL › (5) resultado ambiguo (CLAUDE.md regla 11): timeout, 5xx o corte NO prueban que no se ejecutó › un 503 del servidor tampoco es «no existe»: se reintenta y, agotado, sube como ambiguo
+   OK      179 ms  SvixEngine contra svix-server REAL › (5) resultado ambiguo (CLAUDE.md regla 11): timeout, 5xx o corte NO prueban que no se ejecutó › crear el endpoint: se perdió la respuesta ⇒ el 409 del reintento se reconoce como propio (misma clave) y el secreto entregado es el que firma
+   OK       19 ms  SvixEngine contra svix-server REAL › (5) resultado ambiguo (CLAUDE.md regla 11): timeout, 5xx o corte NO prueban que no se ejecutó › crear el endpoint: un uid que YA existe con otra clave es un conflicto real (409), no se adopta
+   OK      126 ms  SvixEngine contra svix-server REAL › (5) resultado ambiguo (CLAUDE.md regla 11): timeout, 5xx o corte NO prueban que no se ejecutó › rotar: se perdió la respuesta ⇒ se comprueba la clave antes de repetir; queda UNA rotación (dos firmas, no tres) y el secreto devuelto es el vigente
+   OK        6 ms  SvixEngine contra svix-server REAL › (5) resultado ambiguo (CLAUDE.md regla 11): timeout, 5xx o corte NO prueban que no se ejecutó › rotar un endpoint que no existe ⇒ 404 definitivo (no se confunde con un resultado ambiguo)
+   OK        6 ms  SvixEngine contra svix-server REAL › (6) autenticación con Svix › un token que Svix no acepta ⇒ 401 definitivo, UNA sola llamada (no se reintenta) y el token no aparece en el error

@@ -1,0 +1,22 @@
+PRUEBA DE CARGA (T-01) — corrida 659fc34d — 2026-10-28T03:18:07.985Z
+Plan: pico 25 rps, rampa 60 s, duración 300 s, 3 clave(s) sk_test_, 2.0 % de pedidos repetidos con la misma clave
+Enviados 6876 (planificados 6750) · con respuesta 6876 · sin respuesta (ambiguos) 0 · descartados por el generador 0
+Estados HTTP: 201×6876
+Latencia de POST /v1/payment_intents: p50 9510 ms · p95 10295 ms · p99 10666 ms · máx 11396 ms
+Retraso de salida del generador: p99 25 ms · máx 133 ms
+Intentos creados 6750: succeeded×1391  failed×75 · colgados 5284 (ej.: pi_4e4ba0526c118c81b30cf2cf, pi_b352258910254c00b613f0c1, pi_00bd9e06a52b0f51c4310877, pi_7a716c5027bbd56f1333f0cb, pi_f8af8d4e664f672ffacabd5f, pi_69a5fcc09ae655feb8e52245, pi_99ee8fe0bf2b232e526b2773, pi_612685f6a7322fa752084a52, pi_9f19fa69e9df30ed22e1cb75, pi_c502f683195c764b3c7f1eed)
+Intentos failed por código: risk_denied×75
+Tiempo hasta terminal: p50 169218 ms · p95 314333 ms · p99 318235 ms
+Ledger: 1391 intentos succeeded revisados · 1508 líneas leídas · asientos duplicados 0 · faltantes 0 · importes distintos 0
+Idempotencia: claves que devolvieron intentos distintos 0
+Saturación (proc, 87 muestras): CPU de la máquina media 90 % / máx 94 % de 4 núcleos · carga del sistema máx 21.5
+Procesos con más CPU (media, 100 % = un núcleo): pay-payments 55 % · pay-edge 25 % · pay-connectors 8 % · pay-ledger 4 % · pay-mockbank 4 %
+
+CRITERIO (escrito antes: docs/trabajo/ola-3/P1/CARGA.md): p99 < 2000 ms · 5xx < 0.1 % · colgados = 0 · doble asiento = 0
+  FALLA     p99 de la creación: objetivo < 2000 ms · observado 10666 ms
+  PASA      errores 5xx: objetivo < 0.100 % · observado 0.000 % (0 de 6876)
+  FALLA     intentos colgados (sin estado terminal a tiempo): objetivo 0 · observado 5284 de 6750
+  PASA      doble asiento / intento duplicado: objetivo 0 · observado 0 asientos duplicados + 0 claves con intentos distintos
+  RESERVA   la máquina estuvo saturada (CPU media 90 %): el resultado mide los límites de ESTA máquina, no el diseño.
+VEREDICTO: NO APRUEBA
+Esta máquina (4 vCPU compartidas, Postgres/NATS/Redis/Temporal/TigerBeetle/Watchman y los 12 servicios en el MISMO host) NO representa el despliegue de producción (Coolify multiservidor, T-01). El resultado sirve para encontrar cuellos de botella y errores de concurrencia, NO para certificar T-01.

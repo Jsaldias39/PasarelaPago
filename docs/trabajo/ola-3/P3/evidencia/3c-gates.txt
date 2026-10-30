@@ -1,0 +1,25 @@
+# typecheck/build/eslint/lint/contracts · 3c (2026-10-28T01:54:26Z)
+$ (cd services/pay-payments && yarn typecheck)
+exit: 0
+$ (cd services/pay-payments && yarn build)
+exit: 0
+$ (cd services/pay-payments && yarn sql:check)
+OK: sql/ddl.sql idéntico a /home/user/pasarelapago/../mantra-core-health-model/SQL/pay/74_pay_payments/ddl.sql
+exit: 0
+$ (cd services/pay-vault && yarn typecheck)
+exit: 0
+$ (cd services/pay-vault && yarn build)
+exit: 0
+$ (cd services/pay-vault && yarn sql:check)
+OK: sql/ddl.sql idéntico a /home/user/pasarelapago/../mantra-core-health-model/SQL/pay/79_pay_vault/ddl.sql
+exit: 0
+$ yarn eslint services/pay-payments services/pay-vault
+exit: 0
+$ yarn lint (raíz, todo el repo)
+exit: 0
+$ yarn contracts:lint
+OK    contracts/asyncapi/merchants-schedules.yaml
+OK    contracts/asyncapi/payments.yaml
+
+13 contrato(s) válido(s)
+exit: 0

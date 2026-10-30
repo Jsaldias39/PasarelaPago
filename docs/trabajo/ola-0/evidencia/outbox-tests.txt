@@ -1,0 +1,24 @@
+$ bash -c 
+ yarn workspace @pay/outbox test --verbose
+ cd contracts/packages/outbox; cp src/nats.ts /tmp/nats.ts.bak; cp src/outbox.ts /tmp/outbox.ts.bak
+ echo; echo "=== mutación 1: sin Nats-Msg-Id (la deduplicación debe fallar)"
+ sed -i "s/{ msgID: event.id, headers: h }/{ headers: h }/" src/nats.ts; yarn test 2>&1 | grep -E "✕|^Tests:"; cp /tmp/nats.ts.bak src/nats.ts
+ echo "=== mutación 2: sin candado de asesoría (dos relés deben desordenar o duplicar)"
+ sed -i "s/if (!lock.rows\[0\]?.ok) {/if (false) {/" src/outbox.ts; yarn test 2>&1 | grep -E "✕|^Tests:"; cp /tmp/outbox.ts.bak src/outbox.ts
+ echo "=== restaurado"; yarn test 2>&1 | grep -E "^Tests:"
+# 2026-10-27T15:29:35Z
+
+Test Suites: 2 passed, 2 total
+Tests:       19 passed, 19 total
+Snapshots:   0 total
+Time:        1.945 s, estimated 2 s
+Ran all test suites.
+
+=== mutación 1: sin Nats-Msg-Id (la deduplicación debe fallar)
+Tests:       1 failed, 18 passed, 19 total
+=== mutación 2: sin candado de asesoría (dos relés deben desordenar o duplicar)
+Tests:       1 failed, 18 passed, 19 total
+=== restaurado
+Tests:       19 passed, 19 total
+
+# exit=0

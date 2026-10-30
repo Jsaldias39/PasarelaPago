@@ -1,0 +1,46 @@
+# pay-vault yarn test --maxWorkers=2 (corrida 1) · 3c (2026-10-28T01:56:10Z)
+(node:9925) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9924) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[32m[Nest] 9924  - [39m10/28/2026, 1:56:20 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mRootTestModule dependencies initialized[39m
+[32m[Nest] 9924  - [39m10/28/2026, 1:56:20 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mProbeModule dependencies initialized[39m
+[32m[Nest] 9924  - [39m10/28/2026, 1:56:20 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mProbeController {/probe}:[39m
+[32m[Nest] 9924  - [39m10/28/2026, 1:56:20 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/probe/ping, GET} route[39m
+[32m[Nest] 9924  - [39m10/28/2026, 1:56:20 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/probe/slow, GET} route[39m
+[32m[Nest] 9924  - [39m10/28/2026, 1:56:20 AM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m
+[31m[Nest] 9924  - [39m10/28/2026, 1:56:20 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[33m[Nest] 9924  - [39m10/28/2026, 1:56:21 AM [33m   WARN[39m [38;5;3m[PgPool] [39mObject(1) {
+  err: [32m'error'[39m
+}
+[33m[Nest] 9924  - [39m10/28/2026, 1:56:21 AM [33m   WARN[39m [38;5;3m[PgPool] [39m[33mConexión ociosa cortada por Postgres; el pool la repone[39m
+[31m[Nest] 9925  - [39m10/28/2026, 1:56:22 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+{"level":30,"time":1793152584383,"pid":9925,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":1,"msg":"request completed"}
+[31m[Nest] 9925  - [39m10/28/2026, 1:56:24 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'33e2d662-b5a2-4065-b0ff-9593dddd2700'[39m
+}
+Error no controlado
+{"level":30,"time":1793152584390,"pid":9925,"hostname":"vm","req":{"id":"33e2d662-b5a2-4065-b0ff-9593dddd2700","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":1,"msg":"request errored"}
+{"level":30,"time":1793152584396,"pid":9925,"hostname":"vm","req":{"id":"673adcca-df0c-429d-9d43-3bdbf6fc3fbb","method":"GET","url":"/:x"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+[31m[Nest] 9925  - [39m10/28/2026, 1:56:26 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
+
+Test Suites: 11 passed, 11 total
+Tests:       129 passed, 129 total
+Snapshots:   0 total
+Time:        16.24 s
+Ran all test suites.
+exit: 0

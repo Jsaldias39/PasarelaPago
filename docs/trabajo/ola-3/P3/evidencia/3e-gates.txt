@@ -1,0 +1,9 @@
+# typecheck/build/eslint (código final de assessRisk con cribado no disponible) · 3e (2026-10-28T03:50:08Z)
+$ (cd services/pay-payments && yarn typecheck)
+exit: 0
+$ (cd services/pay-payments && yarn build)
+exit: 0
+$ yarn eslint services/pay-payments services/pay-vault
+exit: 0
+$ yarn lint (raíz)
+exit: 0

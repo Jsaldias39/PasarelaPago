@@ -1,0 +1,84 @@
+### corrida 1 pay-merchants
+(node:26370) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:26370) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:26371) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:26371) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+{"level":30,"time":1793140567769,"pid":26370,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":8,"msg":"request completed"}
+[31m[Nest] 26370  - [39m10/27/2026, 10:36:07 PM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'c4280a08-a0f6-408d-b42d-6fc0cd7f845f'[39m
+}
+Error no controlado
+{"level":30,"time":1793140567777,"pid":26370,"hostname":"vm","req":{"id":"c4280a08-a0f6-408d-b42d-6fc0cd7f845f","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":2,"msg":"request errored"}
+{"level":30,"time":1793140567783,"pid":26370,"hostname":"vm","req":{"id":"ea622aaa-e464-4d17-be5c-363c17271562","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+
+Test Suites: 13 passed, 13 total
+Tests:       163 passed, 163 total
+Snapshots:   0 total
+Time:        20.499 s
+Ran all test suites.
+### corrida 1 pay-schedules
+{"level":30,"time":1793140598939,"pid":28242,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":2,"msg":"request completed"}
+[31m[Nest] 28242  - [39m10/27/2026, 10:36:38 PM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'f3cfe6b9-a295-4735-b05f-8fa8bb2e430f'[39m
+}
+Error no controlado
+{"level":30,"time":1793140598945,"pid":28242,"hostname":"vm","req":{"id":"f3cfe6b9-a295-4735-b05f-8fa8bb2e430f","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":2,"msg":"request errored"}
+{"level":30,"time":1793140598950,"pid":28242,"hostname":"vm","req":{"id":"bf8d8026-49d5-4256-a1d5-5b1b0b099ad3","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+
+Test Suites: 11 passed, 11 total
+Tests:       170 passed, 170 total
+Snapshots:   0 total
+Time:        29.196 s, estimated 35 s
+Ran all test suites.
+### corrida 2 pay-merchants
+(node:30521) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:30521) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:30521) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listening listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(node:30521) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+{"level":30,"time":1793140623627,"pid":30521,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":2,"msg":"request completed"}
+[31m[Nest] 30521  - [39m10/27/2026, 10:37:03 PM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'bbd771d2-6969-411e-81c6-4fff95b26136'[39m
+}
+Error no controlado
+{"level":30,"time":1793140623639,"pid":30521,"hostname":"vm","req":{"id":"bbd771d2-6969-411e-81c6-4fff95b26136","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":3,"msg":"request errored"}
+{"level":30,"time":1793140623654,"pid":30521,"hostname":"vm","req":{"id":"0bd791ee-e514-405c-801d-513c6cd6bf2e","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+
+Test Suites: 13 passed, 13 total
+Tests:       163 passed, 163 total
+Snapshots:   0 total
+Time:        23.712 s
+Ran all test suites.
+### corrida 2 pay-schedules
+{"level":30,"time":1793140650058,"pid":31856,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":2,"msg":"request completed"}
+[31m[Nest] 31856  - [39m10/27/2026, 10:37:30 PM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'20c10bad-d7f1-462c-bddb-1bff99cab4f9'[39m
+}
+Error no controlado
+{"level":30,"time":1793140650066,"pid":31856,"hostname":"vm","req":{"id":"20c10bad-d7f1-462c-bddb-1bff99cab4f9","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":4,"msg":"request errored"}
+{"level":30,"time":1793140650070,"pid":31856,"hostname":"vm","req":{"id":"38bf12dc-cf66-423a-8a26-47a73243725c","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+
+Test Suites: 11 passed, 11 total
+Tests:       170 passed, 170 total
+Snapshots:   0 total
+Time:        25.489 s, estimated 29 s
+Ran all test suites.
+### corrida 1 pay-risk
+FAIL test/contract-conformance.spec.ts
+  ● conformidad con internal-risk-v1.yaml › un pedido con TODOS los campos del esquema `AssessmentCreate` vigente (screening.name + entity_type del pagador) cumple el contrato y se acepta; sin el nombre del comercio (D-29) queda en review
+  ● conformidad con internal-risk-v1.yaml › D-29: lo ÚNICO que el servicio acepta de más que el contrato vigente es el nombre legal del comercio (merchant_name, merchant_entity_type; PR-17)
+FAIL test/latency.spec.ts (55.923 s)
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas
+Test Suites: 2 failed, 11 passed, 13 total
+Tests:       3 failed, 194 passed, 197 total
+### corrida 2 pay-risk
+FAIL test/contract-conformance.spec.ts
+  ● conformidad con internal-risk-v1.yaml › un pedido con TODOS los campos del esquema `AssessmentCreate` vigente (screening.name + entity_type del pagador) cumple el contrato y se acepta; sin el nombre del comercio (D-29) queda en review
+  ● conformidad con internal-risk-v1.yaml › D-29: lo ÚNICO que el servicio acepta de más que el contrato vigente es el nombre legal del comercio (merchant_name, merchant_entity_type; PR-17)
+FAIL test/latency.spec.ts (61.113 s)
+  ● POST /assessments: p99 < 300 ms medido (P5.H2.M4) contra el Watchman REAL (v2-static) y Postgres real › secuencial, 1 cliente, 3 búsquedas en Watchman (comercio + pagador sin tipo: persona y empresa): ≥ 200 llamadas
+Test Suites: 2 failed, 11 passed, 13 total
+Tests:       3 failed, 194 passed, 197 total

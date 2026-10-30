@@ -1,0 +1,36 @@
+## services/pay-connectors $ yarn typecheck
+exit=0
+
+## services/pay-connectors $ yarn build
+exit=0
+
+## services/pay-connectors $ yarn test
+}
+Error no controlado
+
+Test Suites: 15 passed, 15 total
+Tests:       519 passed, 519 total
+Snapshots:   0 total
+Time:        35.075 s
+Ran all test suites.
+exit=0
+
+## services/pay-qr $ yarn typecheck
+exit=0
+
+## services/pay-qr $ yarn build
+exit=0
+
+## services/pay-qr $ yarn test
+}
+Error no controlado
+
+Test Suites: 3 passed, 3 total
+Tests:       44 passed, 44 total
+Snapshots:   0 total
+Time:        5.035 s, estimated 6 s
+Ran all test suites.
+exit=0
+
+## raíz $ yarn eslint services/pay-connectors services/pay-qr
+exit=0

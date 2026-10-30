@@ -1,0 +1,14 @@
+$ bash -c docker compose -f platform/compose.yml config -q && echo "compose config: OK" && docker compose -f platform/compose.yml ps --format "table {{.Service}}\t{{.State}}\t{{.Health}}\t{{.Ports}}"
+# 2026-10-27T15:28:25Z
+
+compose config: OK
+SERVICE       STATE     <no value>   PORTS
+jaeger        running   healthy      5775/udp, 5778/tcp, 9411/tcp, 14250/tcp, 6831-6832/udp, 14268/tcp, 127.0.0.1:54317->4317/tcp, 127.0.0.1:54318->4318/tcp, 127.0.0.1:54686->16686/tcp
+nats          running   healthy      6222/tcp, 127.0.0.1:54222->4222/tcp, 127.0.0.1:54822->8222/tcp
+postgres      running   healthy      127.0.0.1:54321->5432/tcp
+redis         running   healthy      127.0.0.1:54379->6379/tcp
+temporal      running   healthy      6933-6935/tcp, 6939/tcp, 7234-7235/tcp, 7239/tcp, 127.0.0.1:54233->7233/tcp
+temporal-db   running   healthy      5432/tcp
+watchman      running   healthy      9094/tcp, 127.0.0.1:54084->8084/tcp
+
+# exit=0

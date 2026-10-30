@@ -1,0 +1,51 @@
+(node:32334) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:32333) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[31m[Nest] 32334  - [39m10/28/2026, 3:01:53 AM [31m  ERROR[39m [38;5;3m[ReconciliationService] [39mObject(2) {
+  run: [32m'rr_qjwtunprittb22dy6yqe'[39m,
+  err: [32m'TypeError'[39m
+}
+La corrida de conciliación falló por un error inesperado
+[31m[Nest] 32333  - [39m10/28/2026, 3:02:09 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(3) {
+  payout: [32m'po_vjxh454yqz727dczepsw'[39m,
+  hold: [32m'hd_f4549bcdcd52b73ead65'[39m,
+  hold_status: [32m'expired'[39m
+}
+El riel pagó pero la retención del ledger no se pudo confirmar
+[31m[Nest] 32334  - [39m10/28/2026, 3:02:34 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(2) {
+  payout: [32m'po_4jotj7q2yehjxhexzw7p'[39m,
+  reason: [32m'RailAmbiguousError'[39m
+}
+ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva
+[31m[Nest] 32334  - [39m10/28/2026, 3:02:34 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(2) {
+  payout: [32m'po_4jotj7q2yehjxhexzw7p'[39m,
+  reason: [32m'RailAmbiguousError'[39m
+}
+ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva
+[31m[Nest] 32334  - [39m10/28/2026, 3:02:37 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[31m[Nest] 32333  - [39m10/28/2026, 3:02:44 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+{"level":30,"time":1793156567019,"pid":32334,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":2,"msg":"request completed"}
+[31m[Nest] 32334  - [39m10/28/2026, 3:02:47 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'abf81653-0789-49a8-b70a-d8e7dce61eaa'[39m
+}
+Error no controlado
+{"level":30,"time":1793156567026,"pid":32334,"hostname":"vm","req":{"id":"abf81653-0789-49a8-b70a-d8e7dce61eaa","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":2,"msg":"request errored"}
+{"level":30,"time":1793156567035,"pid":32334,"hostname":"vm","req":{"id":"8c684048-1fa1-4455-8250-b07f79de91be","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+
+Test Suites: 30 passed, 30 total
+Tests:       572 passed, 572 total
+Snapshots:   0 total
+Time:        62.645 s, estimated 79 s
+Ran all test suites.
+Test results written to: ../../../../../tmp/claude-0/-home-user/e2a1ca80-8ad4-54a7-8e83-0b9ce0655bff/scratchpad/3e-pay-settlement-run1.json
+rc=0
