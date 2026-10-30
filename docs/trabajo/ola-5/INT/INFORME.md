@@ -1,4 +1,4 @@
-> **AVANCE INT: 1 / 5 — 20,0 %.** `INT.H1.M3` está `HECHO` (receptor probado contra el sandbox real y contra PostgreSQL real). `INT.H1.M2` sigue `A MEDIAS` (probada contra dobles; el cliente, además, contra el sandbox real; faltan las confirmaciones 1–4 y la persistencia del camino de cobro). `M1`, `M4` y `M5` están `BLOQUEADO` por algo externo.
+> **AVANCE INT: 0 / 5 — 0,0 %.** `INT.H1.M2` e `INT.H1.M3` están `A MEDIAS`. La revisión independiente ([REVISION-API-INT.md](../integracion/revision/REVISION-API-INT.md)) halló un BLOQUEANTE para encender el flag (B1: bajo RLS el receptor no ve nada) y tres MAYOR (M1 deuda sin sesión de checkout, M2 sin compuerta previa contra la deuda, M3 BOLA en `processTransaction`). Con el flag apagado, que es el defecto, no se activa nada de esto. Corrección en curso. `M1`, `M4` y `M5` están `BLOQUEADO` por algo externo.
 
 # Informe INT — la API cobra por la pasarela (M2 + M3)
 

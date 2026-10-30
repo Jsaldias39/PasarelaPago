@@ -1,6 +1,6 @@
 # Plan maestro — Pasarela de pagos ALOVIDA
 
-> **AVANCE: 91 / 109 — 83,5 %.** Ola 3 (endurecimiento) cerrada en esta máquina de 4 vCPU: los 12 servicios con typecheck, build y tests en verde, y
+> **AVANCE: 90 / 109 — 82,6 %.** Ola 3 (endurecimiento) cerrada en esta máquina de 4 vCPU: los 12 servicios con typecheck, build y tests en verde, y
 > la suite e2e completa 30 suites / 218 tests con E1–E8 (E3 y E7 incluidos) en un stack real (Postgres, NATS, Redis, Temporal, TigerBeetle, Watchman):
 > peldaño **`REGRESSION_VERIFIED`** para lo que cubre esa suite ([corrida](../trabajo/ola-3/integracion/evidencia/e2e-corrida-8-completa.txt)).
 > Carga: APRUEBA a 5 rps y NO APRUEBA a 10 y 25 rps por saturación del host, con las invariantes de dinero intactas
