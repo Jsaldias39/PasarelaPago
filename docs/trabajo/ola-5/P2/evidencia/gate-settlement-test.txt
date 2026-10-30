@@ -1,1 +1,276 @@
 $ cd services/pay-settlement && yarn test   (2026-10-30T04:40:05Z)
+[31m[Nest] 19035  - [39m10/30/2026, 4:42:02 AM [31m  ERROR[39m [38;5;3m[ReconciliationService] [39mObject(2) {
+  run: [32m'rr_dfw5tk3dy3vkogugr646'[39m,
+  err: [32m'TypeError'[39m
+}
+La corrida de conciliación falló por un error inesperado
+[31m[Nest] 19034  - [39m10/30/2026, 4:42:04 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(3) {
+  payout: [32m'po_ofpmgqml6nom3t3taamn'[39m,
+  hold: [32m'hd_9213cf43480f1ad9ba4d'[39m,
+  hold_status: [32m'expired'[39m
+}
+El riel pagó pero la retención del ledger no se pudo confirmar
+[31m[Nest] 19035  - [39m10/30/2026, 4:42:40 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(2) {
+  payout: [32m'po_y2bhqhe2eygmhayhxmxd'[39m,
+  reason: [32m'RailAmbiguousError'[39m
+}
+ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva
+[31m[Nest] 19035  - [39m10/30/2026, 4:42:40 AM [31m  ERROR[39m [38;5;3m[PayoutService] [39mObject(2) {
+  payout: [32m'po_y2bhqhe2eygmhayhxmxd'[39m,
+  reason: [32m'RailAmbiguousError'[39m
+}
+ESCALAR: no se pudo saber si el riel pagó; la retención sigue viva
+[31m[Nest] 19034  - [39m10/30/2026, 4:42:41 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+[31m[Nest] 19035  - [39m10/30/2026, 4:42:52 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [90mundefined[39m
+}
+Error no controlado
+FAIL test/deployment.spec.ts
+  ● arranque de la aplicación › live con colaboradores reales (clientes HTTP, riel bancario, conector de verdad): arranca
+
+    IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live (mínimo 32 bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar
+
+      35 |   if (raw === undefined || raw === '') {
+      36 |     if (isDevMode(env)) return Buffer.from(DEV_MASK_KEY, 'utf8');
+    > 37 |     throw new Error(`${MASK_KEY_ENV} es obligatoria bajo PAY_MODE=live (mínimo ${MIN_MASK_KEY_BYTES} bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar`);
+         |           ^
+      38 |   }
+      39 |   const key = Buffer.from(raw, 'utf8');
+      40 |   if (key.length < MIN_MASK_KEY_BYTES) throw new Error(`${MASK_KEY_ENV} inválida: mide ${key.length} bytes y el mínimo es ${MIN_MASK_KEY_BYTES}`);
+
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:37:11)
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:47:3)
+      at new assertIdempotencyMaskConfig (../../contracts/packages/idempotency/src/index.ts:121:5)
+      at new NettingService (src/settlement/netting.service.ts:57:24)
+      at TestingInjector.instantiateClass (../../node_modules/@nestjs/core/injector/injector.js:453:19)
+      at callback (../../node_modules/@nestjs/core/injector/injector.js:71:45)
+      at TestingInjector.resolveConstructorParams (../../node_modules/@nestjs/core/injector/injector.js:196:24)
+      at TestingInjector.loadInstance (../../node_modules/@nestjs/core/injector/injector.js:76:13)
+      at TestingInjector.loadProvider (../../node_modules/@nestjs/core/injector/injector.js:115:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 11)
+      at TestingInstanceLoader.createInstancesOfProviders (../../node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 9)
+      at TestingInstanceLoader.createInstances (../../node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile (../../node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at boot (test/deployment.spec.ts:69:18)
+      at Object.<anonymous> (test/deployment.spec.ts:93:17)
+
+  ● arranque de la aplicación › live con un ledger doble: NO arranca
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /cliente del ledger/
+    Received message: "IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live (mínimo 32 bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar"
+
+          35 |   if (raw === undefined || raw === '') {
+          36 |     if (isDevMode(env)) return Buffer.from(DEV_MASK_KEY, 'utf8');
+        > 37 |     throw new Error(`${MASK_KEY_ENV} es obligatoria bajo PAY_MODE=live (mínimo ${MIN_MASK_KEY_BYTES} bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar`);
+             |           ^
+          38 |   }
+          39 |   const key = Buffer.from(raw, 'utf8');
+          40 |   if (key.length < MIN_MASK_KEY_BYTES) throw new Error(`${MASK_KEY_ENV} inválida: mide ${key.length} bytes y el mínimo es ${MIN_MASK_KEY_BYTES}`);
+
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:37:11)
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:47:3)
+      at new assertIdempotencyMaskConfig (../../contracts/packages/idempotency/src/index.ts:121:5)
+      at new NettingService (src/settlement/netting.service.ts:57:24)
+      at TestingInjector.instantiateClass (../../node_modules/@nestjs/core/injector/injector.js:453:19)
+      at callback (../../node_modules/@nestjs/core/injector/injector.js:71:45)
+      at TestingInjector.resolveConstructorParams (../../node_modules/@nestjs/core/injector/injector.js:196:24)
+      at TestingInjector.loadInstance (../../node_modules/@nestjs/core/injector/injector.js:76:13)
+      at TestingInjector.loadProvider (../../node_modules/@nestjs/core/injector/injector.js:115:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:56:13
+                at async Promise.all (index 11)
+      at TestingInstanceLoader.createInstancesOfProviders (../../node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:40:13
+                at async Promise.all (index 9)
+      at TestingInstanceLoader.createInstances (../../node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile (../../node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at boot (test/deployment.spec.ts:69:18)
+      at test/deployment.spec.ts:106:5
+      at Object.toThrow (../../node_modules/expect/build/index.js:2155:20)
+      at toThrow (test/deployment.spec.ts:106:125)
+
+  ● arranque de la aplicación › live con un conector doble: NO arranca
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /cliente de conectores/
+    Received message: "IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live (mínimo 32 bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar"
+
+          35 |   if (raw === undefined || raw === '') {
+          36 |     if (isDevMode(env)) return Buffer.from(DEV_MASK_KEY, 'utf8');
+        > 37 |     throw new Error(`${MASK_KEY_ENV} es obligatoria bajo PAY_MODE=live (mínimo ${MIN_MASK_KEY_BYTES} bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar`);
+             |           ^
+          38 |   }
+          39 |   const key = Buffer.from(raw, 'utf8');
+          40 |   if (key.length < MIN_MASK_KEY_BYTES) throw new Error(`${MASK_KEY_ENV} inválida: mide ${key.length} bytes y el mínimo es ${MIN_MASK_KEY_BYTES}`);
+
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:37:11)
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:47:3)
+      at new assertIdempotencyMaskConfig (../../contracts/packages/idempotency/src/index.ts:121:5)
+      at new PayoutService (src/settlement/payout.service.ts:41:24)
+      at TestingInjector.instantiateClass (../../node_modules/@nestjs/core/injector/injector.js:453:19)
+      at callback (../../node_modules/@nestjs/core/injector/injector.js:71:45)
+      at TestingInjector.resolveConstructorParams (../../node_modules/@nestjs/core/injector/injector.js:196:24)
+      at TestingInjector.loadInstance (../../node_modules/@nestjs/core/injector/injector.js:76:13)
+      at TestingInjector.loadProvider (../../node_modules/@nestjs/core/injector/injector.js:115:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:56:13
+                at async Promise.all (index 10)
+      at TestingInstanceLoader.createInstancesOfProviders (../../node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:40:13
+                at async Promise.all (index 9)
+      at TestingInstanceLoader.createInstances (../../node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile (../../node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at boot (test/deployment.spec.ts:69:18)
+      at test/deployment.spec.ts:106:5
+      at Object.toThrow (../../node_modules/expect/build/index.js:2155:20)
+      at toThrow (test/deployment.spec.ts:106:125)
+
+{"level":30,"time":1793335375598,"pid":19034,"hostname":"vm","req":{"id":"req-abcdef-123","method":"GET","url":"/probe/problem"},"res":{"statusCode":422},"responseTime":2,"msg":"request completed"}
+[31m[Nest] 19034  - [39m10/30/2026, 4:42:55 AM [31m  ERROR[39m [38;5;3m[ProblemFilter] [39mObject(2) {
+  err: [32m'Error'[39m,
+  request_id: [32m'348e4cc8-2a42-42dd-a2d1-56165a79a6b1'[39m
+}
+Error no controlado
+{"level":30,"time":1793335375605,"pid":19034,"hostname":"vm","req":{"id":"348e4cc8-2a42-42dd-a2d1-56165a79a6b1","method":"GET","url":"/probe/boom"},"res":{"statusCode":500},"err":{"type":"Error","message":"failed with status code 500","stack":"Error: failed with status code 500\n    at onResFinished (/home/user/pasarelapago/node_modules/pino-http/logger.js:115:39)\n    at ServerResponse.onResponseComplete (/home/user/pasarelapago/node_modules/pino-http/logger.js:178:14)\n    at ServerResponse.emit (node:events:531:35)\n    at onFinish (node:_http_outgoing:1082:10)\n    at callback (node:internal/streams/writable:766:21)\n    at afterWrite (node:internal/streams/writable:710:5)\n    at afterWriteTick (node:internal/streams/writable:696:10)\n    at processTicksAndRejections (node:internal/process/task_queues:89:21)"},"responseTime":2,"msg":"request errored"}
+{"level":30,"time":1793335375610,"pid":19034,"hostname":"vm","req":{"id":"ae275835-5472-4946-8962-c244794b3a4e","method":"GET","url":"/no-existe"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+
+Summary of all failing tests
+FAIL test/deployment.spec.ts
+  ● arranque de la aplicación › live con colaboradores reales (clientes HTTP, riel bancario, conector de verdad): arranca
+
+    IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live (mínimo 32 bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar
+
+      35 |   if (raw === undefined || raw === '') {
+      36 |     if (isDevMode(env)) return Buffer.from(DEV_MASK_KEY, 'utf8');
+    > 37 |     throw new Error(`${MASK_KEY_ENV} es obligatoria bajo PAY_MODE=live (mínimo ${MIN_MASK_KEY_BYTES} bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar`);
+         |           ^
+      38 |   }
+      39 |   const key = Buffer.from(raw, 'utf8');
+      40 |   if (key.length < MIN_MASK_KEY_BYTES) throw new Error(`${MASK_KEY_ENV} inválida: mide ${key.length} bytes y el mínimo es ${MIN_MASK_KEY_BYTES}`);
+
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:37:11)
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:47:3)
+      at new assertIdempotencyMaskConfig (../../contracts/packages/idempotency/src/index.ts:121:5)
+      at new NettingService (src/settlement/netting.service.ts:57:24)
+      at TestingInjector.instantiateClass (../../node_modules/@nestjs/core/injector/injector.js:453:19)
+      at callback (../../node_modules/@nestjs/core/injector/injector.js:71:45)
+      at TestingInjector.resolveConstructorParams (../../node_modules/@nestjs/core/injector/injector.js:196:24)
+      at TestingInjector.loadInstance (../../node_modules/@nestjs/core/injector/injector.js:76:13)
+      at TestingInjector.loadProvider (../../node_modules/@nestjs/core/injector/injector.js:115:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 11)
+      at TestingInstanceLoader.createInstancesOfProviders (../../node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 9)
+      at TestingInstanceLoader.createInstances (../../node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile (../../node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at boot (test/deployment.spec.ts:69:18)
+      at Object.<anonymous> (test/deployment.spec.ts:93:17)
+
+  ● arranque de la aplicación › live con un ledger doble: NO arranca
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /cliente del ledger/
+    Received message: "IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live (mínimo 32 bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar"
+
+          35 |   if (raw === undefined || raw === '') {
+          36 |     if (isDevMode(env)) return Buffer.from(DEV_MASK_KEY, 'utf8');
+        > 37 |     throw new Error(`${MASK_KEY_ENV} es obligatoria bajo PAY_MODE=live (mínimo ${MIN_MASK_KEY_BYTES} bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar`);
+             |           ^
+          38 |   }
+          39 |   const key = Buffer.from(raw, 'utf8');
+          40 |   if (key.length < MIN_MASK_KEY_BYTES) throw new Error(`${MASK_KEY_ENV} inválida: mide ${key.length} bytes y el mínimo es ${MIN_MASK_KEY_BYTES}`);
+
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:37:11)
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:47:3)
+      at new assertIdempotencyMaskConfig (../../contracts/packages/idempotency/src/index.ts:121:5)
+      at new NettingService (src/settlement/netting.service.ts:57:24)
+      at TestingInjector.instantiateClass (../../node_modules/@nestjs/core/injector/injector.js:453:19)
+      at callback (../../node_modules/@nestjs/core/injector/injector.js:71:45)
+      at TestingInjector.resolveConstructorParams (../../node_modules/@nestjs/core/injector/injector.js:196:24)
+      at TestingInjector.loadInstance (../../node_modules/@nestjs/core/injector/injector.js:76:13)
+      at TestingInjector.loadProvider (../../node_modules/@nestjs/core/injector/injector.js:115:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:56:13
+                at async Promise.all (index 11)
+      at TestingInstanceLoader.createInstancesOfProviders (../../node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:40:13
+                at async Promise.all (index 9)
+      at TestingInstanceLoader.createInstances (../../node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile (../../node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at boot (test/deployment.spec.ts:69:18)
+      at test/deployment.spec.ts:106:5
+      at Object.toThrow (../../node_modules/expect/build/index.js:2155:20)
+      at toThrow (test/deployment.spec.ts:106:125)
+
+  ● arranque de la aplicación › live con un conector doble: NO arranca
+
+    expect(received).rejects.toThrow(expected)
+
+    Expected pattern: /cliente de conectores/
+    Received message: "IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live (mínimo 32 bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar"
+
+          35 |   if (raw === undefined || raw === '') {
+          36 |     if (isDevMode(env)) return Buffer.from(DEV_MASK_KEY, 'utf8');
+        > 37 |     throw new Error(`${MASK_KEY_ENV} es obligatoria bajo PAY_MODE=live (mínimo ${MIN_MASK_KEY_BYTES} bytes, secreto de despliegue): sin ella una Idempotency-Key con forma de PAN no se puede enmascarar`);
+             |           ^
+          38 |   }
+          39 |   const key = Buffer.from(raw, 'utf8');
+          40 |   if (key.length < MIN_MASK_KEY_BYTES) throw new Error(`${MASK_KEY_ENV} inválida: mide ${key.length} bytes y el mínimo es ${MIN_MASK_KEY_BYTES}`);
+
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:37:11)
+      at resolveMaskKey (../../contracts/packages/idempotency/src/mask-key.ts:47:3)
+      at new assertIdempotencyMaskConfig (../../contracts/packages/idempotency/src/index.ts:121:5)
+      at new PayoutService (src/settlement/payout.service.ts:41:24)
+      at TestingInjector.instantiateClass (../../node_modules/@nestjs/core/injector/injector.js:453:19)
+      at callback (../../node_modules/@nestjs/core/injector/injector.js:71:45)
+      at TestingInjector.resolveConstructorParams (../../node_modules/@nestjs/core/injector/injector.js:196:24)
+      at TestingInjector.loadInstance (../../node_modules/@nestjs/core/injector/injector.js:76:13)
+      at TestingInjector.loadProvider (../../node_modules/@nestjs/core/injector/injector.js:115:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:56:13
+                at async Promise.all (index 10)
+      at TestingInstanceLoader.createInstancesOfProviders (../../node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at ../../node_modules/@nestjs/core/injector/instance-loader.js:40:13
+                at async Promise.all (index 9)
+      at TestingInstanceLoader.createInstances (../../node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies (../../node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile (../../node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at boot (test/deployment.spec.ts:69:18)
+      at test/deployment.spec.ts:106:5
+      at Object.toThrow (../../node_modules/expect/build/index.js:2155:20)
+      at toThrow (test/deployment.spec.ts:106:125)
+
+
+Test Suites: 1 failed, 30 passed, 31 total
+Tests:       3 failed, 577 passed, 580 total
+Snapshots:   0 total
+Time:        61.837 s
+Ran all test suites.
+exit=1
+fin 2026-10-30T04:42:56Z
