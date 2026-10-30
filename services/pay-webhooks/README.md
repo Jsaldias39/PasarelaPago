@@ -32,9 +32,19 @@ evidencia: `docs/trabajo/ola-5/P1/INFORME.md`.
   reconciliador **solo borra huérfanos que lleven su marca**. Sandbox: `sandbox` si no se declara. **Live: obligatorio** y distinto de `sandbox`
   (`^[a-z0-9][a-z0-9-]{1,31}$`; p. ej. `prod-bo`). Dos despliegues que comparten un Svix deben tener espacios distintos. Los endpoints anteriores a la marca no la
   tienen y **no se borran nunca**.
-- **`WEBHOOKS_SVIX_MAX_ORPHAN_DELETES`** (defecto 5): tope de huérfanos que una pasada borra. Si hay más candidatos (base restaurada, Svix compartido) **no se borra
-  ninguno**, se registra un aviso con `alert: true` (solo cifras) y se cuenta en `GET /health/ready` → `delivery_engine.orphan_guard` (`cap_trips`, `withheld_total`).
+- **`WEBHOOKS_SVIX_ORPHAN_ACTION`** (RE-REVISION-DINERO F-B1; `disable` por defecto): un huérfano propio (con la marca, sin fila local, pasada la gracia) se **DESHABILITA** en Svix
+  (reversible: el endpoint, su URL y su secreto siguen allí) con un log `alert: true`; `delete` lo borra (irreversible: el secreto se pierde) y bajo `live` exige además
+  `WEBHOOKS_SVIX_ORPHAN_DELETE_ACK=irreversible`. Tras restaurar la base, los endpoints creados después del punto de restauración parecen huérfanos y son legítimos: por eso el
+  borrado no es el defecto. Reactivar uno (`pay_orphan_review=released`) y re-adoptarlo: `docs/runbooks/sandbox-a-produccion.md` §7.2.
+  `GET /health/ready` → `delivery_engine.orphan_guard`: `action`, `disabled_total`, `held_disabled`, `cap_trips`, `withheld_total`. **Limitación (F-B4):** solo se recorren los comercios
+  con al menos un endpoint local; los huérfanos de un comercio sin ninguno no se miran.
+- **`WEBHOOKS_SVIX_MAX_ORPHAN_DELETES`** (defecto 5; solo rige con `delete`): tope de huérfanos que una pasada borra. Si hay más candidatos (base restaurada, Svix compartido) **no se borra
+  ninguno**, se deshabilitan, se registra un aviso con `alert: true` (solo cifras) y se cuenta en `delivery_engine.orphan_guard` (`cap_trips`, `withheld_total`).
   `0` desactiva el borrado. Si `cap_trips` > 0, hay que mirar por qué antes de subir el tope.
+- **Eventos sin tope de entregas (F-B2):** el consumidor durable usa `max_deliver: -1` y una espera creciente fijada por el código (2 s … 5 min); un evento con ≥ 10 entregas fallidas deja un
+  log `alert: true`, y `events.max_delivery_count_seen` lo expone en `/health/ready`. Un durable creado con `max_deliver: 20` se migra al arrancar. Ver el runbook §7.3.
+- **Guardianes de solo-agregar (F-D1):** `GET /health/ready` → `checks.append_only_guards: { ok, missing[] }` (triggers `webhook_delivery_attempts_immutable` y `_no_truncate`); bajo `live`,
+  `ok:false` ⇒ 503. Reaplicar el DDL idempotente: runbook §7.1.
 - **`WEBHOOKS_SVIX_CLOCK_MARGIN_SECONDS`** (defecto 60): desfase tolerado entre el reloj de este servicio y el de Svix; la gracia efectiva de un huérfano es
   `WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES` + este margen. La gracia no puede ser menor que el peor caso de un alta (`ensureEventType` × tipos + `ensureApp` +
   `createEndpoint` + `getEndpointKey` + borrado compensatorio, cada uno agotando `WEBHOOKS_SVIX_MAX_ATTEMPTS` × `WEBHOOKS_SVIX_TIMEOUT_MS`): si lo es, no arranca.

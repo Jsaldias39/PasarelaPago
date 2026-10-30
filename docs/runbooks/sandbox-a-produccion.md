@@ -113,6 +113,29 @@ Todo lo de esta sección se ejercitó contra Postgres, NATS 2.10 y svix-server 1
 - **Reaplicar** (idempotente: `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER`, y `CREATE OR REPLACE FUNCTION forbid_mutation()`): ejecutar el `sql/ddl.sql` vendorizado del servicio contra su base con el rol dueño de las tablas, p. ej. `psql "$DATABASE_URL" -f services/pay-webhooks/sql/ddl.sql`. Es seguro sobre una base con datos: las demás sentencias son `CREATE … IF NOT EXISTS`/`DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT` (que revalida las filas). Después, `GET /health/ready` → `ok:true` sin reiniciar el servicio. Probado: `services/pay-webhooks/test/append-only-guards.spec.ts` (base creada con el DDL anterior ⇒ `ok:false`; reaplicar ⇒ `ok:true`).
 - Un trigger apagado con `ALTER TABLE … DISABLE TRIGGER` cuenta como ausente (`tgenabled` distinto de `O`/`A`), y uno con el nombre esperado pero otra función u otro evento, también.
 
+**Los otros cuatro servicios (`pay-ledger`, `pay-settlement`, `pay-vault`, `pay-connectors`) — qué comprueban y cómo se aplica sin sorpresas**
+
+| Servicio | Tablas con guardián (`<tabla>_immutable` + `<tabla>_no_truncate`) | `missing` de una base vieja |
+|---|---|---|
+| `pay-ledger` | `ledger_transactions`, `ledger_legs`, `ledger_statement_lines`, `ledger_rejections` | los 8 |
+| `pay-settlement` | `settlement_audit` | 2 |
+| `pay-vault` | `reveal_audit` | 2 |
+| `pay-connectors` | `connector_callback_events`, `connector_api_attempts` | 4 (las tablas de estado `connector_charges|transfers|refunds` tienen su `_no_truncate` desde antes y no entran en este informe) |
+
+1. **Antes de aplicar**, mirar qué falta: `curl -s http://<servicio>/health/ready | jq .checks.append_only_guards`, o directamente en la base: `SELECT c.relname, t.tgname, t.tgenabled FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid WHERE NOT t.tgisinternal AND (t.tgname LIKE '%\_immutable' OR t.tgname LIKE '%\_no\_truncate') ORDER BY 1, 2;` (`tgenabled` debe ser `O`).
+2. **Qué aplicar.** Recomendado: **solo el bloque de guardianes** del `sql/ddl.sql` (la función `forbid_mutation()` y los `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER`), en **una transacción**. `CREATE TRIGGER` toma `SHARE ROW EXCLUSIVE` unos milisegundos y NO recorre la tabla. Con el rol dueño de las tablas:
+   ```bash
+   DDL=services/pay-ledger/sql/ddl.sql   # o pay-settlement | pay-vault | pay-connectors
+   { echo 'BEGIN;'
+     sed -n '/^CREATE OR REPLACE FUNCTION forbid_mutation/,/^\$\$;/p' "$DDL"
+     grep -E '^(DROP TRIGGER IF EXISTS "[a-z_]+_(immutable|no_truncate)"|CREATE TRIGGER [a-z_]+_(immutable|no_truncate) )' "$DDL"
+     echo 'COMMIT;'; } | psql "$DATABASE_URL" -v ON_ERROR_STOP=1
+   ```
+   Alternativa: reaplicar el `sql/ddl.sql` completo (`psql … -f`): también es idempotente (probado dos veces seguidas sobre una base creada con el DDL viejo), pero sus `ALTER TABLE … ADD CONSTRAINT` toman `ACCESS EXCLUSIVE` y revalidan todas las filas: en una tabla grande bloquea lecturas y escrituras lo que dure el escaneo.
+3. **Ventana.** Nunca con el servicio recibiendo tráfico sin ventana acordada: aun el bloque mínimo espera el bloqueo de cualquier transacción abierta sobre esas tablas y, mientras espera, encola a las demás. Hacerlo con `SET lock_timeout = '3s'` antes del `BEGIN` y reintentar si vence; con el despliegue en `live`, dentro de la ventana de mantenimiento y con el servicio fuera de rotación (la readiness ya lo mantiene fuera mientras falte el guardián).
+4. **Después de aplicar**, `GET /health/ready` → `checks.append_only_guards: { "ok": true, "missing": [] }` y 200, sin reiniciar el servicio (la consulta se hace en cada sondeo). Sin ese resultado no se da el despliegue por bueno.
+5. Probado con las bases creadas con el DDL anterior a ola 5 (`git show b6f398c~:services/<svc>/sql/ddl.sql`): en `live` readiness **503** con los `missing` de la tabla de arriba; en sandbox **200** con `ok:false`; tras aplicar el bloque (y tras el `ddl.sql` completo, dos veces) **200** con `ok:true`. Salida literal: `docs/trabajo/ola-5/P2/evidencia/FD1-ddl-viejo-prueba.txt`. Suites: `services/pay-{ledger,settlement,vault,connectors}/test/append-only-guards.readiness.spec.ts`.
+
 ### 7.2 Endpoint de Svix deshabilitado por el reconciliador (F-B1)
 
 Tras restaurar la base de `pay-webhooks` a un punto anterior, los endpoints que los comercios dieron de alta **después** de ese punto siguen en Svix (con la marca `pay_owner`) pero ya no tienen fila local: el reconciliador los ve como huérfanos. Desde ola 5 los **deshabilita** (`PATCH disabled:true`, reversible) pasada la gracia, con un log `alert: true` por endpoint y `GET /health/ready` → `delivery_engine.orphan_guard` (`action`, `disabled_total`, `held_disabled`). El endpoint, su URL y su secreto siguen en Svix: **no se perdió nada**. El borrado (`WEBHOOKS_SVIX_ORPHAN_ACTION=delete`) es opt-in, irreversible, y bajo `live` exige `WEBHOOKS_SVIX_ORPHAN_DELETE_ACK=irreversible`.

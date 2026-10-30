@@ -38,6 +38,7 @@ describe('F-B2 · réplica de comercios sin tope de entregas (NATS JetStream rea
   let example: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   let down = false;
   let failedConnects = 0;
+  const connectTimes: number[] = [];
 
   const status = async (id: string) => (await rows(ctx, 'SELECT status FROM merchant_replica WHERE merchant_id = $1', [id]))[0]?.status as string | undefined;
   const info = async () => (await nats.jetstreamManager()).consumers.info(STREAM, DURABLE);
@@ -98,6 +99,7 @@ describe('F-B2 · réplica de comercios sin tope de entregas (NATS JetStream rea
           return async (...args: unknown[]) => {
             if (down) {
               failedConnects += 1;
+              connectTimes.push(Date.now());
               throw new Error('base de la réplica caída');
             }
             return (target.connect as (...a: unknown[]) => Promise<unknown>).apply(target, args);
@@ -122,10 +124,14 @@ describe('F-B2 · réplica de comercios sin tope de entregas (NATS JetStream rea
     const id = newMerchant();
     down = true;
     failedConnects = 0;
+    connectTimes.length = 0;
     const event = suspended(id);
     await publish(event);
     await eventually(async () => failedConnects, (n) => n >= 25, '25 entregas fallidas (más allá del tope anterior)');
     expect(await status(id)).toBeUndefined(); // nada se aplicó a medias
+    // la espera entre entregas la pone el código (cap = 25 ms aquí): una reentrega en caliente (nak sin retardo) daría huecos de ~1 ms
+    const gaps = connectTimes.slice(14, 25).map((time, i) => time - connectTimes[14 + i - 1]);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(15);
 
     down = false;
     expect(await eventually(() => status(id), (s) => s === 'suspended', 'suspendido tras la caída')).toBe('suspended');

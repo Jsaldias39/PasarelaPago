@@ -45,6 +45,7 @@ describe('F-B2 · réplica de claves sin tope de entregas (NATS JetStream real)'
   let consumer: ReplicaConsumer;
   let down = false;
   let failedConnects = 0;
+  const connectTimes: number[] = [];
 
   const publish = async (type: string, data: Record<string, unknown>, msgId?: string) => {
     const event = { specversion: '1.0', id: randomUUID(), source: '/pay-merchants', type, time: new Date().toISOString(), datacontenttype: 'application/json', data };
@@ -83,6 +84,7 @@ describe('F-B2 · réplica de claves sin tope de entregas (NATS JetStream real)'
           return async (...args: unknown[]) => {
             if (down) {
               failedConnects += 1;
+              connectTimes.push(Date.now());
               throw new Error('base de la réplica caída');
             }
             return (target.connect as (...a: unknown[]) => Promise<unknown>).apply(target, args);
@@ -113,8 +115,12 @@ describe('F-B2 · réplica de claves sin tope de entregas (NATS JetStream real)'
 
     down = true;
     failedConnects = 0;
+    connectTimes.length = 0;
     const revoked = await publish('api_key.revoked', { key_id: key.keyId, merchant_id: merchantId, mode: key.mode, revoked_at: new Date().toISOString() });
     await eventually(async () => failedConnects, (n) => n >= 25); // 25 entregas fallidas: más allá del tope anterior (20)
+    // la espera entre entregas la pone el código (cap = 25 ms aquí): una reentrega en caliente (nak sin retardo) daría huecos de ~1 ms
+    const gaps = connectTimes.slice(14, 25).map((time, i) => time - connectTimes[14 + i - 1]);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(15);
     expect(await status(key.token)).toBe(200); // mientras la base está caída la revocación no se ha podido aplicar (el riesgo que se cierra)
 
     down = false;

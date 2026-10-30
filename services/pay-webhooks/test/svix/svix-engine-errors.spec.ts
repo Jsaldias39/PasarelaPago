@@ -69,7 +69,7 @@ describe('SvixEngine: errores definitivos, deriva de la aplicación y compensaci
     t('INVÁLIDO: el consumidor detiene el lote ante EngineMisconfiguredError (nak largo, «halt»); un error cualquiera sigue el lote con la espera corta', async () => {
       const calls: string[] = [];
       const fake = (): never & Record<string, unknown> =>
-        ({ subject: 'pay-payments.payment_intent.succeeded', string: () => '{}', ack: () => calls.push('ack'), term: () => calls.push('term'), nak: (delay: number) => calls.push(`nak:${delay}`) }) as never;
+        ({ subject: 'pay-payments.payment_intent.succeeded', info: { deliveryCount: 1 }, string: () => '{}', ack: () => calls.push('ack'), term: () => calls.push('term'), nak: (delay: number) => calls.push(`nak:${delay}`) }) as never;
       const original = s.h.ingest.ingest.bind(s.h.ingest);
       const handle = (s.h.consumer as unknown as { handle(message: unknown): Promise<string> }).handle.bind(s.h.consumer);
       try {
@@ -87,6 +87,27 @@ describe('SvixEngine: errores definitivos, deriva de la aplicación y compensaci
         s.h.ingest.ingest = original;
       }
       expect(calls).toEqual(['nak:60000', 'nak:2000', 'ack']);
+    });
+
+    t('F-B2: la espera de un fallo crece con las entregas (message.info.deliveryCount) y el piso de 60 s de las credenciales rechazadas se respeta', async () => {
+      const calls: string[] = [];
+      const fake = (deliveryCount: number) =>
+        ({ subject: 'pay-payments.payment_intent.succeeded', info: { deliveryCount }, string: () => '{}', ack: () => calls.push('ack'), term: () => calls.push('term'), nak: (delay: number) => calls.push(`nak:${delay}`) }) as never;
+      const original = s.h.ingest.ingest.bind(s.h.ingest);
+      const handle = (s.h.consumer as unknown as { handle(message: unknown): Promise<string> }).handle.bind(s.h.consumer);
+      try {
+        s.h.ingest.ingest = async () => {
+          throw new Error('transitorio');
+        };
+        for (const n of [1, 2, 3, 10, 500]) await handle(fake(n));
+        s.h.ingest.ingest = async () => {
+          throw new engineErrors.EngineMisconfiguredError(401);
+        };
+        for (const n of [1, 6, 7, 30]) await handle(fake(n));
+      } finally {
+        s.h.ingest.ingest = original;
+      }
+      expect(calls).toEqual(['nak:2000', 'nak:4000', 'nak:8000', 'nak:300000', 'nak:300000', 'nak:60000', 'nak:64000', 'nak:128000', 'nak:300000']);
     });
 
     t('CORRECTO: un 404 de la APLICACIÓN con los endpoints intactos ⇒ se recrea la aplicación UNA vez (idempotente) y se reintenta: el mensaje se crea', async () => {

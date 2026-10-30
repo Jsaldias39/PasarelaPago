@@ -186,9 +186,11 @@ describe('F-B2 · entrega sin tope de los consumidores durables', () => {
     events.redelivery = { baseMs: 5, capMs: 25 };
     const original = consumers.handle.bind(consumers);
     let calls = 0;
+    const callTimes: number[] = [];
     let down = true;
     consumers.handle = async (payload) => {
       calls += 1;
+      callTimes.push(Date.now());
       if (down) throw new Error('base de liquidación caída');
       return original(payload);
     };
@@ -198,6 +200,9 @@ describe('F-B2 · entrega sin tope de los consumidores durables', () => {
       await publisher().publish('pay-ledger.ledger.transfer.posted', event);
       await waitFor(async () => calls >= 25, 20_000, 25); // 25 entregas fallidas: más allá del tope anterior (20)
       expect(await merchantRow(m)).toHaveLength(0); // nada se aplicó a medias
+      // la espera entre entregas la pone el código (cap = 25 ms aquí): una reentrega en caliente (nak sin retardo) daría huecos de ~1 ms
+      const gaps = callTimes.slice(14, 25).map((time, i) => time - callTimes[14 + i - 1]);
+      expect(Math.min(...gaps)).toBeGreaterThanOrEqual(15);
       down = false;
       await waitFor(async () => (await merchantRow(m)).length > 0, 20_000, 25);
       await waitFor(async () => {

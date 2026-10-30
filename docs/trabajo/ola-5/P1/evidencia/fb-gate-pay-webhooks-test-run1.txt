@@ -1,0 +1,13 @@
+$ (cd services/pay-webhooks && flock /tmp/pay-heavy.lock yarn test)
+2026-10-30T07:45:55Z
+FAIL test/svix/svix-engine-errors.spec.ts
+  ● SvixEngine: errores definitivos, deriva de la aplicación y compensación del alta contra Svix REAL › F8 · clasificación de las respuestas de Svix al publicar › INVÁLIDO: el consumidor detiene el lote ante EngineMisconfiguredError (nak largo, «halt»); un error cualquiera sigue el lote con la espera corta
+FAIL test/svix/svix-engine-errors.spec.ts
+  ● SvixEngine: errores definitivos, deriva de la aplicación y compensación del alta contra Svix REAL › F8 · clasificación de las respuestas de Svix al publicar › INVÁLIDO: el consumidor detiene el lote ante EngineMisconfiguredError (nak largo, «halt»); un error cualquiera sigue el lote con la espera corta
+Test Suites: 1 failed, 23 passed, 24 total
+Tests:       1 failed, 612 passed, 613 total
+Time:        26.683 s, estimated 27 s
+EXIT CODE: 1
+Time:        26.683 s, estimated 27 s
+Ran all test suites.
+EXIT CODE: 1

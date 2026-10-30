@@ -89,3 +89,29 @@ Ninguna falla toca las nueve tablas ni un guardián: no apareció ningún `inmut
 Modelo: los 5 `.puml` de `Mantra Core Health Context/pay-modules/` (70, 72, 78, 79, 80) y `SQL/pay/{70,72,78,79,80}_*/{05_constraints,ddl}.sql` + `SQL/pay/_generation_report.md`.
 
 pasarelapago: `services/pay-{ledger,settlement,vault,connectors,webhooks}/sql/ddl.sql` (vault y webhooks también `ddl.sql.source`); `pay-webhooks`: `package.json`, `scripts/vendor-model-sql.sh` (nuevo), `sql/001_webhooks.sql` (borrado), `test/harness.ts`, `test/delivery.spec.ts`, `test/immutable.ts` (nuevo), `test/append-only.spec.ts` (nuevo); `pay-ledger/test/{append-only.spec.ts,helpers/immutable.ts}` (nuevos) y `invariant.spec.ts`; `pay-connectors/test/{append-only.spec.ts,support/immutable.ts}` (nuevos) y `support/app.ts`; `pay-settlement/test/append-only.spec.ts` y `pay-vault/test/append-only.spec.ts` (nuevos); esta carpeta.
+
+## 9. Re-revisión de dinero F-D1 — los servicios verifican sus guardianes en `/health/ready`
+
+**Causa (RE-REVISION-DINERO F-D1, CONFIRMADO por lectura).** Los triggers `<tabla>_immutable` y `<tabla>_no_truncate` solo existen en bases creadas con el DDL nuevo: `platform/scripts/sandbox-migrate.mjs` hace «ya tiene N tablas, no se toca» y ningún servicio comprobaba que existieran. Las pruebas pasaban (cada suite crea su esquema con el DDL nuevo) y una base desplegada antes de ola 5 podía quedar sin guardián sin que nada lo avisara.
+
+**Arreglo.** En `pay-ledger`, `pay-settlement`, `pay-vault` y `pay-connectors` (cada uno con su copia, sin código compartido) `src/append-only-guards.ts` consulta `pg_trigger` por los triggers esperados de SUS tablas y `src/health.controller.ts` los expone en **`GET /health/ready` → `checks.append_only_guards: { ok: boolean, missing: string[] }`** (mismo nombre y forma que `pay-webhooks`):
+
+| Servicio | Tablas | Triggers esperados |
+|---|---|---|
+| `pay-ledger` | `ledger_transactions`, `ledger_legs`, `ledger_statement_lines`, `ledger_rejections` | 8 |
+| `pay-settlement` | `settlement_audit` | 2 |
+| `pay-vault` | `reveal_audit` | 2 |
+| `pay-connectors` | `connector_callback_events`, `connector_api_attempts` | 4 |
+
+- Un guardián cuenta solo si el trigger existe **en la tabla esperada**, está habilitado para la sesión normal (`tgenabled` `O`/`A`; apagado con `DISABLE TRIGGER` o solo `REPLICA` ⇒ falta), llama a `forbid_mutation()` y tiene el evento esperado (`tgtype`: `_immutable` = por fila, BEFORE, UPDATE y DELETE; `_no_truncate` = BEFORE TRUNCATE). Un trigger con el nombre correcto pero otra función u otro evento falta.
+- **`PAY_MODE=live` y `ok:false` ⇒ readiness 503** (`status: "error"`, con `checks` en el cuerpo). **Sandbox ⇒ 200** con `ok:false` visible y un `warn` `append_only_guards_missing` (en live, `error`), una sola vez por cambio de estado (no en cada sondeo del orquestador). Solo nombra triggers: ningún dato.
+- **Fail-closed**: si la consulta a `pg_trigger` falla, `ok:false` con todos los guardianes como faltantes (y sin acusarlos en el log: con la base caída la readiness ya cae por la base).
+- `pay-ledger` ahora exporta `LEDGER_CONFIG` desde `LedgerModule` (la readiness necesita `payMode`); no cambia nada más del módulo.
+- **Procedimiento para bases ya creadas**: `docs/runbooks/sandbox-a-produccion.md` §7.1 (bloque de guardianes en una transacción, o el `ddl.sql` completo; ventana; verificación).
+
+**Evidencia.**
+- Base creada con el **DDL VIEJO real** (`git show b6f398c~:services/<svc>/sql/ddl.sql`), en los cuatro servicios: live ⇒ 503 con los `missing` esperados; sandbox ⇒ 200 con `ok:false`; reaplicar el `ddl.sql` nuevo completo (dos veces seguidas) ⇒ 200 `ok:true`; aplicar solo el bloque de guardianes ⇒ 200 `ok:true`. Salida literal: [`evidencia/FD1-ddl-viejo-prueba.txt`](./evidencia/FD1-ddl-viejo-prueba.txt). El bloque del runbook también se corrió con `psql` real sobre un esquema descartable de `pay_connectors` (3 → 7 triggers, idempotente en la segunda pasada).
+- Pruebas permanentes: `services/pay-{ledger,settlement,vault,connectors}/test/append-only-guards.readiness.spec.ts` (13 por servicio: correcto, límite e inválido; incluye guardián apagado, solo réplica, evento equivocado, otra función, tabla inexistente, consulta que falla, y el controlador real en live/sandbox con supertest).
+- Mutaciones (`evidencia/FD1-mutaciones.txt`, hechas en un `git worktree` aparte y restauradas): sin comprobar `tgtype`, sin filtrar `tgenabled`, sin comprobar la función, «live nunca bloquea» (en los cuatro servicios), fail-open si la consulta falla, aviso repetido en cada sondeo, y una tabla fuera de la lista (ledger, connectors). Las 11 hacen fallar al menos una prueba.
+
+**No cubre.** El rol real de la aplicación (las pruebas usan el pool de pruebas, dueño y superusuario; `pg_trigger` es legible por cualquier rol). Que `pay-webhooks` tiene su propio chequeo (otro agente). Que la readiness es un aviso/bloqueo de despliegue: no impide que alguien apague un trigger con el servicio ya listo hasta el siguiente sondeo, y el dueño de la tabla sigue pudiendo apagarlo (ver §8).

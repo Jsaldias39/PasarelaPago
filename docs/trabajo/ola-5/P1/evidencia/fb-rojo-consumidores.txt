@@ -1,0 +1,26 @@
+# ROJO F-B2: las pruebas NUEVAS contra el consumidor ANTERIOR (max_deliver: 20) de cada servicio, en un worktree aparte (solo se copió el archivo nuevo consumer-redelivery.ts, sin uso, para que el módulo cargue)
+
+=== pay-payments test/events.redelivery
+  ● F-B2 · consumidores durables de pay-payments sin tope de entregas (NATS JetStream real) › CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver el efecto ocurre UNA vez, y repetirlo no lo duplica
+  ● F-B2 · consumidores durables de pay-payments sin tope de entregas (NATS JetStream real) › el durable viejo se migró al arrancar el servicio; los que no existían se crearon sin tope
+FAIL test/events.redelivery.spec.ts (24.344 s)
+Tests:       2 failed, 3 passed, 5 total
+
+=== pay-settlement test/nats.spec
+  ● F-B2 · entrega sin tope de los consumidores durables › CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver el efecto ocurre UNA vez, y repetirlo no lo duplica
+FAIL test/nats.spec.ts (23.278 s)
+Tests:       1 failed, 6 passed, 7 total
+
+=== pay-edge test/replica-redelivery
+  ● F-B2 · réplica de claves sin tope de entregas (NATS JetStream real) › CORRECTO/LÍMITE: una revocación que no se pudo aplicar durante MÁS de 20 entregas (25) se aplica al volver la base: la clave deja de valer y el efecto ocurre UNA vez
+  ● F-B2 · réplica de claves sin tope de entregas (NATS JetStream real) › INVÁLIDO: JSON ilegible y un sobre que rompe el contrato se descartan (term) y NO giran para siempre aunque no haya tope
+  ● F-B2 · réplica de claves sin tope de entregas (NATS JetStream real) › el durable viejo se migró al arrancar el servicio
+FAIL test/replica-redelivery.spec.ts (41.947 s)
+Tests:       3 failed, 3 passed, 6 total
+
+=== pay-schedules test/nats-redelivery
+  ● F-B2 · réplica de comercios sin tope de entregas (NATS JetStream real) › CORRECTO/LÍMITE: una suspensión que no se pudo aplicar durante MÁS de 20 entregas (25) se aplica al volver la base; el efecto ocurre UNA vez y repetirla no lo duplica
+  ● F-B2 · réplica de comercios sin tope de entregas (NATS JetStream real) › INVÁLIDO: JSON ilegible y un evento que rompe el contrato se descartan (term) y NO giran para siempre aunque no haya tope
+  ● F-B2 · réplica de comercios sin tope de entregas (NATS JetStream real) › el durable viejo se migró al arrancar el servicio
+FAIL test/nats-redelivery.spec.ts (42.551 s)
+Tests:       3 failed, 3 passed, 6 total

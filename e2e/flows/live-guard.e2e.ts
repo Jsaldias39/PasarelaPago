@@ -30,6 +30,23 @@ describe('guardia de modo — PAY_MODE=live con el conector mock y los dobles de
     });
   });
 
+  describe('pay-payments: la franquicia de riesgo «bajo el umbral pasa» no se admite en live (REVISION-DINERO F-A2)', () => {
+    /** El mensaje de la guarda de configuración de pay-payments; sale al cargar la configuración, antes de preguntar por el conector. */
+    const FRANCHISE_REFUSED = /PAY_MODE=live: RISK_ALLOW_BELOW_THRESHOLD=true no está permitido/;
+    it.each([
+      ['con un umbral > 0 (la franquicia haría algo)', { RISK_ALLOW_BELOW_THRESHOLD: 'true', RISK_FAIL_CLOSED_THRESHOLD_MINOR: '1000000' }],
+      ['con el umbral 0 (inerte, pero igual no se admite)', { RISK_ALLOW_BELOW_THRESHOLD: 'true', RISK_FAIL_CLOSED_THRESHOLD_MINOR: '0' }],
+    ])('live + RISK_ALLOW_BELOW_THRESHOLD=true %s ⇒ no arranca y el mensaje nombra la variable', async (_name, env) => {
+      const [result] = await bootUnderLive(['pay-payments'], { 'pay-payments': env });
+      expect({ healthy: result!.healthy, refusedByFranchiseGuard: FRANCHISE_REFUSED.test(result!.log) }).toEqual({ healthy: false, refusedByFranchiseGuard: true });
+    });
+
+    it('control: sin la franquicia (el arnés la deja en false) la guarda NO se dispara; el servicio se niega por la guardia del conector mock, como antes', async () => {
+      const [result] = await bootUnderLive(['pay-payments']);
+      expect({ healthy: result!.healthy, refusedByMode: refusedLive(result!), refusedByFranchiseGuard: FRANCHISE_REFUSED.test(result!.log) }).toEqual({ healthy: false, refusedByMode: true, refusedByFranchiseGuard: false });
+    });
+  });
+
   it('pay-schedules no embebe ningún doble (su libro mayor es pay-ledger por HTTP): arranca en live, pero se niega con el interruptor de pruebas', async () => {
     const [withSwitch] = await bootUnderLive(['pay-schedules'], { 'pay-schedules': { DISABLE_BACKGROUND_JOBS: '1' } });
     expect({ healthy: withSwitch!.healthy, refusedByMode: refusedLive(withSwitch!) }).toEqual({ healthy: false, refusedByMode: true });

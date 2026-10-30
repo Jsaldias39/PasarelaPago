@@ -1,0 +1,47 @@
+Mutaciones de pay-payments (F-A1…F-A5) hechas en un git worktree aparte (HEAD a641f96 + src/pruebas nuevos), restauradas después. Cada una debe dejar al menos una prueba en rojo.
+
+### MA1 circuit_open cuenta como inalcanzable (F-A1)
+Tests:       3 failed, 60 passed, 63 total
+● F-A1 · un breaker abierto por los 5xx de OTROS cobros NO es prueba de que pay-risk esté caído: no activa la franquicia › control · mientras el breaker está abierto ningún cobro bajo el umbral recibe
+● F-A1 · un breaker abierto por los 5xx de OTROS cobros NO es prueba de que pay-risk esté caído: no activa la franquicia › inválido (la sonda A) · un pagador SANCIONADO que entra con el breaker abierto
+● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › breaker abierto desde antes ⇒ circuit_open provenNotReached (ninguna
+### MA2 la franquicia ignora la prueba de inalcanzable (F-A1)
+Tests:       2 failed, 28 skipped, 30 total
+● F-A1 · un breaker abierto por los 5xx de OTROS cobros NO es prueba de que pay-risk esté caído: no activa la franquicia › control · mientras el breaker está abierto ningún cobro bajo el umb
+● F-A1 · un breaker abierto por los 5xx de OTROS cobros NO es prueba de que pay-risk esté caído: no activa la franquicia › inválido (la sonda A) · un pagador SANCIONADO que entra con el break
+### MA3 request() no conserva la prueba de la pasada anterior (F-A1)
+Tests:       1 failed, 32 skipped, 33 total
+● HttpClient · qué se PRUEBA de una llamada que falla (F1) › correcto · solo lo que de verdad no llegó se declara «no llegó» › conexión rechazada en la 1.ª pasada y breaker abierto en l
+### MA4 EHOSTUNREACH/ENETUNREACH sin comprobar syscall (F-A4)
+Tests:       3 failed, 30 skipped, 33 total
+● HttpClient · qué se PRUEBA de una llamada que falla (F1) › F-A4 · EHOSTUNREACH/ENETUNREACH solo prueban «nunca se estableció» con syscall «connect» › inválido · EHOSTUNREACH SIN sysc
+● HttpClient · qué se PRUEBA de una llamada que falla (F1) › F-A4 · EHOSTUNREACH/ENETUNREACH solo prueban «nunca se estableció» con syscall «connect» › inválido · ENETUNREACH SIN sysca
+● HttpClient · qué se PRUEBA de una llamada que falla (F1) › F-A4 · EHOSTUNREACH/ENETUNREACH solo prueban «nunca se estableció» con syscall «connect» › límite · un AggregateError donde
+### MA10 response.text() sin envolver (F-A3)
+Tests:       2 failed, 30 skipped, 1 passed, 33 total
+● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › F-A3 · cuerpo cortado tras los headers › inválido · el corte du
+● HttpClient · qué se PRUEBA de una llamada que falla (F1) › inválido · nada de esto prueba que la orden no se ejecutó › F-A3 · cuerpo cortado tras los headers › límite · el timeout du
+### MA9 sin guarda de configuración en live (F-A2)
+Tests:       1 failed, 27 skipped, 2 passed, 30 total
+● F-A2 · guarda de configuración: la franquicia no se admite bajo PAY_MODE=live › inválido · live + RISK_ALLOW_BELOW_THRESHOLD=true ⇒ NO arranca (con umbral > 0 y también con el umbral 0 qu
+### MA5 sin constancia al conceder (F-A2)
+Tests:       2 failed, 26 skipped, 2 passed, 30 total
+● F-A2 · cada concesión de la franquicia deja constancia durable, un log sin datos personales y un contador › correcto · constancia risk_franchise_granted (kind/motivo/estado), evento payment_i
+● F-A2 · cada concesión de la franquicia deja constancia durable, un log sin datos personales y un contador › inválido · si la constancia no se puede escribir NO se concede sin rastro: el rein
+### MA6 la constancia que falla se traga y se concede igual (F-A2)
+Tests:       1 failed, 26 skipped, 3 passed, 30 total
+● F-A2 · cada concesión de la franquicia deja constancia durable, un log sin datos personales y un contador › inválido · si la constancia no se puede escribir NO se concede sin rastro: el rein
+### MA7 sin contador (F-A2)
+Tests:       1 failed, 26 skipped, 3 passed, 30 total
+● F-A2 · cada concesión de la franquicia deja constancia durable, un log sin datos personales y un contador › correcto · el contador pay_payments_risk_franchise_granted_total suma 1 por concesi
+### MA8 sin log de concesión (F-A2)
+Tests:       1 failed, 26 skipped, 3 passed, 30 total
+● F-A2 · cada concesión de la franquicia deja constancia durable, un log sin datos personales y un contador › correcto · constancia risk_franchise_granted (kind/motivo/estado), evento payment_i
+### MA11 2xx sin decisión no se valida (F-A3)
+Tests:       1 failed, 29 skipped, 30 total
+● F-A3 · un 2xx de riesgo sin una decisión legible (cuerpo vacío) es ambiguo: se cierra por la política, no queda reintentando › inválido · 201 con cuerpo vacío persistente ⇒ failed/risk_
+### MA12 429 no es transitorio (F-A5)
+Tests:       2 failed, 27 skipped, 1 passed, 30 total
+● F-A5 · un 429 rate_limited de riesgo es transitorio: se reintenta con la MISMA clave dentro de la política, y sigue siendo fail-closed › correcto · dos 429 y luego `allow` ⇒ el cobro avanza
+● F-A5 · un 429 rate_limited de riesgo es transitorio: se reintenta con la MISMA clave dentro de la política, y sigue siendo fail-closed › límite/inválido · 429 persistente ⇒ failed/risk_un
+FIN

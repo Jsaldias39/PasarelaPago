@@ -33,7 +33,7 @@ describe('F-B2 · consumidores durables de pay-payments sin tope de entregas (NA
   let nats: NatsConnection;
   let publisher: NatsEventPublisher;
   let consumers: NatsConsumers;
-  const flaky = { failMerchant: 0, merchantCalls: 0, statusWhileDown: [] as (string | null)[] };
+  const flaky = { failMerchant: 0, merchantCalls: 0, statusWhileDown: [] as (string | null)[], callTimes: [] as number[] };
   const durable = (name: string) => `${prefix}-${name}`;
   const stream = prefix.toUpperCase();
   const info = async (name: string) => (await nats.jetstreamManager()).consumers.info(stream, durable(name));
@@ -51,6 +51,7 @@ describe('F-B2 · consumidores durables de pay-payments sin tope de entregas (NA
     const original = handlers.merchantChanged.bind(handlers);
     handlers.merchantChanged = async (event) => {
       flaky.merchantCalls += 1;
+      flaky.callTimes.push(Date.now());
       if (flaky.failMerchant > 0) {
         flaky.failMerchant -= 1;
         flaky.statusWhileDown.push(await replicasRepo.merchantStatus(stack.deps.pool, MERCHANT));
@@ -84,6 +85,7 @@ describe('F-B2 · consumidores durables de pay-payments sin tope de entregas (NA
     const event = merchantActivated(MERCHANT);
     flaky.failMerchant = 25;
     flaky.merchantCalls = 0;
+    flaky.callTimes.length = 0;
     await publisher.publish(`${prefix}.merchant.activated`, event);
 
     await waitFor(async () => (flaky.merchantCalls >= 25 ? true : undefined), 20_000, '25 entregas fallidas (más allá del tope anterior)');
@@ -91,6 +93,9 @@ describe('F-B2 · consumidores durables de pay-payments sin tope de entregas (NA
     await waitFor(async () => ((await backlog()).unprocessed === 0 && (await backlog()).inFlight === 0 ? true : undefined), 10_000, 'cola vacía');
     expect(flaky.merchantCalls).toBeGreaterThan(25);
     expect(flaky.statusWhileDown).toHaveLength(25);
+    // la espera entre entregas la pone el código (cap = 25 ms aquí): una reentrega en caliente (nak sin retardo) daría huecos de ~1 ms
+    const gaps = flaky.callTimes.slice(14, 25).map((time, i) => time - flaky.callTimes[14 + i - 1]);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(15);
     expect(flaky.statusWhileDown.every((status) => status === null)).toBe(true); // mientras estuvo caído no se aplicó nada a medias
     expect((await stack.db.pool.query('SELECT count(*)::int AS n FROM inbox_events WHERE event_id = $1', [event.id])).rows[0].n).toBe(1);
 

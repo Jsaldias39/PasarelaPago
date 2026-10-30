@@ -1,5 +1,4 @@
-import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
-import { Res } from '@nestjs/common';
+import { Controller, Get, Inject, Res, ServiceUnavailableException } from '@nestjs/common';
 import { HealthCheck, HealthCheckService, type HealthIndicatorResult } from '@nestjs/terminus';
 import type { Response } from 'express';
 import type { Pool } from 'pg';
