@@ -1,0 +1,29 @@
+TRAZA 59f3e2fea0c9534906b64a3869034c28 (continuada del cliente, span del cliente e531420b972e62f7):
+pay-edge  POST /v1/*path  (67fe8198cb72b0d2)  kind=server route=/v1/:x status=201 [padre ausente de la traza: e531420b972e62f7]
+  pay-edge  request handler - /v1/*path  (cdb4d433b89ba878)  kind=internal route=/v1/:x
+    pay-edge  EdgeController.handle  (d9096158b2342fa7)  kind=internal route=/v1/:x
+      pay-edge  handle  (78a61c270521919f)  kind=internal
+        … 4 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+  … 3 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+pay-payments  POST /payment_intents  (df7bcfc0732c3f9e)  kind=server route=/payment_intents status=201 [padre ausente de la traza: d905abb335ec5208]
+  pay-payments  request handler - /payment_intents  (75762f5f59a412f6)  kind=internal route=/payment_intents
+    pay-payments  PaymentsController.create  (c3634bdf33ba7f52)  kind=internal route=/payment_intents
+      pay-payments  create  (5999f3526f31920a)  kind=internal
+        … 37 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+  … 6 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
+padres ausentes de la traza: pay-edge:POST /v1/*path→e531420b972e62f7, pay-payments:POST /payment_intents→d905abb335ec5208
+MEDIDO traceparent de versión futura: el borde CONTINÚA la traza del cliente (span padre c4a0736971eb0732).
+MEDIDO sin traceparent: traza del borde d1ae7698e1f798112bb54237d6c49e39; span de pay-payments de la misma petición en la traza 6cf3195ded84728df8af74d507b71272 (OTRA: la traza queda partida en dos).
+SONDA con PAN en ruta y query: el span servidor del borde dejó url.path=/v1/payment_intents/:x url.query=[redacted] http.route=/v1/:x
+ESCANEO DE FUGAS: 5782 trazas, 8540 spans, 12960218 bytes; 0 apariciones de clave de API, cuerpo ni PAN.
+MEDIDO aguas abajo (sin afirmar):
+  pay-risk: spans servidor de negocio {"POST /assessments":15}, en trazas que contienen a pay-edge: 0
+  pay-connectors: spans servidor de negocio {"POST /charges":12}, en trazas que contienen a pay-edge: 0
+  pay-qr: spans servidor de negocio {"POST /qr":12}, en trazas que contienen a pay-edge: 0
+  pay-ledger: spans servidor de negocio {"POST /transactions":12}, en trazas que contienen a pay-edge: 0
+  pay-vault: spans servidor de negocio {}, en trazas que contienen a pay-edge: 0
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        52.397 s, estimated 56 s
+Ran all test suites matching e2e/flows/traza-jaeger.e2e.ts.

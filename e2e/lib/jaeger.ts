@@ -185,5 +185,14 @@ export function renderTree(views: readonly SpanView[]): string {
   return lines.join('\n');
 }
 
-/** Todo el texto de una traza (nombres, atributos, eventos, procesos) para buscar cadenas que NO deben estar. */
+/** Todo el texto de una traza (nombres, atributos, eventos, procesos, identificadores) para buscar cadenas que NO deben estar. */
 export const textOf = (trace: JaegerTrace): string => JSON.stringify(trace);
+
+const IDENTITY_KEYS = new Set(['traceID', 'spanID', 'processID', 'startTime', 'duration', 'references', 'flags']);
+
+/**
+ * El CONTENIDO de una traza sin sus identificadores ni tiempos: los trace/span-id (hex de 32 y 16 caracteres) y los instantes en microsegundos (16 dígitos) traen tiras de 13 a 19
+ * dígitos que pasan Luhn por azar y confunden a un detector de números de tarjeta. Lo que queda (nombres de operación, etiquetas, eventos, servicios) es lo único donde un
+ * dato del cliente podría haberse colado.
+ */
+export const contentTextOf = (trace: JaegerTrace): string => JSON.stringify(trace, (key, value: unknown) => (IDENTITY_KEYS.has(key) ? undefined : value));

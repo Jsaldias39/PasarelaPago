@@ -7,7 +7,7 @@ TigerBeetle privado, en `PAY_MODE=sandbox` con el conector `mock`. Matriz, halla
 ```bash
 yarn e2e:up | e2e:down | e2e:boot | e2e:smoke
 yarn e2e            # jest, 1 worker: humo, degradado, E1, E1 con pagador simulado, E2, E3, E4, E5, E6, E7, E8, seed:sandbox, D-32, ledger, callbacks, guardia de modo, capa sandbox (pay-mockbank), candado y unitarias del arnés
-yarn e2e:pending    # solo lo que hoy no puede pasar (falla a propósito); hoy `pending/` está vacío: los hallazgos 13 y 14 se corrigieron y sus reproductores pasaron a flows/
+yarn e2e:pending    # solo lo que hoy no puede pasar (falla a propósito); hoy: `pending/traza-jaeger-arbol.e2e.ts` (ola 5, ver abajo). Los hallazgos 13 y 14 se corrigieron y sus reproductores pasaron a flows/
 yarn e2e:typecheck
 yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo proceso (docs/trabajo/ola-3/P1/CARGA.md)
 ```
@@ -37,3 +37,9 @@ yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo
 - `flows/seed-sandbox.e2e.ts`: corre `e2e/seed-sandbox.ts` (la entrada real de `yarn seed:sandbox`) DOS veces contra el stack de 12 servicios del arnés, con `SANDBOX_*_URL` y un `SANDBOX_DIR` temporal.
 - Lo que no se puede probar aquí (Compose de la capa sandbox: ghcr 403, Docker Hub 429, TLS interceptado): `docs/trabajo/ola-4/P1/BLOQUEOS.md`.
 - `flows/e1-payer.e2e.ts` (P4.H4.M4, E1 sin intervención manual): `pay-mockbank` en `MOCKBANK_PAYER_MODE=manual` (único ajuste del arnés; en `auto` el banco paga solo); el QR de la API pública lo paga `POST /sandbox/payer/pay` y el cobro termina `succeeded` por el callback firmado banco→pay-connectors. Límites: pago repetido, QR con otro importe (404/422), QR vencido (409). Inválidos: QR desconocido o no EMV, identidad ajena (403). El importe del QR no se puede forzar distinto del cobro por el pagador (el banco busca el QR por texto exacto): la rama `amount_mismatch` de `payByQr` es inalcanzable por esta vía.
+
+## Ola 5 (P1.H2.M3): traza real en Jaeger
+
+- `flows/traza-jaeger.e2e.ts`: los servicios exportan OTLP/HTTP al Jaeger REAL del Compose (`pay-jaeger-1`: OTLP en `127.0.0.1:54318`, consulta en `127.0.0.1:54686`; sobrescribibles con `PAY_E2E_JAEGER_OTLP_URL` y `PAY_E2E_JAEGER_QUERY_URL`; el único ajuste del arnés es el entorno `OTEL_EXPORTER_OTLP_ENDPOINT` + `OTEL_BSP_SCHEDULE_DELAY`). Afirma lo que hoy es verdad: `traceparent` válido ⇒ el borde continúa la traza y `pay-payments` cae en la misma; malformado / de versión futura / ausente ⇒ 201 y traza nueva; `request_id` consistente en los logs; ningún span lleva clave de API, cuerpo ni PAN. Falla de forma accionable si el Jaeger del Compose no responde.
+- `pending/traza-jaeger-arbol.e2e.ts`: lo que el DoD pide y hoy no se cumple (padre real del span de `pay-payments`, una sola traza sin `traceparent` entrante, traza hasta `pay-risk`/`pay-connectors`/`pay-qr`, `x-request-id` aguas abajo). Causas y propuestas: `docs/trabajo/ola-5/P1/PROPUESTAS-TRAZA.md`.
+- Piezas: `lib/jaeger.ts` (cliente de la API de consulta y árbol de spans; `lib/jaeger.spec.ts`) y `lib/trace-probe.ts` (peticiones con `traceparent`/`x-request-id`, búsqueda de la traza por user-agent, logs).

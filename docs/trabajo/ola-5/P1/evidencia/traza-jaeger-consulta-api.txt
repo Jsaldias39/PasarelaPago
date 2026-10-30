@@ -1,0 +1,24 @@
+====================================================================================================
+A. Traza con traceparent del cliente (corrida 2, caso CORRECTO): el borde cuelga del span del cliente; pay-payments comparte traceId pero su padre no existe
+$ curl -s http://127.0.0.1:54686/api/traces/59f3e2fea0c9534906b64a3869034c28
+traceID=59f3e2fea0c9534906b64a3869034c28 spans=58 procesos=['pay-edge', 'pay-payments']
+  pay-edge     POST /v1/*path               span=67fe8198cb72b0d2 parent=e531420b972e62f7 (PADRE AUSENTE de la traza) kind=server status=201 ua=e2e-traza/947350ab/correcto
+  pay-edge     EdgeController.handle        span=d9096158b2342fa7 parent=cdb4d433b89ba878 (padre presente) kind=internal status=None ua=None
+  pay-edge     handle                       span=78a61c270521919f parent=d9096158b2342fa7 (padre presente) kind=internal status=None ua=None
+  pay-payments POST /payment_intents        span=df7bcfc0732c3f9e parent=d905abb335ec5208 (PADRE AUSENTE de la traza) kind=server status=201 ua=node
+  pay-payments create                       span=5999f3526f31920a parent=c3634bdf33ba7f52 (padre presente) kind=internal status=None ua=None
+  pay-payments PaymentsController.create    span=c3634bdf33ba7f52 parent=75762f5f59a412f6 (padre presente) kind=internal status=None ua=None
+====================================================================================================
+B. Sin traceparent: traza del BORDE (corrida 2)
+$ curl -s http://127.0.0.1:54686/api/traces/d1ae7698e1f798112bb54237d6c49e39
+traceID=d1ae7698e1f798112bb54237d6c49e39 spans=11 procesos=['pay-edge']
+  pay-edge     POST /v1/*path               span=a56a428e38ab6484 parent=- kind=server status=201 ua=e2e-traza/947350ab/sin-traceparent-ausente
+  pay-edge     handle                       span=bc4cef7740c6b27f parent=5f769f02c34a2753 (padre presente) kind=internal status=None ua=None
+  pay-edge     EdgeController.handle        span=5f769f02c34a2753 parent=9d398ae243299571 (padre presente) kind=internal status=None ua=None
+====================================================================================================
+B. Sin traceparent: traza donde cayó pay-payments para ESA MISMA petición (otro traceId)
+$ curl -s http://127.0.0.1:54686/api/traces/6cf3195ded84728df8af74d507b71272
+traceID=6cf3195ded84728df8af74d507b71272 spans=39 procesos=['pay-payments']
+  pay-payments POST /payment_intents        span=757855b0bd53e562 parent=dc87c0fbf680a815 (PADRE AUSENTE de la traza) kind=server status=201 ua=node
+  pay-payments PaymentsController.create    span=8666e1825a01878e parent=5c139f7a1b00d151 (padre presente) kind=internal status=None ua=None
+  pay-payments create                       span=6087c77954a978dc parent=8666e1825a01878e (padre presente) kind=internal status=None ua=None
