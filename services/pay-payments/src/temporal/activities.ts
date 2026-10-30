@@ -1,6 +1,7 @@
 import { ApplicationFailure, Context } from '@temporalio/activity';
 import type { Deps } from '../deps';
 import type { ChargeStatusValue } from '../clients/connectors.client';
+import type { UpstreamError } from '../clients/http';
 import { toPublicNextAction } from '../domain/next-action';
 import { businessRef } from '../domain/ids';
 import { decideConnectorEvent, isTerminal, type IntentStatus } from '../domain/state';
@@ -20,18 +21,28 @@ const EVENT_FOR: Record<'succeeded' | 'failed' | 'canceled' | 'expired', IntentE
   expired: 'payment_intent.expired',
 };
 
+/** `source_event_id` que deja `escalate('risk_unknown')` (el workflow lo pide cuando una ronda de `assessRisk` agota sus reintentos): `ambiguous:${kind}`. Acoplado a `workflows.ts` (`must('risk_unknown', …)`). */
+const ROUND_FAILED_MARKER = 'ambiguous:risk_unknown';
+
 const isUpstreamError = (error: unknown): boolean => error instanceof Error && error.name === 'UpstreamError';
 const isRejection = (error: unknown): boolean => error instanceof Error && error.name === 'UpstreamRejection';
 
+/** El error prueba que NINGUNA llamada de la ronda llegó a pay-risk (ver `UpstreamError.provenNotReached`). */
+const neverReached = (error: unknown): boolean => isUpstreamError(error) && (error as Partial<UpstreamError>).provenNotReached === true;
+
 /**
- * Una respuesta de riesgo que NO es una decisión pero que tampoco dice «no»: la evaluación sigue en vuelo (`409 idempotency_request_in_progress`:
- * la primera llamada con esta misma clave todavía no terminó) o la llamada venció en el cliente (`timeout`). Ninguna prueba que riesgo no evaluó
- * (CLAUDE.md regla 11): se reintenta con la MISMA clave, sin crear otra evaluación. No es un rechazo definitivo.
+ * Una respuesta de riesgo que NO es una decisión pero que tampoco dice «no»: la evaluación pudo quedar viva o ya decidida en pay-risk. Es AMBIGUA (CLAUDE.md regla 11) y se reintenta
+ * con la MISMA clave, sin crear otra evaluación; nunca es un rechazo definitivo ni habilita la franquicia «bajo el umbral». Lo son:
+ *  · `409 idempotency_request_in_progress`: la primera llamada con esta clave todavía no terminó;
+ *  · TODO `UpstreamError` en el que NO se PRUEBA que ninguna llamada llegó (`provenNotReached` falso): `timeout`, corte de socket, `5xx`, `unexpected_response` (un 4xx sin el cuerpo de
+ *    error del contrato, un 2xx ilegible) y cualquier error que siga a una llamada anterior del mismo intento que pudo llegar (`earlierAttemptMayHaveReached`: p. ej. un timeout y, en el
+ *    reintento interno del cliente, un 503 o un `circuit_open`). Un 5xx no prueba que riesgo no evaluó: pudo caerse después de escribir el `deny` y antes de responder (REVISION-DINERO F1).
+ * Lo único que NO es ambiguo es un `UpstreamError` con `provenNotReached` (conexión rechazada, DNS, red inalcanzable, breaker abierto): ver `neverReached`.
  */
 const isRiskInFlight = (error: unknown): boolean =>
   (error instanceof Error && error.name === 'RiskScreeningUnavailable') ||
   (isRejection(error) && (error as { status?: number; code?: string }).status === 409 && (error as { code?: string }).code === 'idempotency_request_in_progress') ||
-  (isUpstreamError(error) && (error as { kind?: string }).kind === 'timeout');
+  (isUpstreamError(error) && (error as { kind?: string }).kind === 'timeout')/* MUT-M3 */;
 
 /**
  * `201 review` con `screened:false` y `reason_code: screening_unavailable`: pay-risk no pudo cribar (Watchman caído o lento). El contrato (`POST /assessments`)
@@ -40,13 +51,19 @@ const isRiskInFlight = (error: unknown): boolean =>
  */
 const DEFINITIVE_UNSCREENED_REVIEWS: ReadonlySet<string> = new Set(['screening_not_provided', 'payer_unidentified', 'outside_allowed_hours']);
 class RiskScreeningUnavailable extends Error {
-  constructor() {
-    super('pay-risk no pudo cribar (screening_unavailable)');
+  constructor(reason = 'pay-risk no pudo cribar (screening_unavailable)') {
+    super(reason);
     this.name = 'RiskScreeningUnavailable';
   }
 }
 const isScreeningUnavailable = (assessment: { decision: string; screened: boolean; reason_code: string }): boolean =>
   assessment.decision === 'review' && !assessment.screened && !DEFINITIVE_UNSCREENED_REVIEWS.has(assessment.reason_code);
+/**
+ * Defensa en profundidad (REVISION-DINERO F7): `internal-risk-v1` dice que un `allow` SIEMPRE trae `screened:true` («si es `false`, la decisión nunca es `allow`») y `evaluate()` de pay-risk
+ * lo sostiene. Un `allow` sin cribado es una respuesta contradictoria que no se concede (regla 11: nunca se concede por ambigüedad): se trata como el cribado no disponible, en vuelo, y se
+ * reintenta con la misma clave; agotada la política, fail-closed con constancia.
+ */
+const isUnscreenedAllow = (assessment: { decision: string; screened: boolean }): boolean => assessment.decision === 'allow' && assessment.screened !== true;
 
 /** Intento actual de la actividad (1 en el primero). Fuera de Temporal (pruebas directas) no hay contexto: se cuenta como el último. */
 function attemptOfActivity(): number {
@@ -98,6 +115,17 @@ export function createActivities(deps: Deps) {
     const row = await intentsRepo.byId(deps.pool, intentId);
     if (!row) throw ApplicationFailure.nonRetryable(`El intento ${intentId} no existe`, 'IntentNotFound');
     return row;
+  };
+
+  /**
+   * ¿Hubo antes OTRA ocasión de que la evaluación de riesgo saliera hacia pay-risk, que `attempt` (que vuelve a 1 en cada ejecución nueva de la actividad) ya no ve? (REVISION-DINERO F1,
+   * escenario C.) Una ronda anterior de `assessRisk` que agotó sus reintentos sin cerrar el intento deja, por el workflow (`keep('risk_unknown')` ⇒ `escalate`), la constancia
+   * `ambiguous:risk_unknown` en la base: sobrevive a la actividad, al worker y a un workflow nuevo del mismo intento. Si existe, se asume CONSERVADORAMENTE que una evaluación pudo salir.
+   * Límite conocido: si esa constancia no se pudo escribir todavía (la propia escalada falló) o la ronda anterior se cortó antes de escalar, esta consulta no la ve.
+   */
+  const earlierRoundMayHaveSent = async (intentId: string): Promise<boolean> => {
+    const { rows } = await deps.pool.query('SELECT 1 FROM intent_contradictions WHERE payment_intent_id = $1 AND source_event_id = $2 LIMIT 1', [intentId, ROUND_FAILED_MARKER]);
+    return rows.length > 0;
   };
 
   const denyByRisk = async (intentId: string): Promise<{ proceed: false }> => {
@@ -204,23 +232,25 @@ export function createActivities(deps: Deps) {
         });
         // El cribado no se pudo completar: ni «sí» ni «no». Se reintenta con la misma clave (ver `RiskScreeningUnavailable`); agotada la política, fail-closed.
         if (isScreeningUnavailable(assessment)) throw new RiskScreeningUnavailable();
+        if (isUnscreenedAllow(assessment)) throw new RiskScreeningUnavailable('pay-risk respondió allow sin cribado (screened:false), que el contrato descarta');
         // D4/D-30: `review` (con el cribado hecho, o por una razón de negocio) se trata como `deny` hasta que exista cola de revisión manual.
         if (assessment.decision !== 'allow') return await denyByRisk(intentId);
         return { proceed: true };
       } catch (error) {
         // Política (P3.H2.M2, regla 11): sin decisión de riesgo no se cobra. Pero «sin decisión» tiene tres causas distintas:
-        //  · EN VUELO (409 en curso, timeout del cliente, o `review/screening_unavailable` con `screened:false`): se reintenta con la MISMA clave (Temporal, con backoff) hasta que riesgo responda con su
-        //    decisión. Si se agota la política de la actividad el intento se cierra SIEMPRE `failed/risk_unavailable` (fail-closed, sin cargo, con constancia
-        //    para una persona), sea cual sea el monto y la configuración: esa evaluación sigue viva y puede volver como `deny`. NUNCA queda en `processing`.
+        //  · AMBIGUA / EN VUELO (409 en curso, `review/screening_unavailable` o `allow` sin cribar, y TODO `UpstreamError` en el que no se PRUEBE que ninguna llamada llegó: timeout,
+        //    corte de socket, 5xx, respuesta ilegible o fuera del contrato, o cualquier error tras una llamada anterior que pudo llegar): se reintenta con la MISMA clave (Temporal,
+        //    con backoff) hasta que riesgo responda con su decisión. Si se agota la política de la actividad el intento se cierra SIEMPRE `failed/risk_unavailable` (fail-closed,
+        //    sin cargo, con constancia para una persona), sea cual sea el monto y la configuración: esa evaluación pudo quedar viva y puede volver como `deny`. NUNCA queda en `processing`.
         //  · RESPUESTA FUERA DE LA DECISIÓN (cualquier 4xx declarado que no es `deny`/`review` en una respuesta válida): es un error de integración nuestro;
         //    mismo cierre SIEMPRE fail-closed y con constancia. Solo una `decision` válida es un «sí» o un «no» de negocio.
-        //  · NO DISPONIBLE (5xx, red, breaker abierto): única causa a la que aplica la franquicia «bajo el umbral pasa» (RISK_ALLOW_BELOW_THRESHOLD,
-        //    por defecto apagada), porque ahí no hay ninguna evaluación en vuelo que pueda llegar a decir «no».
+        //  · PROBADAMENTE NO LLEGÓ (conexión rechazada, DNS, red inalcanzable, breaker abierto) en la PRIMERA ronda y el PRIMER intento: única causa a la que aplica la franquicia
+        //    «bajo el umbral pasa» (RISK_ALLOW_BELOW_THRESHOLD, por defecto apagada), porque ahí no hay ninguna evaluación que pueda llegar a decir «no».
         const attempt = attemptOfActivity();
-        // Si una vuelta ANTERIOR de esta actividad ya mandó la evaluación (attempt > 1), cualquier indisponibilidad ahora (el breaker abierto por los propios
-        // timeouts, un 5xx, la red) NO borra que haya una evaluación viva con esta clave: se trata igual que «en vuelo» (se reintenta con la misma clave).
+        // «No llegó» solo vale si nunca hubo OTRA ocasión de que la evaluación saliera: ni un intento anterior de esta actividad (attempt > 1) ni una ronda/ejecución anterior (ver `earlierRoundMayHaveSent`).
+        // Si la hubo, una indisponibilidad ahora (el breaker abierto por los propios 5xx, la red) NO borra que haya una evaluación viva con esta clave: se trata como «en vuelo».
         const earlierAttemptSent = attempt > 1 && attempt !== Number.MAX_SAFE_INTEGER && isUpstreamError(error);
-        const inFlight = isRiskInFlight(error) || earlierAttemptSent;
+        const inFlight = isRiskInFlight(error) || earlierAttemptSent || (neverReached(error) && (await earlierRoundMayHaveSent(intentId)));
         if (inFlight && attempt < config.policy.activity.maxAttempts) {
           throw ApplicationFailure.retryable('pay-risk todavía no tiene la decisión (en curso o sin respuesta a tiempo); se reintenta con la misma clave', 'RiskInFlight');
         }

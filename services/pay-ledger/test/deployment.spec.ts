@@ -63,10 +63,10 @@ describe('guardia de despliegue: live no acepta dobles', () => {
 });
 
 describe('arranque de la aplicación', () => {
-  async function boot(payMode: string | undefined, fakeEngine = false, maskKey: string | undefined = MASK_KEY): Promise<INestApplication> {
+  async function boot(payMode: string | undefined, fakeEngine = false, maskKey: string | null = MASK_KEY): Promise<INestApplication> {
     if (payMode === undefined) delete process.env.PAY_MODE;
     else process.env.PAY_MODE = payMode;
-    if (maskKey === undefined) delete process.env.IDEMPOTENCY_MASK_KEY;
+    if (maskKey === null) delete process.env.IDEMPOTENCY_MASK_KEY;
     else process.env.IDEMPOTENCY_MASK_KEY = maskKey;
     let builder = Test.createTestingModule({ imports: [AppModule] });
     if (fakeEngine) builder = builder.overrideProvider(TB_ENGINE).useValue({ destroy: () => undefined });
@@ -97,7 +97,7 @@ describe('arranque de la aplicación', () => {
   });
 
   it('PAY_MODE=live SIN IDEMPOTENCY_MASK_KEY (o con una corta): NO arranca y dice qué falta (S-02)', async () => {
-    await expect(boot('live', false, undefined)).rejects.toThrow(/IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live/);
+    await expect(boot('live', false, null)).rejects.toThrow(/IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live/);
     await expect(boot('live', false, 'corta')).rejects.toThrow(/IDEMPOTENCY_MASK_KEY inválida/);
   });
 
