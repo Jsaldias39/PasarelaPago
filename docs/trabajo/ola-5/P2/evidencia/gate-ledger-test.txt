@@ -1095,4 +1095,243 @@ warning(message_bus): 179431920217066266707886981399925140711: on_connect: error
 warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
 warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
 warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
-warning(message_bus): 286846298956592585189240176070963844463: on_conne
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 179431920217066266707886981399925140711: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+FAIL test/holds.spec.ts (89.776 s)
+  ● POST /holds — primera fase › reserva el monto: el disponible baja y NO se puede gastar dos veces lo retenido
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 503
+
+      16 | async function tx(legs: object[], caller: string) {
+      17 |   const res = await ctx.as(caller).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    > 18 |   expect(res.status).toBe(201);
+         |                      ^
+      19 | }
+      20 | /** Deja `amount` disponibles en el comercio. */
+      21 | async function fund(m: string, amount: number) {
+
+      at toBe (test/holds.spec.ts:18:22)
+      at fund (test/holds.spec.ts:22:3)
+      at Object.<anonymous> (test/holds.spec.ts:52:5)
+
+  ● POST /holds — primera fase › idempotente por (business_ref, attempt) y con la regla de intentos
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 422
+    Received: 503
+
+      68 |     const payload = holdBody(m, 1000);
+      69 |     const rejected = await createHold(payload); // sin saldo
+    > 70 |     expect(rejected.status).toBe(422);
+         |                             ^
+      71 |     await fund(m, 1000);
+      72 |     expect((await createHold(payload)).status).toBe(422); // el attempt 1 sigue siendo el rechazo
+      73 |     expect((await createHold({ ...payload, attempt: 3 })).status).toBe(409);
+
+      at Object.toBe (test/holds.spec.ts:70:29)
+
+  ● POST /holds/{id}/post y /void — segunda fase › post total: mueve el monto, deja pata y extracto, y publica los eventos
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 503
+
+      16 | async function tx(legs: object[], caller: string) {
+      17 |   const res = await ctx.as(caller).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    > 18 |   expect(res.status).toBe(201);
+         |                      ^
+      19 | }
+      20 | /** Deja `amount` disponibles en el comercio. */
+      21 | async function fund(m: string, amount: number) {
+
+      at toBe (test/holds.spec.ts:18:22)
+      at fund (test/holds.spec.ts:22:3)
+      at Object.<anonymous> (test/holds.spec.ts:100:5)
+
+  ● POST /holds/{id}/post y /void — segunda fase › post parcial: lo no confirmado vuelve a la cuenta de origen
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 503
+
+      16 | async function tx(legs: object[], caller: string) {
+      17 |   const res = await ctx.as(caller).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    > 18 |   expect(res.status).toBe(201);
+         |                      ^
+      19 | }
+      20 | /** Deja `amount` disponibles en el comercio. */
+      21 | async function fund(m: string, amount: number) {
+
+      at toBe (test/holds.spec.ts:18:22)
+      at fund (test/holds.spec.ts:22:3)
+      at Object.<anonymous> (test/holds.spec.ts:114:5)
+
+  ● POST /holds/{id}/post y /void — segunda fase › post por más de lo retenido ⇒ 422 y la retención sigue pendiente
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 503
+
+      16 | async function tx(legs: object[], caller: string) {
+      17 |   const res = await ctx.as(caller).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    > 18 |   expect(res.status).toBe(201);
+         |                      ^
+      19 | }
+      20 | /** Deja `amount` disponibles en el comercio. */
+      21 | async function fund(m: string, amount: number) {
+
+      at toBe (test/holds.spec.ts:18:22)
+      at fund (test/holds.spec.ts:22:3)
+      at Object.<anonymous> (test/holds.spec.ts:124:5)
+
+  ● POST /holds/{id}/post y /void — segunda fase › void devuelve el monto y publica ledger.hold.voided
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 503
+
+      16 | async function tx(legs: object[], caller: string) {
+      17 |   const res = await ctx.as(caller).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    > 18 |   expect(res.status).toBe(201);
+         |                      ^
+      19 | }
+      20 | /** Deja `amount` disponibles en el comercio. */
+      21 | async function fund(m: string, amount: number) {
+
+      at toBe (test/holds.spec.ts:18:22)
+      at fund (test/holds.spec.ts:22:3)
+      at Object.<anonymous> (test/holds.spec.ts:133:5)
+
+  ● POST /holds/{id}/post y /void — segunda fase › se resuelve UNA sola vez: post o void de una retención ya resuelta ⇒ 409
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 503
+
+      16 | async function tx(legs: object[], caller: string) {
+      17 |   const res = await ctx.as(caller).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    > 18 |   expect(res.status).toBe(201);
+         |                      ^
+      19 | }
+      20 | /** Deja `amount` disponibles en el comercio. */
+      21 | async function fund(m: string, amount: number) {
+
+      at toBe (test/holds.spec.ts:18:22)
+      at fund (test/holds.spec.ts:22:3)
+      at Object.<anonymous> (test/holds.spec.ts:144:5)
+
+  ● POST /holds/{id}/post y /void — segunda fase › con la misma Idempotency-Key se repite la respuesta guardada, incluso un error de negocio
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 503
+
+      16 | async function tx(legs: object[], caller: string) {
+      17 |   const res = await ctx.as(caller).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    > 18 |   expect(res.status).toBe(201);
+         |                      ^
+      19 | }
+      20 | /** Deja `amount` disponibles en el comercio. */
+      21 | async function fund(m: string, amount: number) {
+
+      at toBe (test/holds.spec.ts:18:22)
+      at fund (test/holds.spec.ts:22:3)
+      at Object.<anonymous> (test/holds.spec.ts:157:5)
+
+  ● POST /holds/{id}/post y /void — segunda fase › 5 confirmaciones simultáneas con claves distintas ⇒ UNA efectiva y cuatro 409; el dinero se mueve una vez
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 503
+
+      16 | async function tx(legs: object[], caller: string) {
+      17 |   const res = await ctx.as(caller).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    > 18 |   expect(res.status).toBe(201);
+         |                      ^
+      19 | }
+      20 | /** Deja `amount` disponibles en el comercio. */
+      21 | async function fund(m: string, amount: number) {
+
+      at toBe (test/holds.spec.ts:18:22)
+      at fund (test/holds.spec.ts:22:3)
+      at Object.<anonymous> (test/holds.spec.ts:175:5)
+
+  ● vencimiento de una retención (REQ-P2-3) › pasado el plazo sin resolver, el monto vuelve solo; no se puede confirmar; el barrido deja constancia y publica el evento
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 503
+
+      16 | async function tx(legs: object[], caller: string) {
+      17 |   const res = await ctx.as(caller).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    > 18 |   expect(res.status).toBe(201);
+         |                      ^
+      19 | }
+      20 | /** Deja `amount` disponibles en el comercio. */
+      21 | async function fund(m: string, amount: number) {
+
+      at toBe (test/holds.spec.ts:18:22)
+      at fund (test/holds.spec.ts:22:3)
+      at Object.<anonymous> (test/holds.spec.ts:195:5)
+
+  ● POST /holds — reutilizar (business_ref, attempt) con otro contenido tras una caída › TigerBeetle ya tiene esa retención con OTRO monto: 422 idempotency_key_reused, nada se registra ni se mueve (antes: 500)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 503
+
+      16 | async function tx(legs: object[], caller: string) {
+      17 |   const res = await ctx.as(caller).post('/transactions', { business_ref: businessRef(), attempt: 1, currency: 'BOB', legs }).set('idempotency-key', key());
+    > 18 |   expect(res.status).toBe(201);
+         |                      ^
+      19 | }
+      20 | /** Deja `amount` disponibles en el comercio. */
+      21 | async function fund(m: string, amount: number) {
+
+      at toBe (test/holds.spec.ts:18:22)
+      at fund (test/holds.spec.ts:22:3)
+      at Object.<anonymous> (test/holds.spec.ts:224:5)
+
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 286846298956592585189240176070963844463: on_connect: error to=0 error.ConnectionRefused
+warning(message_bus): 2868462
