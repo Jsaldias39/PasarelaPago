@@ -39,3 +39,6 @@
 | A-3 | ¿Los extractos del banco pueden traer PAN completo? | No. | Banco Mercantil |
 | A-4 | Texto de RD 079/2022, RD 069/2021 y rol de la ASFI. | No se leyeron; se pide a la asesoría (`preguntas-legales.md`). | Asesoría legal |
 | A-5 | ¿Un evento de un tipo público puede traer campos nuevos? | Se descartan hasta que el contrato los declare (DT-10). | P2, P3, P5 |
+
+### DT-19 — dato nuevo (ola 5, carril INT)
+Observado con un cliente real: la API del monolito envió un UUID en `metadata` y `pay-edge` respondió `422 card_number_detected` (el guardia de PAN lo leyó como tarjeta). Un UUID es un identificador legítimo y común, así que el falso positivo no es teórico. El cliente de la API lo esquiva no enviando `metadata`. Sigue abierta la decisión de exigir además el prefijo de marca (IIN) o excluir formas de UUID (P1/P3 y QSA). Evidencia: `docs/trabajo/ola-5/INT/INFORME.md`.
