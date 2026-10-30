@@ -1,4 +1,4 @@
-> **AVANCE INT: 0 / 5 — 0,0 %.** `INT.H1.M2` e `INT.H1.M3` están `A MEDIAS` (escritas y probadas contra dobles; el cliente y el verificador de firma, además, contra el sandbox REAL de la pasarela). `M1`, `M4` y `M5` están `BLOQUEADO` por algo externo.
+> **AVANCE INT: 1 / 5 — 20,0 %.** `INT.H1.M3` está `HECHO` (receptor probado contra el sandbox real y contra PostgreSQL real). `INT.H1.M2` sigue `A MEDIAS` (probada contra dobles; el cliente, además, contra el sandbox real; faltan las confirmaciones 1–4 y la persistencia del camino de cobro). `M1`, `M4` y `M5` están `BLOQUEADO` por algo externo.
 
 # Informe INT — la API cobra por la pasarela (M2 + M3)
 
@@ -29,7 +29,7 @@
 
 ## Qué NO cubre
 
-- Persistencia real de la bandeja (índice único, `FOR UPDATE`, concurrencia entre webhooks duplicados): los repositorios se probaron con fakes. La suite de integración de la API exige `AppModule` completo con PostgreSQL, MongoDB, Redis, OpenSearch y el esquema del repo del modelo; esas imágenes no están disponibles aquí (Docker Hub 429).
+- ~~Persistencia real de la bandeja~~ **Cubierta** (commit `77dd6ec9` de la API): `test/integration/payments-gateway-webhook.int-spec.ts`, 11 pruebas contra PostgreSQL real con el DDL real de `42_payments`, sin levantar `AppModule`. Sigue sin cubrirse: la persistencia del camino de COBRO (`createIntent`/`processTransaction`), HTTP real, varias réplicas de la API, FK omitidas (6) y esquema reducido a 5 tablas.
 - La API arrancada de punta a punta (UI → solicitud → respuesta → persistencia → recarga).
 - `openapi/openapi.yaml`, `openapi/ENDPOINTS.md` e inventario generado: hay ruta nueva y campos nuevos sin reflejar (requieren infraestructura levantada).
 - Autorización negativa del endpoint público más allá de la firma; refunds por la pasarela; modo `wallet`; varias deudas por intención; la factura de `billing`.
