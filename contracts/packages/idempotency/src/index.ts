@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { ProblemError, type ProblemDetails } from '@pay/problem';
 import { safeIdempotencyKey } from './card-number';
+import { assertIdempotencyMaskConfig } from './mask-key';
 
-export { containsCardNumber, safeIdempotencyKey } from './card-number';
+export { containsCardNumber, isAcceptableRequestId, resolveRequestId, safeIdempotencyKey } from './card-number';
+export { assertIdempotencyMaskConfig, DEV_MASK_KEY, MASK_KEY_ENV, MIN_MASK_KEY_BYTES, resolveMaskKey } from './mask-key';
 export { guardPool } from './pool-guard';
 export { maskSpanAttributes, maskUrl, safeUrl, URL_PATH_ATTRIBUTES, URL_QUERY_ATTRIBUTES } from './url-mask';
 
@@ -114,12 +116,15 @@ export class IdempotencyStore {
     options: IdempotencyOptions = {},
   ) {
     this.options = { ...DEFAULTS, ...options };
+    // Falla al ARRANCAR (el almacén se construye al levantar el módulo), no en la primera petición con una clave con forma de PAN: bajo PAY_MODE=live sin
+    // IDEMPOTENCY_MASK_KEY válida el servicio no inicia (S-02).
+    assertIdempotencyMaskConfig();
   }
 
   /**
    * Ejecuta `handler` una sola vez por `(scope, key)`.
    *
-   * Una clave con forma de número de tarjeta se guarda como `masked-<sha256>` (la misma clave da el mismo hash: la idempotencia sigue funcionando).
+   * Una clave con forma de número de tarjeta se guarda como `masked-<HMAC-SHA-256 con clave de servidor>` (la misma clave da el mismo valor: la idempotencia sigue funcionando).
    *
    * @throws ProblemError `idempotency_key_reused` (422) si la clave se usó con otro pedido;
    *   `idempotency_request_in_progress` (409) si otra ejecución sigue viva.

@@ -65,14 +65,14 @@ export class WebhooksModule {
           inject: [SECRET_BOX, CLOCK, SERVICE_CONFIG, SVIX_CLIENT],
           useFactory: (box: SecretBox, clock: Clock, config: ServiceConfig, svix: SvixClient | undefined) =>
             config.engine === 'svix' && svix
-              ? new SvixEngine(svix, { rotationGraceSeconds: Math.round(config.rotationGraceMs / 1000) })
+              ? new SvixEngine(svix, { rotationGraceSeconds: Math.round(config.rotationGraceMs / 1000), ...(config.svix ? { namespace: config.svix.namespace } : {}) })
               : new InProcessEngine(box, clock, { rotationGraceMs: config.rotationGraceMs }),
         },
         {
           provide: SVIX_RECONCILER,
           inject: [PG_POOL, SERVICE_CONFIG, SVIX_CLIENT],
           useFactory: (pool: Pool, config: ServiceConfig, svix: SvixClient | undefined) =>
-            config.svix && svix ? new SvixReconciler(pool, svix, { orphanGraceMs: config.svix.orphanGraceMs, concurrency: 4 }) : undefined,
+            config.svix && svix ? new SvixReconciler(pool, svix, { orphanGraceMs: config.svix.orphanGraceMs, clockMarginMs: config.svix.clockMarginMs, namespace: config.svix.namespace, maxOrphanDeletesPerPass: config.svix.maxOrphanDeletesPerPass, concurrency: 4 }) : undefined,
         },
         {
           provide: DeliveryWorker,

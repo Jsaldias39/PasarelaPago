@@ -2,14 +2,28 @@ import { Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { disableEndpoint } from '../../endpoints/endpoint.repository';
 import { SvixApiError, type SvixClient, type SvixEndpointOut } from './svix-client';
+import { DEFAULT_SANDBOX_NAMESPACE, SVIX_OWNER_KEY, assertValidNamespace } from './svix-namespace';
+
+/** Tope de borrados de huérfanos por pasada si no se configura otro. Bajo a propósito: un huérfano real es una rareza (un alta revertida). */
+export const DEFAULT_MAX_ORPHAN_DELETES_PER_PASS = 5;
 
 export interface SvixReconcilerOptions {
-  /** Un endpoint de Svix que nuestra tabla no conoce se borra solo si es más viejo que esto (da tiempo a que termine un alta en curso). */
+  /**
+   * Un endpoint de Svix que nuestra tabla no conoce se borra solo si es más viejo que esto MÁS `clockMarginMs` (da tiempo a que termine un alta en
+   * curso y absorbe el desfase entre el reloj de este servicio y el de Svix, que es quien fecha el endpoint).
+   */
   readonly orphanGraceMs: number;
   /** Comercios reconciliados a la vez. */
   readonly concurrency: number;
   /** Margen que se resta a la marca de agua al consultar intentos, por el desfase de relojes entre este servicio y Svix. */
   readonly clockMarginMs?: number;
+  /** Propietario de ESTE entorno (`svix-namespace.ts`): solo se borran huérfanos que lleven su marca. Por defecto el de sandbox. */
+  readonly namespace?: string;
+  /**
+   * Tope de huérfanos que una pasada borra (en total, no por comercio). Si hay más candidatos, NO se borra ninguno y se avisa: tantos huérfanos
+   * no son altas revertidas sino una base restaurada o un Svix compartido, y borrar es irreversible. `0` desactiva el borrado.
+   */
+  readonly maxOrphanDeletesPerPass?: number;
   readonly now?: () => Date;
 }
 
@@ -23,12 +37,22 @@ export interface ReconcileSummary {
   /** Endpoints locales deshabilitados que Svix todavía tenía habilitados y se alinearon. */
   readonly alignedDisabled: number;
   readonly orphansDeleted: number;
+  /** Huérfanos propios que SE HABRÍAN borrado y no se borraron porque la pasada superó el tope (`maxOrphanDeletesPerPass`). */
+  readonly orphansWithheld: number;
+  /** Endpoints `we_…` que nuestra tabla no conoce y que NO llevan la marca de este entorno (de otro entorno o anteriores a la marca): nunca se tocan. */
+  readonly notOwnedUnknown: number;
   /** Endpoints de nuestra tabla que Svix no tiene (o cuya aplicación no existe): se registran, NO se recrean (el comercio perdería su secreto). */
   readonly missingInSvix: number;
   readonly errors: number;
 }
 
 const OWN_ENDPOINT_UID = /^we_[a-z0-9]{10,40}$/;
+const DEFAULT_CLOCK_MARGIN_MS = 60_000;
+
+interface OrphanCandidate {
+  readonly merchantId: string;
+  readonly uid: string;
+}
 
 interface LocalEndpoint {
   readonly id: string;
@@ -45,8 +69,10 @@ interface LocalEndpoint {
  * - **Svix lo dio de baja** (`disabled` sin 410) ⇒ `too_many_failures`. El criterio de Svix es de TIEMPO (fallando de forma continua durante
  *   `SVIX_ENDPOINT_FAILURE_DISABLE_AFTER`), no «5 entregas agotadas seguidas» como el motor en proceso: es otro umbral (ver PROPUESTAS.md).
  * - **Convergencia inversa:** un endpoint deshabilitado aquí se deshabilita también en Svix si seguía activo.
- * - **Huérfanos:** un endpoint de Svix con forma `we_…` que ya no existe aquí (un alta que Svix aceptó y cuya transacción se revirtió)
- *   se borra pasado `orphanGraceMs`, tras comprobar de nuevo en la base. Sin esto seguiría recibiendo los eventos del comercio.
+ * - **Huérfanos:** un endpoint de Svix con forma `we_…` y la marca de ESTE entorno (`metadata.pay_owner`) que ya no existe aquí (un alta que Svix
+ *   aceptó y cuya transacción se revirtió) se borra pasado `orphanGraceMs + clockMarginMs`, tras comprobar de nuevo en la base. Sin esto seguiría
+ *   recibiendo los eventos del comercio. NUNCA se borra uno sin la marca (de otro entorno que comparte el Svix, o anterior a la marca) ni se borra
+ *   nada si la pasada encuentra más candidatos que `maxOrphanDeletesPerPass` (base restaurada): se avisa y se cuenta (`stats`).
  *
  * El 410 se busca en los últimos 100 intentos 4xx de cada endpoint desde la última pasada completa y sin errores. Es sondeo: una llamada
  * por endpoint habilitado y por ciclo. Ver PROPUESTAS.md para la alternativa por webhooks operativos de Svix a mayor escala.
@@ -54,13 +80,22 @@ interface LocalEndpoint {
 export class SvixReconciler {
   private readonly logger = new Logger(SvixReconciler.name);
   private watermark: Date | undefined;
+  private readonly namespace: string;
+  private readonly maxOrphanDeletes: number;
   lastSummary: ReconcileSummary | undefined;
+  /** Contadores acumulados desde el arranque; `/health` los expone. `orphanCapTrips` > 0 pide mirar por qué había tantos huérfanos. */
+  readonly stats = { orphanCapTrips: 0, orphansWithheldTotal: 0 };
 
   constructor(
     private readonly pool: Pool,
     private readonly client: SvixClient,
     private readonly options: SvixReconcilerOptions,
-  ) {}
+  ) {
+    this.namespace = assertValidNamespace(options.namespace ?? DEFAULT_SANDBOX_NAMESPACE);
+    const cap = options.maxOrphanDeletesPerPass ?? DEFAULT_MAX_ORPHAN_DELETES_PER_PASS;
+    if (!Number.isInteger(cap) || cap < 0) throw new RangeError('maxOrphanDeletesPerPass debe ser un entero >= 0');
+    this.maxOrphanDeletes = cap;
+  }
 
   private now(): Date {
     return this.options.now?.() ?? new Date();
@@ -68,7 +103,7 @@ export class SvixReconciler {
 
   async runOnce(): Promise<ReconcileSummary> {
     const started = this.now();
-    const since = this.watermark ? new Date(this.watermark.getTime() - (this.options.clockMarginMs ?? 60_000)) : undefined;
+    const since = this.watermark ? new Date(this.watermark.getTime() - (this.options.clockMarginMs ?? DEFAULT_CLOCK_MARGIN_MS)) : undefined;
     const rows = await this.pool.query('SELECT id, merchant_id, status FROM webhook_endpoints WHERE deleted_at IS NULL ORDER BY merchant_id, id');
     const byMerchant = new Map<string, LocalEndpoint[]>();
     for (const row of rows.rows) {
@@ -76,7 +111,8 @@ export class SvixReconciler {
       byMerchant.set(endpoint.merchantId, [...(byMerchant.get(endpoint.merchantId) ?? []), endpoint]);
     }
 
-    const totals = { merchants: byMerchant.size, endpoints: rows.rows.length, disabledGone: 0, disabledFailing: 0, alignedDisabled: 0, orphansDeleted: 0, missingInSvix: 0, errors: 0 };
+    const totals = { merchants: byMerchant.size, endpoints: rows.rows.length, disabledGone: 0, disabledFailing: 0, alignedDisabled: 0, orphansDeleted: 0, orphansWithheld: 0, notOwnedUnknown: 0, missingInSvix: 0, errors: 0 };
+    const candidates: OrphanCandidate[] = [];
     const queue = [...byMerchant.entries()];
     const lanes = Array.from({ length: Math.max(1, Math.min(this.options.concurrency, queue.length)) }, async () => {
       for (let next = queue.shift(); next; next = queue.shift()) {
@@ -85,7 +121,8 @@ export class SvixReconciler {
           totals.disabledGone += part.disabledGone;
           totals.disabledFailing += part.disabledFailing;
           totals.alignedDisabled += part.alignedDisabled;
-          totals.orphansDeleted += part.orphansDeleted;
+          totals.notOwnedUnknown += part.notOwnedUnknown;
+          candidates.push(...part.orphanCandidates);
           totals.missingInSvix += part.missingInSvix;
           totals.errors += part.errors;
         } catch (error) {
@@ -95,6 +132,7 @@ export class SvixReconciler {
       }
     });
     await Promise.all(lanes);
+    await this.deleteOrphans(candidates, totals);
 
     // La marca de agua solo avanza tras una pasada limpia: un error deja la ventana anterior para que nada quede sin mirar.
     if (totals.errors === 0) this.watermark = started;
@@ -103,7 +141,7 @@ export class SvixReconciler {
   }
 
   private async reconcileMerchant(merchantId: string, local: readonly LocalEndpoint[], since: Date | undefined) {
-    const part = { disabledGone: 0, disabledFailing: 0, alignedDisabled: 0, orphansDeleted: 0, missingInSvix: 0, errors: 0 };
+    const part = { disabledGone: 0, disabledFailing: 0, alignedDisabled: 0, notOwnedUnknown: 0, missingInSvix: 0, errors: 0, orphanCandidates: [] as OrphanCandidate[] };
     const remote = await this.client.listEndpoints(merchantId);
     if (!remote) {
       part.missingInSvix += local.length;
@@ -144,22 +182,48 @@ export class SvixReconciler {
       }
     }
 
+    // Huérfanos: solo se REÚNEN aquí; el borrado lo decide la pasada completa (`deleteOrphans`) porque el tope es por pasada, no por comercio.
     const known = new Set(local.map((e) => e.id));
     for (const svix of remote) {
       if (!svix.uid || !OWN_ENDPOINT_UID.test(svix.uid) || known.has(svix.uid)) continue;
-      if (this.now().getTime() - Date.parse(svix.createdAt) < this.options.orphanGraceMs) continue;
-      try {
-        // Última comprobación antes de borrar algo en un sistema compartido: la fila puede haberse confirmado después de la consulta del ciclo.
-        const still = await this.pool.query('SELECT 1 FROM webhook_endpoints WHERE id = $1 AND deleted_at IS NULL', [svix.uid]);
-        if ((still.rowCount ?? 0) > 0) continue;
-        await this.client.deleteEndpoint(merchantId, svix.uid);
-        part.orphansDeleted += 1;
-        this.logger.warn({ merchant_id: merchantId, endpoint_id: svix.uid }, 'Endpoint de Svix sin fila local (alta revertida): borrado');
-      } catch (error) {
-        part.errors += 1;
-        this.logger.warn({ merchant_id: merchantId, endpoint_id: svix.uid, err: error instanceof Error ? error.name : 'desconocido' }, 'No se pudo borrar el endpoint huérfano');
+      if (svix.metadata[SVIX_OWNER_KEY] !== this.namespace) {
+        part.notOwnedUnknown += 1;
+        continue;
       }
+      // La edad compara el reloj de Svix (createdAt) con el de este servicio: el margen absorbe el desfase en el sentido peligroso (Svix atrasado).
+      if (this.now().getTime() - Date.parse(svix.createdAt) < this.options.orphanGraceMs + (this.options.clockMarginMs ?? DEFAULT_CLOCK_MARGIN_MS)) continue;
+      part.orphanCandidates.push({ merchantId, uid: svix.uid });
     }
     return part;
+  }
+
+  /**
+   * Borra los huérfanos propios de la pasada, salvo que haya más que el tope: en ese caso no borra NINGUNO, avisa (solo cifras, sin datos de comercios)
+   * y lo cuenta. Antes de cada borrado vuelve a mirar la base: la fila puede haberse confirmado después de la consulta del ciclo.
+   */
+  private async deleteOrphans(candidates: readonly OrphanCandidate[], totals: { orphansDeleted: number; orphansWithheld: number; errors: number }): Promise<void> {
+    if (candidates.length === 0) return;
+    if (candidates.length > this.maxOrphanDeletes) {
+      totals.orphansWithheld = candidates.length;
+      this.stats.orphanCapTrips += 1;
+      this.stats.orphansWithheldTotal += candidates.length;
+      this.logger.error(
+        { candidates: candidates.length, cap: this.maxOrphanDeletes, namespace: this.namespace, alert: true },
+        'Hay más endpoints huérfanos que el tope por pasada: no se borra ninguno (¿base restaurada o Svix compartido?); requiere revisión humana',
+      );
+      return;
+    }
+    for (const orphan of candidates) {
+      try {
+        const still = await this.pool.query('SELECT 1 FROM webhook_endpoints WHERE id = $1 AND deleted_at IS NULL', [orphan.uid]);
+        if ((still.rowCount ?? 0) > 0) continue;
+        await this.client.deleteEndpoint(orphan.merchantId, orphan.uid);
+        totals.orphansDeleted += 1;
+        this.logger.warn({ merchant_id: orphan.merchantId, endpoint_id: orphan.uid }, 'Endpoint de Svix sin fila local (alta revertida): borrado');
+      } catch (error) {
+        totals.errors += 1;
+        this.logger.warn({ merchant_id: orphan.merchantId, endpoint_id: orphan.uid, err: error instanceof Error ? error.name : 'desconocido' }, 'No se pudo borrar el endpoint huérfano');
+      }
+    }
   }
 }

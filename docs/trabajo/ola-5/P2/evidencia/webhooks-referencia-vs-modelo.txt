@@ -1,18 +1,35 @@
 # Comparación del DDL de referencia de pay-webhooks (sql/001_webhooks.sql + @pay/idempotency) contra el DDL del modelo (SQL/pay/80_pay_webhooks/ddl.sql), en dos esquemas descartables p2_chk_ref / p2_chk_model de pay_test (borrados al final)
-aplicado en p2_chk_ref: contracts/packages/idempotency/sql/001_idempotency_keys.sql
-aplicado en p2_chk_ref: /tmp/claude-0/-home-user/e2a1ca80-8ad4-54a7-8e83-0b9ce0655bff/scratchpad/001_webhooks.sql.bak
-aplicado en p2_chk_model: /home/user/mantra-core-health-model/SQL/pay/80_pay_webhooks/ddl.sql
+aplicado en p2_chk_ref: 001_idempotency_keys.sql
+aplicado en p2_chk_ref: 001_webhooks.sql.bak
+aplicado en p2_chk_model: ddl.sql
 --- columnas (tabla|columna|tipo|nulable|default) que difieren entre referencia y modelo:
 (ninguna: las columnas son IDÉNTICAS)
---- constraints (tabla|tipo|nombre) que difieren (< referencia, > modelo):
-ERROR:  operator is not unique: text || "char"
-LINE 1: select c.conrelid::regclass::text||'|'||c.contype||'|'||c.co...
-                                              ^
-HINT:  Could not choose a best candidate operator. You might need to add explicit type casts.
-ERROR:  operator is not unique: text || "char"
-LINE 1: select c.conrelid::regclass::text||'|'||c.contype||'|'||c.co...
-                                              ^
-HINT:  Could not choose a best candidate operator. You might need to add explicit type casts.
+--- constraints (tabla|tipo|nombre) que difieren (< solo en la referencia, > solo en el modelo):
+2,3c2,3
+< idempotency_keys|p|idempotency_keys_pkey
+< inbox_events|p|inbox_events_pkey
+---
+> idempotency_keys|p|pk_idempotency_keys
+> inbox_events|p|pk_inbox_events
+5,9c5,8
+< webhook_deliveries|f|webhook_deliveries_endpoint_fk
+< webhook_deliveries|p|webhook_deliveries_pkey
+< webhook_deliveries|u|webhook_deliveries_endpoint_event_key
+< webhook_delivery_attempts|f|webhook_delivery_attempts_delivery_fk
+< webhook_delivery_attempts|p|webhook_delivery_attempts_pkey
+---
+> webhook_deliveries|f|fk_webhook_deliveries_endpoint_id
+> webhook_deliveries|p|pk_webhook_deliveries
+> webhook_delivery_attempts|f|fk_webhook_delivery_attempts_delivery_id
+> webhook_delivery_attempts|p|pk_webhook_delivery_attempts
+16,18c15,17
+< webhook_endpoints|p|webhook_endpoints_pkey
+< webhook_secrets|f|webhook_secrets_endpoint_fk
+< webhook_secrets|p|webhook_secrets_pkey
+---
+> webhook_endpoints|p|pk_webhook_endpoints
+> webhook_secrets|f|fk_webhook_secrets_endpoint_id
+> webhook_secrets|p|pk_webhook_secrets
 NOTICE:  drop cascades to 6 other objects
 NOTICE:  drop cascades to 7 other objects
 esquemas borrados

@@ -40,7 +40,7 @@ export class HealthController {
         return { database: { status: 'up' } };
       },
       // Informativo: con Svix caído se siguen administrando endpoints y leyendo eventos (que se reintentan), así que no tumba el estado.
-      async (): Promise<HealthIndicatorResult> => ({ delivery_engine: { status: 'up', kind: this.engine.kind, ...(this.reconciler?.lastSummary ? { last_reconcile: this.reconciler.lastSummary } : {}) } }),
+      async (): Promise<HealthIndicatorResult> => ({ delivery_engine: { status: 'up', kind: this.engine.kind, ...(this.reconciler?.lastSummary ? { last_reconcile: this.reconciler.lastSummary } : {}), ...(this.reconciler ? { orphan_guard: { cap_trips: this.reconciler.stats.orphanCapTrips, withheld_total: this.reconciler.stats.orphansWithheldTotal } } : {}) } }),
       async (): Promise<HealthIndicatorResult> => ({ events: { status: 'up', subscribed_streams: this.consumer.subscribedStreams, ...this.ingest.metrics } }),
     ]);
   }

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { IdempotencyStore, hashRequest } from '@pay/idempotency';
 import { ProblemError, type FieldError } from '@pay/problem';
@@ -10,7 +10,7 @@ import { DELIVERY_ENGINE, type DeliveryEngine } from '../engine/delivery-engine'
 import { PUBLIC_EVENT_TYPES } from '../events/public-events';
 import { TargetGuard, TargetRejectedError } from '../ssrf/target-guard';
 import { countActiveEndpoints, findOwnedEndpoint, insertEndpoint, listEndpoints, softDeleteEndpoint } from './endpoint.repository';
-import { toView, type EndpointView, type SignatureScheme } from './endpoint.types';
+import { toView, type EndpointRecord, type EndpointView, type SignatureScheme } from './endpoint.types';
 
 export const TARGET_GUARD = Symbol('TARGET_GUARD');
 export const SECRET_BOX = Symbol('SECRET_BOX');
@@ -29,6 +29,10 @@ interface Replayable<T> {
   readonly replayed: boolean;
 }
 
+/** SQLSTATE de 5 caracteres: el servidor de base de datos RESPONDIÓ con un error, así que la transacción quedó abortada (no hay duda sobre el COMMIT). */
+const SQLSTATE = /^[0-9A-Z]{5}$/;
+const LOST_LOCK_MESSAGE = 'Se perdió el bloqueo de la Idempotency-Key';
+
 const invalid = (errors: FieldError[]) => new ProblemError('validation_failed', { errors });
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -38,6 +42,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
  */
 @Injectable()
 export class EndpointService {
+  private readonly logger = new Logger(EndpointService.name);
+
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(SERVICE_CONFIG) private readonly config: ServiceConfig,
@@ -94,15 +100,47 @@ export class EndpointService {
         if ((await countActiveEndpoints(this.pool, merchantId)) >= this.config.maxEndpointsPerMerchant) {
           throw new ProblemError('validation_failed', { errors: [{ field: 'endpoint', code: 'limit_reached' }] });
         }
-        const created = await context.atomic('endpoint_created', async (client) => {
-          const record = await insertEndpoint(client, { id: `we_${randomBytes(10).toString('hex')}`, merchantId, url: input.url, description: input.description, enabledEvents: input.enabledEvents, signatureScheme: input.scheme });
-          const { secret } = await this.engine.provisionEndpoint(client, record);
-          return { record, secret };
-        });
+        // El motor puede dejar algo FUERA de la transacción (un endpoint de Svix): `provisioned` marca que `provisionEndpoint` terminó bien.
+        const provisioned: { record?: EndpointRecord } = {};
+        let created;
+        try {
+          created = await context.atomic('endpoint_created', async (client) => {
+            const record = await insertEndpoint(client, { id: `we_${randomBytes(10).toString('hex')}`, merchantId, url: input.url, description: input.description, enabledEvents: input.enabledEvents, signatureScheme: input.scheme });
+            const { secret } = await this.engine.provisionEndpoint(client, record);
+            provisioned.record = record;
+            return { record, secret };
+          });
+        } catch (error) {
+          if (provisioned.record) await this.compensateFailedProvision(provisioned.record, error);
+          throw error;
+        }
         return { status: 201, body: { ...toView(created.record), secret: this.box.seal(created.secret, this.replayContext(merchantId, idempotencyKey)) } };
       },
     );
     return this.openReplay(result, merchantId, idempotencyKey);
+  }
+
+  /**
+   * El alta falló DESPUÉS de que el motor creó el endpoint fuera de la transacción (REVISION-DINERO F5). Solo se deshace si el fallo es DEFINITIVO
+   * (CLAUDE.md, regla 11): el servidor respondió con un error de base de datos o se perdió el bloqueo de la clave, es decir, nunca hubo COMMIT, y la fila
+   * tampoco existe. Un corte de conexión o cualquier error sin código del servidor es ambiguo (el COMMIT pudo aplicarse): NO se borra y lo resuelve el
+   * reconciliador. Si el endpoint se borrara y la fila hubiera quedado, el comercio tendría un endpoint sin contraparte y con su secreto perdido.
+   */
+  private async compensateFailedProvision(record: EndpointRecord, error: unknown): Promise<void> {
+    if (!this.engine.compensateProvision) return;
+    const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
+    const definitive = error instanceof Error && (error.message === LOST_LOCK_MESSAGE || (typeof code === 'string' && SQLSTATE.test(code)));
+    if (!definitive) {
+      this.logger.warn({ endpoint_id: record.id, err: error instanceof Error ? error.name : 'desconocido' }, 'El alta falló con resultado ambiguo tras crear el endpoint en el motor: no se borra; lo resolverá la reconciliación');
+      return;
+    }
+    try {
+      const row = await this.pool.query('SELECT 1 FROM webhook_endpoints WHERE id = $1', [record.id]);
+      if ((row.rowCount ?? 0) > 0) return; // el alta sí se confirmó: el endpoint del motor es legítimo
+      await this.engine.compensateProvision(record);
+    } catch (compensationError) {
+      this.logger.warn({ endpoint_id: record.id, err: compensationError instanceof Error ? compensationError.name : 'desconocido' }, 'No se pudo compensar el alta fallida; lo resolverá la reconciliación');
+    }
   }
 
   async rotateSecret(merchantId: string, idempotencyKey: string, id: string): Promise<Replayable<EndpointWithSecret | Record<string, unknown>>> {

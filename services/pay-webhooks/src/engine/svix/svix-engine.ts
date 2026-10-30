@@ -4,14 +4,17 @@ import { generateKeyPair, generateSecret } from '@pay/webhook-signature';
 import { enabledEndpointsFor } from '../../endpoints/endpoint.repository';
 import type { EndpointRecord } from '../../endpoints/endpoint.types';
 import { PUBLIC_EVENT_TYPES } from '../../events/public-events';
-import { EngineRejectedError, type DeliveryEngine, type OutboundMessage, type SecretDisclosure } from '../delivery-engine';
+import { EngineDriftError, EngineMisconfiguredError, EngineRejectedError, type DeliveryEngine, type OutboundMessage, type PublishResult, type SecretDisclosure } from '../delivery-engine';
 import { SvixApiError, SvixUnavailableError, type SvixClient } from './svix-client';
+import { DEFAULT_SANDBOX_NAMESPACE, SVIX_OWNER_KEY, assertValidNamespace } from './svix-namespace';
 
 export interface SvixEngineOptions {
   /** Cuánto siguen firmándose las entregas con el secreto viejo tras rotar. Svix admite de 0 a 7 días. */
   readonly rotationGraceSeconds: number;
   /** Veces que se reintenta una rotación de resultado ambiguo (se verifica el estado antes de repetirla). */
   readonly rotateAttempts?: number;
+  /** Propietario que se estampa en los endpoints que se crean (`svix-namespace.ts`). Por defecto el de sandbox; `config.ts` lo exige explícito en live. */
+  readonly namespace?: string;
 }
 
 /** Svix acepta de 0 a 7 días de gracia (OpenAPI `EndpointSecretRotateIn.gracePeriodSeconds`). */
@@ -60,6 +63,7 @@ export class SvixEngine implements DeliveryEngine {
   readonly kind = 'svix' as const;
   private readonly logger = new Logger(SvixEngine.name);
   private eventTypesReady: Promise<void> | undefined;
+  private readonly namespace: string;
 
   constructor(
     private readonly client: SvixClient,
@@ -68,6 +72,7 @@ export class SvixEngine implements DeliveryEngine {
     if (!Number.isInteger(options.rotationGraceSeconds) || options.rotationGraceSeconds < 0 || options.rotationGraceSeconds > SVIX_MAX_GRACE_SECONDS) {
       throw new RangeError('La gracia de rotación de Svix debe estar entre 0 y 7 días');
     }
+    this.namespace = assertValidNamespace(options.namespace ?? DEFAULT_SANDBOX_NAMESPACE);
   }
 
   async provisionEndpoint(_db: Queryable, endpoint: EndpointRecord): Promise<SecretDisclosure> {
@@ -80,6 +85,7 @@ export class SvixEngine implements DeliveryEngine {
         url: endpoint.url,
         eventTypes: endpoint.enabledEvents.includes('*') ? null : endpoint.enabledEvents,
         secret: keys.forSvix,
+        metadata: { [SVIX_OWNER_KEY]: this.namespace },
       });
     } catch (error) {
       // 409: ya existe un endpoint con este `uid`. Si lo creó una llamada anterior de ESTA misma operación cuya respuesta se perdió, la
@@ -117,29 +123,86 @@ export class SvixEngine implements DeliveryEngine {
     await this.client.deleteEndpoint(endpoint.merchantId, endpoint.id);
   }
 
+  /**
+   * Deshace el endpoint de Svix que `provisionEndpoint` acaba de crear cuando el alta falló DESPUÉS, de forma definitiva (REVISION-DINERO F5): sin esto
+   * el endpoint seguiría vivo y suscrito, con un secreto que el comercio nunca recibió, hasta el barrido del reconciliador. El llamador solo lo invoca
+   * si la transacción se revirtió con seguridad (CLAUDE.md, regla 11: ante una duda no se borra). Un 404 cuenta como éxito; cualquier otro fallo se
+   * registra y lo resuelve la reconciliación. Nunca lanza.
+   */
+  async compensateProvision(endpoint: EndpointRecord): Promise<void> {
+    try {
+      await this.client.deleteEndpoint(endpoint.merchantId, endpoint.id);
+      this.logger.warn({ merchant_id: endpoint.merchantId, endpoint_id: endpoint.id }, 'Alta revertida: endpoint de Svix recién creado borrado (compensación)');
+    } catch (error) {
+      this.logger.warn({ merchant_id: endpoint.merchantId, endpoint_id: endpoint.id, err: error instanceof Error ? error.name : 'desconocido' }, 'Alta revertida: no se pudo borrar el endpoint de Svix; lo resolverá la reconciliación');
+    }
+  }
+
   async publish(db: Queryable, message: OutboundMessage): Promise<number> {
+    return (await this.publishDetailed(db, message)).deliveries;
+  }
+
+  async publishDetailed(db: Queryable, message: OutboundMessage): Promise<PublishResult> {
     // Los suscriptores se deciden con NUESTRA tabla (la autoridad de qué endpoints están habilitados); Svix filtra por tipo con lo mismo.
     const endpoints = await enabledEndpointsFor(db, message.merchantId, message.eventType);
-    if (endpoints.length === 0) return 0;
+    if (endpoints.length === 0) return { deliveries: 0, outcome: 'no_subscribers' };
 
     const payload = parsePayloadObject(message.payload);
     let outcome: 'created' | 'exists';
     try {
-      outcome = await this.client.createMessage(message.merchantId, { eventId: message.eventId, eventType: message.eventType, payload });
+      outcome = await this.createMessageRecoveringApp(message, payload, endpoints);
     } catch (error) {
-      if (error instanceof SvixApiError && (error.status === 422 || error.status === 400)) {
-        this.logger.error({ event_id: message.eventId, type: message.eventType, svix_status: error.status, svix_code: error.code }, 'Svix rechazó el mensaje de forma definitiva');
-        throw new EngineRejectedError('rejected_by_engine');
-      }
-      throw error;
+      throw this.classify(error, message);
     }
-    if (outcome === 'created') return endpoints.length;
+    if (outcome === 'created') return { deliveries: endpoints.length, outcome: 'queued' };
 
     // 409: ¿es este mismo evento (ya creado, p. ej. tras una caída entre Svix y el commit del inbox) o un `eventId` ajeno?
-    const existing = await this.client.getMessage(message.merchantId, message.eventId);
-    if (existing && existing.eventId === message.eventId) return 0;
+    let existing;
+    try {
+      existing = await this.client.getMessage(message.merchantId, message.eventId);
+    } catch (error) {
+      throw this.classify(error, message);
+    }
+    if (existing && existing.eventId === message.eventId) return { deliveries: 0, outcome: 'already_published' };
     this.logger.error({ event_id: message.eventId, type: message.eventType }, 'Svix respondió 409 pero el mensaje no está en la aplicación del comercio');
     throw new EngineRejectedError('event_id_conflict');
+  }
+
+  /**
+   * `POST …/msg`. Un 404 es «la aplicación del comercio no existe en Svix»: se recrea UNA vez de forma idempotente (`get_if_exists`) y se reintenta.
+   * Recrearla NO devuelve sus endpoints (Svix los borró con ella y su secreto solo lo tiene el comercio): si alguno de los endpoints habilitados
+   * localmente falta, publicar «con éxito» perdería el evento en silencio; se lanza `EngineDriftError` (transitorio: el evento queda pendiente) y no se crea nada.
+   */
+  private async createMessageRecoveringApp(message: OutboundMessage, payload: Record<string, unknown>, endpoints: readonly EndpointRecord[]): Promise<'created' | 'exists'> {
+    const input = { eventId: message.eventId, eventType: message.eventType, payload };
+    try {
+      return await this.client.createMessage(message.merchantId, input);
+    } catch (error) {
+      if (!(error instanceof SvixApiError && error.status === 404)) throw error;
+    }
+    await this.client.ensureApp(message.merchantId, message.merchantId);
+    const present = new Set((await this.client.listEndpoints(message.merchantId))?.flatMap((e) => (e.uid ? [e.uid] : [])));
+    const missing = endpoints.filter((e) => !present.has(e.id)).length;
+    if (missing > 0) {
+      this.logger.error({ merchant_id: message.merchantId, event_id: message.eventId, missing_endpoints: missing, alert: true }, 'La aplicación del comercio no existía en Svix y sus endpoints tampoco: el evento queda pendiente (deriva, requiere intervención)');
+      throw new EngineDriftError(missing);
+    }
+    return this.client.createMessage(message.merchantId, input);
+  }
+
+  /** Traduce una respuesta DEFINITIVA de Svix; lo ambiguo (timeout, corte, 5xx, 429) y lo no reconocido se deja pasar como transitorio. */
+  private classify(error: unknown, message: OutboundMessage): unknown {
+    if (!(error instanceof SvixApiError)) return error;
+    // 400/422: cuerpo inválido; 413: demasiado grande. Reintentar el mismo cuerpo nunca cambiará la respuesta.
+    if (error.status === 400 || error.status === 422 || error.status === 413) {
+      this.logger.error({ event_id: message.eventId, type: message.eventType, svix_status: error.status, svix_code: error.code }, 'Svix rechazó el mensaje de forma definitiva');
+      return new EngineRejectedError('rejected_by_engine');
+    }
+    if (error.status === 401 || error.status === 403) {
+      this.logger.error({ svix_status: error.status, alert: true }, 'Svix rechazó las credenciales del servicio: error de configuración (WEBHOOKS_SVIX_AUTH_TOKEN); los eventos quedan pendientes');
+      return new EngineMisconfiguredError(error.status);
+    }
+    return error;
   }
 
   /** Svix exige que el tipo exista antes de suscribir un endpoint a él. Se registran los públicos una vez por proceso (409 = ya estaba). */

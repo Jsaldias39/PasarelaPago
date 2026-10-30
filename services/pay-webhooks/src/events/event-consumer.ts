@@ -1,11 +1,15 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
 import { AckPolicy, connect, DeliverPolicy, type ConsumerMessages, type JsMsg, type NatsConnection } from 'nats';
+import { EngineMisconfiguredError } from '../engine/delivery-engine';
 import { SERVICE_CONFIG, type EventSource, type ServiceConfig } from '../config';
 import { EventIngest } from './event-ingest';
 import { PUBLIC_EVENT_TYPES } from './public-events';
 
 const RETRY_MS = 2_000;
 const NAK_DELAY_MS = 2_000;
+/** Con las credenciales de Svix rechazadas (401/403) cada evento fallaría igual: se detiene el lote y se espera antes de volver a leer. */
+const MISCONFIGURED_NAK_DELAY_MS = 60_000;
+const MISCONFIGURED_PAUSE_MS = 30_000;
 
 /**
  * Lee los eventos públicos de los streams de P2, P3 y P5 (consumidor durable por stream, entrega al menos una vez).
@@ -81,26 +85,41 @@ export class EventConsumer implements OnModuleInit, OnApplicationShutdown {
     this.streams.set(stream, messages);
     this.active.add(stream);
     if (this.active.size === this.config.eventSources.length) this.resolveReady();
-    for await (const message of messages) await this.handle(message);
+    for await (const message of messages) {
+      if ((await this.handle(message)) === 'halt') {
+        // Fail-closed: no se sigue consumiendo el lote contra un motor que rechaza las credenciales. Lo ya leído queda sin confirmar (NATS lo reentrega).
+        messages.stop();
+        this.active.delete(stream);
+        if (!this.stopped) await new Promise((resolve) => setTimeout(resolve, MISCONFIGURED_PAUSE_MS));
+        return;
+      }
+    }
     this.active.delete(stream);
   }
 
-  private async handle(message: JsMsg): Promise<void> {
+  /** `halt` solo ante un error de configuración del motor (401/403): hay que detener el lote. */
+  private async handle(message: JsMsg): Promise<'continue' | 'halt'> {
     let raw: unknown;
     try {
       raw = JSON.parse(message.string());
     } catch {
       this.logger.warn({ subject: message.subject }, 'Evento descartado: no es JSON');
       message.term('no es JSON');
-      return;
+      return 'continue';
     }
     try {
       const outcome = await this.ingest.ingest(raw);
       if (outcome.kind === 'rejected') message.term(outcome.reason);
       else message.ack();
     } catch (error) {
+      if (error instanceof EngineMisconfiguredError) {
+        this.logger.error({ subject: message.subject, status: error.status, alert: true }, 'El motor de entrega rechazó las credenciales: se detiene el lote y el evento queda pendiente');
+        message.nak(MISCONFIGURED_NAK_DELAY_MS);
+        return 'halt';
+      }
       this.logger.error({ subject: message.subject, err: error instanceof Error ? error.name : 'desconocido', code: (error as { code?: string }).code }, 'No se pudo procesar el evento; se reintenta');
       message.nak(NAK_DELAY_MS);
     }
+    return 'continue';
   }
 }

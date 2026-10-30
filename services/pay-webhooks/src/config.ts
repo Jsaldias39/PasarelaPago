@@ -1,3 +1,7 @@
+import { provisionBudgetMs } from './engine/svix/svix-client';
+import { DEFAULT_SANDBOX_NAMESPACE, SVIX_NAMESPACE_PATTERN } from './engine/svix/svix-namespace';
+import { PUBLIC_EVENT_TYPES } from './events/public-events';
+
 /** Configuración del servicio. Falla al arrancar si falta algo obligatorio: sin valores por defecto para secretos (regla 90.3.4). */
 export interface EventSource {
   /** Stream de JetStream del publicador (`PAY_PAYMENTS`). */
@@ -16,8 +20,17 @@ export interface SvixConfig {
   readonly maxAttempts: number;
   /** Cada cuánto se reconcilia el estado de los endpoints con Svix (410, baja por fallos, huérfanos). */
   readonly reconcileIntervalMs: number;
-  /** Un endpoint de Svix sin fila local solo se borra si tiene más de esta edad. */
+  /** Un endpoint de Svix sin fila local solo se borra si tiene más de esta edad MÁS `clockMarginMs`. Nunca menor que el peor caso de un alta (validado al arrancar). */
   readonly orphanGraceMs: number;
+  /** Desfase tolerado entre el reloj de este servicio y el de Svix (`WEBHOOKS_SVIX_CLOCK_MARGIN_SECONDS`); se suma a la gracia de huérfanos. */
+  readonly clockMarginMs: number;
+  /**
+   * Propietario de los endpoints de ESTE entorno en Svix (`WEBHOOKS_SVIX_NAMESPACE`): el reconciliador solo borra huérfanos que lleven su marca.
+   * Sandbox: por defecto `sandbox`. Live: obligatorio y distinto de `sandbox`.
+   */
+  readonly namespace: string;
+  /** Tope de huérfanos que una pasada borra (`WEBHOOKS_SVIX_MAX_ORPHAN_DELETES`); si hay más no se borra ninguno y se avisa. */
+  readonly maxOrphanDeletesPerPass: number;
 }
 
 export interface ServiceConfig {
@@ -124,6 +137,20 @@ function parseEngine(raw: string | undefined, payMode: 'sandbox' | 'live'): 'inp
 /** Svix admite de 0 a 7 días de gracia en la rotación de un secreto. */
 const SVIX_MAX_GRACE_HOURS = 7 * 24;
 
+/**
+ * `WEBHOOKS_SVIX_NAMESPACE`: quién es el dueño de los endpoints que este despliegue crea en Svix. Sandbox: `sandbox` si no se declara. Live: obligatorio
+ * y distinto de `sandbox`, para que dos entornos que comparten un Svix (o una base restaurada junto a otra) no se borren los endpoints entre sí.
+ */
+function parseNamespace(env: NodeJS.ProcessEnv, payMode: 'sandbox' | 'live'): string {
+  const raw = env.WEBHOOKS_SVIX_NAMESPACE;
+  const declared = raw !== undefined && raw !== '';
+  if (payMode === 'live' && !declared) throw new Error('PAY_MODE=live exige declarar WEBHOOKS_SVIX_NAMESPACE (sin valor por defecto en live)');
+  const value = declared ? raw : DEFAULT_SANDBOX_NAMESPACE;
+  if (!SVIX_NAMESPACE_PATTERN.test(value)) throw new Error(`WEBHOOKS_SVIX_NAMESPACE inválido: ${value} (minúsculas, dígitos y guion; 2 a 32 caracteres)`);
+  if (payMode === 'live' && value === DEFAULT_SANDBOX_NAMESPACE) throw new Error(`WEBHOOKS_SVIX_NAMESPACE no puede ser "${DEFAULT_SANDBOX_NAMESPACE}" con PAY_MODE=live: es el del sandbox`);
+  return value;
+}
+
 function parseSvix(env: NodeJS.ProcessEnv, payMode: 'sandbox' | 'live', rotationGraceHours: number): SvixConfig {
   const rawUrl = required(env, 'WEBHOOKS_SVIX_URL');
   let url: URL;
@@ -140,13 +167,27 @@ function parseSvix(env: NodeJS.ProcessEnv, payMode: 'sandbox' | 'live', rotation
   const authToken = required(env, 'WEBHOOKS_SVIX_AUTH_TOKEN');
   if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(authToken)) throw new Error('WEBHOOKS_SVIX_AUTH_TOKEN inválido: no tiene forma de JWT');
   if (rotationGraceHours > SVIX_MAX_GRACE_HOURS) throw new Error(`WEBHOOKS_ROTATION_GRACE_HOURS no puede superar ${SVIX_MAX_GRACE_HOURS} con WEBHOOKS_ENGINE=svix (Svix admite hasta 7 días)`);
+  const timeoutMs = integer(env, 'WEBHOOKS_SVIX_TIMEOUT_MS', 5_000, 100, 30_000);
+  const maxAttempts = integer(env, 'WEBHOOKS_SVIX_MAX_ATTEMPTS', 4, 1, 10);
+  const orphanGraceMs = integer(env, 'WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES', 10, 1, 1440) * MINUTE;
+  // Un alta mantiene su transacción abierta mientras habla con Svix; la fila local solo existe al final. Si la gracia fuera menor que el peor caso del alta,
+  // el reconciliador podría borrar el endpoint de un alta que todavía está terminando.
+  const budgetMs = provisionBudgetMs(maxAttempts, timeoutMs, PUBLIC_EVENT_TYPES.length);
+  if (orphanGraceMs < budgetMs) {
+    throw new Error(
+      `WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES (${orphanGraceMs / MINUTE}) es menor que el peor caso de un alta con WEBHOOKS_SVIX_TIMEOUT_MS y WEBHOOKS_SVIX_MAX_ATTEMPTS (${Math.ceil(budgetMs / MINUTE)} min): subí la gracia o bajá los intentos`,
+    );
+  }
   return {
     url: url.origin,
     authToken,
-    timeoutMs: integer(env, 'WEBHOOKS_SVIX_TIMEOUT_MS', 5_000, 100, 30_000),
-    maxAttempts: integer(env, 'WEBHOOKS_SVIX_MAX_ATTEMPTS', 4, 1, 10),
+    timeoutMs,
+    maxAttempts,
     reconcileIntervalMs: integer(env, 'WEBHOOKS_SVIX_RECONCILE_INTERVAL_MS', 15_000, 100, 600_000),
-    orphanGraceMs: integer(env, 'WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES', 10, 1, 1440) * MINUTE,
+    orphanGraceMs,
+    clockMarginMs: integer(env, 'WEBHOOKS_SVIX_CLOCK_MARGIN_SECONDS', 60, 0, 3_600) * SECOND,
+    namespace: parseNamespace(env, payMode),
+    maxOrphanDeletesPerPass: integer(env, 'WEBHOOKS_SVIX_MAX_ORPHAN_DELETES', 5, 0, 1000),
   };
 }
 

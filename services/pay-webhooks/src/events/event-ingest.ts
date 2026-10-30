@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { processOnce } from '@pay/outbox';
 import { PG_POOL } from '../database.module';
-import { DELIVERY_ENGINE, EngineRejectedError, type DeliveryEngine } from '../engine/delivery-engine';
+import { DELIVERY_ENGINE, EngineMisconfiguredError, EngineRejectedError, type DeliveryEngine, type PublishResult } from '../engine/delivery-engine';
 import { PayloadPolicyError, buildPublicPayload } from './payload-policy';
 import { isPublicEventType } from './public-events';
 
@@ -19,7 +19,12 @@ export type IngestOutcome =
 
 export interface IngestMetrics {
   queued: number;
+  /** Eventos sin ningún endpoint suscrito. NO incluye los que el motor ya tenía publicados (`alreadyPublished`). */
   noEndpoints: number;
+  /** Eventos que el motor ya tenía (un 409 de Svix tras perder el inbox): sin entregas nuevas, pero no por falta de endpoints. */
+  alreadyPublished: number;
+  /** Veces que el motor rechazó las credenciales (401/403): error de configuración; el evento queda pendiente. Debe ser 0. */
+  engineMisconfigured: number;
   duplicates: number;
   ignored: number;
   rejectedMalformed: number;
@@ -41,7 +46,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 @Injectable()
 export class EventIngest {
   private readonly logger = new Logger(EventIngest.name);
-  readonly metrics: IngestMetrics = { queued: 0, noEndpoints: 0, duplicates: 0, ignored: 0, rejectedMalformed: 0, rejectedPolicy: 0, rejectedEngine: 0 };
+  readonly metrics: IngestMetrics = { queued: 0, noEndpoints: 0, alreadyPublished: 0, engineMisconfigured: 0, duplicates: 0, ignored: 0, rejectedMalformed: 0, rejectedPolicy: 0, rejectedEngine: 0 };
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -74,11 +79,11 @@ export class EventIngest {
       throw error;
     }
 
-    let deliveries = 0;
+    let published: PublishResult = { deliveries: 0, outcome: 'no_subscribers' };
     let result;
     try {
       result = await processOnce(this.pool, `pay-webhooks.${raw.type}`, raw.id, async (client) => {
-        deliveries = await this.engine.publish(client, message);
+        published = this.engine.publishDetailed ? await this.engine.publishDetailed(client, message) : await this.publishCounting(client, message);
       });
     } catch (error) {
       // El motor dijo que este mensaje no se entregará NUNCA: reintentar no sirve. Se descarta (la transacción ya se revirtió) y se cuenta.
@@ -87,15 +92,23 @@ export class EventIngest {
         this.metrics.rejectedEngine += 1;
         return { kind: 'rejected', reason: 'engine_rejected', detail: error.reason };
       }
+      if (error instanceof EngineMisconfiguredError) this.metrics.engineMisconfigured += 1;
       throw error;
     }
     if (result === 'duplicate') {
       this.metrics.duplicates += 1;
       return { kind: 'duplicate' };
     }
-    if (deliveries === 0) this.metrics.noEndpoints += 1;
-    else this.metrics.queued += deliveries;
-    return { kind: 'queued', deliveries };
+    if (published.outcome === 'already_published') this.metrics.alreadyPublished += 1;
+    else if (published.deliveries === 0) this.metrics.noEndpoints += 1;
+    else this.metrics.queued += published.deliveries;
+    return { kind: 'queued', deliveries: published.deliveries };
+  }
+
+  /** Motor sin `publishDetailed`: solo se sabe cuántas entregas creó; cero se interpreta como «sin suscriptores». */
+  private async publishCounting(client: Parameters<DeliveryEngine['publish']>[0], message: Parameters<DeliveryEngine['publish']>[1]): Promise<PublishResult> {
+    const deliveries = await this.engine.publish(client, message);
+    return { deliveries, outcome: deliveries === 0 ? 'no_subscribers' : 'queued' };
   }
 
   private reject(reason: 'malformed' | 'payload_policy', detail: string): IngestOutcome {

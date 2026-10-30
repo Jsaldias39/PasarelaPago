@@ -15,7 +15,8 @@
  * fecha y un correlativo de 14 a 17 dígitos separados por guiones) se marca aunque no sea una tarjeta. Una clave legítima recomendada (UUID, ULID, texto con letras)
  * no lo sufre. LÍMITE: no detecta un PAN partido por LETRAS ni codificado (base64, hexadecimal). No lanza nunca y no devuelve ni conserva ningún fragmento del texto.
  */
-import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { maskDigest } from './mask-key';
 
 const MIN_PAN = 13;
 const MAX_PAN = 19;
@@ -75,10 +76,28 @@ export function containsCardNumber(text: string): boolean {
 
 /**
  * La `Idempotency-Key` que se guarda y se reenvía. Se guarda EN CLARO (`idempotency_keys.key`, 24 h) y viaja en cabeceras: una con forma de número de tarjeta se
- * reemplaza por `masked-<sha256 de la clave>`: el mismo texto da siempre el mismo valor (la idempotencia sigue funcionando) y el PAN no queda en ninguna parte.
+ * reemplaza por `masked-<HMAC-SHA-256 de la clave>`: el mismo texto da siempre el mismo valor (la idempotencia sigue funcionando) y el PAN no queda en ninguna parte.
+ * El HMAC lleva una clave de SERVIDOR (`IDEMPOTENCY_MASK_KEY`, ver `mask-key.ts`): un SHA-256 sin clave se invertía por enumeración (BIN conocido + Luhn ≈ 10^9, S-02).
  * NO se rechaza: {@link containsCardNumber} tiene falsos positivos con identificadores hexadecimales (una corrida de 13 o más dígitos que cumple Luhn por azar,
  * del orden de 1 de cada 500 claves de 32 hex) y rechazar tiraría peticiones legítimas, además de las claves internas que arma cada servicio (`pi_…:risk`).
+ * @throws Error si la clave de enmascarado no es válida (bajo `live`, ausente o corta): falla cerrado, nunca devuelve el PAN ni un hash sin clave.
  */
-export function safeIdempotencyKey(key: string): string {
-  return containsCardNumber(key) ? `masked-${createHash('sha256').update(key).digest('hex')}` : key;
+export function safeIdempotencyKey(key: string, env: NodeJS.ProcessEnv = process.env): string {
+  return containsCardNumber(key) ? `masked-${maskDigest(key, env)}` : key;
+}
+
+/** Un id de correlación aceptable: 8 a 64 caracteres sin espacios ni símbolos. */
+const REQUEST_ID = /^[A-Za-z0-9._-]{8,64}$/;
+
+/** ¿Este `X-Request-Id` se puede registrar, devolver y reenviar? Bien formado Y sin forma de PAN (el MISMO detector Luhn que el guardia de cuerpos: {@link containsCardNumber}). */
+export function isAcceptableRequestId(value: unknown): value is string {
+  return typeof value === 'string' && REQUEST_ID.test(value) && !containsCardNumber(value);
+}
+
+/**
+ * Id de correlación de una petición: el del cliente si viene bien formado y sin forma de PAN; si no, un UUID nuevo (S-03). El id se registra como `req.id`, se devuelve en
+ * la respuesta y se reenvía, así que un PAN pegado ahí acabaría en los logs de todos los servicios. Lo usa el `genReqId` de pino-http de TODOS los servicios.
+ */
+export function resolveRequestId(incoming: unknown): string {
+  return isAcceptableRequestId(incoming) ? incoming : randomUUID();
 }
