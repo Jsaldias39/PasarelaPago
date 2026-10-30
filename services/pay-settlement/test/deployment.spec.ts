@@ -1,6 +1,8 @@
+import { join } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { createIsolatedDatabase } from '@pay/testing';
 import { AppModule } from '../src/app.module';
 import { assertDeploymentSafe } from '../src/settlement/deployment';
 import { HttpConnectorsClient, HttpLedgerClient } from '../src/settlement/http-clients';
@@ -91,13 +93,27 @@ describe('arranque de la aplicación', () => {
     }
   });
 
+  // Ola 5 (REVISION-DINERO F-D1): bajo `live` la readiness exige el guardián de solo-agregar de `settlement_audit` (`checks.append_only_guards`). La base de desarrollo compartida
+  // `pay_settlement` se creó antes de ola 5 y NO lo tiene (el propio chequeo la marca), así que «live ⇒ 200» ya no se puede afirmar contra ella. Se corre contra un esquema
+  // descartable con el DDL ACTUAL (PGOPTIONS → search_path, que `pg` lee; mismo patrón que `pay-connectors/test/startup.spec.ts`); lo que se afirma no cambia y se añade
+  // `checks`. La base vieja ⇒ 503 en live está en `append-only-guards.readiness.spec.ts`.
   it('live con colaboradores reales (clientes HTTP, riel bancario, conector de verdad): arranca', async () => {
-    const app = await boot({ PAY_MODE: 'live', SETTLEMENT_MODE: 'bank', SETTLEMENT_TRANSFER_CONNECTOR: null, IDEMPOTENCY_MASK_KEY: MASK_KEY });
+    const db = await createIsolatedDatabase([join(process.cwd(), 'sql/ddl.sql')]);
+    const savedOptions = process.env.PGOPTIONS;
+    process.env.PGOPTIONS = `-c search_path=${db.schema}`;
     try {
-      const res = await request(app.getHttpServer()).get('/health/ready').expect(200);
-      expect(res.body.info.settlement).toMatchObject({ payMode: 'live', mode: 'bank', rail: 'bank_transfer', simulated: false });
+      const app = await boot({ PAY_MODE: 'live', SETTLEMENT_MODE: 'bank', SETTLEMENT_TRANSFER_CONNECTOR: null, IDEMPOTENCY_MASK_KEY: MASK_KEY });
+      try {
+        const res = await request(app.getHttpServer()).get('/health/ready').expect(200);
+        expect(res.body.info.settlement).toMatchObject({ payMode: 'live', mode: 'bank', rail: 'bank_transfer', simulated: false });
+        expect(res.body.checks).toEqual({ append_only_guards: { ok: true, missing: [] } });
+      } finally {
+        await app.close();
+      }
     } finally {
-      await app.close();
+      if (savedOptions === undefined) delete process.env.PGOPTIONS;
+      else process.env.PGOPTIONS = savedOptions;
+      await db.drop();
     }
   });
 

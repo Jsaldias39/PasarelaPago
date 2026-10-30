@@ -1,6 +1,8 @@
+import { join } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { createIsolatedDatabase } from '@pay/testing';
 import { AppModule } from '../src/app.module';
 import { assertDeploymentSafe } from '../src/ledger/deployment';
 import { loadLedgerConfig } from '../src/ledger/ledger.config';
@@ -75,12 +77,25 @@ describe('arranque de la aplicación', () => {
     return app;
   }
 
+  // Ola 5 (REVISION-DINERO F-D1): bajo `live` la readiness exige los guardianes de solo-agregar (`checks.append_only_guards`). La base de desarrollo compartida `pay_ledger` se creó
+  // antes de ola 5 y NO los tiene (el propio chequeo la marca: así lo detecta), de modo que esta prueba dejó de poder afirmar «live ⇒ 200» contra ella. Se corre contra un esquema
+  // descartable con el DDL ACTUAL (PGOPTIONS → search_path, que `pg` lee); lo que se afirma no cambia. El caso contrario (base vieja ⇒ 503 en live) está en `append-only-guards.readiness.spec.ts`.
   it.each(['sandbox', 'live'])('PAY_MODE=%s con TigerBeetle real: arranca y responde /health/ready', async (mode) => {
-    const app = await boot(mode);
+    const db = await createIsolatedDatabase([join(process.cwd(), 'sql/ddl.sql')]);
+    const savedOptions = process.env.PGOPTIONS;
+    process.env.PGOPTIONS = `-c search_path=${db.schema}`;
     try {
-      await request(app.getHttpServer()).get('/health/ready').expect(200);
+      const app = await boot(mode);
+      try {
+        const response = await request(app.getHttpServer()).get('/health/ready').expect(200);
+        expect(response.body.checks).toEqual({ append_only_guards: { ok: true, missing: [] } });
+      } finally {
+        await app.close();
+      }
     } finally {
-      await app.close();
+      if (savedOptions === undefined) delete process.env.PGOPTIONS;
+      else process.env.PGOPTIONS = savedOptions;
+      await db.drop();
     }
   });
 
