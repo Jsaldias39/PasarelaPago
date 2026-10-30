@@ -208,7 +208,7 @@ export class RefundsService {
     const now = this.clock.now();
     // F6: `connector_unavailable` es el centinela INTERNO de «sin efecto» (lo escribe solo la rama de `send`, sin referencia). Un `failed` que dice el PROVEEDOR
     // jamás puede guardarse con ese literal: el envío siguiente lo tomaría por «sin efecto», lo reabriría y lo reenviaría. Aquí solo llegan resultados del proveedor.
-    const stored = failureCode;
+    const stored = failureCode === SENTINEL_UNSENT ? PROVIDER_FAILED_CODE : failureCode;
     const updated = await client.query(
       `UPDATE connector_refunds SET status = $2, provider_reference = $3, failure_code = $4, updated_at = $5 WHERE id = $1 AND status = 'pending' RETURNING *`,
       [refund.id, status, providerReference, stored, now],

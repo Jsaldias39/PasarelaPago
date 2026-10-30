@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { context, propagation, ROOT_CONTEXT, SpanKind, SpanStatusCode, trace, type Attributes, type Span } from '@opentelemetry/api';
-import { containsPan } from '../domain/pan';
+import { isAcceptableRequestId } from '@pay/idempotency';
 import type { TraceCarrier } from '../temporal/types';
 
 /**
@@ -13,14 +13,13 @@ import type { TraceCarrier } from '../temporal/types';
  */
 
 const TRACER = 'pay-payments';
-const REQUEST_ID = /^[A-Za-z0-9._-]{8,64}$/;
 /** Un traceparent bien formado mide 55 caracteres (versión 00); se acota por si llega algo mayor, y el SDK decide su validez. */
 const MAX_TRACEPARENT = 512;
 /** Cabeceras de contexto que un cliente interno nunca copia del llamador: solo se envía el `traceparent` del contexto activo. */
 const CONTEXT_HEADERS = new Set(['traceparent', 'tracestate', 'baggage']);
 
-/** La misma regla que `genReqId` de `app.module.ts`: 8 a 64 caracteres sin espacios ni símbolos y sin forma de PAN. */
-export const isValidRequestId = (value: unknown): value is string => typeof value === 'string' && REQUEST_ID.test(value) && !containsPan(value);
+/** La misma regla que `genReqId` de `app.module.ts` (`resolveRequestId`): 8 a 64 caracteres sin espacios ni símbolos y sin forma de PAN según el detector Luhn compartido. */
+export const isValidRequestId = (value: unknown): value is string => isAcceptableRequestId(value);
 
 // ── x-request-id de la petición de origen ─────────────────────────────────────────────────────────────────────────────
 // Propio de este módulo y no del contexto de OpenTelemetry: el id tiene que viajar aunque no haya SDK (sin `OTEL_EXPORTER_OTLP_ENDPOINT` el contexto activo es nulo).

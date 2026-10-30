@@ -79,17 +79,17 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
     // Un JWT de FORMA válida y sintético (no firma nada): solo prueba la validación de forma.
     const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJvcmdfcHJ1ZWJhIn0.c2lnbmF0dXJhLWRlLXBydWViYQ';
     const svixEnv = { ...base, WEBHOOKS_ENGINE: 'svix', WEBHOOKS_SVIX_URL: 'http://127.0.0.1:54800', WEBHOOKS_SVIX_AUTH_TOKEN: TOKEN };
-    const liveSvix = { ...svixEnv, PAY_MODE: 'live', WEBHOOKS_SVIX_URL: 'https://svix.interno.example' };
+    const liveSvix = { ...svixEnv, PAY_MODE: 'live', WEBHOOKS_SVIX_URL: 'https://svix.interno.example', WEBHOOKS_SVIX_NAMESPACE: 'prod-bo' };
 
     it('CORRECTO: sandbox con svix carga la configuración del servidor con sus valores por defecto', () => {
       const config = loadConfig(svixEnv);
       expect(config.engine).toBe('svix');
-      expect(config.svix).toEqual({ url: 'http://127.0.0.1:54800', authToken: TOKEN, timeoutMs: 5_000, maxAttempts: 4, reconcileIntervalMs: 15_000, orphanGraceMs: 10 * 60_000 });
+      expect(config.svix).toEqual({ url: 'http://127.0.0.1:54800', authToken: TOKEN, timeoutMs: 5_000, maxAttempts: 4, reconcileIntervalMs: 15_000, orphanGraceMs: 10 * 60_000, clockMarginMs: 60_000, namespace: 'sandbox', maxOrphanDeletesPerPass: 5 });
       expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_URL: 'http://127.0.0.1:54800/' }).svix?.url).toBe('http://127.0.0.1:54800');
     });
 
     it('CORRECTO: live con svix sobre https arranca; inprocess ignora las variables de Svix', () => {
-      expect(loadConfig(liveSvix)).toMatchObject({ engine: 'svix', payMode: 'live', svix: { url: 'https://svix.interno.example' } });
+      expect(loadConfig(liveSvix)).toMatchObject({ engine: 'svix', payMode: 'live', svix: { url: 'https://svix.interno.example', namespace: 'prod-bo' } });
       expect(loadConfig({ ...svixEnv, WEBHOOKS_ENGINE: 'inprocess' }).svix).toBeUndefined();
     });
 
@@ -129,6 +129,46 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
 
     it.each([['WEBHOOKS_SVIX_TIMEOUT_MS', '50'], ['WEBHOOKS_SVIX_TIMEOUT_MS', '40000'], ['WEBHOOKS_SVIX_MAX_ATTEMPTS', '0'], ['WEBHOOKS_SVIX_MAX_ATTEMPTS', '11'], ['WEBHOOKS_SVIX_RECONCILE_INTERVAL_MS', '10'], ['WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES', '0']])('INVÁLIDO: %s=%s ⇒ no arranca', (name, value) => {
       expect(() => loadConfig({ ...svixEnv, [name]: value })).toThrow(new RegExp(`${name} inválido`));
+    });
+
+    describe('REVISION-DINERO F2/F5: espacio de nombres, tope de borrados, margen de reloj y gracia mínima', () => {
+      it('CORRECTO: sandbox sin declararlo usa «sandbox»; declarado, usa el suyo; los valores opcionales se leen', () => {
+        expect(loadConfig(svixEnv).svix?.namespace).toBe('sandbox');
+        expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_NAMESPACE: 'staging-2' }).svix?.namespace).toBe('staging-2');
+        expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_MAX_ORPHAN_DELETES: '0', WEBHOOKS_SVIX_CLOCK_MARGIN_SECONDS: '0' }).svix).toMatchObject({ maxOrphanDeletesPerPass: 0, clockMarginMs: 0 });
+        expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_MAX_ORPHAN_DELETES: '1000', WEBHOOKS_SVIX_CLOCK_MARGIN_SECONDS: '3600' }).svix).toMatchObject({ maxOrphanDeletesPerPass: 1000, clockMarginMs: 3_600_000 });
+      });
+
+      it('INVÁLIDO: live SIN WEBHOOKS_SVIX_NAMESPACE ⇒ no arranca (no hay valor por defecto en live)', () => {
+        const { WEBHOOKS_SVIX_NAMESPACE: _omit, ...withoutNamespace } = liveSvix;
+        expect(() => loadConfig(withoutNamespace)).toThrow(/exige declarar WEBHOOKS_SVIX_NAMESPACE/);
+        expect(() => loadConfig({ ...withoutNamespace, WEBHOOKS_SVIX_NAMESPACE: '' })).toThrow(/exige declarar WEBHOOKS_SVIX_NAMESPACE/);
+      });
+
+      it('INVÁLIDO: live con el espacio de nombres del sandbox ⇒ no arranca (deben ser distintos)', () => {
+        expect(() => loadConfig({ ...liveSvix, WEBHOOKS_SVIX_NAMESPACE: 'sandbox' })).toThrow(/no puede ser "sandbox" con PAY_MODE=live/);
+      });
+
+      it.each(['Prod', 'a', 'con espacio', '-empieza-con-guion', 'a'.repeat(33), 'tilde-é', 'a.b'])('INVÁLIDO: WEBHOOKS_SVIX_NAMESPACE %j ⇒ no arranca', (value) => {
+        expect(() => loadConfig({ ...svixEnv, WEBHOOKS_SVIX_NAMESPACE: value })).toThrow(/WEBHOOKS_SVIX_NAMESPACE inválido/);
+      });
+
+      it('LÍMITE: con inprocess las variables de Svix (incluido el espacio de nombres) se ignoran', () => {
+        expect(loadConfig({ ...base, WEBHOOKS_SVIX_NAMESPACE: 'Mal Formado' }).svix).toBeUndefined();
+      });
+
+      it.each([['WEBHOOKS_SVIX_MAX_ORPHAN_DELETES', '-1'], ['WEBHOOKS_SVIX_MAX_ORPHAN_DELETES', '1001'], ['WEBHOOKS_SVIX_MAX_ORPHAN_DELETES', '1.5'], ['WEBHOOKS_SVIX_CLOCK_MARGIN_SECONDS', '-1'], ['WEBHOOKS_SVIX_CLOCK_MARGIN_SECONDS', '3601']])('INVÁLIDO: %s=%s ⇒ no arranca', (name, value) => {
+        expect(() => loadConfig({ ...svixEnv, [name]: value })).toThrow(new RegExp(`${name} inválido`));
+      });
+
+      it('INVÁLIDO: una gracia de huérfanos menor que el peor caso de un alta ⇒ no arranca; los valores por defecto cubren el peor caso', () => {
+        // defecto: 4 intentos × 5 s por llamada → ~9 min para 25 llamadas; la gracia por defecto es de 10
+        expect(() => loadConfig({ ...svixEnv, WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES: '1' })).toThrow(/WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES.*peor caso de un alta/);
+        expect(() => loadConfig({ ...svixEnv, WEBHOOKS_SVIX_TIMEOUT_MS: '30000', WEBHOOKS_SVIX_MAX_ATTEMPTS: '10' })).toThrow(/peor caso de un alta/);
+        expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_TIMEOUT_MS: '30000', WEBHOOKS_SVIX_MAX_ATTEMPTS: '10', WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES: '135' }).svix?.orphanGraceMs).toBe(135 * 60_000);
+        // límite: con un solo intento de 1 s el peor caso es de 25 s y 1 minuto alcanza (el mínimo de la variable)
+        expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_TIMEOUT_MS: '1000', WEBHOOKS_SVIX_MAX_ATTEMPTS: '1', WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES: '1' }).svix?.orphanGraceMs).toBe(60_000);
+      });
     });
 
     it.each(['Svix', 'in-process', 'memory', ' inprocess', 'inprocess '])('valor inválido %j ⇒ no arranca en cualquier modo', (value) => {

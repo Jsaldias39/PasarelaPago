@@ -1,0 +1,18 @@
+A prodLike (sin bodyParser:false) firmado => 200 {"received":true,"eventId":"0b5d1c5e-9f0a-4a52-8f3b-6a1d2f0f6c11","applied":false,"duplicate":false,"ignored":true,"reconciliationRequired":false} | errorLogs=0
+B text/plain firmado => 500 {"code":"INTERNAL","message":"Error interno del servidor","timestamp":"2026-10-30T04:23:30.451Z","path":"/payments/gateway-webhooks"} | errorLogs=1
+C sin Content-Type, SIN firma (no autenticado) => 500 {"code":"INTERNAL","message":"Error interno del servidor","timestamp":"2026-10-30T04:23:30.465Z","path":"/payments/gateway-webhooks"} | errorLogs=1
+D cuerpo vacio application/json sin firma => 500 {"code":"INTERNAL","message":"Error interno del servidor","timestamp":"2026-10-30T04:23:30.472Z","path":"/payments/gateway-webhooks"} | errorLogs=1
+E barra final firmado => 500 {"code":"INTERNAL","message":"Error interno del servidor","timestamp":"2026-10-30T04:23:30.480Z","path":"/payments/gateway-webhooks/"} | errorLogs=1
+F mayusculas en ruta firmado => 500 {"code":"INTERNAL","message":"Error interno del servidor","timestamp":"2026-10-30T04:23:30.490Z","path":"/Payments/Gateway-Webhooks"} | errorLogs=1
+G doble barra firmado => 404 {"code":"NOT_FOUND","message":"Cannot POST //payments/gateway-webhooks","timestamp":"2026-10-30T04:23:30.497Z","path":"//payments/gateway-webhooks"} | errorLogs=0
+H Content-Encoding gzip firmado sobre inflado => 400 {"code":"VALIDATION_FAILED","message":"El cuerpo de la petición no es un JSON válido","reason":"REQUEST_BODY_MALFORMED","timestamp":"2026-10-30T04:23:30.506Z","path":"/payments/gateway-webhooks"} | errorLogs=0
+I JSON no objeto ([]) sin firma => 401 {"code":"UNAUTHENTICATED","message":"Firma del webhook inválida","details":{"code":"missing_headers"},"reason":"GATEWAY_WEBHOOK_SIGNATURE_INVALID","timestamp":"2026-10-30T04:23:30.519Z","path":"/payme | errorLogs=0
+J JSON invalido sin firma => 400 {"code":"VALIDATION_FAILED","message":"Expected property name or '}' in JSON at position 1 (line 1 column 2)","timestamp":"2026-10-30T04:23:30.527Z","path":"/payments/gateway-webhooks"} | errorLogs=0
+K 2 MB sin firma => 413 {"code":"PAYLOAD_TOO_LARGE","message":"El cuerpo de la petición excede el tamaño máximo permitido","reason":"REQUEST_BODY_TOO_LARGE","timestamp":"2026-10-30T04:23:30.543Z","path":"/payments/gateway-we | errorLogs=0
+L ?query firmado => 200 {"received":true,"eventId":"0b5d1c5e-9f0a-4a52-8f3b-6a1d2f0f6c11","applied":false,"duplicate":false,"ignored":true,"reconciliationRequired":false} | errorLogs=0
+M charset=utf-16 firmado => 400 {"code":"VALIDATION_FAILED","message":"Unexpected token '≻', \"≻摩㨢〢㕢ㅤ㕣ⵥ昹愰\"... is not valid JSON","timestamp":"2026-10-30T04:23:30.555Z","path":"/payments/gateway-webhooks"} | errorLogs=0
+casos=15000 divergencias=0 []
+firma + basura en 2do candidato => ok
+firma sin padding base64 => ok
+firma con 3 bytes de cola => ok
+firma + ",garbage" => ok

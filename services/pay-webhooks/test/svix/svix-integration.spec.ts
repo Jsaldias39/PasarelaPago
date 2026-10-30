@@ -244,13 +244,14 @@ describe('SvixEngine contra svix-server REAL', () => {
       const receiver = await s.receiver();
       const { id } = await s.createEndpoint(merchant, receiver);
       const orphan = `we_${randomBytes(10).toString('hex')}`;
-      await s.client.createEndpoint(merchant, { uid: orphan, url: receiver.url, eventTypes: [TYPE], secret: 'whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oDC2FVsBQIhrs=' });
+      // un huérfano PROPIO: lleva la marca del entorno (F2); sin ella el reconciliador no lo toca (ver svix-reconciler-guards.spec.ts)
+      await s.client.createEndpoint(merchant, { uid: orphan, url: receiver.url, eventTypes: [TYPE], secret: 'whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oDC2FVsBQIhrs=', metadata: { pay_owner: 'sandbox' } });
 
       const patient = new SvixReconciler(s.h.db.pool, s.client, { orphanGraceMs: 3_600_000, concurrency: 2 });
       expect((await patient.runOnce()).orphansDeleted).toBe(0);
       expect((await s.client.listEndpoints(merchant))?.map((e) => e.uid).sort()).toEqual([id, orphan].sort());
 
-      const strict = new SvixReconciler(s.h.db.pool, s.client, { orphanGraceMs: 0, concurrency: 2 });
+      const strict = new SvixReconciler(s.h.db.pool, s.client, { orphanGraceMs: 0, clockMarginMs: 0, concurrency: 2 });
       expect((await strict.runOnce()).orphansDeleted).toBeGreaterThanOrEqual(1);
       expect((await s.client.listEndpoints(merchant))?.map((e) => e.uid)).toEqual([id]);
       // y nada de lo que no es nuestro: un endpoint con uid ajeno al formato we_… no se borra

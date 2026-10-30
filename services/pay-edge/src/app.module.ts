@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { type DynamicModule, Module, RequestMethod } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { TerminusModule } from '@nestjs/terminus';
@@ -11,6 +10,7 @@ import { EdgeModule } from './edge.module';
 import { HealthController } from './health.controller';
 import { safeUrl } from './log-safe';
 import { ProblemFilter } from './problem.filter';
+import { resolveRequestId } from '@pay/idempotency';
 
 type HttpLogOptions = Exclude<NonNullable<Parameters<typeof LoggerModule.forRoot>[0]>['pinoHttp'], DestinationStream | [unknown, unknown] | undefined>;
 const withStream = (options: HttpLogOptions, stream?: DestinationStream) => (stream ? ([options, stream] as [HttpLogOptions, DestinationStream]) : options);
@@ -28,10 +28,9 @@ export class AppModule {
           forRoutes: [{ path: '{*path}', method: RequestMethod.ALL }],
           pinoHttp: withStream({
             level: config.logLevel,
-            // Id de correlación: el del cliente si viene bien formado; si no, uno nuevo. Se devuelve en la respuesta.
+            // Id de correlación: el del cliente si viene bien formado y SIN forma de PAN (S-03); si no, uno nuevo. Se devuelve en la respuesta.
             genReqId: (req, res) => {
-              const incoming = req.headers['x-request-id'];
-              const id = typeof incoming === 'string' && /^[A-Za-z0-9._-]{8,64}$/.test(incoming) ? incoming : randomUUID();
+              const id = resolveRequestId(req.headers['x-request-id']);
               res.setHeader('x-request-id', id);
               return id;
             },

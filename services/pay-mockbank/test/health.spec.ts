@@ -45,6 +45,14 @@ describe('pay-mockbank (arranque real contra su base)', () => {
     expect(response.headers['x-request-id']).toBe('req-abcdef-123');
   });
 
+  it('un x-request-id con forma de PAN se reemplaza por uno nuevo y no se devuelve (S-03)', async () => {
+    const response = await request(app.getHttpServer()).get('/health/live').set('x-request-id', '4111111111111111').expect(200);
+    expect(response.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+    const problem = await request(app.getHttpServer()).get('/probe/problem').set('x-request-id', 'req-4111111111111111').expect(422);
+    expect(problem.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+    expect(JSON.stringify(problem.body)).not.toContain('4111111111111111');
+  });
+
   it('un error inesperado NO expone el mensaje, la pila ni lo que contenía', async () => {
     const response = await request(app.getHttpServer()).get('/probe/boom').expect(500);
     const text = JSON.stringify(response.body);

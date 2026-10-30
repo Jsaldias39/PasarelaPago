@@ -1,3 +1,5 @@
+import { assertIdempotencyMaskConfig } from '@pay/idempotency';
+
 /** Servicios dueños de los recursos públicos, a los que pay-edge reenvía. */
 export const UPSTREAMS = ['pay-payments', 'pay-merchants', 'pay-schedules', 'pay-webhooks', 'pay-ledger', 'pay-settlement'] as const;
 export type UpstreamName = (typeof UPSTREAMS)[number];
@@ -19,7 +21,11 @@ export interface ServiceConfig {
   readonly upstreamTimeoutMs: number;
   readonly breaker: { readonly failureThreshold: number; readonly cooldownMs: number };
   readonly rateLimit: { readonly prefix: string; readonly windowSeconds: number; readonly ipPerWindow: number; readonly keyPerWindow: number; readonly authFailuresPerWindow: number };
-  /** Saltos de proxy confiables para leer la IP del cliente (`X-Forwarded-For`). 0 = no confiar en esa cabecera. */
+  /**
+   * Saltos de proxy confiables para leer la IP del cliente (`X-Forwarded-For`). 0 = no confiar en esa cabecera.
+   * Bajo `PAY_MODE=live` es OBLIGATORIO declararlo (sin valor por defecto, S-06): con 0 detrás de un proxy toda la clientela comparte IP y 30 autenticaciones fallidas por
+   * minuto bloquean a todos; con más saltos que los reales, `X-Forwarded-For` se falsea y el límite por IP no sirve. En sandbox el valor por defecto sigue siendo 0.
+   */
   readonly trustProxyHops: number;
   readonly maxBodyBytes: number;
   readonly replica: { readonly stream: string; readonly subjectPrefix: string; readonly durable: string };
@@ -56,6 +62,10 @@ function assertLiveHasNoDoubles(env: NodeJS.ProcessEnv, upstreams: Record<Upstre
   const offenders = UPSTREAMS.filter((name) => LOOPBACK_HOST.test(new URL(upstreams[name]).hostname)).map((name) => `UPSTREAM_${name.toUpperCase().replace(/-/g, '_')}_URL`);
   if (offenders.length > 0) throw new Error(`PAY_MODE=live no admite servicios dueños en loopback (dobles locales); corregí: ${offenders.join(', ')}`);
   if (!env.NATS_URL) throw new Error('PAY_MODE=live exige NATS_URL: sin él la réplica de claves no se entera de revocaciones ni de cierres');
+  // S-06: sin valor por defecto silencioso. `0` es una declaración válida (el borde está expuesto sin proxy); lo inválido es no haber decidido.
+  if (env.TRUST_PROXY_HOPS === undefined || env.TRUST_PROXY_HOPS === '') {
+    throw new Error('PAY_MODE=live exige TRUST_PROXY_HOPS declarado (0 si el borde da la cara sin proxy; el número de proxies de confianza si hay Traefik/balanceador delante): sin él el límite por IP agrupa a toda la clientela o se falsea con X-Forwarded-For');
+  }
 }
 
 /** Lee y valida el entorno. */
@@ -71,6 +81,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
     }),
   ) as Record<UpstreamName, string>;
   if (payMode === 'live') assertLiveHasNoDoubles(env, upstreams);
+  // Falla al arrancar: bajo live `IDEMPOTENCY_MASK_KEY` es obligatoria (S-02) y, si está, se valida en cualquier modo.
+  assertIdempotencyMaskConfig(env);
   return {
     port: integer(env, 'PORT', 3101, 1, 65535),
     logLevel: env.LOG_LEVEL ?? 'info',

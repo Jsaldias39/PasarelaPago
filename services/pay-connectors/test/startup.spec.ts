@@ -14,6 +14,8 @@ const dbEnv = {
 };
 // Bajo live el proveedor de secretos es explícito (P4.H2.M6): solo `openbao`, con https. No se conecta al arrancar: la dirección es sintética.
 const LIVE_SECRETS = { SECRET_PROVIDER: 'openbao', OPENBAO_ADDR: 'https://openbao.invalid:8200', OPENBAO_TOKEN: 'tok-sintetico-de-prueba' };
+// Bajo live el servicio también exige `IDEMPOTENCY_MASK_KEY` (≥32 bytes, S-02): el almacén de idempotencia se construye al arrancar. Valor sintético de prueba.
+const LIVE_MASK_KEY = { IDEMPOTENCY_MASK_KEY: 'clave-sintetica-de-prueba-0123456789abcdef' };
 const MOCK_SECRET = { PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET: 'whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==' };
 const started: Started[] = [];
 let db: IsolatedDatabase;
@@ -91,8 +93,14 @@ describe('PAY_MODE=live se niega a arrancar con conector mock o doble configurad
     await refuses({ PAY_MODE: 'live', SECRET_PROVIDER: 'openbao', OPENBAO_ADDR: 'https://openbao.invalid:8200' }, /Falta la credencial de OpenBao/);
   });
 
+  it('inválido: live sin IDEMPOTENCY_MASK_KEY (o con una corta, o la de desarrollo) NO arranca (S-02); en sandbox no se exige', async () => {
+    await refuses({ PAY_MODE: 'live', ...LIVE_SECRETS }, /IDEMPOTENCY_MASK_KEY es obligatoria bajo PAY_MODE=live/);
+    await refuses({ PAY_MODE: 'live', ...LIVE_SECRETS, IDEMPOTENCY_MASK_KEY: 'corta' }, /IDEMPOTENCY_MASK_KEY inválida/);
+    await refuses({ PAY_MODE: 'live', ...LIVE_SECRETS, IDEMPOTENCY_MASK_KEY: 'dev-only-idempotency-mask-key-sandbox-0123456789' }, /clave de desarrollo/);
+  }, 90_000);
+
   it('correcto: live limpio (sin mock, sin cuenta: T-03) arranca y NO carga ningún conector de sandbox', async () => {
-    const { port } = await boots({ PAY_MODE: 'live', ...LIVE_SECRETS });
+    const { port } = await boots({ PAY_MODE: 'live', ...LIVE_SECRETS, ...LIVE_MASK_KEY });
     expect(await connectorsHealth(port)).toEqual([]);
   }, 90_000);
 });

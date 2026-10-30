@@ -76,6 +76,7 @@ describe('PAY_MODE=live se niega a arrancar con un GUID de pruebas', () => {
 
   it('correcto: live con un GUID que no es de pruebas arranca', async () => {
     expect(loadConfig({ DB_HOST: 'h', DB_NAME: 'n', DB_USER: 'u', DB_PASSWORD: 'p', PAY_MODE: 'live', QR_ACCOUNT_GUID: REAL_LOOKING_GUID }).mode).toBe('live');
-    await boots({ PAY_MODE: 'live', QR_ACCOUNT_GUID: REAL_LOOKING_GUID });
+    // Bajo live el almacén de idempotencia exige IDEMPOTENCY_MASK_KEY (≥32 bytes, S-02); valor sintético de prueba.
+    await boots({ PAY_MODE: 'live', QR_ACCOUNT_GUID: REAL_LOOKING_GUID, IDEMPOTENCY_MASK_KEY: 'clave-sintetica-de-prueba-0123456789abcdef' });
   }, 90_000);
 });

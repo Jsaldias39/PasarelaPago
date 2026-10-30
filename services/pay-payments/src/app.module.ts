@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ServiceIdentityGuard } from '@pay/service-auth';
+import { resolveRequestId } from '@pay/idempotency';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'nestjs-pino';
 import { loadConfig } from './config';
@@ -13,7 +13,6 @@ import { RequestScopeInterceptor } from './observability/request-scope.intercept
 import { PaymentsModule } from './payments/payments.module';
 import { ProblemFilter } from './problem.filter';
 import { safeUrl } from './log-safe';
-import { containsPan } from './domain/pan';
 
 const config = loadConfig();
 
@@ -22,10 +21,9 @@ const config = loadConfig();
     LoggerModule.forRoot({
       pinoHttp: {
         level: config.logLevel,
-        // Id de correlación: el del cliente si viene bien formado; si no, uno nuevo. Se devuelve en la respuesta.
+        // Id de correlación: el del cliente si viene bien formado y SIN forma de PAN (S-03); si no, uno nuevo. Se devuelve en la respuesta.
         genReqId: (req, res) => {
-          const incoming = req.headers['x-request-id'];
-          const id = typeof incoming === 'string' && /^[A-Za-z0-9._-]{8,64}$/.test(incoming) && !containsPan(incoming) ? incoming : randomUUID();
+          const id = resolveRequestId(req.headers['x-request-id']);
           res.setHeader('x-request-id', id);
           return id;
         },

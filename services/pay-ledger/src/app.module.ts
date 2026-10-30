@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { TerminusModule } from '@nestjs/terminus';
@@ -10,6 +9,7 @@ import { EventsModule } from './events.module';
 import { HealthController } from './health.controller';
 import { LedgerModule } from './ledger/ledger.module';
 import { ProblemFilter } from './problem.filter';
+import { resolveRequestId } from '@pay/idempotency';
 
 const config = loadConfig();
 
@@ -18,10 +18,9 @@ const config = loadConfig();
     LoggerModule.forRoot({
       pinoHttp: {
         level: config.logLevel,
-        // Id de correlación: el del cliente si viene bien formado; si no, uno nuevo. Se devuelve en la respuesta.
+        // Id de correlación: el del cliente si viene bien formado y SIN forma de PAN (S-03); si no, uno nuevo. Se devuelve en la respuesta.
         genReqId: (req, res) => {
-          const incoming = req.headers['x-request-id'];
-          const id = typeof incoming === 'string' && /^[A-Za-z0-9._-]{8,64}$/.test(incoming) ? incoming : randomUUID();
+          const id = resolveRequestId(req.headers['x-request-id']);
           res.setHeader('x-request-id', id);
           return id;
         },

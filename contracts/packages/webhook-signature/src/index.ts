@@ -94,6 +94,21 @@ function decodeSecret(secret: string): Buffer {
   return raw;
 }
 
+/**
+ * ¿Este valor sirve como secreto simétrico (`whsec_` + base64 de 24 a 64 bytes)? Quien lee secretos de un almacén externo (OpenBao) lo usa para descartar uno mal formado
+ * ANTES de verificar: `verify` lanza `RangeError` ante un secreto inválido, y un solo valor malo en un par de rotación anularía también al bueno (y daría un 500 en vez de un 401).
+ * No lanza nunca y no devuelve ni conserva el valor.
+ */
+export function isUsableSecret(secret: unknown): secret is string {
+  if (typeof secret !== 'string') return false;
+  try {
+    decodeSecret(secret);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function privateKeyOf(secretKey: string): KeyObject {
   if (!secretKey.startsWith(SECRET_KEY_PREFIX)) throw new RangeError('Clave secreta sin el prefijo whsk_');
   const raw = Buffer.from(secretKey.slice(SECRET_KEY_PREFIX.length), 'base64');

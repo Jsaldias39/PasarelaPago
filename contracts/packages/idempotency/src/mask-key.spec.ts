@@ -19,19 +19,6 @@ function luhnCheckDigit(prefix: string): string {
   return String((10 - (sum % 10)) % 10);
 }
 
-/**
- * El ataque de S-02: quien lee `idempotency_keys` (o un volcado) conoce el BIN y enumera los candidatos con Luhn. Acá se acota a los últimos 4 dígitos de cuenta
- * (10^4 candidatos) para que la prueba sea rápida; el espacio completo con BIN conocido (~10^9) solo cambia el tiempo, no el resultado.
- */
-function bruteForce(stored: string, hashOf: (candidate: string) => string): string | undefined {
-  for (let n = 0; n < 10_000; n += 1) {
-    const prefix = `411111111${String(n).padStart(4, '0')}`.slice(0, 15); // BIN 411111 + cuenta de 9 dígitos, tope de 15 + control
-    const candidate = prefix + luhnCheckDigit(prefix);
-    if (`masked-${hashOf(candidate)}` === stored) return candidate;
-  }
-  return undefined;
-}
-
 describe('S-02 · safeIdempotencyKey enmascara con HMAC y clave de servidor: el PAN no se recupera de lo guardado', () => {
   it('CORRECTO: determinista con la misma clave de servidor, distinto con otra clave, y con forma masked-<64 hex>', () => {
     const env = { PAY_MODE: 'live', [MASK_KEY_ENV]: KEY_A };
@@ -68,7 +55,6 @@ describe('S-02 · safeIdempotencyKey enmascara con HMAC y clave de servidor: el 
     expect(bruteForceFrom('411111000000000', 10_000, stored, unkeyed)).toBeUndefined();
     expect(bruteForceFrom('411111000000000', 10_000, stored, (c) => createHmac('sha256', DEV_MASK_KEY).update(c).digest('hex'))).toBeUndefined();
     expect(stored).not.toContain(pan.slice(0, 8));
-    expect(bruteForce).toBeDefined();
   });
 
   it('LÍMITE: 32 bytes exactos se aceptan y 31 no; los bytes cuentan en UTF-8 (un carácter de 2 bytes cuenta como 2)', () => {
@@ -101,8 +87,11 @@ describe('S-02 · safeIdempotencyKey enmascara con HMAC y clave de servidor: el 
   });
 });
 
+/**
+ * El ataque de S-02: quien lee `idempotency_keys` (o un volcado) conoce el BIN y enumera los candidatos que cumplen Luhn. Acá se acota a 10^4 candidatos (varían 4 dígitos
+ * del prefijo de 15; control Luhn calculado) para que la prueba sea rápida; el espacio completo con BIN conocido (~10^9) solo cambia el tiempo, no el resultado.
+ */
 function bruteForceFrom(start: string, count: number, stored: string, hashOf: (candidate: string) => string): string | undefined {
-  // Candidatos: el prefijo de 15 dígitos + control Luhn, variando los 4 últimos del prefijo.
   for (let n = 0; n < count; n += 1) {
     const prefix = start.slice(0, 11) + String(n).padStart(4, '0');
     const candidate = prefix + luhnCheckDigit(prefix);

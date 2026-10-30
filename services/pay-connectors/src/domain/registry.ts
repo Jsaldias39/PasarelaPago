@@ -1,4 +1,5 @@
 import type { Connector, ConnectorCode, Mode } from './connector';
+import { assertNamespacesDisjoint } from './secrets';
 
 /**
  * Registro de adaptadores. Es también la guardia de modo (D-26): con `PAY_MODE=live` un conector de sandbox
@@ -17,6 +18,8 @@ export class ConnectorRegistry {
     if (this.mode === 'sandbox' && connector.mode === 'live') {
       throw new Error(`El conector ${connector.code} es de producción y PAY_MODE=sandbox: no se carga`);
     }
+    // S-08: el espacio de secretos de un conector (`CONNECTOR_<CODIGO>_`) no puede contener el de otro.
+    assertNamespacesDisjoint(this.connectors.keys(), connector.code);
     this.connectors.set(connector.code, connector);
     return this;
   }

@@ -58,3 +58,36 @@ si no, basta con no pisar el id.
 - Los eventos de NATS (CloudEvents con extensión `traceparent`, `contracts/packages/outbox/src/cloudevent.ts`) no se miraron: la traza de un efecto asíncrono (webhook, liquidación) es otro DoD.
 - Muestreo: un `traceparent` entrante con flags `00` (no muestreado) hace que el SDK no exporte el span del borde. No se probó (probar una ausencia exige esperar a ciegas).
 - La captura con `pay-mockbank` (`mockbank: true`) ni el modo `live`.
+
+
+---
+
+## Corrección aplicada (T1–T4) y lo que queda
+
+> Aplicada en `pay-edge`, `pay-payments` y `pay-connectors`; `contracts/` y mTLS no se tocaron. Evidencia literal: `evidencia/traza-fix-*.txt`. El peldaño de cada gate está en el informe del integrador.
+
+| # | Qué se hizo | Dónde |
+|---|---|---|
+| T1 | El borde ya no fabrica el `traceparent`: reenvía el del contexto ACTIVO (`propagation.inject`) y abre un span CLIENTE `forward <destino>` alrededor del `fetch` (atributos: `peer.service`, `http.request.method`, `http.response.status_code`; nunca ruta, consulta, cabeceras ni cuerpo). Quién decide qué `traceparent` entrante es válido (versión futura, flags, ceros) es el SDK, no el borde. Solo viaja `traceparent`: `tracestate` y `baggage` del cliente no cruzan. | `services/pay-edge/src/observability/trace-propagation.ts`, `src/proxy/upstream.client.ts` (`forward`/`exchange`), `src/proxy/edge.pipeline.ts` (se quitó `traceparent()`) |
+| T2 | El cliente HTTP interno de `pay-payments` abre un span CLIENTE por intento, inyecta el contexto activo y NO pisa el `x-request-id`: usa el explícito válido, si no el de la petición de origen (alcance `AsyncLocalStorage`), si no un UUID nuevo (como antes). | `services/pay-payments/src/clients/http.ts`, `src/observability/trace-propagation.ts`, `src/observability/request-scope.interceptor.ts` (+ `APP_INTERCEPTOR` en `app.module.ts`) |
+| T3 | Vía (b), sin dependencia nueva: `captureTraceCarrier()` guarda el `traceparent` del span `start PaymentWorkflow` y el `x-request-id` en el campo OPCIONAL `trace` del input de `PaymentWorkflow`; las activities que llaman a riesgo, conector y ledger (`assessRisk`, `createCharge`, `inquireCharge`, `resolveExpiry`, `recordLedger`, `compensateCapture`) reciben `trace` como último argumento opcional, lo reconstruyen con `propagation.extract` y corren en un span hijo `activity <nombre>`. | `src/payments/orchestrator.ts`, `src/temporal/{types,workflows,activities}.ts`, `src/worker-main.ts` (ahora importa `telemetry` primero) |
+| T4 | `pay-connectors → pay-qr` reenvía el `traceparent` activo. El reproductor pasó a `flows/` sin tocar sus aserciones y se agregó la prueba del árbol completo. | `services/pay-connectors/src/connectors/qr-http.client.ts`, `e2e/flows/traza-jaeger-arbol.e2e.ts` |
+
+**Por qué la vía (b) y no `@temporalio/interceptors-opentelemetry`:** el paquete no está instalado (`node_modules/@temporalio` solo trae `activity client common core-bridge nexus proto worker workflow`, v1.24.0 de `worker`) y no se puede verificar su API contra la versión instalada sin descargarlo; la regla 90.4 exige justificar una dependencia nueva (qué resuelve, tamaño, mantenimiento, licencia, superficie) y aquí el dato opcional resuelve lo mismo con ~60 líneas y sin superficie nueva. Contras de (b): es explícito (cada activity que llame hacia afuera tiene que recibir `trace`); el interceptor lo haría automático para todas.
+
+**Regla 11 / workflows en vuelo:** el campo `trace` es opcional y el workflow solo pasa el segundo argumento si existe (`...tail`): un workflow que arrancó con `{ intentId }` agenda las mismas activities con los mismos argumentos que en su historia (prueba `un workflow con el input de ANTES del campo`). Las claves de idempotencia (`${id}:risk`, `qr-…`, `${id}:capture`), los reintentos y la política de Temporal no se tocaron.
+
+### Ambigüedades y supuestos
+
+- **`x-request-id` por llamada (a confirmar con P3, dueño de `pay-payments`):** se supuso que el `randomUUID()` de `http.ts:137` era un descuido, no un modo de distinguir reintentos. Los reintentos reutilizan el id de la petición; los distingue el span de cada intento. Si P3 quiere un id por intento, basta una cabecera `x-attempt-id` (no se agregó).
+- **Muestreo:** un `traceparent` con flags `00` se respeta de extremo a extremo (el SDK no exporta nada y el reenviado lleva `00`). Probado en unitarias; no se probó contra Jaeger (probar una ausencia exige esperar a ciegas).
+- **`tracestate` / `baggage` del cliente no se reenvían** a los servicios internos (decisión del borde: datos del cliente sin dueño interno). A confirmar con P1/seguridad.
+- **Helper duplicado:** `trace-propagation.ts` existe en `pay-edge` y en `pay-payments` (y 10 líneas en `pay-connectors`) porque `contracts/` quedó fuera de alcance y un servicio no importa código de otro. Candidato natural: `serviceHeaders` de `@pay/service-auth` (T2 original).
+
+### Pendiente (no cubierto por este cambio)
+
+- `pay-settlement` (`http-clients.ts:31`) y `pay-schedules` (`ledger/ledger.client.ts:67`): sus llamadas salen de temporizadores/ejecutores, sin petición de origen; inyectar el contexto activo no produciría padre alguno. Es otro DoD (traza de un efecto asíncrono).
+- `RefundWorkflow` y `DisputeWorkflow`: mismo patrón (`trace` opcional + activities), sin hacer: el DoD pedía la traza del cobro.
+- `pay-connectors → pay-mockbank` y `pay-payments → pay-vault`: el segundo ya queda cubierto por `HttpClient`; el primero no se tocó.
+- `x-request-id` hacia `pay-qr`: el cliente de `pay-connectors` no tiene la petición a mano (haría falta el mismo alcance que en `pay-payments`); `pay-qr` recibe el `traceparent` pero abre su propio id de petición.
+- Eventos NATS (`traceparent` del CloudEvent) y modo `live`: sin cambios.

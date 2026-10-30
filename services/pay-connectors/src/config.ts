@@ -46,12 +46,32 @@ export interface ServiceConfig {
   readonly reconcile: { readonly intervalMs: number; readonly lookbackHours: number };
 }
 
-function integer(env: NodeJS.ProcessEnv, name: string, fallback: number, min = 0): number {
+function integer(env: NodeJS.ProcessEnv, name: string, fallback: number, min = 0, max = Number.MAX_SAFE_INTEGER): number {
   const raw = env[name];
   if (raw === undefined || raw === '') return fallback;
   const value = Number(raw);
   if (!Number.isInteger(value) || value < min) throw new Error(`${name} inválido: ${raw}`);
+  if (value > max) throw new Error(`${name} inválido: ${raw} (máximo ${max})`);
   return value;
+}
+
+/**
+ * Topes de las ventanas de OpenBao (S-09), validados al arrancar en CUALQUIER modo:
+ * - `OPENBAO_CACHE_TTL_MS` ≤ 5 min: es la demora máxima para ver una rotación o una revocación del secreto (el caché solo guarda lecturas exitosas); un año de caché
+ *   equivale a no poder revocar nunca. 5 minutos cubre cualquier ráfaga de callbacks sin ir a OpenBao en cada uno.
+ * - `OPENBAO_ROTATION_WINDOW_MS` ≤ 7 días: es lo que sigue valiendo el secreto anterior (N-1), que puede ser el filtrado. Una semana alcanza para que la contraparte
+ *   (el banco) migre al secreto nuevo pasando un fin de semana; más es una credencial filtrada vigente por meses. El operador cierra la ventana antes borrando N-1.
+ */
+export const MAX_OPENBAO_CACHE_TTL_MS = 300_000;
+export const MAX_OPENBAO_ROTATION_WINDOW_MS = 7 * 86_400_000;
+
+/** Destinos que solo existen en la máquina que corre el servicio: bajo `live`, un OpenBao ahí es un doble local, no el servicio de secretos del despliegue. */
+export function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (/^(127|0)(?:\.\d{1,3}){3}$/.test(host)) return true; // 127.0.0.0/8 y 0.0.0.0/8 (el URL ya normaliza 127.1, 2130706433…)
+  if (host === '::' || host === '::1') return true;
+  return /^::ffff:(?:7f[0-9a-f]{2}|0{1,4}):[0-9a-f]{1,4}$/.test(host) || /^::ffff:(?:127|0)(?:\.\d{1,3}){3}$/.test(host); // IPv4 mapeada a IPv6 (7f00:1 = 127.0.0.1)
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -164,12 +184,16 @@ function secrets(env: NodeJS.ProcessEnv, mode: 'sandbox' | 'live'): { secrets: S
   if (addr.username !== '' || addr.password !== '') throw new Error('OPENBAO_ADDR no puede traer credenciales');
   if (addr.pathname !== '/' && addr.pathname !== '') throw new Error('OPENBAO_ADDR es solo la base (sin ruta): el servicio agrega /v1');
   if (mode === 'live' && addr.protocol !== 'https:') throw new Error('OPENBAO_ADDR tiene que ser https bajo PAY_MODE=live');
+  // S-10: la config `live` no es más laxa que la de pay-edge. Un OpenBao en loopback es un doble de desarrollo.
+  if (mode === 'live' && isLoopbackHost(addr.hostname)) throw new Error('PAY_MODE=live no admite OPENBAO_ADDR en loopback (es un OpenBao local de desarrollo): apuntá al OpenBao del despliegue');
   const token = given('OPENBAO_TOKEN');
   const roleId = given('OPENBAO_ROLE_ID');
   const secretId = given('OPENBAO_SECRET_ID');
   let auth: OpenBaoAuth;
   if (token !== undefined) {
     if (roleId !== undefined || secretId !== undefined) throw new Error('OPENBAO_TOKEN y OPENBAO_ROLE_ID/OPENBAO_SECRET_ID son excluyentes: elegí una sola credencial');
+    // S-10: el token raíz del OpenBao `-dev` (`dev-only-…`) no es una credencial de despliegue.
+    if (mode === 'live' && token.startsWith('dev-only-')) throw new Error('PAY_MODE=live no admite un OPENBAO_TOKEN de desarrollo (dev-only-…): usá una credencial del despliegue (AppRole preferido)');
     auth = { kind: 'token', token };
   } else if (roleId !== undefined && secretId !== undefined) {
     auth = { kind: 'approle', roleId, secretId };
@@ -187,8 +211,8 @@ function secrets(env: NodeJS.ProcessEnv, mode: 'sandbox' | 'live'): { secrets: S
       mount,
       pathPrefix,
       auth,
-      cacheTtlMs: integer(env, 'OPENBAO_CACHE_TTL_MS', 5_000),
-      rotationWindowMs: integer(env, 'OPENBAO_ROTATION_WINDOW_MS', 86_400_000),
+      cacheTtlMs: integer(env, 'OPENBAO_CACHE_TTL_MS', 5_000, 0, MAX_OPENBAO_CACHE_TTL_MS),
+      rotationWindowMs: integer(env, 'OPENBAO_ROTATION_WINDOW_MS', 86_400_000, 0, MAX_OPENBAO_ROTATION_WINDOW_MS),
       timeoutMs: integer(env, 'OPENBAO_TIMEOUT_MS', 3_000, 1),
     },
   };
@@ -207,7 +231,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
   const dbPort = Number(env.DB_PORT ?? 5432);
   if (!Number.isInteger(dbPort)) throw new Error(`DB_PORT inválido: ${env.DB_PORT}`);
   const mode = parseMode(env.PAY_MODE);
-  if (mode === 'live') rejectDoublesInLive(env);
+  if (mode === 'live') {
+    rejectDoublesInLive(env);
+    // S-10: con la verificación del certificado apagada, el token de OpenBao y los secretos de firma viajan a cualquiera que intercepte la conexión.
+    if (env.NODE_TLS_REJECT_UNAUTHORIZED === '0') throw new Error('PAY_MODE=live no admite NODE_TLS_REJECT_UNAUTHORIZED=0: la verificación de certificados no se puede apagar');
+  }
   return {
     port,
     logLevel: env.LOG_LEVEL ?? 'info',

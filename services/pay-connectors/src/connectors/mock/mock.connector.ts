@@ -1,4 +1,4 @@
-import { signedHeaders, verify, WebhookVerificationError } from '@pay/webhook-signature';
+import { isUsableSecret, signedHeaders, verify, WebhookVerificationError } from '@pay/webhook-signature';
 import type {
   Connector,
   Method,
@@ -93,12 +93,13 @@ export class MockConnector implements Connector {
   }
 
   async verifyCallback(input: VerifyCallbackInput): Promise<VerifyCallbackResult> {
-    const secrets = await this.secrets.getSecrets(SECRET_NAME);
-    if (secrets.length === 0) return { ok: false }; // fail-closed: sin secreto no se acepta nada
+    // S-18: un valor mal formado en el almacén (OpenBao) NO puede dar un 500 ni anular al secreto bueno de un par de rotación: se descarta el malo y se verifica con los demás.
+    const secrets = (await this.secrets.getSecrets(SECRET_NAME)).filter(isUsableSecret);
+    if (secrets.length === 0) return { ok: false }; // fail-closed: sin secreto utilizable no se acepta nada
     try {
       verify({ headers: input.headers, payload: input.rawBody, secrets, now: Math.floor(input.now.getTime() / 1000) });
     } catch (error) {
-      if (error instanceof WebhookVerificationError) return { ok: false };
+      if (error instanceof WebhookVerificationError || error instanceof RangeError) return { ok: false }; // fail-closed: nunca un 500 por la verificación
       throw error;
     }
     let body: unknown;
