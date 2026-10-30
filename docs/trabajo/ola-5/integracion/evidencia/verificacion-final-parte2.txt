@@ -56,3 +56,11 @@ Tests:       161 passed, 161 total
    (1) boot() dejaba vivo el relé del outbox cuando app.init() fallaba (casos «NO arranca»): app.close() en el catch (test/deployment.spec.ts). Sin el cambio, el caso «con un motor que es un doble» se colgaba (timeout 124); con él, exit 0.
    (2) El caso IDEMPOTENCY_MASK_KEY falla en compile() (IdempotencyStore lanza en su constructor) con los pools de pg y del ORM ya creados y sin handle para cerrarlos: forceExit en services/pay-ledger/jest.config.cjs, comentado. Las aserciones no cambian.
    Resultado: deployment.spec 31/31, 3 s, exit 0 sin flags.
+== (re)arranque 2026-10-30T20:14:54Z HEAD=930a66e
+== pay-ledger typecheck 0 build 0
+-- pay-ledger:deployment exit 0 Tests:       31 passed, 31 total
+== pay-ledger:deployment FIN
+-- pay-ledger:drift exit 0 Tests:       5 passed, 5 total
+== pay-ledger:drift FIN
+-- pay-ledger:env-example exit 0 Tests:       4 passed, 4 total
+== pay-ledger:env-example FIN
