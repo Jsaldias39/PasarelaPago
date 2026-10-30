@@ -1,0 +1,57 @@
+$ E6_LOG=1 SVIX_LOG=1 yarn test test/svix/svix-e6.spec.ts test/svix/svix-integration.spec.ts -t "E6|rotación v1"
+(node:26070) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26069) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Rotación v1, cabeceras recibidas: webhook-id=msg_3LOgwjHQy1HWs4odb9pNI3hgcal webhook-timestamp=1793330768 webhook-signature=v1,6MgWU6pyducuHPebLsF6DcTXb7D0kbEoMZbkT7ToD38= v1,QH0pntiFjkzm0+l0yAFPE08Dwq+1XOmzJ+4i68FT4B8=
+cuerpo={"id":"e82046f0-eb27-4511-8386-3601ee5904c1","object":"event","type":"payment_intent.succeeded","created_at":"2026-10-27T11:59:00.000Z","mode":"test","data":{"object":{"payment_intent_id":"pi_a73635423543","merchant_id":"mc_cd037bf5e272","amount_minor":10000,"currency":"BOB","status":"succeeded","fee_minor":300,"net_minor":9700}}}
+E6/Svix receptor sano (webhook-id, estado, resultado):
+  msg_3LOgwhxOYksddvh8cx1gdkTyhp1 500 overridden
+  msg_3LOgwi5E5YHVVGTviq93svtFPsS 500 overridden
+  msg_3LOgwiAYZRvtC7BWYv9Yx4tX4Pc 500 overridden
+  msg_3LOgwiIkrxUl7UIK8kCLjDcbgn1 500 overridden
+  msg_3LOgwiNzbINVG1P1zbXfotiEFqZ 500 overridden
+  msg_3LOgwiWLtOKv9efQwaRWoBSyBWJ 500 overridden
+  msg_3LOgwibOH3zPLtxCTGfhIN3SCsj 500 overridden
+  msg_3LOgwiebRGmHDeoja7Nxyzl1dXN 500 overridden
+  msg_3LOgwiiqujonRuW8buUpjdqbwG6 500 overridden
+  msg_3LOgwimzZIi89Ra3AHt7JTlZldD 500 overridden
+  msg_3LOgwipU79zDz1niPoTcisxLR0U 500 overridden
+  msg_3LOgwispcGXbxKlX7XadPHOcsrq 500 overridden
+  msg_3LOgwiIkrxUl7UIK8kCLjDcbgn1 500 overridden
+  msg_3LOgwiiqujonRuW8buUpjdqbwG6 500 overridden
+  msg_3LOgwiNzbINVG1P1zbXfotiEFqZ 500 overridden
+  msg_3LOgwimzZIi89Ra3AHt7JTlZldD 500 overridden
+  msg_3LOgwhxOYksddvh8cx1gdkTyhp1 500 overridden
+  msg_3LOgwi5E5YHVVGTviq93svtFPsS 500 overridden
+  msg_3LOgwibOH3zPLtxCTGfhIN3SCsj 500 overridden
+  msg_3LOgwiWLtOKv9efQwaRWoBSyBWJ 500 overridden
+  msg_3LOgwiebRGmHDeoja7Nxyzl1dXN 500 overridden
+  msg_3LOgwiAYZRvtC7BWYv9Yx4tX4Pc 500 overridden
+  msg_3LOgwispcGXbxKlX7XadPHOcsrq 500 overridden
+  msg_3LOgwipU79zDz1niPoTcisxLR0U 500 overridden
+  msg_3LOgwiNzbINVG1P1zbXfotiEFqZ 200 ok
+  msg_3LOgwi5E5YHVVGTviq93svtFPsS 200 ok
+  msg_3LOgwhxOYksddvh8cx1gdkTyhp1 200 ok
+  msg_3LOgwiebRGmHDeoja7Nxyzl1dXN 200 ok
+  msg_3LOgwispcGXbxKlX7XadPHOcsrq 200 ok
+  msg_3LOgwipU79zDz1niPoTcisxLR0U 200 ok
+  msg_3LOgwiiqujonRuW8buUpjdqbwG6 200 ok
+  msg_3LOgwiWLtOKv9efQwaRWoBSyBWJ 200 ok
+  msg_3LOgwibOH3zPLtxCTGfhIN3SCsj 200 ok
+  msg_3LOgwimzZIi89Ra3AHt7JTlZldD 200 ok
+  msg_3LOgwiIkrxUl7UIK8kCLjDcbgn1 200 ok
+  msg_3LOgwiAYZRvtC7BWYv9Yx4tX4Pc 200 ok
+E6/Svix receptor 410:
+  msg_3LOgwhxOYksddvh8cx1gdkTyhp1 410 overridden
+  msg_3LOgwi5E5YHVVGTviq93svtFPsS 410 overridden
+  msg_3LOgwiAYZRvtC7BWYv9Yx4tX4Pc 410 overridden
+  msg_3LOgwiIkrxUl7UIK8kCLjDcbgn1 410 overridden
+  msg_3LOgwiNzbINVG1P1zbXfotiEFqZ 410 overridden
+E6/Svix mensajes en Svix: 12 para 15 publicaciones en NATS (12 eventos distintos)
+
+Test Suites: 2 passed, 2 total
+Tests:       34 skipped, 2 passed, 36 total
+Snapshots:   0 total
+Time:        12.393 s, estimated 27 s
+Ran all test suites matching test/svix/svix-e6.spec.ts|test/svix/svix-integration.spec.ts with tests matching "E6|rotación v1".

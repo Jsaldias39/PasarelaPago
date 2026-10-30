@@ -47,8 +47,8 @@ function newKeyMaterial(scheme: EndpointRecord['signatureScheme']): KeyMaterial 
  *
  * Quien firma, reintenta y registra los intentos es Svix. Las claves las GENERAMOS acá con `@pay/webhook-signature` y se las pasamos a
  * Svix (en vez de pedirle que las genere): así el esquema `v1a` (Ed25519) se conserva en la rotación y la clave que se le muestra al
- * comercio es, por construcción, la que Svix usa (se comprueba releyéndola). Svix las guarda cifradas con su `SVIX_MAIN_SECRET`; este
- * servicio NO las guarda en ninguna tabla.
+ * comercio es, por construcción, la que Svix usa (se comprueba releyéndola). Svix las guarda en su base —cifradas solo si el servidor tiene
+ * `SVIX_MAIN_SECRET`, que platform/compose.yml NO fija: ver INFORME.md, «Para producción»—; este servicio NO las guarda en ninguna tabla.
  *
  * Idempotencia: el `eventId` de un mensaje es único (409 si se repite). El OpenAPI dice «en todo el entorno»; en 1.104.0 se observó que lo es
  * POR APLICACIÓN (el mismo `eventId` en dos comercios crea dos mensajes). Un 409 al publicar se resuelve consultando el mensaje por `eventId` en

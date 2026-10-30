@@ -85,5 +85,9 @@ describe('E6 contra svix-server REAL — eventos por NATS real, endpoint con 500
     await sleep(4_500);
     expect(gone.requests).toHaveLength(settled);
     expect(await backlog()).toEqual({ unprocessed: 0, inFlight: 0 });
+    if (process.env.E6_LOG) {
+      const lines = (r: typeof healthy) => r.receiver.log.map((l) => `  ${l.webhookId} ${l.status} ${l.outcome}`).join('\n');
+      process.stdout.write(`E6/Svix receptor sano (webhook-id, estado, resultado):\n${lines(healthy)}\nE6/Svix receptor 410:\n${lines(gone)}\nE6/Svix mensajes en Svix: ${(await s.messages(merchant)).length} para 15 publicaciones en NATS (12 eventos distintos)\n`);
+    }
   }, 90_000);
 });

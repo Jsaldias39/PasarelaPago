@@ -130,6 +130,7 @@ describe('SvixEngine contra svix-server REAL', () => {
       await eventually(async () => receiver.requests.length, (n) => n >= 1);
       const { headers, body } = receiver.requests[0];
       expect(signatures(headers['webhook-signature'])).toHaveLength(2);
+      if (process.env.SVIX_LOG) process.stdout.write(`Rotación v1, cabeceras recibidas: webhook-id=${headers['webhook-id']} webhook-timestamp=${headers['webhook-timestamp']} webhook-signature=${headers['webhook-signature']}\ncuerpo=${body}\n`);
       expect(() => verify({ headers, payload: body, secrets: [oldSecret] })).not.toThrow();
       expect(() => verify({ headers, payload: body, secrets: [newSecret] })).not.toThrow();
       expect(() => verify({ headers, payload: body, secrets: ['whsec_ZmlybWEtZXF1aXZvY2FkYS1maXJtYS1lcXVpdm9jYWRh'] })).toThrow(WebhookVerificationError);

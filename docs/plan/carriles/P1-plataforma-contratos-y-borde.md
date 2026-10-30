@@ -75,7 +75,7 @@ original, tampoco.
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| P1.H3.M1 | Consumidor de eventos públicos → `svix.message.create` con `eventId` = id del CloudEvent | Republicar el mismo evento no duplica la entrega | Test de integración contra Svix real | A MEDIAS |
+| P1.H3.M1 | Consumidor de eventos públicos → `svix.message.create` con `eventId` = id del CloudEvent | Republicar el mismo evento no duplica la entrega | Test de integración contra Svix real | HECHO · [informe](../../trabajo/ola-5/P1/INFORME.md) · `SvixEngine` contra svix-server 1.104.0 REAL: el mismo evento dos veces ⇒ un mensaje y una entrega (15 publicaciones en NATS ⇒ 12 mensajes/12 entregas en E6), rotación con dos firmas, 410 ⇒ endpoint deshabilitado, entrega firmada verificada con `@pay/webhook-signature`; `pay-webhooks` 17 suites / 495 tests ×2 verificadas por el integrador. Salvedades abiertas: el `webhook-id` que entrega Svix es su `msg_…`, no el id del CloudEvent (contradice DT-24, propuesta #1); `SVIX_MAIN_SECRET` sin fijar en el compose (sin él Svix guarda las claves de firma sin cifrar: fijarlo antes de la primera clave real); el nombre de la variable quedó `WEBHOOKS_ENGINE` |
 | P1.H3.M2 | API `webhook_endpoints` (alta, rotación de secreto con dos firmas en paralelo, baja) | Durante la rotación verifican la firma vieja y la nueva | Test pegado | HECHO |
 | P1.H3.M3 | Receptor de prueba que verifica la firma (para E6 y como ejemplo para comercios) | Una firma alterada se rechaza | Test pegado | HECHO |
 | P1.H3.M4 | E6: endpoint caído 10 min, `500` y después `200`; `410` lo deshabilita | Todos los eventos llegan una vez cada uno | Salida del E2E + log del receptor | HECHO |

@@ -90,3 +90,9 @@ Notación: **SALE** = se quita del entorno; **CAMBIA** = mismo nombre, valor de 
 - Variables obligatorias por servicio: `node --no-warnings e2e/cli.ts envprobe` (quita UNA variable por servicio y clasifica el arranque; salida: `docs/trabajo/ola-2/P1/evidencia/e2e-envprobe-2d.txt`).
 - Guardia de modo: `e2e/flows/pay-mode-required.e2e.ts` y `e2e/flows/live-guard.e2e.ts`.
 - Capa sandbox completa: `platform/compose.mock.yml` + `yarn seed:sandbox` + `yarn test:parity` (ver el encabezado de `platform/compose.mock.yml`).
+
+## 6 · Lo que `live` exige desde la ola 5 (verificado)
+
+- **`pay-connectors`:** `SECRET_PROVIDER=openbao` (con `env` no arranca), `OPENBAO_ADDR` https y credenciales (`OPENBAO_TOKEN` o AppRole `OPENBAO_ROLE_ID` + `OPENBAO_SECRET_ID`; en producción AppRole, el token estático no se renueva). Ruta `<mount>/data/<prefijo>/<modo>/CONNECTOR_<CODIGO>_<NOMBRE>`. Más: `docs/trabajo/ola-5/P4/evidencia/`.
+- **`pay-webhooks`:** `WEBHOOKS_ENGINE=svix` (con `inprocess` no arranca), `WEBHOOKS_SVIX_URL` https y `WEBHOOKS_SVIX_AUTH_TOKEN` (JWT). En el servidor Svix: fijar `SVIX_MAIN_SECRET` **antes** de guardar la primera clave (no se puede cambiar después; sin él las claves de firma quedan sin cifrar en su base), `SVIX_JWT_SECRET` desde OpenBao, un proxy de salida (`SVIX_PROXY_ADDR`) sin ruta a la red interna, y las tres perillas de prueba (`SVIX_WHITELIST_NAMES`, `SVIX_DANGEROUS_DISABLE_TLS_VERIFICATION`, `SVIX_RETRY_SCHEDULE` corto) **cerradas**. Más: `docs/trabajo/ola-5/P1/INFORME.md`.
+- **Imágenes:** en este entorno ghcr.io (TigerBeetle) y Docker Hub no sirven; `mirror.gcr.io` sirve OpenBao y Svix (`HUB=mirror.gcr.io`).

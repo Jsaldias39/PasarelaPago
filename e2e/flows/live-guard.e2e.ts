@@ -21,7 +21,9 @@ describe('guardia de modo — PAY_MODE=live con el conector mock y los dobles de
     it.each([
       ['sin declarar el motor', {}, /PAY_MODE=live exige declarar WEBHOOKS_ENGINE/],
       ['con inprocess (el doble)', { WEBHOOKS_ENGINE: 'inprocess' }, /no admite WEBHOOKS_ENGINE=inprocess/],
-      ['con svix (no existe SvixEngine)', { WEBHOOKS_ENGINE: 'svix' }, /el motor real no está implementado/],
+      // SvixEngine existe desde la ola 5 (P1.H3.M1): con svix, live exige el servidor y su token validados al arrancar, y https.
+      ['con svix sin WEBHOOKS_SVIX_URL', { WEBHOOKS_ENGINE: 'svix' }, /WEBHOOKS_SVIX_URL/],
+      ['con svix por http', { WEBHOOKS_ENGINE: 'svix', WEBHOOKS_SVIX_URL: 'http://svix.example:8071' }, /WEBHOOKS_SVIX_URL debe ser https con PAY_MODE=live/],
     ])('live %s ⇒ no arranca y el mensaje lo dice', async (_name, env, message) => {
       const [result] = await bootUnderLive(['pay-webhooks'], { 'pay-webhooks': { ...withoutSandboxLeftovers, ...env } });
       expect({ healthy: result!.healthy, refusedByMode: result!.log.match(message) !== null }).toEqual({ healthy: false, refusedByMode: true });

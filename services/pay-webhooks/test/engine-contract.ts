@@ -10,8 +10,8 @@ export interface EngineFixture {
 }
 
 /**
- * Contrato que TODO `DeliveryEngine` debe cumplir. Hoy lo corre `InProcessEngine` ([DOBLE de Svix]); cuando exista un Svix
- * al que conectarse, `SvixEngine` tiene que pasar EXACTAMENTE esta misma suite antes de reemplazarlo.
+ * Contrato que TODO `DeliveryEngine` debe cumplir. Lo corren `InProcessEngine` ([DOBLE de Svix], engine-contract.spec.ts) y `SvixEngine`
+ * contra un svix-server REAL (svix/svix-engine-contract.spec.ts): la misma suite, sin excepciones.
  */
 export function describeEngineContract(name: string, setup: () => Promise<EngineFixture & { dispose(): Promise<void> }>): void {
   describe(`contrato DeliveryEngine — ${name}`, () => {
