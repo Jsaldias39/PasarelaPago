@@ -7,7 +7,7 @@ Generado por `services/pay-payments/test/failures.matrix.spec.ts` contra Postgre
 | # | Dependencia | Fallo inyectado | Clase | Esperado | Observado | Asientos del ledger | Escalado a una persona |
 |---|---|---|---|---|---|---|---|
 | 1 | pay-risk | 503 Service Unavailable | fail-closed (no mueve dinero) | failed risk_unavailable, sin cargo | failed (risk_unavailable), cargo creado: no | 0 | risk_unresolved |
-| 2 | pay-risk | no responde (timeout 300 ms) | fail-closed (no mueve dinero) | failed risk_unavailable en pocos segundos | failed en 4978 ms | 0 | risk_unresolved |
+| 2 | pay-risk | no responde (timeout 300 ms) | fail-closed (no mueve dinero) | failed risk_unavailable en pocos segundos | failed en 4839 ms | 0 | risk_unresolved |
 | 3 | pay-risk | respuesta lenta (150 ms < 300 ms) | sin fallo | el cobro sigue | requires_action | 0 | no |
 | 4 | pay-connectors | 502 problem+json connector_unavailable (crear cargo) | definitivo (no se envió nada) | reintenta y cierra failed connector_unavailable | failed (connector_unavailable); POST /charges: 9 llamadas en total | 0 | no |
 | 5 | pay-connectors | 500 al crear el cargo, luego vuelve | ambiguo | processing + escalado; al volver, 1 solo cargo y succeeded | processing → requires_action → succeeded; cargos creados: 1 | 1 | charge_outcome_unknown |
