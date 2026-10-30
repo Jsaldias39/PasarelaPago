@@ -33,8 +33,11 @@ describe('SvixReconciler: espacio de nombres, tope de borrados y reloj contra Sv
   });
   afterEach(async () => db.drop());
 
-  /** Estrictos: sin gracia ni margen, para que la edad no sea la variable de la prueba. */
-  const reconciler = (options: Partial<SvixReconcilerOptions> = {}) => new SvixReconciler(db.pool, client, { orphanGraceMs: 0, clockMarginMs: 0, concurrency: 2, ...options });
+  /**
+   * Estrictos: sin gracia ni margen, para que la edad no sea la variable de la prueba. Esta suite prueba el BORRADO (el tope y la marca de propietario), que desde F-B1
+   * es opt-in (`orphanAction: 'delete'`); el comportamiento por defecto (deshabilitar) lo prueba svix-reconciler-orphan-action.spec.ts.
+   */
+  const reconciler = (options: Partial<SvixReconcilerOptions> = {}) => new SvixReconciler(db.pool, client, { orphanGraceMs: 0, clockMarginMs: 0, concurrency: 2, orphanAction: 'delete', ...options });
 
   /** Un endpoint de Svix en la aplicación del comercio. `owner` undefined ⇒ sin marca (anterior a la marca o de un Svix compartido). */
   async function svixEndpoint(merchantId: string, owner?: string): Promise<string> {
@@ -137,7 +140,7 @@ describe('SvixReconciler: espacio de nombres, tope de borrados y reloj contra Sv
       const known = await legitimate(merchant); // lo único que sabe la base restaurada
       const created = [];
       for (let i = 0; i < 8; i += 1) created.push(await svixEndpoint(merchant, 'sandbox')); // creados después del punto de restauración
-      const summary = await new SvixReconciler(db.pool, client, { orphanGraceMs: 0, clockMarginMs: 0, concurrency: 2 }).runOnce(); // tope por defecto
+      const summary = await new SvixReconciler(db.pool, client, { orphanGraceMs: 0, clockMarginMs: 0, concurrency: 2, orphanAction: 'delete' }).runOnce(); // tope por defecto
       expect(summary.orphansDeleted).toBe(0);
       expect(summary.orphansWithheld).toBe(8);
       expect(await uids(merchant)).toEqual([known, ...created].sort());

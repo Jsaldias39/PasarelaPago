@@ -72,7 +72,7 @@ export class WebhooksModule {
           provide: SVIX_RECONCILER,
           inject: [PG_POOL, SERVICE_CONFIG, SVIX_CLIENT],
           useFactory: (pool: Pool, config: ServiceConfig, svix: SvixClient | undefined) =>
-            config.svix && svix ? new SvixReconciler(pool, svix, { orphanGraceMs: config.svix.orphanGraceMs, clockMarginMs: config.svix.clockMarginMs, namespace: config.svix.namespace, maxOrphanDeletesPerPass: config.svix.maxOrphanDeletesPerPass, concurrency: 4 }) : undefined,
+            config.svix && svix ? new SvixReconciler(pool, svix, { orphanGraceMs: config.svix.orphanGraceMs, clockMarginMs: config.svix.clockMarginMs, namespace: config.svix.namespace, maxOrphanDeletesPerPass: config.svix.maxOrphanDeletesPerPass, orphanAction: config.svix.orphanAction, concurrency: 4 }) : undefined,
         },
         {
           provide: DeliveryWorker,

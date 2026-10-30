@@ -239,7 +239,8 @@ describe('SvixEngine contra svix-server REAL', () => {
       expect((await s.client.listEndpoints(merchant))?.find((e) => e.uid === id)?.disabled).toBe(true);
     });
 
-    t('un endpoint de Svix sin fila local (alta revertida) se borra pasada la gracia; con gracia vigente no se toca; los que sí tienen fila quedan', async () => {
+    // Desde F-B1 el borrado es opt-in (`orphanAction: 'delete'`); por defecto se deshabilita (svix-reconciler-orphan-action.spec.ts).
+    t('un endpoint de Svix sin fila local (alta revertida) se borra (orphanAction=delete) pasada la gracia; con gracia vigente no se toca; los que sí tienen fila quedan', async () => {
       const merchant = newMerchantId();
       const receiver = await s.receiver();
       const { id } = await s.createEndpoint(merchant, receiver);
@@ -247,11 +248,11 @@ describe('SvixEngine contra svix-server REAL', () => {
       // un huérfano PROPIO: lleva la marca del entorno (F2); sin ella el reconciliador no lo toca (ver svix-reconciler-guards.spec.ts)
       await s.client.createEndpoint(merchant, { uid: orphan, url: receiver.url, eventTypes: [TYPE], secret: 'whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oDC2FVsBQIhrs=', metadata: { pay_owner: 'sandbox' } });
 
-      const patient = new SvixReconciler(s.h.db.pool, s.client, { orphanGraceMs: 3_600_000, concurrency: 2 });
+      const patient = new SvixReconciler(s.h.db.pool, s.client, { orphanGraceMs: 3_600_000, concurrency: 2, orphanAction: 'delete' });
       expect((await patient.runOnce()).orphansDeleted).toBe(0);
       expect((await s.client.listEndpoints(merchant))?.map((e) => e.uid).sort()).toEqual([id, orphan].sort());
 
-      const strict = new SvixReconciler(s.h.db.pool, s.client, { orphanGraceMs: 0, clockMarginMs: 0, concurrency: 2 });
+      const strict = new SvixReconciler(s.h.db.pool, s.client, { orphanGraceMs: 0, clockMarginMs: 0, concurrency: 2, orphanAction: 'delete' });
       expect((await strict.runOnce()).orphansDeleted).toBeGreaterThanOrEqual(1);
       expect((await s.client.listEndpoints(merchant))?.map((e) => e.uid)).toEqual([id]);
       // y nada de lo que no es nuestro: un endpoint con uid ajeno al formato we_… no se borra

@@ -1,4 +1,4 @@
-import { HttpClient, UpstreamRejection, problemCode } from './upstream';
+import { HttpClient, UpstreamError, UpstreamRejection, problemCode } from './upstream';
 
 export type RiskDecision = 'allow' | 'review' | 'deny';
 
@@ -66,7 +66,13 @@ export class RiskClient {
         ...(request.screening ? { screening: screeningBody(request.screening) } : {}),
       },
     });
-    if (response.status === 200 || response.status === 201) return response.body;
+    if (response.status === 200 || response.status === 201) {
+      // Un 2xx sin una decisión legible (cuerpo vacío, no objeto, `decision` ausente) NO es una decisión ni un «no»: es AMBIGUO (regla 11). Se lanza `UpstreamError` para que
+      // `assessRisk` lo trate como en vuelo (misma clave, cierra por la política); un `TypeError` crudo sacaba al intento de la política y lo dejaba reintentando para siempre (F-A3).
+      const body = response.body as Partial<RiskAssessment> | null;
+      if (typeof body !== 'object' || body === null || typeof body.decision !== 'string') throw new UpstreamError('unexpected_response', 'pay-risk', response.status);
+      return body as RiskAssessment;
+    }
     throw new UpstreamRejection('pay-risk', response.status, problemCode(response.body));
   }
 }

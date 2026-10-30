@@ -5,7 +5,9 @@ import { NatsEventPublisher, ensureStream, newCloudEvent } from '@pay/outbox';
 import { type IsolatedDatabase, createIsolatedDatabase } from '@pay/testing';
 import { loadConfig, SERVICE_CONFIG } from '../src/config';
 import { PG_POOL } from '../src/database.module';
+import { ACK_WAIT_NS } from '../src/consumer-redelivery';
 import { EventsModule } from '../src/events.module';
+import { SettlementConsumers } from '../src/settlement/consumers';
 import { emitPayoutPaid } from '../src/settlement/settlement-events';
 import { loadEventValidators } from './helpers/events-contract';
 import { feeSchedule, transferPosted } from './helpers/scenarios';
@@ -161,3 +163,59 @@ describe('el relé del outbox publica los eventos propios en PAY_SETTLEMENT', ()
 });
 
 void newCloudEvent;
+
+/**
+ * RE-REVISION-DINERO F-B2 (NATS JetStream real): los consumidores durables ya no abandonan un evento a las 20 entregas. Lo simulado: el destino caído
+ * (el consumidor falla N veces y luego responde); NATS, la base y el inbox son reales. Se acorta la espera (`redelivery`) para no esperar minutos.
+ */
+describe('F-B2 · entrega sin tope de los consumidores durables', () => {
+  const durables = [
+    ['PAY_LEDGER', 'pay-settlement_ledger-transfer-posted'],
+    ['PAY_MERCHANTS', 'pay-settlement_fee-schedule-published'],
+    ['PAY_PAYMENTS', 'pay-settlement_payment_intent_contradiction_detected'],
+  ] as const;
+
+  it('los tres durables quedan sin tope (los que existían con max_deliver 20 de corridas anteriores se migran al arrancar)', async () => {
+    const manager = await nc.jetstreamManager();
+    for (const [stream, durable] of durables) expect((await manager.consumers.info(stream, durable)).config).toMatchObject({ max_deliver: -1, ack_wait: ACK_WAIT_NS });
+  });
+
+  it('CORRECTO/LÍMITE: con el destino caído MÁS de 20 entregas (25) el evento no se abandona; al volver el efecto ocurre UNA vez, y repetirlo no lo duplica', async () => {
+    const consumers = app.get(SettlementConsumers);
+    const events = app.get(EventsModule);
+    events.redelivery = { baseMs: 5, capMs: 25 };
+    const original = consumers.handle.bind(consumers);
+    let calls = 0;
+    let down = true;
+    consumers.handle = async (payload) => {
+      calls += 1;
+      if (down) throw new Error('base de liquidación caída');
+      return original(payload);
+    };
+    try {
+      const m = merchantId();
+      const event = transferPosted(m);
+      await publisher().publish('pay-ledger.ledger.transfer.posted', event);
+      await waitFor(async () => calls >= 25, 20_000, 25); // 25 entregas fallidas: más allá del tope anterior (20)
+      expect(await merchantRow(m)).toHaveLength(0); // nada se aplicó a medias
+      down = false;
+      await waitFor(async () => (await merchantRow(m)).length > 0, 20_000, 25);
+      await waitFor(async () => {
+        const info = await nc.jetstreamManager().then((jsm) => jsm.consumers.info('PAY_LEDGER', 'pay-settlement_ledger-transfer-posted'));
+        return info.num_pending === 0 && info.num_ack_pending === 0;
+      }, 20_000, 50);
+      expect(calls).toBeGreaterThan(25);
+      // la reentrega de lo ya aplicado (el mismo evento, sin Nats-Msg-Id para que JetStream no lo deduplique) no duplica el efecto: idempotencia del inbox
+      await nc.jetstream().publish('pay-ledger.ledger.transfer.posted', new TextEncoder().encode(JSON.stringify(event)));
+      await waitFor(async () => {
+        const info = await nc.jetstreamManager().then((jsm) => jsm.consumers.info('PAY_LEDGER', 'pay-settlement_ledger-transfer-posted'));
+        return info.num_pending === 0 && info.num_ack_pending === 0 && calls > 26;
+      }, 20_000, 50);
+      expect(await merchantRow(m)).toHaveLength(1);
+      expect((await db.pool.query('SELECT count(*)::int AS n FROM inbox_events WHERE event_id = $1', [event.id])).rows[0].n).toBe(1);
+    } finally {
+      consumers.handle = original;
+      events.redelivery = { baseMs: 2_000, capMs: 300_000 };
+    }
+  });
+});

@@ -47,26 +47,27 @@ describe('HttpClient · qué se PRUEBA de una llamada que falla (F1)', () => {
   describe('correcto · solo lo que de verdad no llegó se declara «no llegó»', () => {
     it('conexión rechazada en las dos pasadas ⇒ provenNotReached, sin llamada anterior ambigua', async () => {
       const error = await failure(client(await closedPort()));
-      expect(error).toMatchObject({ kind: 'network', provenNotReached: true, earlierAttemptMayHaveReached: false });
+      expect(error).toMatchObject({ kind: 'network', provenNotReached: true, provenUnreachable: true, earlierAttemptMayHaveReached: false });
     });
 
-    it('breaker abierto desde antes ⇒ circuit_open provenNotReached (ninguna llamada de este request salió)', async () => {
+    it('breaker abierto desde antes ⇒ circuit_open provenNotReached (ninguna llamada de este request salió) pero NO provenUnreachable (F-A1: un breaker abierto no prueba que riesgo esté caído)', async () => {
       const server = await listen((_req, res) => problem(res, 503, 'x'));
       try {
         const c = client(server.url, { failureThreshold: 1 });
         await expect(c.breaker.exec(async () => { throw new UpstreamError('server_error', 'pay-risk', 503); })).rejects.toBeDefined();
-        expect(await failure(c)).toMatchObject({ kind: 'circuit_open', provenNotReached: true, earlierAttemptMayHaveReached: false });
+        expect(await failure(c)).toMatchObject({ kind: 'circuit_open', provenNotReached: true, provenUnreachable: false, earlierAttemptMayHaveReached: false });
         expect(server.server.listening).toBe(true);
       } finally {
         await server.close();
       }
     });
 
-    it.each([['ECONNREFUSED'], ['ENOTFOUND'], ['EAI_AGAIN'], ['EHOSTUNREACH'], ['ENETUNREACH']])('%s (la conexión no se estableció) ⇒ provenNotReached', async (code) => {
+    // Los errores reales de Node traen `syscall` (`connect` / `getaddrinfo`); para EHOSTUNREACH/ENETUNREACH es obligatorio (F-A4, ver el caso de límite más abajo).
+    it.each([['ECONNREFUSED', 'connect'], ['ENOTFOUND', 'getaddrinfo'], ['EAI_AGAIN', 'getaddrinfo'], ['EHOSTUNREACH', 'connect'], ['ENETUNREACH', 'connect']])('%s (la conexión no se estableció) ⇒ provenNotReached y provenUnreachable', async (code, syscall) => {
       const original = globalThis.fetch;
-      globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`connect ${code}`), { code }) }); }) as typeof fetch;
+      globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`${syscall} ${code}`), { code, syscall }) }); }) as typeof fetch;
       try {
-        expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true });
+        expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: true, provenUnreachable: true });
       } finally {
         globalThis.fetch = original;
       }
@@ -77,7 +78,52 @@ describe('HttpClient · qué se PRUEBA de una llamada que falla (F1)', () => {
       const aggregate = Object.assign(new Error('connect'), { errors: [Object.assign(new Error('a'), { code: 'ECONNREFUSED' }), Object.assign(new Error('b'), { code: 'ECONNREFUSED' })] });
       globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: aggregate }); }) as typeof fetch;
       try {
-        expect(await failure(client('http://pay-risk.test'))).toMatchObject({ provenNotReached: true });
+        expect(await failure(client('http://pay-risk.test'))).toMatchObject({ provenNotReached: true, provenUnreachable: true });
+      } finally {
+        globalThis.fetch = original;
+      }
+    });
+
+    it('conexión rechazada en la 1.ª pasada y breaker abierto en la 2.ª ⇒ circuit_open CONSERVA la prueba de inalcanzable de la 1.ª (esta llamada sí intentó conectar)', async () => {
+      const original = globalThis.fetch;
+      let calls = 0;
+      globalThis.fetch = (async () => {
+        calls += 1;
+        throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED', syscall: 'connect' }) });
+      }) as typeof fetch;
+      try {
+        // Umbral 1: la 1.ª pasada (rechazada) abre el breaker y la 2.ª recibe circuit_open sin salir.
+        const error = await failure(client('http://pay-risk.test', { failureThreshold: 1 }));
+        expect(calls).toBe(1);
+        expect(error).toMatchObject({ kind: 'circuit_open', provenNotReached: true, provenUnreachable: true, earlierAttemptMayHaveReached: false });
+      } finally {
+        globalThis.fetch = original;
+      }
+    });
+  });
+
+  // REVISION-DINERO F-A4: EHOSTUNREACH/ENETUNREACH también los da Linux en una conexión YA establecida (error blando de un ICMP): ahí la orden pudo salir.
+  describe('F-A4 · EHOSTUNREACH/ENETUNREACH solo prueban «nunca se estableció» con syscall «connect»', () => {
+    it.each([['EHOSTUNREACH'], ['ENETUNREACH']])('inválido · %s SIN syscall o con otro syscall (read/write) ⇒ ambiguo: ni provenNotReached ni provenUnreachable', async (code) => {
+      const original = globalThis.fetch;
+      try {
+        for (const syscall of [undefined, 'read', 'write']) {
+          globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error(`${code}`), { code, ...(syscall ? { syscall } : {}) }) }); }) as typeof fetch;
+          expect(await failure(client('http://pay-risk.test'))).toMatchObject({ kind: 'network', provenNotReached: false, provenUnreachable: false });
+        }
+      } finally {
+        globalThis.fetch = original;
+      }
+    });
+
+    it('límite · un AggregateError donde UNA dirección es EHOSTUNREACH sin syscall «connect» ⇒ ambiguo; con «connect» en todas ⇒ inalcanzable', async () => {
+      const original = globalThis.fetch;
+      const aggregateOf = (second: Record<string, unknown>) => Object.assign(new Error('connect'), { errors: [Object.assign(new Error('a'), { code: 'ECONNREFUSED', syscall: 'connect' }), Object.assign(new Error('b'), second)] });
+      try {
+        globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: aggregateOf({ code: 'EHOSTUNREACH' }) }); }) as typeof fetch;
+        expect(await failure(client('http://pay-risk.test'))).toMatchObject({ provenNotReached: false, provenUnreachable: false });
+        globalThis.fetch = (async () => { throw Object.assign(new TypeError('fetch failed'), { cause: aggregateOf({ code: 'EHOSTUNREACH', syscall: 'connect' }) }); }) as typeof fetch;
+        expect(await failure(client('http://pay-risk.test'))).toMatchObject({ provenNotReached: true, provenUnreachable: true });
       } finally {
         globalThis.fetch = original;
       }
@@ -102,7 +148,7 @@ describe('HttpClient · qué se PRUEBA de una llamada que falla (F1)', () => {
       });
       try {
         const error = await failure(client(server.url));
-        expect(error).toMatchObject({ kind: 'network', provenNotReached: false, earlierAttemptMayHaveReached: true });
+        expect(error).toMatchObject({ kind: 'network', provenNotReached: false, provenUnreachable: false, earlierAttemptMayHaveReached: true });
       } finally {
         server.server.closeAllConnections();
         await closing;
@@ -116,7 +162,7 @@ describe('HttpClient · qué se PRUEBA de una llamada que falla (F1)', () => {
         const pending = failure(c);
         await new Promise((resolve) => setTimeout(resolve, 60));
         await expect(c.breaker.exec(async () => { throw new UpstreamError('server_error', 'pay-risk', 503); })).rejects.toBeDefined(); // otra llamada lo abre
-        expect(await pending).toMatchObject({ kind: 'circuit_open', provenNotReached: false, earlierAttemptMayHaveReached: true });
+        expect(await pending).toMatchObject({ kind: 'circuit_open', provenNotReached: false, provenUnreachable: false, earlierAttemptMayHaveReached: true });
       } finally {
         await server.close();
       }
@@ -132,7 +178,7 @@ describe('HttpClient · qué se PRUEBA de una llamada que falla (F1)', () => {
       });
       try {
         const error = await failure(client(server.url, { retries: 2 }));
-        expect(error).toMatchObject({ kind: 'network', provenNotReached: false, earlierAttemptMayHaveReached: true });
+        expect(error).toMatchObject({ kind: 'network', provenNotReached: false, provenUnreachable: false, earlierAttemptMayHaveReached: true });
       } finally {
         server.server.closeAllConnections();
         await closing;
@@ -199,6 +245,51 @@ describe('HttpClient · qué se PRUEBA de una llamada que falla (F1)', () => {
       } finally {
         globalThis.fetch = original;
       }
+    });
+
+    // REVISION-DINERO F-A3: los headers de un 201 ya llegaron (la orden pudo ejecutarse) y el cuerpo se corta o vence al leerlo.
+    describe('F-A3 · cuerpo cortado tras los headers', () => {
+      /** Servidor que promete 500 bytes, escribe 20 y corta la conexión. */
+      const truncating = () =>
+        listen((req) => {
+          req.socket.write('HTTP/1.1 201 Created\r\ncontent-type: application/json\r\ncontent-length: 500\r\n\r\n{"decision":"allow","pa');
+          setTimeout(() => req.socket.destroy(), 20);
+        });
+
+      it('inválido · el corte durante el cuerpo sale como UpstreamError network AMBIGUO (no un error crudo) y pasa por el breaker', async () => {
+        const server = await truncating();
+        try {
+          const c = client(server.url, { failureThreshold: 2, retries: 0 });
+          const error = await failure(c);
+          expect(error.name).toBe('UpstreamError');
+          expect(error).toMatchObject({ kind: 'network', status: 201, provenNotReached: false, provenUnreachable: false });
+          await failure(c); // dos fallas seguidas con umbral 2: el breaker se abre, como con cualquier otra falla de red
+          expect(c.breaker.state).toBe('open');
+        } finally {
+          await server.close();
+        }
+      });
+
+      it('límite · el timeout durante la lectura del cuerpo es un UpstreamError timeout (ambiguo)', async () => {
+        const server = await listen((req) => {
+          req.socket.write('HTTP/1.1 201 Created\r\ncontent-type: application/json\r\ncontent-length: 500\r\n\r\n{"decision"'); // y se queda callado
+        });
+        try {
+          const error = await failure(client(server.url, { timeoutMs: 150, retries: 0 }));
+          expect(error).toMatchObject({ name: 'UpstreamError', kind: 'timeout', status: 201, provenNotReached: false });
+        } finally {
+          await server.close();
+        }
+      });
+
+      it('correcto (control) · un 201 con cuerpo completo se lee igual que siempre', async () => {
+        const server = await listen((_req, res) => res.writeHead(201, { 'content-type': 'application/json' }).end(JSON.stringify({ decision: 'allow' })));
+        try {
+          await expect(post(client(server.url))).resolves.toEqual({ status: 201, body: { decision: 'allow' } });
+        } finally {
+          await server.close();
+        }
+      });
     });
 
     it('control · una respuesta de negocio (409 con code) NO es un UpstreamError: se devuelve tal cual', async () => {

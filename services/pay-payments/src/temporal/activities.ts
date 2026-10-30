@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+import { metrics } from '@opentelemetry/api';
 import { ApplicationFailure, Context } from '@temporalio/activity';
 import type { Deps } from '../deps';
 import type { ChargeStatusValue } from '../clients/connectors.client';
@@ -31,6 +33,25 @@ const isRejection = (error: unknown): boolean => error instanceof Error && error
 const neverReached = (error: unknown): boolean => isUpstreamError(error) && (error as Partial<UpstreamError>).provenNotReached === true;
 
 /**
+ * El error prueba que pay-risk NO ES ALCANZABLE: esta ronda intentó conectar y la conexión nunca se estableció (rechazada, DNS, red inalcanzable). Es la ÚNICA prueba con la que la franquicia
+ * «bajo el umbral pasa» concede. `circuit_open` NO la da: el breaker lo abren los 5xx de OTROS cobros y pay-risk puede estar sano (REVISION-DINERO F-A1: un pagador sancionado pasó sin una sola llamada a riesgo).
+ */
+const riskProvenUnreachable = (error: unknown): boolean => isUpstreamError(error) && (error as Partial<UpstreamError>).provenUnreachable === true;
+
+/** Constancia, log y contador de una concesión de la franquicia: sin datos personales (solo ids y montos). */
+const FRANCHISE_KIND = 'risk_franchise_granted';
+const franchiseLogger = new Logger('RiskFranchise');
+/**
+ * Contador `pay_payments_risk_franchise_granted_total`. Se pide al medidor global en cada uso (no al cargar el módulo): el instrumento de la API es el que haya cuando se crea, y el SDK de
+ * `observability/telemetry.ts` (que exporta por OTLP si hay `OTEL_EXPORTER_OTLP_ENDPOINT`) se registra antes que este módulo, pero así tampoco depende del orden. Sin SDK es un no-op: la
+ * fuente durable sigue siendo la constancia (`SELECT count(*) FROM intent_contradictions WHERE kind = 'risk_franchise_granted'`) y el log.
+ */
+const countFranchiseGrant = (attributes: { currency: string; method: string }): void =>
+  metrics.getMeter('pay-payments').createCounter('pay_payments_risk_franchise_granted_total', {
+    description: 'Cobros aprobados SIN decisión de riesgo por la franquicia RISK_ALLOW_BELOW_THRESHOLD (pay-risk probadamente inalcanzable); cada uno tiene su constancia risk_franchise_granted para re-cribarlo',
+  }).add(1, attributes);
+
+/**
  * Una respuesta de riesgo que NO es una decisión pero que tampoco dice «no»: la evaluación pudo quedar viva o ya decidida en pay-risk. Es AMBIGUA (CLAUDE.md regla 11) y se reintenta
  * con la MISMA clave, sin crear otra evaluación; nunca es un rechazo definitivo ni habilita la franquicia «bajo el umbral». Lo son:
  *  · `409 idempotency_request_in_progress`: la primera llamada con esta clave todavía no terminó;
@@ -42,6 +63,9 @@ const neverReached = (error: unknown): boolean => isUpstreamError(error) && (err
 const isRiskInFlight = (error: unknown): boolean =>
   (error instanceof Error && error.name === 'RiskScreeningUnavailable') ||
   (isRejection(error) && (error as { status?: number; code?: string }).status === 409 && (error as { code?: string }).code === 'idempotency_request_in_progress') ||
+  // `429 rate_limited` (REVISION-DINERO F-A5): pay-risk NO evaluó (el límite de velocidad corta antes) pero tampoco dijo «no»: es transitorio y se reintenta con la MISMA clave, sin
+  // crear otra evaluación. Si persiste hasta agotar la política, cierra `failed/risk_unavailable` con constancia como el resto (fail-closed).
+  (isRejection(error) && (error as { status?: number; code?: string }).status === 429 && (error as { code?: string }).code === 'rate_limited') ||
   (isUpstreamError(error) && !neverReached(error));
 
 /**
@@ -244,8 +268,11 @@ export function createActivities(deps: Deps) {
         //    sin cargo, con constancia para una persona), sea cual sea el monto y la configuración: esa evaluación pudo quedar viva y puede volver como `deny`. NUNCA queda en `processing`.
         //  · RESPUESTA FUERA DE LA DECISIÓN (cualquier 4xx declarado que no es `deny`/`review` en una respuesta válida): es un error de integración nuestro;
         //    mismo cierre SIEMPRE fail-closed y con constancia. Solo una `decision` válida es un «sí» o un «no» de negocio.
-        //  · PROBADAMENTE NO LLEGÓ (conexión rechazada, DNS, red inalcanzable, breaker abierto) en la PRIMERA ronda y el PRIMER intento: única causa a la que aplica la franquicia
-        //    «bajo el umbral pasa» (RISK_ALLOW_BELOW_THRESHOLD, por defecto apagada), porque ahí no hay ninguna evaluación que pueda llegar a decir «no».
+        //  · PROBADAMENTE NO LLEGÓ (conexión rechazada, DNS, red inalcanzable, breaker abierto) en la PRIMERA ronda y el PRIMER intento: no hay ninguna evaluación que pueda llegar a decir «no»,
+        //    así que se cierra `failed/risk_unavailable` al instante, sin constancia (con la franquicia apagada, por encima del umbral o con breaker abierto) —
+        //    F-A5: no se reintenta a propósito, para no retrasar ~13 s ni abrir una excepción de conciliación por cada cobro durante una caída de riesgo.
+        //    La franquicia «bajo el umbral pasa» (RISK_ALLOW_BELOW_THRESHOLD, apagada por defecto) aplica SOLO si además hay PRUEBA de que pay-risk es inalcanzable
+        //    (`riskProvenUnreachable`: conexión rechazada/DNS/red de ESTA ronda). `circuit_open` no basta (F-A1). Cada concesión deja constancia durable `risk_franchise_granted`.
         const attempt = attemptOfActivity();
         // «No llegó» solo vale si nunca hubo OTRA ocasión de que la evaluación saliera: ni un intento anterior de esta actividad (attempt > 1) ni una ronda/ejecución anterior (ver `earlierRoundMayHaveSent`).
         // Si la hubo, una indisponibilidad ahora (el breaker abierto por los propios 5xx, la red) NO borra que haya una evaluación viva con esta clave: se trata como «en vuelo».
@@ -262,11 +289,18 @@ export function createActivities(deps: Deps) {
           return { proceed: false };
         }
         if (isUpstreamError(error)) {
-          const failClosed = BigInt(intent.amountMinor) >= config.policy.riskFailClosedThresholdMinor || !config.policy.riskAllowBelowThreshold;
+          const failClosed = BigInt(intent.amountMinor) >= config.policy.riskFailClosedThresholdMinor || !config.policy.riskAllowBelowThreshold || !riskProvenUnreachable(error);
           if (failClosed) {
             await settle(intentId, 'failed', { failureCode: 'risk_unavailable' });
             return { proceed: false };
           }
+          // Franquicia concedida: NO hubo decisión de riesgo. Primero la constancia durable (misma tabla y mecanismo que `ambiguous:risk_unknown`; abre una excepción de conciliación en
+          // pay-settlement para re-cribar después); si no se puede escribir, la excepción sube, Temporal reintenta y el reintento (attempt > 1) cierra fail-closed: no se concede sin rastro.
+          await deps.tx((db) =>
+            contradictionsRepo.record(db, { paymentIntentId: intentId, currentStatus: intent.status, incomingStatus: 'waived', sourceEventId: `waived:${FRANCHISE_KIND}`, kind: FRANCHISE_KIND, reason: 'risk_unreachable_below_threshold' }),
+          );
+          countFranchiseGrant({ currency: intent.currency, method: intent.method });
+          franchiseLogger.warn({ event: FRANCHISE_KIND, payment_intent_id: intentId, merchant_id: intent.merchantId, amount_minor: intent.amountMinor, currency: intent.currency, threshold_minor: config.policy.riskFailClosedThresholdMinor.toString() }, 'Cobro aprobado SIN decisión de riesgo (franquicia bajo el umbral, pay-risk inalcanzable): re-cribar');
           return { proceed: true };
         }
         throw error;

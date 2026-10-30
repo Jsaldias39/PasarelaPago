@@ -3,6 +3,7 @@ import { AckPolicy, connect, DeliverPolicy, type ConsumerMessages, type NatsConn
 import { NatsEventPublisher, OutboxRelay, ensureStream } from '@pay/outbox';
 import type { Pool } from 'pg';
 import { SERVICE_CONFIG, type ServiceConfig } from './config';
+import { DEFAULT_REDELIVERY, ensureUnlimitedDurable, redeliveryDelayMs, retryLogFields, type RedeliveryPolicy } from './consumer-redelivery';
 import { PG_POOL } from './database.module';
 import { CONSUMER_CONTRADICTION, CONSUMER_FEES, CONSUMER_LEDGER, SettlementConsumers } from './settlement/consumers';
 import { SettlementModule } from './settlement/settlement.module';
@@ -24,6 +25,8 @@ export class EventsModule implements OnModuleInit, OnApplicationShutdown {
   private connection: NatsConnection | undefined;
   private relay: OutboxRelay | undefined;
   private readonly streams: ConsumerMessages[] = [];
+  /** Espera tras cada fallo: `base · 2^(entregas-1)` con tope. Pública para que las pruebas la acorten. */
+  redelivery: RedeliveryPolicy = DEFAULT_REDELIVERY;
 
   constructor(
     @Inject(SERVICE_CONFIG) private readonly config: ServiceConfig,
@@ -51,16 +54,21 @@ export class EventsModule implements OnModuleInit, OnApplicationShutdown {
   /**
    * Un consumidor durable por tema. Se reconoce (`ack`) lo procesado, lo duplicado y lo que nunca se podrá procesar (`term`, sin
    * contenido en el log); un fallo transitorio se devuelve (`nak`) para que JetStream lo reintente.
+   *
+   * Entrega SIN tope (`max_deliver: -1`, RE-REVISION-DINERO F-B2): el asiento publicado, la tarifa o la contradicción que no se pudo aplicar (base
+   * caída) no se abandona a las N entregas —dinero a liquidar quedaría sin registrar—; el efecto es idempotente (inbox) y la espera crece hasta
+   * un tope. Lo definitivo se `term`ina. Ver consumer-redelivery.ts.
    */
   private async subscribe(connection: NatsConnection): Promise<void> {
     const manager = await connection.jetstreamManager();
     for (const sub of SUBSCRIPTIONS) {
       await ensureStream(manager, sub.stream, [...sub.subjects]);
-      try {
-        await manager.consumers.info(sub.stream, sub.durable.replace(/\./g, '_'));
-      } catch {
-        await manager.consumers.add(sub.stream, { durable_name: sub.durable.replace(/\./g, '_'), ack_policy: AckPolicy.Explicit, deliver_policy: DeliverPolicy.All, filter_subject: sub.subject, max_deliver: 20 });
-      }
+      await ensureUnlimitedDurable(
+        manager,
+        sub.stream,
+        { durable_name: sub.durable.replace(/\./g, '_'), ack_policy: AckPolicy.Explicit, deliver_policy: DeliverPolicy.All, filter_subject: sub.subject },
+        (fields, text) => this.logger.warn(fields, text),
+      );
       const consumer = await connection.jetstream().consumers.get(sub.stream, sub.durable.replace(/\./g, '_'));
       const messages = await consumer.consume({ max_messages: 50 });
       this.streams.push(messages);
@@ -78,8 +86,9 @@ export class EventsModule implements OnModuleInit, OnApplicationShutdown {
             if (outcome === 'invalid') message.term('evento inválido');
             else message.ack();
           } catch (error) {
-            this.logger.warn({ consumer: sub.durable, err: error instanceof Error ? error.name : 'desconocido' }, 'No se pudo procesar el evento; se reintenta');
-            message.nak(5000);
+            const deliveries = message.info.deliveryCount;
+            this.logger.warn({ consumer: sub.durable, err: error instanceof Error ? error.name : 'desconocido', ...retryLogFields(deliveries) }, 'No se pudo procesar el evento; se reintenta');
+            message.nak(redeliveryDelayMs(deliveries, this.redelivery));
           }
         }
       })();

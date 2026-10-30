@@ -12,6 +12,14 @@
  */
 export const SVIX_OWNER_KEY = 'pay_owner';
 
+/**
+ * Marca de revisión de un huérfano propio (RE-REVISION-DINERO F-B1). Una persona que reactiva un endpoint que el reconciliador deshabilitó lo marca con
+ * `metadata.pay_orphan_review = released` (junto con `pay_owner`, porque Svix REEMPLAZA los metadatos en un PATCH) para que el reconciliador no lo vuelva a
+ * deshabilitar mientras se re-adopta (se vuelve a insertar su fila en `webhook_endpoints`). Procedimiento: docs/runbooks/sandbox-a-produccion.md.
+ */
+export const ORPHAN_REVIEW_KEY = 'pay_orphan_review';
+export const ORPHAN_REVIEW_RELEASED = 'released';
+
 /** Valor por defecto SOLO en sandbox. Bajo `live` la variable es obligatoria y no puede ser este valor. */
 export const DEFAULT_SANDBOX_NAMESPACE = 'sandbox';
 

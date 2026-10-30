@@ -1,16 +1,25 @@
-import { Controller, Get, Inject } from '@nestjs/common';
+import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
+import { Res } from '@nestjs/common';
 import { HealthCheck, HealthCheckService, type HealthIndicatorResult } from '@nestjs/terminus';
+import type { Response } from 'express';
 import type { Pool } from 'pg';
+import { AppendOnlyGuardsProbe } from './append-only-guards';
 import { PG_POOL } from './database.module';
+import { LEDGER_CONFIG, type LedgerConfig } from './ledger/ledger.config';
 import { TB_ENGINE, TigerBeetleEngine } from './ledger/tb-engine';
 
 @Controller('health')
 export class HealthController {
+  private readonly guards: AppendOnlyGuardsProbe;
+
   constructor(
     private readonly health: HealthCheckService,
     @Inject(PG_POOL) private readonly pool: Pool,
     @Inject(TB_ENGINE) private readonly tb: TigerBeetleEngine,
-  ) {}
+    @Inject(LEDGER_CONFIG) config: LedgerConfig,
+  ) {
+    this.guards = new AppendOnlyGuardsProbe(pool, config.payMode);
+  }
 
   /** Liveness: el proceso responde. No toca dependencias. */
   @Get('live')
@@ -18,19 +27,34 @@ export class HealthController {
     return { status: 'ok' };
   }
 
-  /** Readiness: la base propia y TigerBeetle responden. */
+  /**
+   * Readiness: la base propia y TigerBeetle responden, y los guardianes de solo-agregar de las tablas del libro existen (`checks.append_only_guards`, REVISION-DINERO F-D1).
+   * Bajo `PAY_MODE=live`, un guardián ausente ⇒ 503; en sandbox sigue listo pero `ok: false` se ve y se avisa en el log.
+   */
   @Get('ready')
   @HealthCheck()
-  ready() {
-    return this.health.check([
-      async (): Promise<HealthIndicatorResult> => {
-        await this.pool.query('SELECT 1');
-        return { database: { status: 'up' } };
-      },
-      async (): Promise<HealthIndicatorResult> => {
-        await this.tb.ping();
-        return { tigerbeetle: { status: 'up' } };
-      },
-    ]);
+  async ready(@Res({ passthrough: true }) res: Response) {
+    const guards = await this.guards.report();
+    const checks = { append_only_guards: guards };
+    try {
+      const result = await this.health.check([
+        async (): Promise<HealthIndicatorResult> => {
+          await this.pool.query('SELECT 1');
+          return { database: { status: 'up' } };
+        },
+        async (): Promise<HealthIndicatorResult> => {
+          await this.tb.ping();
+          return { tigerbeetle: { status: 'up' } };
+        },
+        async (): Promise<HealthIndicatorResult> => ({ append_only_guards: { status: this.guards.blocksReadiness(guards) ? 'down' : 'up', ...guards } }),
+      ]);
+      return { ...result, checks };
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) {
+        res.status(503);
+        return { ...(error.getResponse() as Record<string, unknown>), checks };
+      }
+      throw error;
+    }
   }
 }

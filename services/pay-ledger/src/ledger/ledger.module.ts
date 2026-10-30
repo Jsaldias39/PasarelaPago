@@ -60,6 +60,6 @@ class LedgerLifecycle implements OnModuleInit, OnApplicationShutdown {
     ReconcilerService,
     LedgerLifecycle,
   ],
-  exports: [LedgerService, HoldService, InvariantService, ReconcilerService, TB_ENGINE],
+  exports: [LedgerService, HoldService, InvariantService, ReconcilerService, TB_ENGINE, LEDGER_CONFIG],
 })
 export class LedgerModule {}

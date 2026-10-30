@@ -29,8 +29,18 @@ interface Replayable<T> {
   readonly replayed: boolean;
 }
 
-/** SQLSTATE de 5 caracteres: el servidor de base de datos RESPONDIÓ con un error, así que la transacción quedó abortada (no hay duda sobre el COMMIT). */
-const SQLSTATE = /^[0-9A-Z]{5}$/;
+/**
+ * ¿El servidor de base de datos RESPONDIÓ con un error de sentencia? Entonces la transacción quedó abortada y no hay duda sobre el COMMIT.
+ * (RE-REVISION-DINERO F-B3.) Exige un SQLSTATE de una CLASE que existe en PostgreSQL (apéndice A: `00`…`9`x, `F0`, `HV`, `P0`, `XX`), no cualquier cinco
+ * caracteres —`EPIPE`, `EBADF`, `ELOOP` y `ECONNRESET` son códigos de Node, no de la base— y que la severidad sea `ERROR`: un `FATAL`/`PANIC` (p. ej. `57P01`
+ * terminación administrativa) puede llegar después de un COMMIT ya aplicado, y ahí NO se sabe.
+ */
+const SQLSTATE = /^(?:[0-9][0-9A-Z]|F0|HV|P0|XX)[0-9A-Z]{3}$/;
+export function isDefiniteDatabaseError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { code, severity } = error as { code?: unknown; severity?: unknown };
+  return typeof code === 'string' && SQLSTATE.test(code) && severity === 'ERROR';
+}
 const LOST_LOCK_MESSAGE = 'Se perdió el bloqueo de la Idempotency-Key';
 
 const invalid = (errors: FieldError[]) => new ProblemError('validation_failed', { errors });
@@ -128,8 +138,7 @@ export class EndpointService {
    */
   private async compensateFailedProvision(record: EndpointRecord, error: unknown): Promise<void> {
     if (!this.engine.compensateProvision) return;
-    const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
-    const definitive = error instanceof Error && (error.message === LOST_LOCK_MESSAGE || (typeof code === 'string' && SQLSTATE.test(code)));
+    const definitive = error instanceof Error && (error.message === LOST_LOCK_MESSAGE || isDefiniteDatabaseError(error));
     if (!definitive) {
       this.logger.warn({ endpoint_id: record.id, err: error instanceof Error ? error.name : 'desconocido' }, 'El alta falló con resultado ambiguo tras crear el endpoint en el motor: no se borra; lo resolverá la reconciliación');
       return;

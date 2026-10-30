@@ -31,6 +31,11 @@ export interface SvixConfig {
   readonly namespace: string;
   /** Tope de huérfanos que una pasada borra (`WEBHOOKS_SVIX_MAX_ORPHAN_DELETES`); si hay más no se borra ninguno y se avisa. */
   readonly maxOrphanDeletesPerPass: number;
+  /**
+   * Qué hace el reconciliador con un huérfano propio (`WEBHOOKS_SVIX_ORPHAN_ACTION`): `disable` (por defecto; reversible) o `delete` (irreversible: el secreto
+   * del comercio se pierde). Bajo `live`, `delete` exige además `WEBHOOKS_SVIX_ORPHAN_DELETE_ACK=irreversible`.
+   */
+  readonly orphanAction: 'disable' | 'delete';
 }
 
 export interface ServiceConfig {
@@ -151,6 +156,24 @@ function parseNamespace(env: NodeJS.ProcessEnv, payMode: 'sandbox' | 'live'): st
   return value;
 }
 
+/** El valor con el que se confirma, bajo `live`, que se acepta perder para siempre el secreto de un endpoint al borrarlo. */
+export const ORPHAN_DELETE_ACK = 'irreversible';
+
+/**
+ * `WEBHOOKS_SVIX_ORPHAN_ACTION` (RE-REVISION-DINERO F-B1): `disable` (defecto, reversible) o `delete`. El borrado nunca es el defecto: tras restaurar la base, los
+ * endpoints creados después del punto de restauración parecen huérfanos y son legítimos. Bajo `live`, `delete` exige declarar a propósito
+ * `WEBHOOKS_SVIX_ORPHAN_DELETE_ACK=irreversible`, para que no llegue por copiar una configuración de sandbox.
+ */
+function parseOrphanAction(env: NodeJS.ProcessEnv, payMode: 'sandbox' | 'live'): 'disable' | 'delete' {
+  const raw = env.WEBHOOKS_SVIX_ORPHAN_ACTION ?? '';
+  if (raw === '' || raw === 'disable') return 'disable';
+  if (raw !== 'delete') throw new Error(`WEBHOOKS_SVIX_ORPHAN_ACTION inválido: ${raw} (disable | delete)`);
+  if (payMode === 'live' && env.WEBHOOKS_SVIX_ORPHAN_DELETE_ACK !== ORPHAN_DELETE_ACK) {
+    throw new Error(`PAY_MODE=live con WEBHOOKS_SVIX_ORPHAN_ACTION=delete exige declarar a propósito WEBHOOKS_SVIX_ORPHAN_DELETE_ACK=${ORPHAN_DELETE_ACK}: borrar un endpoint pierde su secreto para siempre`);
+  }
+  return 'delete';
+}
+
 function parseSvix(env: NodeJS.ProcessEnv, payMode: 'sandbox' | 'live', rotationGraceHours: number): SvixConfig {
   const rawUrl = required(env, 'WEBHOOKS_SVIX_URL');
   let url: URL;
@@ -188,6 +211,7 @@ function parseSvix(env: NodeJS.ProcessEnv, payMode: 'sandbox' | 'live', rotation
     clockMarginMs: integer(env, 'WEBHOOKS_SVIX_CLOCK_MARGIN_SECONDS', 60, 0, 3_600) * SECOND,
     namespace: parseNamespace(env, payMode),
     maxOrphanDeletesPerPass: integer(env, 'WEBHOOKS_SVIX_MAX_ORPHAN_DELETES', 5, 0, 1000),
+    orphanAction: parseOrphanAction(env, payMode),
   };
 }
 

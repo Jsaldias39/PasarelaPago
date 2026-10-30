@@ -38,6 +38,11 @@ export interface ServiceConfig {
      * SIEMPRE rechaza (fail-closed total) hasta que el negocio fije un monto.
      */
     readonly riskFailClosedThresholdMinor: bigint;
+    /**
+     * Franquicia «bajo el umbral pasa» (apagada por defecto). Solo HACE algo si `riskFailClosedThresholdMinor > 0` (con 0, `amount >= 0` siempre cierra), y solo concede ante la PRUEBA de que
+     * pay-risk es inalcanzable (conexión rechazada/DNS/red; ni un 5xx, ni un timeout, ni `circuit_open`). Cada concesión deja la constancia `risk_franchise_granted`. Bajo `PAY_MODE=live`
+     * el servicio NO arranca con ella encendida (REVISION-DINERO F-A2): es una renuncia al cribado de sanciones que hoy solo se admite en sandbox.
+     */
     readonly riskAllowBelowThreshold: boolean;
     /** Cuánto espera `POST /payment_intents` a que el cobro quede en `requires_action` o terminal antes de responder. */
     readonly createWaitMs: number;
@@ -111,6 +116,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
   const payMode = parsePayMode(env.PAY_MODE);
   const port = Number(env.PORT ?? 3102);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`PORT inválido: ${env.PORT}`);
+  // Guarda de configuración (F-A2): la franquicia concede cobros SIN cribado de sanciones. Bajo `live` no se admite, ni siquiera con un umbral que la deje inerte: un interruptor
+  // que no debe estar encendido en producción no se deja encender.
+  if (payMode === 'live' && env.RISK_ALLOW_BELOW_THRESHOLD === 'true') {
+    throw new Error('PAY_MODE=live: RISK_ALLOW_BELOW_THRESHOLD=true no está permitido (aprobaría cobros sin cribado de sanciones cuando pay-risk es inalcanzable); apagala o quitá la variable. pay-payments se niega a arrancar');
+  }
   const dbPort = Number(env.DB_PORT ?? 5432);
   if (!Number.isInteger(dbPort)) throw new Error(`DB_PORT inválido: ${env.DB_PORT}`);
   return {

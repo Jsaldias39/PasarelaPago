@@ -5,10 +5,10 @@ import type { Pool } from 'pg';
 import { SERVICE_CONFIG, type ServiceConfig } from '../config';
 import { PG_POOL } from '../database.module';
 import { SCHEDULE_SETTINGS, type ScheduleSettings } from '../settings';
+import { DEFAULT_REDELIVERY, ensureUnlimitedDurable, redeliveryDelayMs, retryLogFields, type RedeliveryPolicy } from './consumer-redelivery';
 import { applyMerchantEvent, parseMerchantEvent } from './merchant-replica';
 
 const RETRY_MS = 2_000;
-const NAK_DELAY_MS = 2_000;
 
 /** Mensaje del servidor NATS (nombres de stream/consumidor y la causa, nunca datos de personas), recortado para el registro. */
 function describeNatsError(error: unknown): string {
@@ -18,7 +18,9 @@ function describeNatsError(error: unknown): string {
 
 /**
  * Consumidor durable de JetStream de `merchant.activated|suspended|closed`. Entrega al menos una vez; `processOnce` (inbox) hace
- * que cada evento tenga un solo efecto. Un evento mal formado se descarta con `term`; un fallo de base hace `nak` con demora.
+ * que cada evento tenga un solo efecto. Un evento mal formado se descarta con `term`; un fallo de base hace `nak` con demora creciente y acotada.
+ * Entrega SIN tope (`max_deliver: -1`, RE-REVISION-DINERO F-B2): un `merchant.suspended` que no se pudo aplicar (base caída) no se abandona a las N
+ * entregas —el comercio seguiría con cronogramas activos—. Ver consumer-redelivery.ts.
  * Probado contra un NATS real con eventos del AsyncAPI vigente (test/nats-replica.spec.ts).
  */
 @Injectable()
@@ -27,6 +29,8 @@ export class MerchantReplicaConsumer implements OnModuleInit, OnApplicationShutd
   private connection: NatsConnection | undefined;
   private messages: ConsumerMessages | undefined;
   private stopped = false;
+  /** Espera tras cada fallo: `base · 2^(entregas-1)` con tope. Pública para que las pruebas la acorten. */
+  redelivery: RedeliveryPolicy = DEFAULT_REDELIVERY;
   private resolveReady!: () => void;
   /** Se resuelve cuando el consumidor ya está leyendo del stream (las pruebas esperan esto antes de publicar). */
   readonly ready = new Promise<void>((resolve) => {
@@ -68,12 +72,8 @@ export class MerchantReplicaConsumer implements OnModuleInit, OnApplicationShutd
     const { merchantsStream: stream, merchantsDurable: durable } = this.settings;
     this.connection ??= await connect({ servers: this.config.natsUrl!, name: 'pay-schedules' });
     const manager = await this.connection.jetstreamManager();
-    try {
-      await manager.consumers.info(stream, durable);
-    } catch {
-      const filters = ['merchant.activated', 'merchant.suspended', 'merchant.closed'].map((t) => `${this.settings.merchantsSubjectPrefix}.${t}`);
-      await manager.consumers.add(stream, { durable_name: durable, ack_policy: AckPolicy.Explicit, deliver_policy: DeliverPolicy.All, filter_subjects: filters, max_deliver: 20 });
-    }
+    const filters = ['merchant.activated', 'merchant.suspended', 'merchant.closed'].map((t) => `${this.settings.merchantsSubjectPrefix}.${t}`);
+    await ensureUnlimitedDurable(manager, stream, { durable_name: durable, ack_policy: AckPolicy.Explicit, deliver_policy: DeliverPolicy.All, filter_subjects: filters }, (fields, text) => this.logger.warn(fields, text));
     const consumer = await this.connection.jetstream().consumers.get(stream, durable);
     this.messages = await consumer.consume({ max_messages: 50 });
     this.resolveReady();
@@ -98,8 +98,9 @@ export class MerchantReplicaConsumer implements OnModuleInit, OnApplicationShutd
       await processOnce(this.pool, 'pay-schedules.merchant-replica', event.eventId, (client) => applyMerchantEvent(client, event));
       message.ack();
     } catch (error) {
-      this.logger.error({ err: (error as { name?: string } | null)?.name ?? 'desconocido', event_id: event.eventId }, 'No se pudo aplicar el evento; se reintenta');
-      message.nak(NAK_DELAY_MS);
+      const deliveries = message.info.deliveryCount;
+      this.logger.error({ err: (error as { name?: string } | null)?.name ?? 'desconocido', event_id: event.eventId, ...retryLogFields(deliveries) }, 'No se pudo aplicar el evento; se reintenta');
+      message.nak(redeliveryDelayMs(deliveries, this.redelivery));
     }
   }
 }

@@ -4,19 +4,21 @@ import { processOnce } from '@pay/outbox';
 import type { Pool } from 'pg';
 import { SERVICE_CONFIG, type ServiceConfig } from '../config';
 import { PG_POOL } from '../database.module';
+import { DEFAULT_REDELIVERY, ensureUnlimitedDurable, redeliveryDelayMs, retryLogFields, type RedeliveryPolicy } from './consumer-redelivery';
 import { parseReplicaEvent } from './replica.events';
 import { applyReplicaEvent } from './replica.repository';
 
 const CONSUMER_NAME = 'pay-edge.replica';
 const RETRY_MS = 2_000;
-const NAK_DELAY_MS = 2_000;
 
 /**
  * Mantiene la réplica de claves y estado de comercios a partir de los eventos de pay-merchants.
  *
  * - Consumidor durable de JetStream, entrega al menos una vez; `processOnce` (inbox) hace que cada evento tenga un solo efecto.
  * - Si NATS o el stream todavía no existen, reintenta en segundo plano: el borde arranca igual y `/health/ready` lo informa.
- * - Un evento mal formado se descarta con `term` (reintentarlo no lo arregla); un fallo de base hace `nak` con demora.
+ * - Un evento mal formado se descarta con `term` (reintentarlo no lo arregla); un fallo de base hace `nak` con demora creciente y acotada.
+ * - Entrega SIN tope (`max_deliver: -1`, RE-REVISION-DINERO F-B2): una `api_key.revoked` que no se pudo aplicar (base caída) NO se abandona a las N
+ *   entregas —la clave revocada seguiría valiendo—; `processOnce` hace el efecto único. Ver consumer-redelivery.ts.
  * - Confía en el bus: quien pueda publicar en estos temas puede crear o revocar claves. Requiere credenciales NATS por
  *   servicio con permisos de publicación acotados (ola 3); ver docs/trabajo/ola-1/P1/PROPUESTAS.md.
  */
@@ -27,6 +29,8 @@ export class ReplicaConsumer implements OnModuleInit, OnApplicationShutdown {
   private messages: ConsumerMessages | undefined;
   private stopped = false;
   private subscribed = false;
+  /** Espera tras cada fallo: `base · 2^(entregas-1)` con tope. Pública para que las pruebas la acorten. */
+  redelivery: RedeliveryPolicy = DEFAULT_REDELIVERY;
   private resolveReady!: () => void;
   /** Se resuelve cuando el consumidor ya está leyendo del stream (las pruebas esperan esto antes de publicar). */
   readonly ready = new Promise<void>((resolve) => {
@@ -73,11 +77,7 @@ export class ReplicaConsumer implements OnModuleInit, OnApplicationShutdown {
     this.connection ??= await connect({ servers: this.config.natsUrl!, name: 'pay-edge' });
     const manager = await this.connection.jetstreamManager();
     const filters = ['api_key.created', 'api_key.revoked', 'merchant.activated', 'merchant.suspended', 'merchant.closed'].map((t) => `${subjectPrefix}.${t}`);
-    try {
-      await manager.consumers.info(stream, durable);
-    } catch {
-      await manager.consumers.add(stream, { durable_name: durable, ack_policy: AckPolicy.Explicit, deliver_policy: DeliverPolicy.All, filter_subjects: filters, max_deliver: 20 });
-    }
+    await ensureUnlimitedDurable(manager, stream, { durable_name: durable, ack_policy: AckPolicy.Explicit, deliver_policy: DeliverPolicy.All, filter_subjects: filters }, (fields, text) => this.logger.warn(fields, text));
     const consumer = await this.connection.jetstream().consumers.get(stream, durable);
     this.messages = await consumer.consume({ max_messages: 50 });
     this.subscribed = true;
@@ -105,8 +105,9 @@ export class ReplicaConsumer implements OnModuleInit, OnApplicationShutdown {
       await processOnce(this.pool, CONSUMER_NAME, event.eventId, (client) => applyReplicaEvent(client, event));
       message.ack();
     } catch (error) {
-      this.logger.error({ err: error instanceof Error ? error.name : 'desconocido', code: (error as { code?: string }).code, event_id: event.eventId }, 'No se pudo aplicar el evento; se reintenta');
-      message.nak(NAK_DELAY_MS);
+      const deliveries = message.info.deliveryCount;
+      this.logger.error({ err: error instanceof Error ? error.name : 'desconocido', code: (error as { code?: string }).code, event_id: event.eventId, ...retryLogFields(deliveries) }, 'No se pudo aplicar el evento; se reintenta');
+      message.nak(redeliveryDelayMs(deliveries, this.redelivery));
     }
   }
 }

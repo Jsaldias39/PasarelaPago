@@ -10,6 +10,11 @@ import { currentRequestId, inClientSpan, isValidRequestId, withActiveTraceparent
 export interface UpstreamEvidence {
   /** Se PRUEBA que esta llamada no salió hacia la dependencia: la conexión no se estableció (rechazada, DNS, red inalcanzable) o el breaker estaba abierto. */
   readonly notReached?: boolean;
+  /**
+   * Se PRUEBA, con una conexión que ESTA llamada intentó y no se estableció (rechazada, DNS, red inalcanzable), que la dependencia no es alcanzable. Es más fuerte que `notReached`:
+   * un breaker abierto prueba que ESTA llamada no salió, pero NO que la dependencia esté caída (lo abren los 5xx de OTROS cobros y puede haberse recuperado; REVISION-DINERO F-A1).
+   */
+  readonly unreachable?: boolean;
   /** Una llamada ANTERIOR del mismo `request()` (el reintento interno del cliente) pudo llegar: el error que se ve es solo el último. */
   readonly earlierAttemptMayHaveReached?: boolean;
 }
@@ -22,6 +27,11 @@ export class UpstreamError extends Error {
    * AMBIGUOS: la orden pudo ejecutarse. Quien llama a una operación idempotente que sigue viva en el servidor (riesgo) no puede tratar un error ambiguo como «no hay evaluación».
    */
   readonly provenNotReached: boolean;
+  /**
+   * `true` SOLO si esta llamada (o una anterior del mismo `request()`) intentó conectar y la conexión NUNCA se estableció (rechazada, DNS, red inalcanzable) y no hubo una llamada ambigua.
+   * `circuit_open` NO lo es: «el breaker estaba abierto» no dice que la dependencia esté caída. Es la única prueba con la que la franquicia «bajo el umbral pasa» puede conceder (F-A1).
+   */
+  readonly provenUnreachable: boolean;
   /** Una llamada anterior del mismo `request()` pudo llegar a la dependencia (p. ej. un timeout y, dentro del mismo intento, un 503): este error la enmascara. */
   readonly earlierAttemptMayHaveReached: boolean;
 
@@ -38,27 +48,41 @@ export class UpstreamError extends Error {
     this.name = 'UpstreamError';
     this.earlierAttemptMayHaveReached = evidence.earlierAttemptMayHaveReached === true;
     this.provenNotReached = (evidence.notReached ?? kind === 'circuit_open') && !this.earlierAttemptMayHaveReached;
+    this.provenUnreachable = evidence.unreachable === true && !this.earlierAttemptMayHaveReached;
   }
 
   /** El mismo error, marcado como visto DESPUÉS de una llamada anterior que pudo llegar (ya no prueba «no llegó»). */
   withEarlierAttempt(): UpstreamError {
-    return new UpstreamError(this.kind, this.upstream, this.status, this.problemCode, { notReached: false, earlierAttemptMayHaveReached: true });
+    return new UpstreamError(this.kind, this.upstream, this.status, this.problemCode, { notReached: false, unreachable: false, earlierAttemptMayHaveReached: true });
+  }
+
+  /** El mismo error, tras una pasada ANTERIOR del mismo `request()` que probó que la conexión no se establece (p. ej. conexión rechazada y, entre pasadas, el breaker se abrió). */
+  withEarlierRefusal(): UpstreamError {
+    return new UpstreamError(this.kind, this.upstream, this.status, this.problemCode, { notReached: this.provenNotReached, unreachable: true, earlierAttemptMayHaveReached: this.earlierAttemptMayHaveReached });
   }
 }
 
 /** Códigos de `fetch` que prueban que la conexión NUNCA se estableció (no se envió ni un byte de la petición). Un corte posterior (ECONNRESET, UND_ERR_SOCKET, EPIPE) NO está aquí. */
 const CONNECTION_NEVER_ESTABLISHED: ReadonlySet<string> = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH']);
+/**
+ * `EHOSTUNREACH`/`ENETUNREACH` también los reporta Linux en una conexión YA establecida (error blando de un ICMP tras agotar retransmisiones): ahí la orden pudo haber salido.
+ * Solo prueban «nunca se estableció» si el error trae `syscall: 'connect'` (REVISION-DINERO F-A4). Los demás códigos del conjunto nacen siempre del `connect`/`getaddrinfo`.
+ */
+const NEEDS_CONNECT_SYSCALL: ReadonlySet<string> = new Set(['EHOSTUNREACH', 'ENETUNREACH']);
+
+const neverEstablished = (e: { code?: unknown; syscall?: unknown } | null | undefined): boolean =>
+  typeof e?.code === 'string' && CONNECTION_NEVER_ESTABLISHED.has(e.code) && (!NEEDS_CONNECT_SYSCALL.has(e.code) || e.syscall === 'connect');
 
 /**
  * ¿El fallo de `fetch` prueba que la petición no salió? Se lee la causa por propiedades (sin `instanceof`: bajo Jest los errores vienen de otro realm).
  * Con varias direcciones (happy eyeballs) la causa es un `AggregateError`: solo prueba «no llegó» si TODAS fallaron al conectar.
  */
 export function connectionNeverEstablished(error: unknown): boolean {
-  const cause = (error as { cause?: { code?: unknown; errors?: unknown } } | null)?.cause;
+  const cause = (error as { cause?: { code?: unknown; syscall?: unknown; errors?: unknown } } | null)?.cause;
   if (cause === null || typeof cause !== 'object') return false;
-  const nested = Array.isArray(cause.errors) ? (cause.errors as { code?: unknown }[]) : [];
-  if (nested.length > 0) return nested.every((e) => typeof e?.code === 'string' && CONNECTION_NEVER_ESTABLISHED.has(e.code));
-  return typeof cause.code === 'string' && CONNECTION_NEVER_ESTABLISHED.has(cause.code);
+  const nested = Array.isArray(cause.errors) ? (cause.errors as { code?: unknown; syscall?: unknown }[]) : [];
+  if (nested.length > 0) return nested.every((e) => neverEstablished(e));
+  return neverEstablished(cause);
 }
 
 export interface BreakerOptions {
@@ -183,12 +207,16 @@ export class HttpClient {
     let last: unknown;
     // Una llamada anterior de ESTE request pudo llegar a la dependencia (timeout, corte, 5xx…): el error final es solo el último y no puede borrarla (regla 11).
     let earlierMayHaveReached = false;
+    // Una pasada anterior de ESTE request probó que la conexión no se establece (rechazada, DNS, inalcanzable): sigue valiendo aunque la siguiente reciba `circuit_open`.
+    let earlierRefused = false;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       try {
         return await this.breaker.exec(() => this.once<T>(request));
       } catch (error) {
-        const surfaced = earlierMayHaveReached && error instanceof UpstreamError ? error.withEarlierAttempt() : error;
+        let surfaced = earlierMayHaveReached && error instanceof UpstreamError ? error.withEarlierAttempt() : error;
+        if (surfaced === error && earlierRefused && error instanceof UpstreamError && error.kind === 'circuit_open') surfaced = error.withEarlierRefusal();
         if (error instanceof UpstreamError && !error.provenNotReached) earlierMayHaveReached = true;
+        if (error instanceof UpstreamError && error.provenUnreachable) earlierRefused = true;
         last = surfaced;
         // Con el breaker abierto reintentar no sirve: se corta.
         if (!(error instanceof UpstreamError) || error.kind === 'circuit_open') throw surfaced;
@@ -225,13 +253,22 @@ export class HttpClient {
       const name = (error as { name?: string } | null)?.name ?? '';
       const timedOut = name === 'TimeoutError' || name === 'AbortError';
       // `network` es AMBIGUO salvo que se pruebe que la conexión nunca se estableció (rechazada, DNS, inalcanzable): un corte posterior pudo haber llevado la orden.
-      throw new UpstreamError(timedOut ? 'timeout' : 'network', this.options.name, undefined, undefined, { notReached: !timedOut && connectionNeverEstablished(error) });
+      const refused = !timedOut && connectionNeverEstablished(error);
+      throw new UpstreamError(timedOut ? 'timeout' : 'network', this.options.name, undefined, undefined, { notReached: refused, unreachable: refused });
     }
     // Un resultado ambiguo no es un fallo (CLAUDE.md regla 11): un 5xx, un timeout o un 4xx sin el cuerpo de error exacto del
     // contrato NO prueban que la orden no se ejecutó. Se lanza UpstreamError; solo `connector_unavailable` (502) es definitivo y
     // lo reconoce quien llama mirando `problemCode`.
     span.setAttribute('http.response.status_code', response.status);
-    const text = await response.text();
+    // Los headers ya llegaron: la orden PUDO ejecutarse. Un corte o un timeout mientras se lee el cuerpo es AMBIGUO (REVISION-DINERO F-A3): se envuelve como el resto de los fallos de red
+    // para que pase por el breaker y por la política de quien llama, en vez de salir como un error crudo que Temporal reintenta sin cerrar nunca el intento.
+    let text: string;
+    try {
+      text = await response.text();
+    } catch (error) {
+      const name = (error as { name?: string } | null)?.name ?? '';
+      throw new UpstreamError(name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'network', this.options.name, response.status);
+    }
     let body: unknown = null;
     if (text) {
       try {

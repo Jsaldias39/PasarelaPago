@@ -61,11 +61,13 @@ export interface StartOptions {
    * receptor que levanta. Solo lo usan las pruebas contra Svix real, cuyos receptores escuchan en puertos efímeros.
    */
   readonly allowedPorts?: number[];
+  /** Archivos SQL con los que se crea el esquema aislado; por defecto el DDL vigente. Las pruebas de F-D1 pasan el DDL anterior (sin triggers). */
+  readonly sqlFiles?: readonly string[];
 }
 
 /** Levanta el servicio COMPLETO con Postgres real y un esquema propio; solo DNS y el último salto de red son dobles. */
 export async function startWebhooks(options: StartOptions = {}): Promise<WebhooksHarness> {
-  const db = await createIsolatedDatabase(SQL_FILES);
+  const db = await createIsolatedDatabase(options.sqlFiles ?? SQL_FILES);
   const contract = await loadContract(PUBLIC_CONTRACT);
   const clock = new TestClock();
   const resolver = new FakeResolver({ 'hooks.comercio.example': ['93.184.216.34'], ...options.resolverTable });

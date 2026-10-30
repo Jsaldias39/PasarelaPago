@@ -84,7 +84,7 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
     it('CORRECTO: sandbox con svix carga la configuración del servidor con sus valores por defecto', () => {
       const config = loadConfig(svixEnv);
       expect(config.engine).toBe('svix');
-      expect(config.svix).toEqual({ url: 'http://127.0.0.1:54800', authToken: TOKEN, timeoutMs: 5_000, maxAttempts: 4, reconcileIntervalMs: 15_000, orphanGraceMs: 10 * 60_000, clockMarginMs: 60_000, namespace: 'sandbox', maxOrphanDeletesPerPass: 5 });
+      expect(config.svix).toEqual({ url: 'http://127.0.0.1:54800', authToken: TOKEN, timeoutMs: 5_000, maxAttempts: 4, reconcileIntervalMs: 15_000, orphanGraceMs: 10 * 60_000, clockMarginMs: 60_000, namespace: 'sandbox', maxOrphanDeletesPerPass: 5, orphanAction: 'disable' });
       expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_URL: 'http://127.0.0.1:54800/' }).svix?.url).toBe('http://127.0.0.1:54800');
     });
 
@@ -160,6 +160,28 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
 
       it.each([['WEBHOOKS_SVIX_MAX_ORPHAN_DELETES', '-1'], ['WEBHOOKS_SVIX_MAX_ORPHAN_DELETES', '1001'], ['WEBHOOKS_SVIX_MAX_ORPHAN_DELETES', '1.5'], ['WEBHOOKS_SVIX_CLOCK_MARGIN_SECONDS', '-1'], ['WEBHOOKS_SVIX_CLOCK_MARGIN_SECONDS', '3601']])('INVÁLIDO: %s=%s ⇒ no arranca', (name, value) => {
         expect(() => loadConfig({ ...svixEnv, [name]: value })).toThrow(new RegExp(`${name} inválido`));
+      });
+
+      describe('RE-REVISION-DINERO F-B1: WEBHOOKS_SVIX_ORPHAN_ACTION (deshabilitar por defecto; borrar solo a propósito)', () => {
+        it('CORRECTO: sin declararlo, y declarando «disable», se deshabilita (también en live); «delete» en sandbox se admite', () => {
+          expect(loadConfig(svixEnv).svix?.orphanAction).toBe('disable');
+          expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_ORPHAN_ACTION: 'disable' }).svix?.orphanAction).toBe('disable');
+          expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_ORPHAN_ACTION: '' }).svix?.orphanAction).toBe('disable');
+          expect(loadConfig(liveSvix).svix?.orphanAction).toBe('disable');
+          expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_ORPHAN_ACTION: 'delete' }).svix?.orphanAction).toBe('delete');
+        });
+        it('INVÁLIDO: en live, «delete» sin la confirmación deliberada (o con otro valor) ⇒ no arranca; con ella, arranca', () => {
+          expect(() => loadConfig({ ...liveSvix, WEBHOOKS_SVIX_ORPHAN_ACTION: 'delete' })).toThrow(/exige declarar a propósito WEBHOOKS_SVIX_ORPHAN_DELETE_ACK=irreversible/);
+          expect(() => loadConfig({ ...liveSvix, WEBHOOKS_SVIX_ORPHAN_ACTION: 'delete', WEBHOOKS_SVIX_ORPHAN_DELETE_ACK: 'yes' })).toThrow(/WEBHOOKS_SVIX_ORPHAN_DELETE_ACK=irreversible/);
+          expect(() => loadConfig({ ...liveSvix, WEBHOOKS_SVIX_ORPHAN_ACTION: 'delete', WEBHOOKS_SVIX_ORPHAN_DELETE_ACK: 'IRREVERSIBLE' })).toThrow(/WEBHOOKS_SVIX_ORPHAN_DELETE_ACK=irreversible/);
+          expect(loadConfig({ ...liveSvix, WEBHOOKS_SVIX_ORPHAN_ACTION: 'delete', WEBHOOKS_SVIX_ORPHAN_DELETE_ACK: 'irreversible' }).svix?.orphanAction).toBe('delete');
+        });
+        it('LÍMITE: la confirmación sola, sin pedir «delete», no cambia nada (en live sigue deshabilitando)', () => {
+          expect(loadConfig({ ...liveSvix, WEBHOOKS_SVIX_ORPHAN_DELETE_ACK: 'irreversible' }).svix?.orphanAction).toBe('disable');
+        });
+        it.each(['Delete', 'purge', 'remove', ' delete', 'true'])('INVÁLIDO: WEBHOOKS_SVIX_ORPHAN_ACTION=%j ⇒ no arranca', (value) => {
+          expect(() => loadConfig({ ...svixEnv, WEBHOOKS_SVIX_ORPHAN_ACTION: value })).toThrow(/WEBHOOKS_SVIX_ORPHAN_ACTION inválido/);
+        });
       });
 
       it('INVÁLIDO: una gracia de huérfanos menor que el peor caso de un alta ⇒ no arranca; los valores por defecto cubren el peor caso', () => {
