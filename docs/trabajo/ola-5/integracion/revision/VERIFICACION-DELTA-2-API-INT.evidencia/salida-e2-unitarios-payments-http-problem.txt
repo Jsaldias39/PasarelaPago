@@ -1,0 +1,56 @@
+(node:26803) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+R4H> MASS-ASSIGNMENT: close+statusConceptId=400 close+gatewayIntentRef=400 close+tenantId=403 close+__proto__=201 reconcile+amount=400 reconcile+tenantId=403 reconcile+gatewayIntentRef=400
+R4H> MOTIVO: 9=400 10=201 300=201 301=400 numero=201 array=400 null=400 objeto=201
+R4H> INYECCION motivo: status=201; reason va como CAMPO del objeto de log=false; mensaje fijo="Gateway dispatch reservation closed manually without contacting the gateway"; campos del log=operation,intentId,actorUserId,reason
+R4H> ROLES: SA-sin-tenant-close=422 SA-con-tenant-close=201 SA-sin-tenant-reconcile=422 PATIENT-close=403(ROLE_INSUFFICIENT) CASHIER-reconcile=403(ROLE_INSUFFICIENT) ADMIN-A-X-Tenant-B=403(TENANT_MEMBERSHIP_REQUIRED) query-tenantId=403(TENANT_SCOPE_CONFLICT) id-no-uuid=400 SA-listado-sin-tenant=422 token-vencido=401 token-refresh-como-access=401
+R4H> FORMA listado=["paymentIntentId","ageMs","canReconcile"] cierre=["paymentIntentId","statusConceptId"] conciliar=["id","paymentIntentId","amount","statusConceptId","gatewayTransactionRef","gateway"]
+FAIL src/modules/payments/controllers/rev4-dispatches.http.spec.ts
+  ● REV4 /payments/gateway-dispatches — adversarial › mass assignment en close/reconcile: campos no declarados se rechazan y la intencion no se toca
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "842705a5-0947-5948-9e43-7b396af8dcd8"
+    Received: "9194c35f-0e16-5df3-a5a9-7fb053f94a6b"
+
+      230 |     expect(dispatch).not.toHaveBeenCalled();
+      231 |     expect(consult).not.toHaveBeenCalled();
+    > 232 |     expect(intentOfB.statusConceptId).toBe(CONCEPTS.PI_PENDING);
+          |                                       ^
+      233 |     expect(String(intentOfB.gatewayIntentRef)).toMatch(/^dispatching:/u);
+      234 |   };
+      235 |
+
+      at toBe (modules/payments/controllers/rev4-dispatches.http.spec.ts:232:39)
+      at Object.untouched (modules/payments/controllers/rev4-dispatches.http.spec.ts:259:5)
+
+R4P> catalogo: 23 codigos; no reconocidos: []
+R4P> imitacion completa reconocida=true
+
+Summary of all failing tests
+FAIL modules/payments/controllers/rev4-dispatches.http.spec.ts
+  ● REV4 /payments/gateway-dispatches — adversarial › mass assignment en close/reconcile: campos no declarados se rechazan y la intencion no se toca
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "842705a5-0947-5948-9e43-7b396af8dcd8"
+    Received: "9194c35f-0e16-5df3-a5a9-7fb053f94a6b"
+
+      230 |     expect(dispatch).not.toHaveBeenCalled();
+      231 |     expect(consult).not.toHaveBeenCalled();
+    > 232 |     expect(intentOfB.statusConceptId).toBe(CONCEPTS.PI_PENDING);
+          |                                       ^
+      233 |     expect(String(intentOfB.gatewayIntentRef)).toMatch(/^dispatching:/u);
+      234 |   };
+      235 |
+
+      at toBe (modules/payments/controllers/rev4-dispatches.http.spec.ts:232:39)
+      at Object.untouched (modules/payments/controllers/rev4-dispatches.http.spec.ts:259:5)
+
+
+Test Suites: 1 failed, 24 passed, 25 total
+Tests:       1 failed, 619 passed, 620 total
+Snapshots:   0 total
+Time:        27.063 s
+Ran all test suites matching src/modules/payments.
+EXIT 1

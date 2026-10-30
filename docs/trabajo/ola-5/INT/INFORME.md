@@ -127,3 +127,16 @@ Informe: [TERCERA-REVISION-API-INT.md](../integracion/revision/TERCERA-REVISION-
 | P9 | MENOR | El reintento con marca vuelve a evaluar el riesgo (un `REVIEW` posterior al 504 impide recuperar un cobro que sí existe) | en curso |
 
 **Conclusión del revisor:** con el flag apagado no hay regresión; encendido con `RLS_ENFORCE=false` no hay bloqueantes; **con `RLS_ENFORCE=true` hay un bloqueante (P1)**, así que `INT.H1.M3` no se marca HECHA todavía. Supuesto declarado: producción usará `RLS_ENFORCE=true` (confirmar con quien opere el despliegue). Condiciones para encender el flag: cerrar P1, P2 y P3; alertas sobre el log de reservas vencidas y sobre los terminales 404; acordar P8 con el front; runbook para marcas colgadas y cobros huérfanos.
+
+## 12 · Verificación del delta 2 (b881a4f15) — D8 y D9 en `close`
+
+Informe: [VERIFICACION-DELTA-2-API-INT.md](../integracion/revision/VERIFICACION-DELTA-2-API-INT.md). **Cerrados (confirmado ejecutando):** D1 (el riesgo se exige también con reserva; REVIEW/DECLINE posterior frena el reintento y la conciliación; APPROVE posterior destraba con un solo cobro; 30 rondas DECLINE vs despacho sin cobro tras DECLINE), D3 (`parseProblem` estricto: reconoce los 23 códigos reales del catálogo y rechaza JSON ajeno), D4 (marcas sin fecha o con fecha futura listables y cerrables) y **toda la autorización de D2** (401/403/404 idéntico a inexistente, sin mass assignment, motivo 10–300).
+
+| # | Severidad | Qué | Estado |
+|---|---|---|---|
+| D8 | MAYOR (confirmado 36/36 rondas, RLS true y false) | `close` decide «vencida» con la fecha original de la marca: un reintento del dueño ya confirmado y con su HTTP en curso parece vencido ⇒ la intención queda cancelada con el `pi_` asociado, el QR se entrega, la deuda queda libre y otra intención cobra ⇒ 2 cobros vivos. Un CAS sobre la marca no alcanza (`close` lee después del commit) ni un lock de fila (el reintento no retiene ninguno durante su HTTP) | última ronda de corrección: `close` exige `updated_at` vencido + `associate` no entrega QR a una intención cancelada |
+| D9 | MAYOR (MENOR si el front solo usa `payment_debt`) | `close` no libera las sesiones de checkout: la deuda queda `IN_CHECKOUT` sin salida | última ronda |
+| D10 | MENOR | Un DECLINE registrado con el primer envío en vuelo responde 201 pero no detiene el cobro (27/30) | lo cubre D8 (2) |
+| D11–D13 | MENOR | motivo acepta basura; `close` repetible; cobro huérfano tras `close` sin alerta | última ronda si caben |
+
+Regla acordada: **esta es la última ronda de corrección.** Si la verificación corta del resultado encuentra otro MAYOR, no se itera más: el flag `PAYMENTS_VIA_GATEWAY` queda documentado como **«no encender»** y `INT.H1.M3` en `A MEDIAS`. Mientras D8 y D9 estén abiertos, la alternativa operativa es no desplegar la ruta `close`.
