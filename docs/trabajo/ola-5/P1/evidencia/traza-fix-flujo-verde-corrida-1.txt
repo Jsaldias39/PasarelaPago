@@ -51,3 +51,34 @@ pay-edge  POST /v1/*path  (1511f185aae7e464)  kind=server route=/v1/:x status=20
         … 4 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
   … 3 span(s) de ruido (pg.*, pg-pool.*, middleware, request handler)
 padres ausentes de la traza: pay-edge:POST /v1/*path→f1a568c1c71b3b5d
+MEDIDO traceparent de versión futura: el borde CONTINÚA la traza del cliente (span padre 76a12b396b5d60a3).
+MEDIDO sin traceparent: traza del borde 9d6920bb2207e82f2790f1318fadb514; span de pay-payments de la misma petición en la traza 9d6920bb2207e82f2790f1318fadb514 (LA MISMA).
+SONDA con PAN en ruta y query: el span servidor del borde dejó url.path=/v1/payment_intents/:x url.query=[redacted] http.route=/v1/:x
+ESCANEO DE FUGAS: 7690 trazas, 9749 spans, 16217834 bytes; 0 apariciones de clave de API, cuerpo ni PAN.
+MEDIDO aguas abajo (sin afirmar):
+  pay-risk: spans servidor de negocio {"POST /assessments":10}, en trazas que contienen a pay-edge: 7
+  pay-connectors: spans servidor de negocio {"POST /charges":7}, en trazas que contienen a pay-edge: 7
+  pay-qr: spans servidor de negocio {"POST /qr":7}, en trazas que contienen a pay-edge: 7
+  pay-ledger: spans servidor de negocio {"POST /transactions":7}, en trazas que contienen a pay-edge: 7
+  pay-vault: spans servidor de negocio {}, en trazas que contienen a pay-edge: 0
+FAIL e2e/flows/traza-jaeger.e2e.ts (80.844 s)
+  ● Traza real en Jaeger — borde → servicio con traceparent y request_id › LÍMITE: un traceparent MALFORMADO no rompe la petición: 201, request_id propio y una traza NUEVA (raíz sin padre, traceId distinto del recibido)
+
+    No se cumplió «los logs de pay-edge y pay-payments llevan el request_id 0ebff702-5185-4350-8802-cb20d183f879» en 30000 ms; último valor: [true,false]
+
+       6 |     last = await probe();
+       7 |     if (accept(last)) return last;
+    >  8 |     if (Date.now() > deadline) throw new Error(`No se cumplió «${description}» en ${timeoutMs} ms; último valor: ${JSON.stringify(last)}`);
+         |                                      ^
+       9 |     await new Promise((resolve) => setTimeout(resolve, everyMs));
+      10 |   }
+      11 | }
+
+      at until (e2e/lib/wait.ts:8:38)
+      at Object.<anonymous> (e2e/flows/traza-jaeger.e2e.ts:105:7)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 5 passed, 6 total
+Snapshots:   0 total
+Time:        80.918 s
+Ran all test suites matching flows/traza-jaeger\.e2e.
