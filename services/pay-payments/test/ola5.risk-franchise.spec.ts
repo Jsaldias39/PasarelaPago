@@ -479,10 +479,9 @@ describe('F-A5 · un 429 rate_limited de riesgo es transitorio: se reintenta con
     risk = undefined;
   });
   const boot = async (limited: number | 'always') => {
-    let body = '';
     risk = await listenRisk((req, res, n) => {
       if (limited === 'always' || n <= limited) return rateLimited(res);
-      return res.writeHead(201, { 'content-type': 'application/json' }).end(body || allowBody(String(lastIntent)));
+      return res.writeHead(201, { 'content-type': 'application/json' }).end(allowBody(String(lastIntent)));
     });
     stack = await startStack({ env: { ACTIVITY_MAX_ATTEMPTS: String(ATTEMPTS), RISK_URL: risk.url } });
     await seedMerchant(stack, MC);

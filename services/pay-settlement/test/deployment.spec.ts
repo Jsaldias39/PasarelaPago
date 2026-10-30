@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { createIsolatedDatabase } from '@pay/testing';
+import { TEST_DATABASE_URL, createIsolatedDatabase } from '@pay/testing';
 import { AppModule } from '../src/app.module';
 import { assertDeploymentSafe } from '../src/settlement/deployment';
 import { HttpConnectorsClient, HttpLedgerClient } from '../src/settlement/http-clients';
@@ -99,8 +99,11 @@ describe('arranque de la aplicación', () => {
   // `checks`. La base vieja ⇒ 503 en live está en `append-only-guards.readiness.spec.ts`.
   it('live con colaboradores reales (clientes HTTP, riel bancario, conector de verdad): arranca', async () => {
     const db = await createIsolatedDatabase([join(process.cwd(), 'sql/ddl.sql')]);
-    const savedOptions = process.env.PGOPTIONS;
-    process.env.PGOPTIONS = `-c search_path=${db.schema}`;
+    // La base de pruebas es otra que la de desarrollo del servicio (otro rol y otra base): la aplicación se conecta a ELLA (mismo patrón que `helpers/real-ledger.ts`).
+    const url = new URL(TEST_DATABASE_URL);
+    const overrides: Record<string, string> = { PGOPTIONS: `-c search_path=${db.schema}`, DB_HOST: url.hostname, DB_PORT: url.port || '5432', DB_NAME: url.pathname.slice(1), DB_USER: decodeURIComponent(url.username), DB_PASSWORD: decodeURIComponent(url.password) };
+    const savedEnv = Object.fromEntries(Object.keys(overrides).map((k) => [k, process.env[k]]));
+    Object.assign(process.env, overrides);
     try {
       const app = await boot({ PAY_MODE: 'live', SETTLEMENT_MODE: 'bank', SETTLEMENT_TRANSFER_CONNECTOR: null, IDEMPOTENCY_MASK_KEY: MASK_KEY });
       try {
@@ -111,8 +114,10 @@ describe('arranque de la aplicación', () => {
         await app.close();
       }
     } finally {
-      if (savedOptions === undefined) delete process.env.PGOPTIONS;
-      else process.env.PGOPTIONS = savedOptions;
+      for (const [k, v] of Object.entries(savedEnv)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
       await db.drop();
     }
   });
