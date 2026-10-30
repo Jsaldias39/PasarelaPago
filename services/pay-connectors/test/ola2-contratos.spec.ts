@@ -275,7 +275,8 @@ describe('transferencia bancaria: datos de la cuenta en las instrucciones', () =
   describe('configuración de la cuenta (BANK_TRANSFER_*) en tres niveles', () => {
     const base = { DB_HOST: 'h', DB_NAME: 'n', DB_USER: 'u', DB_PASSWORD: 'p' };
     const sandbox = { ...base, PAY_MODE: 'sandbox' };
-    const live = { ...base, PAY_MODE: 'live' };
+    // Bajo live el proveedor de secretos es explícito (P4.H2.M6): estas pruebas son de la cuenta, no de los secretos, así que lo fijan válido.
+    const live = { ...base, PAY_MODE: 'live', SECRET_PROVIDER: 'openbao', OPENBAO_ADDR: 'https://openbao.invalid:8200', OPENBAO_TOKEN: 'tok-sintetico-de-prueba' };
     const full = { BANK_TRANSFER_BANK_NAME: 'Banco X', BANK_TRANSFER_ACCOUNT_HOLDER: 'Empresa SA', BANK_TRANSFER_ACCOUNT_NUMBER: '1234-5678' };
     const synthetic = { bankName: 'BANCO SIMULADO (SANDBOX)', accountHolder: 'ALOVIDA PAY (SANDBOX)', accountNumber: 'SANDBOX-0000-0001' };
     const without = (...names: string[]) => Object.fromEntries(Object.entries(full).filter(([name]) => !names.includes(name)));

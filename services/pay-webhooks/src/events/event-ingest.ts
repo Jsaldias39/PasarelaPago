@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { processOnce } from '@pay/outbox';
 import { PG_POOL } from '../database.module';
-import { DELIVERY_ENGINE, type DeliveryEngine } from '../engine/delivery-engine';
+import { DELIVERY_ENGINE, EngineRejectedError, type DeliveryEngine } from '../engine/delivery-engine';
 import { PayloadPolicyError, buildPublicPayload } from './payload-policy';
 import { isPublicEventType } from './public-events';
 
@@ -15,7 +15,7 @@ export type IngestOutcome =
   | { readonly kind: 'queued'; readonly deliveries: number }
   | { readonly kind: 'duplicate' }
   | { readonly kind: 'ignored'; readonly reason: 'internal_event' }
-  | { readonly kind: 'rejected'; readonly reason: 'malformed' | 'payload_policy'; readonly detail: string };
+  | { readonly kind: 'rejected'; readonly reason: 'malformed' | 'payload_policy' | 'engine_rejected'; readonly detail: string };
 
 export interface IngestMetrics {
   queued: number;
@@ -24,6 +24,8 @@ export interface IngestMetrics {
   ignored: number;
   rejectedMalformed: number;
   rejectedPolicy: number;
+  /** Mensajes que el motor de entrega rechazó de forma definitiva (payload inválido, `eventId` ajeno). */
+  rejectedEngine: number;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -39,7 +41,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 @Injectable()
 export class EventIngest {
   private readonly logger = new Logger(EventIngest.name);
-  readonly metrics: IngestMetrics = { queued: 0, noEndpoints: 0, duplicates: 0, ignored: 0, rejectedMalformed: 0, rejectedPolicy: 0 };
+  readonly metrics: IngestMetrics = { queued: 0, noEndpoints: 0, duplicates: 0, ignored: 0, rejectedMalformed: 0, rejectedPolicy: 0, rejectedEngine: 0 };
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -73,9 +75,20 @@ export class EventIngest {
     }
 
     let deliveries = 0;
-    const result = await processOnce(this.pool, `pay-webhooks.${raw.type}`, raw.id, async (client) => {
-      deliveries = await this.engine.publish(client, message);
-    });
+    let result;
+    try {
+      result = await processOnce(this.pool, `pay-webhooks.${raw.type}`, raw.id, async (client) => {
+        deliveries = await this.engine.publish(client, message);
+      });
+    } catch (error) {
+      // El motor dijo que este mensaje no se entregará NUNCA: reintentar no sirve. Se descarta (la transacción ya se revirtió) y se cuenta.
+      if (error instanceof EngineRejectedError) {
+        this.logger.error({ event_id: raw.id, type: raw.type, reason: error.reason }, 'Evento rechazado por el motor de entrega');
+        this.metrics.rejectedEngine += 1;
+        return { kind: 'rejected', reason: 'engine_rejected', detail: error.reason };
+      }
+      throw error;
+    }
     if (result === 'duplicate') {
       this.metrics.duplicates += 1;
       return { kind: 'duplicate' };

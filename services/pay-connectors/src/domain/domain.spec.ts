@@ -204,7 +204,9 @@ describe('registro y guardia de modo (D-26)', () => {
     expect(() => loadConfig({ ...env })).toThrow(/PAY_MODE/);
     expect(() => loadConfig({ ...env, PAY_MODE: 'Live' })).toThrow(/PAY_MODE/);
     expect(() => loadConfig({ ...env, PAY_MODE: 'produccion' })).toThrow(/PAY_MODE/);
-    expect(loadConfig({ ...env, PAY_MODE: 'live' }).mode).toBe('live');
+    // Bajo live el proveedor de secretos es explícito (P4.H2.M6): ver la prueba «SECRET_PROVIDER» más abajo.
+    const openbao = { SECRET_PROVIDER: 'openbao', OPENBAO_ADDR: 'https://openbao.invalid:8200', OPENBAO_TOKEN: 'tok-sintetico-de-prueba' };
+    expect(loadConfig({ ...env, PAY_MODE: 'live', ...openbao }).mode).toBe('live');
     expect(loadConfig({ ...env, PAY_MODE: 'sandbox' }).mode).toBe('sandbox');
   });
 

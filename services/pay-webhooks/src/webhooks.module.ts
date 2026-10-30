@@ -10,6 +10,10 @@ import { PG_POOL } from './database.module';
 import { DeliveryWorker } from './engine/delivery.worker';
 import { CLOCK, DELIVERY_ENGINE, systemClock, type Clock } from './engine/delivery-engine';
 import { InProcessEngine } from './engine/in-process.engine';
+import { SVIX_CLIENT, SvixClient } from './engine/svix/svix-client';
+import { SvixEngine } from './engine/svix/svix-engine';
+import { SVIX_RECONCILER, SvixReconcileRunner } from './engine/svix/svix-reconcile.runner';
+import { SvixReconciler } from './engine/svix/svix-reconciler';
 import { WorkerRunner } from './engine/worker.runner';
 import { EndpointController } from './endpoints/endpoint.controller';
 import { EndpointService, IDEMPOTENCY, SECRET_BOX, TARGET_GUARD } from './endpoints/endpoint.service';
@@ -20,9 +24,9 @@ import { DnsResolver, TargetGuard, type Resolver } from './ssrf/target-guard';
 import { RESOLVER, TRANSPORT } from './ssrf/tokens';
 
 /**
- * Cableado de pay-webhooks. El motor de entrega es el [DOBLE de Svix] (`InProcessEngine`), el único que existe (`WEBHOOKS_ENGINE`, ver `config.ts`:
- * bajo `live` el servicio no arranca); cambiarlo por `SvixEngine` es cambiar el proveedor `DELIVERY_ENGINE` y relajar esa guardia. `RESOLVER`, `TRANSPORT` y `CLOCK` se inyectan para poder probar el rebinding, la red
- * y los reintentos sin esperar.
+ * Cableado de pay-webhooks. El motor de entrega lo elige `WEBHOOKS_ENGINE` (ver `config.ts`): `svix` ⇒ `SvixEngine` (el servidor real, más su
+ * reconciliador); `inprocess` ⇒ el [DOBLE de Svix] (`InProcessEngine` + `DeliveryWorker`), que bajo `live` no arranca. `RESOLVER`, `TRANSPORT` y
+ * `CLOCK` se inyectan para poder probar el rebinding, la red y los reintentos del motor en proceso sin esperar.
  */
 @Module({})
 export class WebhooksModule {
@@ -51,9 +55,24 @@ export class WebhooksModule {
         },
         { provide: IDEMPOTENCY, inject: [PG_POOL], useFactory: (pool: Pool) => new IdempotencyStore(pool) },
         {
+          provide: SVIX_CLIENT,
+          inject: [SERVICE_CONFIG],
+          useFactory: (config: ServiceConfig) =>
+            config.svix ? new SvixClient({ baseUrl: config.svix.url, authToken: config.svix.authToken, timeoutMs: config.svix.timeoutMs, maxAttempts: config.svix.maxAttempts }) : undefined,
+        },
+        {
           provide: DELIVERY_ENGINE,
-          inject: [SECRET_BOX, CLOCK, SERVICE_CONFIG],
-          useFactory: (box: SecretBox, clock: Clock, config: ServiceConfig) => new InProcessEngine(box, clock, { rotationGraceMs: config.rotationGraceMs }),
+          inject: [SECRET_BOX, CLOCK, SERVICE_CONFIG, SVIX_CLIENT],
+          useFactory: (box: SecretBox, clock: Clock, config: ServiceConfig, svix: SvixClient | undefined) =>
+            config.engine === 'svix' && svix
+              ? new SvixEngine(svix, { rotationGraceSeconds: Math.round(config.rotationGraceMs / 1000) })
+              : new InProcessEngine(box, clock, { rotationGraceMs: config.rotationGraceMs }),
+        },
+        {
+          provide: SVIX_RECONCILER,
+          inject: [PG_POOL, SERVICE_CONFIG, SVIX_CLIENT],
+          useFactory: (pool: Pool, config: ServiceConfig, svix: SvixClient | undefined) =>
+            config.svix && svix ? new SvixReconciler(pool, svix, { orphanGraceMs: config.svix.orphanGraceMs, concurrency: 4 }) : undefined,
         },
         {
           provide: DeliveryWorker,
@@ -62,11 +81,12 @@ export class WebhooksModule {
             new DeliveryWorker(pool, config, box, guard, transport, clock),
         },
         WorkerRunner,
+        SvixReconcileRunner,
         EndpointService,
         EventIngest,
         EventConsumer,
       ],
-      exports: [DeliveryWorker, EventConsumer, EventIngest, DELIVERY_ENGINE],
+      exports: [DeliveryWorker, EventConsumer, EventIngest, DELIVERY_ENGINE, SVIX_RECONCILER],
     };
   }
 }

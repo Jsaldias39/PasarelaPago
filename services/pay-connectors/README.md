@@ -24,7 +24,8 @@ Contrato: `contracts/openapi/internal-connectors-v1.yaml`; eventos: `contracts/a
 | Máquina de callbacks (`aplicar \| duplicado \| obsoleto \| contradiccion`) | `src/domain/callback-machine.ts` (procedencia en el archivo) |
 | Política de endpoint (red de origen, activo, ventana) | `src/domain/endpoint-policy.ts` (procedencia en el archivo) |
 | Ruteo declarativo | `src/domain/routing.ts` + `routing_rule_sets` |
-| Secretos (`SecretProvider`, [DEV] por entorno, un espacio por conector) | `src/domain/secrets.ts` |
+| Secretos: `SecretProvider` (interfaz), `EnvSecretProvider` [DEV] y `ScopedSecretProvider` (un espacio por conector) | `src/domain/secrets.ts` |
+| Secretos en OpenBao (KV v2, caché breve, rotación sin corte, fail-closed) | `src/domain/openbao-secrets.ts`, `src/secret-provider.factory.ts` |
 | Simulador [DOBLE] | `src/connectors/mock/` |
 | Transferencia bancaria + conciliación | `src/connectors/bank-transfer/`, `src/core/statements.service.ts` |
 | Cobros, reembolsos (`POST /charges/{id}/refunds`, `GET /refunds/{id}`), transferencias | `src/core/{charges,refunds,transfers}.service.ts` |
@@ -131,8 +132,32 @@ rótulo SANDBOX/simulado. Además el registro de conectores no deja cargar `mock
 
 ## Variables de entorno
 
-Ver `.env.example` (`MOCKBANK_URL` y `MOCKBANK_TIMEOUT_MS` activan la capa sandbox; coherente con lo que levanta el arnés e2e: `PAY_QR_URL`, el secreto del mock y la cuenta sintética). Obligatorias: `DB_*`, `PAY_MODE`. Secretos [DEV]: `PAY_SECRET_CONNECTOR_<CODIGO>_<NOMBRE>` (lista separada por comas
-para rotar sin corte); en producción los entrega OpenBao a través de `SecretProvider` (no corre en el entorno de trabajo).
+Ver `.env.example` (`MOCKBANK_URL` y `MOCKBANK_TIMEOUT_MS` activan la capa sandbox; coherente con lo que levanta el arnés e2e: `PAY_QR_URL`, el secreto del mock y la cuenta sintética). Obligatorias: `DB_*`, `PAY_MODE`.
+
+### Secretos de los conectores (`SECRET_PROVIDER`)
+
+| Variable | Qué es |
+|---|---|
+| `SECRET_PROVIDER` | `openbao` o `env`. **Bajo `PAY_MODE=live` es obligatoria y solo admite `openbao`**; en sandbox, sin valor, es `env`. |
+| `OPENBAO_ADDR` | Base del servidor (`https://…`; https obligatorio bajo live; sin ruta). |
+| `OPENBAO_TOKEN` **o** `OPENBAO_ROLE_ID` + `OPENBAO_SECRET_ID` | Una sola credencial. AppRole se reautentica solo al 80 % de la vida del token; un token estático no se renueva (en producción, AppRole). Nunca van en la imagen ni en el repositorio: los inyecta el despliegue. |
+| `OPENBAO_KV_MOUNT` (`secret`), `OPENBAO_PATH_PREFIX` (`pay-connectors`) | Dónde está el KV v2. |
+| `OPENBAO_CACHE_TTL_MS` (`5000`) | Caché por nombre. Es también la demora máxima para ver una rotación o una revocación (`0` = sin caché). |
+| `OPENBAO_ROTATION_WINDOW_MS` (`86400000`) | Cuánto sigue vigente la versión anterior tras crearse la nueva. |
+| `OPENBAO_TIMEOUT_MS` (`3000`) | Tope por llamada a OpenBao. |
+
+Disposición en OpenBao: `<mount>/data/<prefijo>/<modo>/CONNECTOR_<CODIGO>_<NOMBRE>` con el valor en el campo `value`; `<modo>` es `sandbox` o `live` (el de `PAY_MODE`, nunca el de la entrada).
+Una política por conector que solo **lea** `…/<modo>/CONNECTOR_<CODIGO>_*`:
+
+```hcl
+path "secret/data/pay-connectors/live/CONNECTOR_MERCANTIL_QR_*" { capabilities = ["read"] }
+```
+
+Comportamiento (fail-closed): OpenBao caído o lento, 403, 404, versión última borrada o destruida, respuesta ilegible o nombre sospechoso ⇒ `[]` ⇒ el callback se rechaza (`401`); nunca un valor por defecto ni el último conocido vencido el caché.
+**Rotar sin corte:** escribir el secreto nuevo en OpenBao (versión nueva de KV v2); vale la nueva y, hasta `OPENBAO_ROTATION_WINDOW_MS`, la anterior. Esperar más que `OPENBAO_CACHE_TTL_MS` antes de que el proveedor externo pase a firmar con la nueva. Para cerrar la ventana antes: `bao kv delete -versions=<N-1> …`.
+Los códigos de conector no deben ser prefijo uno de otro separado por `_` (p. ej. `mercantil` y `mercantil_qr`): la política `CONNECTOR_MERCANTIL_*` leería ambos.
+[DEV]: con `SECRET_PROVIDER=env` los secretos son `PAY_SECRET_CONNECTOR_<CODIGO>_<NOMBRE>` (lista separada por comas para rotar sin corte).
+Las pruebas de integración (`test/openbao.spec.ts`) necesitan el OpenBao `-dev` del Compose: `HUB=mirror.gcr.io docker compose -f platform/compose.yml --profile full up -d openbao`.
 
 ## Comandos
 

@@ -1,0 +1,47 @@
+# P4.H2.M6 — rutas de OpenBao verificadas contra el servidor corriendo (no de memoria)
+$ HUB=mirror.gcr.io docker compose -f platform/compose.yml --profile full up -d openbao   (solo ese servicio)
+$ docker ps --format "{{.Names}} {{.Image}} {{.Status}}" | grep bao
+pay-openbao-1 mirror.gcr.io/openbao/openbao:latest Up 15 minutes
+$ curl -s http://127.0.0.1:54200/v1/sys/health
+{"initialized":true,"sealed":false,"standby":false,"replication_performance_mode":"disabled","replication_dr_mode":"disabled","server_time_utc":1793330242,"version":"2.7.2","cluster_name":"vault-cluster-5a3f6d4d","cluster_id":"04c67f5a-9e8c-cb9b-70f6-6abb22276cda"}
+
+$ curl -s -H "X-Vault-Token: $ROOT" http://127.0.0.1:54200/v1/sys/mounts   (montaje KV v2 por defecto del modo -dev)
+{'cubbyhole/': ('cubbyhole', None), 'identity/': ('identity', None), 'secret/': ('kv', {'version': '2'}), 'sys/': ('system', None)}
+$ curl -s -H "X-Vault-Token: $ROOT" http://127.0.0.1:54200/v1/sys/internal/specs/openapi   (rutas y campos usados)
+/secret/data/{path}              ['get', 'post', 'patch', 'delete']
+/secret/delete/{path}            ['post']
+/secret/undelete/{path}          ['post']
+/secret/destroy/{path}           ['post']
+/auth/token/create               ['post']
+/auth/token/revoke               ['post']
+/sys/policies/acl/{name}         ['get', 'post', 'patch', 'delete']
+/sys/mounts/{path}               ['get', 'post', 'delete']
+KvWriteDataPathRequest.properties      : ['data', 'options', 'version']
+KvWriteDeletePathRequest.properties    : ['versions']
+KvWriteDestroyPathRequest.properties   : ['versions']
+TokenCreateRequest (usados)            : ['policies', 'no_default_policy', 'no_parent', 'ttl', 'display_name']
+PoliciesWriteAclPolicyRequest (usado)  : True
+
+# Comportamiento observado de KV v2 (sonda en un camino descartable; respuesta recortada a lo que el cliente lee)
+$ GET data/<ruta>               -> 
+{"data": {"value": "sonda-sintetica-2"}, "metadata": {"version": 2, "created_time": "2026-10-30T03:17:22.569055851Z", "deletion_time": "", "destroyed": false}}
+$ GET data/<ruta>?version=1     -> 
+{"data": {"value": "sonda-sintetica-1"}, "metadata": {"version": 1, "deletion_time": "", "destroyed": false}}
+$ GET (ultima borrada)          -> 
+{"data": null, "metadata": {"version": 2, "deletion_time": "2026-10-30T03:17:22.619291745Z", "destroyed": false}} [HTTP 404]
+$ GET ?version=1 (destruida)    -> 
+{"data": null, "metadata": {"version": 1, "deletion_time": "", "destroyed": true}} [HTTP 404]
+$ GET (ruta inexistente)        -> 
+{"errors":[]}
+ [HTTP 404]
+$ GET (token invalido)          -> 
+{"errors":["permission denied"]}
+ [HTTP 403]
+
+# AppRole: rutas verificadas en el spec tras habilitar el método (login, role, role-id, secret-id)
+/auth/sonda-approle/login                          ['post']
+/auth/sonda-approle/role/{role_name}               ['get', 'post', 'delete']
+/auth/sonda-approle/role/{role_name}/role-id       ['get', 'post']
+/auth/sonda-approle/role/{role_name}/secret-id     ['get', 'post']
+AppRoleLoginRequest      : ['role_id', 'secret_id']
+AppRoleWriteRoleRequest (usados): ['token_policies', 'token_ttl', 'secret_id_ttl', 'token_no_default_policy']

@@ -15,3 +15,7 @@ process.env.HEALTH_INTERVAL_MS ??= '0';
 process.env.PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET ??= 'whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==';
 process.env.RECONCILE_INTERVAL_MS ??= '0';
 // BANK_TRANSFER_* no se fijan acá: en sandbox toman el valor sintético declarado (SANDBOX_BANK_ACCOUNT).
+// OpenBao de DESARROLLO (platform/compose.yml, perfil full: `HUB=mirror.gcr.io docker compose -f platform/compose.yml --profile full up -d openbao`). El token raíz
+// es el de `-dev-root-token-id` y SOLO sirve en ese servidor descartable (en memoria); lo usan únicamente las pruebas para crear su montaje, políticas y tokens.
+process.env.PAY_TEST_OPENBAO_ADDR ??= 'http://127.0.0.1:54200';
+process.env.PAY_TEST_OPENBAO_ROOT_TOKEN ??= 'dev-only-root';

@@ -1,0 +1,56 @@
+PASS src/domain/openbao-secrets.spec.ts
+  OpenBaoSecretProvider — correcto
+    ✓ lee la última versión de <mount>/data/<prefijo>/<modo>/<NOMBRE> con X-Vault-Token y sin seguir redirecciones (14 ms)
+    ✓ el modo separa las rutas: sandbox no ve lo de live y al revés (2 ms)
+    ✓ rotación sin corte: la nueva versión y la anterior valen dentro de la ventana; la anterior deja de valer al cerrarse (3 ms)
+    ✓ una versión nueva se ve al vencer el TTL o con invalidate(), sin reiniciar (3 ms)
+    ✓ el caché es breve: dentro del TTL no vuelve a OpenBao; con TTL 0 siempre vuelve; peticiones simultáneas comparten una lectura (2 ms)
+    ✓ AppRole: se autentica una vez, reutiliza el token y se reautentica al 80 % de su vida (2 ms)
+  OpenBaoSecretProvider — límite: fail-closed
+    ✓ secreto ausente ⇒ [] (1 ms)
+    ✓ la última versión borrada o destruida ⇒ [] (no se cae a una anterior) (3 ms)
+    ✓ la versión anterior borrada o destruida: vale solo la nueva (se cerró la ventana a mano) (1 ms)
+    ✓ dos versiones con el mismo valor no se duplican; una versión 1 no busca anterior; un created_time ilegible cuenta como fuera de ventana (2 ms)
+    ✓ cualquier fallo de OpenBao ⇒ [] y NO se cachea: al volver, la siguiente lectura ya funciona (7 ms)
+    ✓ respuestas 200 mal formadas (sin value, vacío, no texto, sin metadata) ⇒ [] (2 ms)
+    ✓ login de AppRole rechazado ⇒ [] sin llegar a leer; un 403 descarta el token para reautenticar (1 ms)
+  OpenBaoSecretProvider — inválido: la entrada no se sale de su ruta
+    ✓ nombres con rutas, comillas, consulta, mayúsculas/minúsculas mezcladas o fuera del espacio CONNECTOR_… ⇒ [] SIN llamar a OpenBao (3 ms)
+    ✓ mount y prefijo se validan al construir (24 ms)
+  OpenBaoSecretProvider — nunca registra valores
+    ✓ ni eventos ni errores de ningún fallo contienen un valor, un token o un cuerpo de OpenBao (3 ms)
+    ✓ un onEvent que falla no rompe la lectura
+  configuración: SECRET_PROVIDER (P4.H2.M6)
+    ✓ correcto: sandbox sin variable ⇒ env; openbao con token o con AppRole; los valores por defecto son los documentados (2 ms)
+    ✓ límite: live exige SECRET_PROVIDER (sin valor por defecto) y solo admite openbao, con https; sandbox admite http (18 ms)
+    ✓ inválido: proveedor desconocido, falta la dirección o la credencial, las dos credenciales, dirección con ruta/credenciales, mount o prefijo con `..`, números malos (18 ms)
+    ✓ los mensajes de error de configuración no repiten el token ni el secret id (1 ms)
+PASS test/openbao.spec.ts (7.097 s)
+  P4.H2.M6 contra OpenBao real — correcto
+    ✓ lee el secreto de su espacio (KV v2) con un token de solo lectura (13 ms)
+    ✓ rotar con versiones KV v2: la nueva se usa sin reiniciar y la anterior sigue válida dentro de la ventana (325 ms)
+    ✓ la ventana de rotación vence sola (created_time del servidor real); la versión anterior deja de valer (1592 ms)
+    ✓ cerrar la ventana a mano: borrar la versión anterior deja vigente solo la nueva (16 ms)
+    ✓ AppRole real: se autentica con role_id + secret_id, lee con el token emitido y no con el raíz (11 ms)
+  P4.H2.M6 contra OpenBao real — límite
+    ✓ secreto ausente ⇒ [] (fail-closed), nunca un valor por defecto (2 ms)
+    ✓ versión borrada o destruida: la última ⇒ [] y no se cae a una anterior; undelete la restaura; una escritura nueva la reemplaza (21 ms)
+    ✓ OpenBao caído y luego de vuelta: durante la caída ⇒ [] (tras el TTL), al volver se lee sin reiniciar (1523 ms)
+    ✓ OpenBao colgado (acepta y no responde) ⇒ [] dentro del tope de tiempo, sin colgar al llamante (406 ms)
+    ✓ el token solo lee su espacio: no escribe, no borra, no lista, no lee el otro modo (403 reales) (16 ms)
+    ✓ token revocado ⇒ 403 ⇒ [] (no queda el último valor) (9 ms)
+  P4.H2.M6 contra OpenBao real — inválido
+    ✓ el token de un conector NO lee el espacio de otro: 403 real, [] y nunca se mezclan los valores (12 ms)
+    ✓ el modo no se mezcla: un proveedor `live` con el token de sandbox no lee `live` (403), y sandbox no ve el valor de live (6 ms)
+    ✓ con ScopedSecretProvider el conector ni siquiera pregunta por el espacio de otro (cero llamadas a OpenBao) (2 ms)
+    ✓ rutas con `..`, barras, consulta o mayúsculas/minúsculas raras ⇒ rechazadas SIN llegar a la red; el valor de otro conector no se obtiene (4 ms)
+    ✓ AppRole con un secret_id inválido ⇒ [] y no se hace ninguna lectura (4 ms)
+  REQ-P4-6 con OpenBao real — flujo de cobros y callbacks, rotación, caída y revocación, sin fugas
+    ✓ el secreto sale de OpenBao: firma y verifica, rota sin reiniciar, cierra la ventana, falla cerrado si OpenBao cae o el token se revoca; nada se filtra (625 ms)
+  arranque real con SECRET_PROVIDER=openbao — configuración de entorno, OpenBao real y registros de pino
+    ✓ el proceso real lee el secreto del conector de OpenBao: firma válida ⇒ pasa la verificación; con el secreto destruido ⇒ 401 y un aviso sin valores (1020 ms)
+Test Suites: 2 passed, 2 total
+Tests:       39 passed, 39 total
+Snapshots:   0 total
+Time:        7.34 s, estimated 9 s
+Ran all test suites matching test/openbao|src/domain/openbao-secrets.

@@ -21,7 +21,8 @@ import { CLOCK, LOCK_POOL, QR_PORT, REGISTRY, SECRETS, systemClock } from './cor
 import { SERVICE_CONFIG, type ServiceConfig } from './config';
 import { PG_POOL } from './database.module';
 import { ConnectorRegistry } from './domain/registry';
-import { EnvSecretProvider, type SecretProvider } from './domain/secrets';
+import type { SecretProvider } from './domain/secrets';
+import { createSecretProvider } from './secret-provider.factory';
 import { ChargesController } from './http/charges.controller';
 import { CallbacksController } from './http/callbacks.controller';
 import { ConnectorHealthController } from './http/connector-health.controller';
@@ -60,7 +61,7 @@ const unconfiguredQr: QrPort = {
         return guardPool(pool, 'PgLockPool');
       },
     },
-    { provide: SECRETS, useFactory: (): SecretProvider => new EnvSecretProvider() },
+    { provide: SECRETS, inject: [SERVICE_CONFIG], useFactory: (config: ServiceConfig): SecretProvider => createSecretProvider(config) },
     { provide: QR_PORT, inject: [SERVICE_CONFIG], useFactory: (config: ServiceConfig): QrPort => (config.qrUrl ? new HttpQrClient(config.qrUrl) : unconfiguredQr) },
     // [DOBLE] Bancos simulados: solo existen en sandbox y los carga la guardia de modo del registro.
     { provide: SIMULATED_BANK, useFactory: () => new SimulatedBank({ seed: 1 }) },

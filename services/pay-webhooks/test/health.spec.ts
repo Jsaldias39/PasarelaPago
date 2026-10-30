@@ -62,7 +62,7 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
     expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_RETRY_SCHEDULE_MS: '0,200,400' })).toThrow(/acelerador de sandbox/);
   });
 
-  describe('WEBHOOKS_ENGINE (D-26): el motor de entrega propio es un doble de Svix', () => {
+  describe('WEBHOOKS_ENGINE (D-26): svix (el servidor real) o inprocess (el doble)', () => {
     it('sandbox: sin valor o con inprocess arranca con el doble', () => {
       expect(loadConfig(base).engine).toBe('inprocess');
       expect(loadConfig({ ...base, WEBHOOKS_ENGINE: 'inprocess' }).engine).toBe('inprocess');
@@ -72,12 +72,63 @@ describe('loadConfig — falla al arrancar con configuración inválida (regla 9
       expect(() => loadConfig({ ...base, PAY_MODE: 'live' })).toThrow(/exige declarar WEBHOOKS_ENGINE/);
     });
 
-    it('live con inprocess ⇒ no arranca: es el doble de Svix', () => {
-      expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_ENGINE: 'inprocess' })).toThrow(/PAY_MODE=live no admite WEBHOOKS_ENGINE=inprocess.*doble de Svix/);
+    it('live con inprocess ⇒ no arranca: es el doble de Svix y pide svix', () => {
+      expect(() => loadConfig({ ...base, PAY_MODE: 'live', WEBHOOKS_ENGINE: 'inprocess' })).toThrow(/PAY_MODE=live no admite WEBHOOKS_ENGINE=inprocess.*doble de Svix.*svix/);
     });
 
-    it.each(['sandbox', 'live'])('%s con svix ⇒ no arranca mientras SvixEngine no exista («el motor real no está implementado»)', (mode) => {
-      expect(() => loadConfig({ ...base, PAY_MODE: mode, WEBHOOKS_ENGINE: 'svix' })).toThrow(/el motor real no está implementado/);
+    // Un JWT de FORMA válida y sintético (no firma nada): solo prueba la validación de forma.
+    const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJvcmdfcHJ1ZWJhIn0.c2lnbmF0dXJhLWRlLXBydWViYQ';
+    const svixEnv = { ...base, WEBHOOKS_ENGINE: 'svix', WEBHOOKS_SVIX_URL: 'http://127.0.0.1:54800', WEBHOOKS_SVIX_AUTH_TOKEN: TOKEN };
+    const liveSvix = { ...svixEnv, PAY_MODE: 'live', WEBHOOKS_SVIX_URL: 'https://svix.interno.example' };
+
+    it('CORRECTO: sandbox con svix carga la configuración del servidor con sus valores por defecto', () => {
+      const config = loadConfig(svixEnv);
+      expect(config.engine).toBe('svix');
+      expect(config.svix).toEqual({ url: 'http://127.0.0.1:54800', authToken: TOKEN, timeoutMs: 5_000, maxAttempts: 4, reconcileIntervalMs: 15_000, orphanGraceMs: 10 * 60_000 });
+      expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_URL: 'http://127.0.0.1:54800/' }).svix?.url).toBe('http://127.0.0.1:54800');
+    });
+
+    it('CORRECTO: live con svix sobre https arranca; inprocess ignora las variables de Svix', () => {
+      expect(loadConfig(liveSvix)).toMatchObject({ engine: 'svix', payMode: 'live', svix: { url: 'https://svix.interno.example' } });
+      expect(loadConfig({ ...svixEnv, WEBHOOKS_ENGINE: 'inprocess' }).svix).toBeUndefined();
+    });
+
+    it.each(['WEBHOOKS_SVIX_URL', 'WEBHOOKS_SVIX_AUTH_TOKEN'])('INVÁLIDO: con svix, sin %s ⇒ no arranca (el token no tiene valor por defecto)', (name) => {
+      const env: Record<string, string | undefined> = { ...svixEnv };
+      delete env[name];
+      expect(() => loadConfig(env)).toThrow(new RegExp(`Falta la variable de entorno ${name}`));
+      expect(() => loadConfig({ ...env, [name]: '' })).toThrow(new RegExp(`Falta la variable de entorno ${name}`));
+    });
+
+    it.each(['no es una url', 'ftp://svix.example', 'https://usuario:clave@svix.example', 'https://svix.example/api/v1', 'https://svix.example/?a=1', 'https://svix.example/#x'])('INVÁLIDO: WEBHOOKS_SVIX_URL %j ⇒ no arranca', (url) => {
+      expect(() => loadConfig({ ...svixEnv, WEBHOOKS_SVIX_URL: url })).toThrow(/WEBHOOKS_SVIX_URL inválido/);
+    });
+
+    it('INVÁLIDO: live exige https hacia Svix (el token y las claves de firma viajan por ahí); sandbox admite http', () => {
+      expect(() => loadConfig({ ...liveSvix, WEBHOOKS_SVIX_URL: 'http://svix.interno.example:8071' })).toThrow(/https con PAY_MODE=live/);
+      expect(loadConfig({ ...svixEnv, WEBHOOKS_SVIX_URL: 'http://svix:8071' }).svix?.url).toBe('http://svix:8071');
+    });
+
+    it.each(['no-es-un-jwt', 'a.b', 'a.b.c.d', 'a b.c.d', 'a..c'])('INVÁLIDO: token %j ⇒ no arranca y el mensaje NO repite el token', (token) => {
+      let message = '';
+      try {
+        loadConfig({ ...svixEnv, WEBHOOKS_SVIX_AUTH_TOKEN: token });
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toMatch(/WEBHOOKS_SVIX_AUTH_TOKEN inválido/);
+      expect(message).not.toContain(token);
+    });
+
+    it('LÍMITE: Svix admite hasta 7 días de gracia en la rotación; 168 h pasa, 169 h no; el motor en proceso admite hasta 30 días', () => {
+      expect(loadConfig({ ...svixEnv, WEBHOOKS_ROTATION_GRACE_HOURS: '168' }).rotationGraceMs).toBe(168 * 3_600_000);
+      expect(loadConfig({ ...svixEnv, WEBHOOKS_ROTATION_GRACE_HOURS: '0' }).rotationGraceMs).toBe(0);
+      expect(() => loadConfig({ ...svixEnv, WEBHOOKS_ROTATION_GRACE_HOURS: '169' })).toThrow(/no puede superar 168/);
+      expect(loadConfig({ ...base, WEBHOOKS_ROTATION_GRACE_HOURS: '720' }).rotationGraceMs).toBe(720 * 3_600_000);
+    });
+
+    it.each([['WEBHOOKS_SVIX_TIMEOUT_MS', '50'], ['WEBHOOKS_SVIX_TIMEOUT_MS', '40000'], ['WEBHOOKS_SVIX_MAX_ATTEMPTS', '0'], ['WEBHOOKS_SVIX_MAX_ATTEMPTS', '11'], ['WEBHOOKS_SVIX_RECONCILE_INTERVAL_MS', '10'], ['WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES', '0']])('INVÁLIDO: %s=%s ⇒ no arranca', (name, value) => {
+      expect(() => loadConfig({ ...svixEnv, [name]: value })).toThrow(new RegExp(`${name} inválido`));
     });
 
     it.each(['Svix', 'in-process', 'memory', ' inprocess', 'inprocess '])('valor inválido %j ⇒ no arranca en cualquier modo', (value) => {

@@ -6,6 +6,20 @@ export interface EventSource {
   readonly subjectPrefix: string;
 }
 
+export interface SvixConfig {
+  /** `WEBHOOKS_SVIX_URL`: `http(s)://host[:puerto]`, sin ruta. Bajo `live` debe ser `https`. */
+  readonly url: string;
+  /** `WEBHOOKS_SVIX_AUTH_TOKEN`: el JWT del servidor Svix. Es un secreto: viene del entorno (OpenBao en producción), nunca del repo. */
+  readonly authToken: string;
+  readonly timeoutMs: number;
+  /** Intentos por llamada ante un resultado ambiguo (timeout, corte, 429, 5xx), siempre con los mismos identificadores. */
+  readonly maxAttempts: number;
+  /** Cada cuánto se reconcilia el estado de los endpoints con Svix (410, baja por fallos, huérfanos). */
+  readonly reconcileIntervalMs: number;
+  /** Un endpoint de Svix sin fila local solo se borra si tiene más de esta edad. */
+  readonly orphanGraceMs: number;
+}
+
 export interface ServiceConfig {
   readonly port: number;
   readonly logLevel: string;
@@ -15,10 +29,12 @@ export interface ServiceConfig {
   /** `sandbox` ⇒ los eventos salen con `mode: test`; `live` ⇒ `mode: live`. */
   readonly payMode: 'sandbox' | 'live';
   /**
-   * Motor de entrega (`WEBHOOKS_ENGINE`). Hoy solo existe `inprocess`, el [DOBLE de Svix]: en sandbox es el valor por defecto; bajo
-   * `live` la variable es obligatoria y el servicio NO arranca ni con `inprocess` (es un doble) ni con `svix` (SvixEngine no existe todavía).
+   * Motor de entrega (`WEBHOOKS_ENGINE`): `svix` (el servidor real) o `inprocess` (el [DOBLE de Svix]). En sandbox el valor por defecto es
+   * `inprocess`; bajo `live` la variable es obligatoria y solo se admite `svix` (el servicio NO arranca con el doble).
    */
-  readonly engine: 'inprocess';
+  readonly engine: 'inprocess' | 'svix';
+  /** Presente SOLO con `engine: 'svix'`. */
+  readonly svix?: SvixConfig;
   /** Clave de 32 bytes con la que se sellan los secretos de firma (AES-256-GCM). */
   readonly secretKek: Buffer;
   readonly eventSources: readonly EventSource[];
@@ -92,18 +108,46 @@ function parseSchedule(text: string | undefined): readonly number[] {
 }
 
 /**
- * D-26. `inprocess|svix`. Sin valor: sandbox usa `inprocess`; live exige declararlo, y aun declarado no arranca: `inprocess` es un doble
- * de Svix y `svix` todavía no está implementado (no hay `SvixEngine`). Cuando exista, `svix` pasa a ser el único valor admitido en live.
+ * D-26. `inprocess|svix`. Sin valor: sandbox usa `inprocess` (el doble de Svix); live exige declararlo y solo admite `svix`: `inprocess` es un
+ * doble y no puede entregar webhooks reales.
  */
-function parseEngine(raw: string | undefined, payMode: 'sandbox' | 'live'): 'inprocess' {
+function parseEngine(raw: string | undefined, payMode: 'sandbox' | 'live'): 'inprocess' | 'svix' {
   const value = raw ?? '';
   if (value !== '' && value !== 'inprocess' && value !== 'svix') throw new Error(`WEBHOOKS_ENGINE inválido: ${value} (inprocess | svix)`);
-  if (value === 'svix') throw new Error('WEBHOOKS_ENGINE=svix: el motor real no está implementado (no existe SvixEngine); en sandbox usá WEBHOOKS_ENGINE=inprocess');
   if (payMode === 'live') {
     if (value === '') throw new Error('PAY_MODE=live exige declarar WEBHOOKS_ENGINE (sin valor por defecto en live)');
-    throw new Error('PAY_MODE=live no admite WEBHOOKS_ENGINE=inprocess: es el doble de Svix y el motor real no está implementado');
+    if (value === 'inprocess') throw new Error('PAY_MODE=live no admite WEBHOOKS_ENGINE=inprocess: es el doble de Svix; usá WEBHOOKS_ENGINE=svix');
   }
-  return 'inprocess';
+  return value === 'svix' ? 'svix' : 'inprocess';
+}
+
+/** Svix admite de 0 a 7 días de gracia en la rotación de un secreto. */
+const SVIX_MAX_GRACE_HOURS = 7 * 24;
+
+function parseSvix(env: NodeJS.ProcessEnv, payMode: 'sandbox' | 'live', rotationGraceHours: number): SvixConfig {
+  const rawUrl = required(env, 'WEBHOOKS_SVIX_URL');
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new Error('WEBHOOKS_SVIX_URL inválido: no es una URL');
+  }
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '' || (url.pathname !== '/' && url.pathname !== '')) {
+    throw new Error('WEBHOOKS_SVIX_URL inválido: debe ser http(s)://host[:puerto] sin credenciales, ruta ni parámetros');
+  }
+  // El token y las claves de firma viajan en esta conexión: bajo live, solo cifrada.
+  if (payMode === 'live' && url.protocol !== 'https:') throw new Error('WEBHOOKS_SVIX_URL debe ser https con PAY_MODE=live');
+  const authToken = required(env, 'WEBHOOKS_SVIX_AUTH_TOKEN');
+  if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(authToken)) throw new Error('WEBHOOKS_SVIX_AUTH_TOKEN inválido: no tiene forma de JWT');
+  if (rotationGraceHours > SVIX_MAX_GRACE_HOURS) throw new Error(`WEBHOOKS_ROTATION_GRACE_HOURS no puede superar ${SVIX_MAX_GRACE_HOURS} con WEBHOOKS_ENGINE=svix (Svix admite hasta 7 días)`);
+  return {
+    url: url.origin,
+    authToken,
+    timeoutMs: integer(env, 'WEBHOOKS_SVIX_TIMEOUT_MS', 5_000, 100, 30_000),
+    maxAttempts: integer(env, 'WEBHOOKS_SVIX_MAX_ATTEMPTS', 4, 1, 10),
+    reconcileIntervalMs: integer(env, 'WEBHOOKS_SVIX_RECONCILE_INTERVAL_MS', 15_000, 100, 600_000),
+    orphanGraceMs: integer(env, 'WEBHOOKS_SVIX_ORPHAN_GRACE_MINUTES', 10, 1, 1440) * MINUTE,
+  };
 }
 
 /** Lee y valida el entorno. */
@@ -120,6 +164,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
     throw new Error('WEBHOOKS_RETRY_SCHEDULE_MS no puede usarse con PAY_MODE=live: es un acelerador de sandbox y en live rige la escalera por defecto');
   }
   const engine = parseEngine(env.WEBHOOKS_ENGINE, payMode);
+  const rotationGraceHours = integer(env, 'WEBHOOKS_ROTATION_GRACE_HOURS', 24, 0, 24 * 30);
   const kek = Buffer.from(required(env, 'WEBHOOKS_SECRET_KEK'), 'base64');
   if (kek.length !== 32) throw new Error('WEBHOOKS_SECRET_KEK debe ser una clave de 32 bytes en base64');
   if (env.DB_SCHEMA && !SCHEMA.test(env.DB_SCHEMA)) throw new Error(`DB_SCHEMA inválido: ${env.DB_SCHEMA}`);
@@ -137,6 +182,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
     ...(env.NATS_URL ? { natsUrl: env.NATS_URL } : {}),
     payMode,
     engine,
+    ...(engine === 'svix' ? { svix: parseSvix(env, payMode, rotationGraceHours) } : {}),
     secretKek: kek,
     eventSources: parseSources(env.WEBHOOKS_EVENT_SOURCES ?? DEFAULT_SOURCES),
     delivery: {
@@ -150,7 +196,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
       perEndpointConcurrency: integer(env, 'WEBHOOKS_PER_ENDPOINT_CONCURRENCY', 2, 1, 50),
       perEndpointBatch: integer(env, 'WEBHOOKS_PER_ENDPOINT_BATCH', 10, 1, 500),
     },
-    rotationGraceMs: integer(env, 'WEBHOOKS_ROTATION_GRACE_HOURS', 24, 0, 24 * 30) * HOUR,
+    rotationGraceMs: rotationGraceHours * HOUR,
     maxEndpointsPerMerchant: integer(env, 'WEBHOOKS_MAX_ENDPOINTS', 20, 1, 1000),
     workerEnabled: (env.WEBHOOKS_WORKER_ENABLED ?? 'true') !== 'false',
     sandboxTargets,

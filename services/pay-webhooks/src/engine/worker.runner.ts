@@ -16,7 +16,8 @@ export class WorkerRunner implements OnModuleInit, OnApplicationShutdown {
   ) {}
 
   onModuleInit(): void {
-    if (this.config.workerEnabled) this.schedule();
+    // Con Svix las entregas las hace el servidor Svix (y las vigila el SvixReconcileRunner): no hay nada que reclamar en esta base.
+    if (this.config.workerEnabled && this.config.engine === 'inprocess') this.schedule();
   }
 
   async onApplicationShutdown(): Promise<void> {

@@ -127,16 +127,31 @@ services:
 
   svix:
     profiles: [full]
-    image: ${HUB:-docker.io}/svix/svix-server:latest
+    # Versión fijada (P1.H3.M1): `SvixEngine` se verificó contra svix-server 1.104.0 (su /api/v1/openapi.json). `latest` no es reproducible.
+    image: ${HUB:-docker.io}/svix/svix-server:v1.104.0
     depends_on:
       svix-db: { condition: service_healthy }
       redis: { condition: service_healthy }
+    # Para que el servidor alcance el receptor de prueba del anfitrión por un nombre público-con-forma (solo lo usan las pruebas de integración;
+    # `host.docker.internal` no sirve: el guard de SSRF de pay-webhooks rechaza el sufijo `.internal`).
+    extra_hosts: ["receptor.comercio.example:host-gateway"]
     environment:
       SVIX_DB_DSN: postgresql://svix:dev_only_svix@svix-db/svix
       SVIX_REDIS_DSN: redis://redis:6379
       SVIX_QUEUE_TYPE: redis
       SVIX_JWT_SECRET: dev-only-change-me
       SVIX_CACHE_TYPE: redis
+      # Contrato público: la entrega lleva `webhook-id`, `webhook-timestamp` y `webhook-signature` (Standard Webhooks), no `svix-*`.
+      SVIX_WHITELABEL_HEADERS: "true"
+      # Defensa en profundidad: pay-webhooks ya exige https al registrar; el servidor tampoco entrega por http.
+      SVIX_ENDPOINT_HTTPS_ONLY: "true"
+      # Perillas SOLO de pruebas locales (cerradas por defecto). Las pruebas de integración de pay-webhooks piden al levantar el servicio:
+      #   SVIX_WHITELIST_NAMES='["receptor.comercio.example"]' SVIX_DANGEROUS_DISABLE_TLS_VERIFICATION=true SVIX_RETRY_SCHEDULE=1,2,3
+      # (nombre del anfitrión permitido, confianza en el certificado autofirmado del receptor, escalera de reintentos corta).
+      # Nunca en producción: permiten entregar a la red local y no validan certificados.
+      SVIX_WHITELIST_NAMES: ${SVIX_WHITELIST_NAMES:-[]}
+      SVIX_DANGEROUS_DISABLE_TLS_VERIFICATION: ${SVIX_DANGEROUS_DISABLE_TLS_VERIFICATION:-false}
+      SVIX_RETRY_SCHEDULE: ${SVIX_RETRY_SCHEDULE:-5,300,1800,7200,18000,36000,36000}
     ports: ["127.0.0.1:54800:8071"]
 
 volumes:

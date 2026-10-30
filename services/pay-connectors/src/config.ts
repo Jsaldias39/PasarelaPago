@@ -1,3 +1,19 @@
+import { isSafePath, type OpenBaoAuth } from './domain/openbao-secrets';
+
+/** De dónde salen los secretos de los conectores (P4.H2.M6). `env` es solo para desarrollo/sandbox; `live` exige `openbao`, elegido a propósito. */
+export type SecretsConfig =
+  | { readonly provider: 'env' }
+  | {
+      readonly provider: 'openbao';
+      readonly addr: string;
+      readonly mount: string;
+      readonly pathPrefix: string;
+      readonly auth: OpenBaoAuth;
+      readonly cacheTtlMs: number;
+      readonly rotationWindowMs: number;
+      readonly timeoutMs: number;
+    };
+
 /** Configuración del servicio. Falla al arrancar si falta algo obligatorio: sin valores por defecto para secretos (regla 90.3.4). */
 export interface ServiceConfig {
   readonly port: number;
@@ -7,6 +23,8 @@ export interface ServiceConfig {
   readonly natsUrl?: string;
   /** `sandbox` carga el simulador y los dobles; `live` los rechaza (D-26). Sin valor por defecto en producción: ver `loadConfig`. */
   readonly mode: 'sandbox' | 'live';
+  /** Proveedor de secretos (`SECRET_PROVIDER`). */
+  readonly secrets: SecretsConfig;
   /** URL base de `pay-qr`. Sin ella, pedir un cobro QR falla con `internal_error` (no hay QR que mostrar). */
   readonly qrUrl?: string;
   /** URL base de `pay-mockbank` (banco simulado de la capa sandbox, D-26). Con ella, el conector `mock` y el de transferencias hablan con ese servicio en vez de usar el banco en memoria. Solo sandbox. */
@@ -116,6 +134,66 @@ function mockbank(env: NodeJS.ProcessEnv): { mockbankUrl?: string } {
   return { mockbankUrl: raw };
 }
 
+/**
+ * `SECRET_PROVIDER=openbao|env`. Sin valor por defecto bajo `live` (y `live` solo admite `openbao`); en sandbox, si no se dice, `env`.
+ * Con `openbao`: `OPENBAO_ADDR` y exactamente UNA credencial — `OPENBAO_TOKEN` o el par `OPENBAO_ROLE_ID` + `OPENBAO_SECRET_ID` (AppRole) —,
+ * siempre de la configuración en ejecución: nunca de la imagen ni del repositorio. Bajo `live` la dirección tiene que ser https.
+ * Opcionales: `OPENBAO_KV_MOUNT` (secret), `OPENBAO_PATH_PREFIX` (pay-connectors), `OPENBAO_CACHE_TTL_MS` (5000), `OPENBAO_ROTATION_WINDOW_MS` (86400000), `OPENBAO_TIMEOUT_MS` (3000).
+ */
+function secrets(env: NodeJS.ProcessEnv, mode: 'sandbox' | 'live'): { secrets: SecretsConfig } {
+  const raw = env.SECRET_PROVIDER;
+  if (raw === undefined || raw === '') {
+    if (mode === 'live') throw new Error('SECRET_PROVIDER es obligatorio bajo PAY_MODE=live (openbao)');
+    return { secrets: { provider: 'env' } };
+  }
+  if (raw !== 'openbao' && raw !== 'env') throw new Error(`SECRET_PROVIDER debe ser openbao o env (llegó: ${raw})`);
+  if (raw === 'env') {
+    if (mode === 'live') throw new Error('PAY_MODE=live no admite SECRET_PROVIDER=env: los secretos de los conectores salen de OpenBao');
+    return { secrets: { provider: 'env' } };
+  }
+  const given = (name: string): string | undefined => (env[name] === undefined || env[name] === '' ? undefined : env[name]);
+  const addrRaw = given('OPENBAO_ADDR');
+  if (addrRaw === undefined) throw new Error('Falta la variable de entorno OPENBAO_ADDR');
+  let addr: URL;
+  try {
+    addr = new URL(addrRaw);
+  } catch {
+    throw new Error('OPENBAO_ADDR inválida (tiene que ser una URL http o https)');
+  }
+  if (addr.protocol !== 'http:' && addr.protocol !== 'https:') throw new Error('OPENBAO_ADDR inválida (tiene que ser una URL http o https)');
+  if (addr.username !== '' || addr.password !== '') throw new Error('OPENBAO_ADDR no puede traer credenciales');
+  if (addr.pathname !== '/' && addr.pathname !== '') throw new Error('OPENBAO_ADDR es solo la base (sin ruta): el servicio agrega /v1');
+  if (mode === 'live' && addr.protocol !== 'https:') throw new Error('OPENBAO_ADDR tiene que ser https bajo PAY_MODE=live');
+  const token = given('OPENBAO_TOKEN');
+  const roleId = given('OPENBAO_ROLE_ID');
+  const secretId = given('OPENBAO_SECRET_ID');
+  let auth: OpenBaoAuth;
+  if (token !== undefined) {
+    if (roleId !== undefined || secretId !== undefined) throw new Error('OPENBAO_TOKEN y OPENBAO_ROLE_ID/OPENBAO_SECRET_ID son excluyentes: elegí una sola credencial');
+    auth = { kind: 'token', token };
+  } else if (roleId !== undefined && secretId !== undefined) {
+    auth = { kind: 'approle', roleId, secretId };
+  } else {
+    throw new Error('Falta la credencial de OpenBao: OPENBAO_TOKEN, o OPENBAO_ROLE_ID junto con OPENBAO_SECRET_ID');
+  }
+  const mount = given('OPENBAO_KV_MOUNT') ?? 'secret';
+  const pathPrefix = given('OPENBAO_PATH_PREFIX') ?? 'pay-connectors';
+  if (!isSafePath(mount)) throw new Error(`OPENBAO_KV_MOUNT inválido: ${mount}`);
+  if (!isSafePath(pathPrefix)) throw new Error(`OPENBAO_PATH_PREFIX inválido: ${pathPrefix}`);
+  return {
+    secrets: {
+      provider: 'openbao',
+      addr: addr.origin,
+      mount,
+      pathPrefix,
+      auth,
+      cacheTtlMs: integer(env, 'OPENBAO_CACHE_TTL_MS', 5_000),
+      rotationWindowMs: integer(env, 'OPENBAO_ROTATION_WINDOW_MS', 86_400_000),
+      timeoutMs: integer(env, 'OPENBAO_TIMEOUT_MS', 3_000, 1),
+    },
+  };
+}
+
 /** `PAY_MODE` es obligatorio y solo admite `sandbox` o `live`: un modo mal escrito no puede dar un servicio en `live` por accidente. */
 function parseMode(raw: string | undefined): 'sandbox' | 'live' {
   if (raw === 'sandbox' || raw === 'live') return raw;
@@ -142,6 +220,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServiceConfig 
     },
     ...(env.NATS_URL ? { natsUrl: env.NATS_URL } : {}),
     mode,
+    ...secrets(env, mode),
     ...(env.PAY_QR_URL ? { qrUrl: env.PAY_QR_URL } : {}),
     ...mockbank(env),
     mockbankTimeoutMs: integer(env, 'MOCKBANK_TIMEOUT_MS', 5_000, 1),

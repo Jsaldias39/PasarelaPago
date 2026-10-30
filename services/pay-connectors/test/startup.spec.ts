@@ -12,6 +12,8 @@ const dbEnv = {
   DB_USER: decodeURIComponent(url.username),
   DB_PASSWORD: decodeURIComponent(url.password),
 };
+// Bajo live el proveedor de secretos es explícito (P4.H2.M6): solo `openbao`, con https. No se conecta al arrancar: la dirección es sintética.
+const LIVE_SECRETS = { SECRET_PROVIDER: 'openbao', OPENBAO_ADDR: 'https://openbao.invalid:8200', OPENBAO_TOKEN: 'tok-sintetico-de-prueba' };
 const MOCK_SECRET = { PAY_SECRET_CONNECTOR_MOCK_WEBHOOK_SECRET: 'whsec_ZGV2LW9ubHktbW9jay1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZg==' };
 const started: Started[] = [];
 let db: IsolatedDatabase;
@@ -79,11 +81,18 @@ describe('PAY_MODE=live se niega a arrancar con conector mock o doble configurad
   });
 
   it('límite: la cuenta a medias bajo live tampoco arranca, ni siquiera sin dobles', async () => {
-    await refuses({ PAY_MODE: 'live', BANK_TRANSFER_BANK_NAME: 'Banco X' }, /van los tres o ninguno/);
+    await refuses({ PAY_MODE: 'live', BANK_TRANSFER_BANK_NAME: 'Banco X', ...LIVE_SECRETS }, /van los tres o ninguno/);
+  });
+
+  it('inválido: live sin SECRET_PROVIDER, con `env` o con OpenBao por http NO arranca (sin proveedor por defecto)', async () => {
+    await refuses({ PAY_MODE: 'live' }, /SECRET_PROVIDER es obligatorio bajo PAY_MODE=live/);
+    await refuses({ PAY_MODE: 'live', SECRET_PROVIDER: 'env' }, /no admite SECRET_PROVIDER=env/);
+    await refuses({ PAY_MODE: 'live', ...LIVE_SECRETS, OPENBAO_ADDR: 'http://openbao.invalid:8200' }, /https bajo PAY_MODE=live/);
+    await refuses({ PAY_MODE: 'live', SECRET_PROVIDER: 'openbao', OPENBAO_ADDR: 'https://openbao.invalid:8200' }, /Falta la credencial de OpenBao/);
   });
 
   it('correcto: live limpio (sin mock, sin cuenta: T-03) arranca y NO carga ningún conector de sandbox', async () => {
-    const { port } = await boots({ PAY_MODE: 'live' });
+    const { port } = await boots({ PAY_MODE: 'live', ...LIVE_SECRETS });
     expect(await connectorsHealth(port)).toEqual([]);
   }, 90_000);
 });

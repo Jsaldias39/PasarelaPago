@@ -9,8 +9,10 @@ import { loadConfig, type ServiceConfig } from '../src/config';
 import { configureApp } from '../src/configure-app';
 import { DeliveryWorker } from '../src/engine/delivery.worker';
 import { CLOCK, type Clock } from '../src/engine/delivery-engine';
+import { TARGET_GUARD } from '../src/endpoints/endpoint.service';
 import { EventConsumer } from '../src/events/event-consumer';
 import { EventIngest } from '../src/events/event-ingest';
+import { TargetGuard } from '../src/ssrf/target-guard';
 import { RESOLVER, TRANSPORT } from '../src/ssrf/tokens';
 import { FakeResolver } from './doubles/fake-resolver';
 import { LoopbackTransport } from './doubles/loopback-transport';
@@ -53,6 +55,11 @@ export const newKey = () => `clave-${randomBytes(8).toString('hex')}`;
 export interface StartOptions {
   readonly env?: Record<string, string>;
   readonly resolverTable?: Record<string, readonly string[]>;
+  /**
+   * Puertos de destino permitidos por el guard de SSRF además del 443. Es el MISMO arreglo (no una copia): la prueba le agrega el puerto de cada
+   * receptor que levanta. Solo lo usan las pruebas contra Svix real, cuyos receptores escuchan en puertos efímeros.
+   */
+  readonly allowedPorts?: number[];
 }
 
 /** Levanta el servicio COMPLETO con Postgres real y un esquema propio; solo DNS y el último salto de red son dobles. */
@@ -70,14 +77,15 @@ export async function startWebhooks(options: StartOptions = {}): Promise<Webhook
     WEBHOOKS_RETRY_JITTER_PERCENT: '0',
     ...options.env,
   });
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule.forRoot(config)] })
+  let builder = Test.createTestingModule({ imports: [AppModule.forRoot(config)] })
     .overrideProvider(CLOCK)
     .useValue(clock)
     .overrideProvider(RESOLVER)
     .useValue(resolver)
     .overrideProvider(TRANSPORT)
-    .useValue(transport)
-    .compile();
+    .useValue(transport);
+  if (options.allowedPorts) builder = builder.overrideProvider(TARGET_GUARD).useValue(new TargetGuard(resolver, { allowedPorts: options.allowedPorts }));
+  const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
   configureApp(app);
   await app.listen(0, '127.0.0.1');
