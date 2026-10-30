@@ -1,4 +1,4 @@
-> **AVANCE INT: 0 / 5 — 0,0 %.** `INT.H1.M2` e `INT.H1.M3` están `A MEDIAS`. La revisión independiente ([REVISION-API-INT.md](../integracion/revision/REVISION-API-INT.md)) halló un BLOQUEANTE para encender el flag (B1: bajo RLS el receptor no ve nada) y tres MAYOR (M1 deuda sin sesión de checkout, M2 sin compuerta previa contra la deuda, M3 BOLA en `processTransaction`). Con el flag apagado, que es el defecto, no se activa nada de esto. Corrección en curso. `M1`, `M4` y `M5` están `BLOQUEADO` por algo externo.
+> **AVANCE INT: 1 / 5 — 20,0 %.** `INT.H1.M3` está `HECHO` (con limitaciones declaradas: ver §13) tras cuatro revisiones independientes; `INT.H1.M2` sigue `A MEDIAS`. La revisión independiente ([REVISION-API-INT.md](../integracion/revision/REVISION-API-INT.md)) halló un BLOQUEANTE para encender el flag (B1: bajo RLS el receptor no ve nada) y tres MAYOR (M1 deuda sin sesión de checkout, M2 sin compuerta previa contra la deuda, M3 BOLA en `processTransaction`). Con el flag apagado, que es el defecto, no se activa nada de esto. Corrección en curso. `M1`, `M4` y `M5` están `BLOQUEADO` por algo externo.
 
 # Informe INT — la API cobra por la pasarela (M2 + M3)
 
@@ -140,3 +140,12 @@ Informe: [VERIFICACION-DELTA-2-API-INT.md](../integracion/revision/VERIFICACION-
 | D11–D13 | MENOR | motivo acepta basura; `close` repetible; cobro huérfano tras `close` sin alerta | última ronda si caben |
 
 Regla acordada: **esta es la última ronda de corrección.** Si la verificación corta del resultado encuentra otro MAYOR, no se itera más: el flag `PAYMENTS_VIA_GATEWAY` queda documentado como **«no encender»** y `INT.H1.M3` en `A MEDIAS`. Mientras D8 y D9 estén abiertos, la alternativa operativa es no desplegar la ruta `close`.
+
+
+## 13 · Veredicto final de las revisiones y limitaciones de `INT.H1.M3`
+
+Última verificación ([VERIFICACION-DELTA-3-API-INT.md](../integracion/revision/VERIFICACION-DELTA-3-API-INT.md)): **D8 y D9 cerrados; ningún MAYOR nuevo; `INT.H1.M3` marcable HECHO con `RLS_ENFORCE` verdadero y falso** (72 rondas de `reintento en vuelo` contra `close` con 0 violaciones; antes el 100 % dejaba una intención cancelada con el QR entregado y dos cobros vivos).
+
+Menores nuevos: **D14** (dos `close` simultáneos sobre la misma deuda dan `40P01` con RLS apagado: la API no permite esa superposición, hubo que sembrarla por SQL; pasa a MAYOR si el negocio habilita varios checkouts por deuda), **D15** (el motivo del cierre rechaza texto legítimo con `#`, `—`, comillas tipográficas, `@`, `&`, `+`, `°`, `$`), **D16** (un cierre fallido deja un sello de auditoría con éxito falso).
+
+**Limitaciones a leer junto con «HECHO»:** (1) D10 abierto: un DECLINE registrado durante el vuelo del primer envío responde 201 pero no detiene el cobro en curso, que queda pagable. (2) El cobro huérfano tras `close` no entrega QR y expira solo; si se paga cae en la cola de conciliación; hay contadores pero no se verificó exportador ni alerta. (3) Con RLS hay un tope por proceso de `ceil(DB_POOL_MAX/2)-1` despachos y cierres simultáneos (4 con el pool por defecto); el resto recibe 503 reintentable (P1 mitigado, no eliminado). (4) No se levantó `AppModule` ni el interceptor real, y no se probó una anulación en la pasarela real tras un `close` (el carril no tiene API de anulación). Si quien aprueba exige la alerta operativa conectada como parte de HECHO (la regla 11 habla de escalar a una persona), ese punto queda pendiente y debe ir a un issue del repo de la API.

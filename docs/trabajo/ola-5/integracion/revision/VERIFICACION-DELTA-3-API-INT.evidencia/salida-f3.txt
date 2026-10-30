@@ -1,0 +1,15 @@
+(node:27561) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+R5I> D9 RLS_ENFORCE=false dos close: deuda=PENDING sesiones=EXPIRED+EXPIRED
+R5I> D9 RLS_ENFORCE=false deadlock-soak (40 close): ok=21 errores={"eundefined:undefined":19}
+R5I> D9 RLS_ENFORCE=true (NOBYPASSRLS) dos close: deuda=PENDING sesiones=EXPIRED+EXPIRED
+R5I> D9 RLS_ENFORCE=true (NOBYPASSRLS) deadlock-soak (40 close): ok=40 errores={}
+R5W> succeeded sobre intencion CANCELED: {"applied":false,"decision":"contradiccion","reconciliationRequired":true}; deuda=IN_CHECKOUT outstanding=150.000000; evento processed=false
+R5W> terminal huerfano: e404:PAYMENT_INTENT_NOT_FOUND
+
+Test Suites: 2 passed, 2 total
+Tests:       28 skipped, 4 passed, 32 total
+Snapshots:   0 total
+Time:        25.402 s, estimated 76 s
+Ran all test suites matching rev5-charge|rev5-b1-rls with tests matching "sin deadlocks|REV5-W".
+EXIT 0

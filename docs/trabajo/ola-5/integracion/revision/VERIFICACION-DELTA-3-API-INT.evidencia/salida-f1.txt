@@ -1,0 +1,120 @@
+(node:21955) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+DDL real aplicado: 6 tablas, 67 índices, 6 FK internas; FK omitidas: fk_payment_intents_gateway_connection_id -> gateway_connections, fk_payment_intents_payment_method_id -> payment_methods, fk_payment_debts_gateway_connection_id -> gateway_connections, fk_payment_checkout_sessions_gateway_connection_id -> gateway_connections, fk_payment_checkout_sessions_callback_endpoint_id -> provider_callback_endpoints
+createIntent x6 misma clave: 6 resueltas, rechazadas: 
+(2) máximo de POST a la pasarela en una ronda de 2 concurrentes: 2 (siempre la misma clave; creación única)
+(14) pool 4 x 3: {"503 PAYMENT_GATEWAY_BUSY":2,"ok":1} en 109 ms
+(14) pool 4 x 4: {"ok":1,"503 PAYMENT_GATEWAY_BUSY":3} en 97 ms
+(14) pool 4 x 8: {"503 PAYMENT_GATEWAY_BUSY":7,"ok":1} en 102 ms
+(14) pool 10 x 9: {"503 PAYMENT_GATEWAY_BUSY":5,"ok":4} en 150 ms
+(14) pool 10 x 10: {"ok":4,"503 PAYMENT_GATEWAY_BUSY":6} en 157 ms
+(14) pool 10 x 25: {"503 PAYMENT_GATEWAY_BUSY":21,"ok":4} en 167 ms
+(16) D8 SIN transacción de petición (RLS_ENFORCE=false): {"retry=ok close=no":12}
+(16) D8 CON transacción de petición (RLS_ENFORCE=true): {"retry=ok close=no":12}
+R5I> D8 RLS_ENFORCE=false: 36 rondas; violaciones=0; {"retry=ok | close=e409:PAYMENT_GATEWAY_DISPATCH_IN_FLIGHT | A=PENDING/pi_ | B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE | vivos=1":36}
+R5I> D8-calado RLS_ENFORCE=false: close=ok; reintento (HTTP en vuelo)=e409:PAYMENT_GATEWAY_RECONCILIATION_REQUIRED; A=CANCELED/pi_db (pi_ persistido=true); B=ok; reintento posterior de A=e422:PAYMENT_INTENT_CANCELED; reconcile de A=e422:PAYMENT_INTENT_CANCELED; listada=false; cobros vivos=2
+R5I> D8 RLS_ENFORCE=true (NOBYPASSRLS): 36 rondas; violaciones=0; {"retry=ok | close=e409:PAYMENT_GATEWAY_DISPATCH_IN_FLIGHT | A=PENDING/pi_ | B=e409:PAYMENT_GATEWAY_DEBT_HAS_OPEN_CHARGE | vivos=1":36}
+R5I> D8-calado RLS_ENFORCE=true (NOBYPASSRLS): close=ok; reintento (HTTP en vuelo)=e409:PAYMENT_GATEWAY_RECONCILIATION_REQUIRED; A=CANCELED/pi_db (pi_ persistido=true); B=ok; reintento posterior de A=e422:PAYMENT_INTENT_CANCELED; reconcile de A=e422:PAYMENT_INTENT_CANCELED; listada=false; cobros vivos=2
+R5I> D9 RLS_ENFORCE=false sesion real: close=ok; deuda=PENDING sesiones=EXPIRED
+R5I> D9 RLS_ENFORCE=false m6: close A=ok; deuda=IN_CHECKOUT sesiones=EXPIRED+OPEN
+R5I> D9 RLS_ENFORCE=true (NOBYPASSRLS) sesion real: close=ok; deuda=PENDING sesiones=EXPIRED
+R5I> D9 RLS_ENFORCE=true (NOBYPASSRLS) m6: close A=ok; deuda=IN_CHECKOUT sesiones=EXPIRED+OPEN
+R5I> D12 doble close: ok / e409:PAYMENT_GATEWAY_DISPATCH_ALREADY_CLOSED
+R5I> D12 4 close simultaneos en RLS con pool=4 (limite 1): ["e503:PAYMENT_GATEWAY_BUSY","e503:PAYMENT_GATEWAY_BUSY","e503:PAYMENT_GATEWAY_BUSY","ok"]
+R5I> D8-borde updated_at: fresco=e409:PAYMENT_GATEWAY_DISPATCH_IN_FLIGHT; 14min=e409:PAYMENT_GATEWAY_DISPATCH_IN_FLIGHT; 16min=ok
+FAIL test/integration/rev5-charge.int-spec.ts (61.652 s)
+  ● Cobro por la pasarela (createIntent + processTransaction) contra PostgreSQL real › (D9) RLS_ENFORCE=false › sin deadlocks: dos close simultaneos de intenciones distintas con sesion sobre la misma deuda, 20 rondas
+
+    TypeError: Cannot read properties of null (reading 'slice')
+
+      630 |       const m = (await markOf(id)) as string;
+      631 |       await run(`update payments.payment_intents set gateway_intent_ref = ? ${alsoUpdatedAt ? ", updated_at = now() - ?::interval" : ''} where id = ?`,
+    > 632 |         alsoUpdatedAt ? [`dispatching:${Date.now() - ms}:${m.slice(-36)}`, `${ms} milliseconds`, id] : [`dispatching:${Date.now() - ms}:${m.slice(-36)}`, id]);
+          |                                                              ^
+      633 |     };
+      634 |     const drop3 = () => [{ kind: 'execute_then_drop' }, { kind: 'execute_then_drop' }, { kind: 'execute_then_drop' }] as any[];
+      635 |     const never3 = () => [{ kind: 'drop_before' }, { kind: 'drop_before' }, { kind: 'drop_before' }] as any[];
+
+      at slice (test/integration/rev5-charge.int-spec.ts:632:62)
+      at Object.<anonymous> (test/integration/rev5-charge.int-spec.ts:779:53)
+
+  ● Cobro por la pasarela (createIntent + processTransaction) contra PostgreSQL real › (D9) RLS_ENFORCE=true (NOBYPASSRLS) › sin deadlocks: dos close simultaneos de intenciones distintas con sesion sobre la misma deuda, 20 rondas
+
+    TypeError: Cannot read properties of null (reading 'slice')
+
+      630 |       const m = (await markOf(id)) as string;
+      631 |       await run(`update payments.payment_intents set gateway_intent_ref = ? ${alsoUpdatedAt ? ", updated_at = now() - ?::interval" : ''} where id = ?`,
+    > 632 |         alsoUpdatedAt ? [`dispatching:${Date.now() - ms}:${m.slice(-36)}`, `${ms} milliseconds`, id] : [`dispatching:${Date.now() - ms}:${m.slice(-36)}`, id]);
+          |                                                              ^
+      633 |     };
+      634 |     const drop3 = () => [{ kind: 'execute_then_drop' }, { kind: 'execute_then_drop' }, { kind: 'execute_then_drop' }] as any[];
+      635 |     const never3 = () => [{ kind: 'drop_before' }, { kind: 'drop_before' }, { kind: 'drop_before' }] as any[];
+
+      at slice (test/integration/rev5-charge.int-spec.ts:632:62)
+      at Object.<anonymous> (test/integration/rev5-charge.int-spec.ts:779:53)
+
+R3> REV-11 errores en 40 rondas: {}
+R3> REV3-12 errores: {}
+R3> REV3-12 estados finales: {"succeeded||failed => debt SETTLED o=0.000000 sessions=COMPLETED+EXPIRED":40,"failed||failed => debt PENDING o=150.000000 sessions=EXPIRED+EXPIRED":40}
+R5W> terminal huerfano: e404:PAYMENT_INTENT_NOT_FOUND
+FAIL test/integration/rev5-b1-rls.int-spec.ts (13.546 s)
+  ● Console
+
+    console.log
+      SECUENCIA SQL del receptor (primeras 14):
+      0: begin
+      1: select set_config('app.system_context', 'true', true)
+      2: select id, tenant_id from payments.payment_intents where gateway_intent_ref = ? limit 2
+      3: select set_config('app.system_context', 'false', true)
+      4: select set_config('app.current_tenant_id', ?, true)
+      5: select "p0".* from "payments"."payment_intents" as "p0" where "p0"."gateway_intent_ref" = ? and "p0"."tenant_id" = ? limit ? for update
+      6: select "p0".* from "payments"."payment_webhook_events" as "p0" where "p0"."gateway_event_ref" = ? limit ?
+      7: select "p0".* from "payments"."payment_checkout_sessions" as "p0" where "p0"."payment_intent_id" = ? for update
+      8: select "p0".* from "payments"."payment_debts" as "p0" where "p0"."id" = ? limit ? for update
+      9: insert into "payments"."payment_webhook_events" ("id", "gateway_id", "event_type", "gateway_event_ref", "payload_json", "signature", "is_verified", "p
+      10: update "payments"."payment_debts" set "outstanding_amount" = ?, "status_concept_id" = ?, "settled_at" = ?, "updated_at" = ?, "row_version" = ? where "
+      11: update "payments"."payment_checkout_sessions" set "status_concept_id" = ?, "completed_at" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and 
+      12: update "payments"."payment_intents" set "status_concept_id" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and "row_version" = ? returning "r
+      13: commit
+
+      at Object.log (test/integration/rev5-b1-rls.int-spec.ts:421:13)
+
+    console.log
+      REV-5 conexiones distintas observadas tras fallo en ventana: 18; contaminadas: 0
+
+      at Object.log (test/integration/rev5-b1-rls.int-spec.ts:491:13)
+
+    console.log
+      REV-9 resultados: [{"received":true,"eventId":"659f6635-35c9-44bf-a0aa-136c91481540","applied":true,"duplicate":false,"ignored":false,"reconciliationRequired":false,"decision":"aplicar"},{"received":true,"eventId":"5d94038f-5c56-4f9e-af2a-88a840a8b0fc","applied":true,"duplicate":false,"ignored":false,"reconciliationRequired":true,"decision":"aplicar"}]
+
+      at Object.log (test/integration/rev5-b1-rls.int-spec.ts:567:13)
+
+    console.log
+      REV-10 errores observados en la 1a pasada concurrente: {}
+
+      at Object.log (test/integration/rev5-b1-rls.int-spec.ts:617:13)
+
+  ● Receptor de webhooks bajo RLS con un rol NOBYPASSRLS › REV5-W1 cobro asociado a una intencion CANCELADA (cierre cruzado): un succeeded cae en conciliacion y no toca la deuda
+
+    error: column "created_at" does not exist
+
+      128 |     sql: string,
+      129 |     params: unknown[] = [],
+    > 130 |   ) => (await su.query(sql, params)).rows as T[];
+          |         ^
+      131 |
+      132 |   beforeAll(async () => {
+      133 |     admin = new Client({ ...PG, database: 'postgres' });
+
+      at ../../../../../../home/user/mantra-core-health-api/node_modules/pg/lib/client.js:652:17
+      at q (test/integration/rev5-b1-rls.int-spec.ts:130:9)
+      at Object.<anonymous> (test/integration/rev5-b1-rls.int-spec.ts:684:18)
+
+DDL real aplicado: 5 tablas, 51 índices, 5 FK internas; FK omitidas: fk_payment_intents_gateway_connection_id -> gateway_connections, fk_payment_intents_payment_method_id -> payment_methods, fk_payment_webhook_events_gateway_connection_id -> gateway_connections, fk_payment_debts_gateway_connection_id -> gateway_connections, fk_payment_checkout_sessions_gateway_connection_id -> gateway_connections, fk_payment_checkout_sessions_callback_endpoint_id -> provider_callback_endpoints
+
+Test Suites: 2 failed, 3 passed, 5 total
+Tests:       3 failed, 149 passed, 152 total
+Snapshots:   0 total
+Time:        117.061 s
+Ran all test suites matching rev5-charge|rev5-b1-rls|payments-gateway-charge|payments-gateway-webhook.
+EXIT 1

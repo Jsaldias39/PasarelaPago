@@ -1,0 +1,42 @@
+(node:20596) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+R5I> SQL ronda 0: ok,ok
+[90m[39mbegin
+[90m[39mselect "p0".* from "payments"."payment_intents" as "p0" where "p0"."id" = ? and "p0"."tenant_id" = ? limit ? for update[90m [took
+[90m[39mselect "p0".* from "payments"."payment_checkout_sessions" as "p0" where "p0"."payment_intent_id" = ? for update[90m [took 1 ms, 1
+[90m[39mselect "p0".* from "payments"."payment_debts" as "p0" where "p0"."id" = ? limit ? for update[90m [took 4 ms, 1 result][39m
+[90m[39mbegin
+[90m[39mupdate "payments"."payment_checkout_sessions" set "status_concept_id" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and 
+[90m[39mupdate "payments"."payment_intents" set "status_concept_id" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and "row_versi
+[90m[39mcommit
+[90m[39mselect "p0".* from "payments"."payment_intents" as "p0" where "p0"."id" = ? and "p0"."tenant_id" = ? limit ? for update[90m [took
+[90m[39mselect "p0".* from "payments"."payment_checkout_sessions" as "p0" where "p0"."payment_intent_id" = ? for update[90m [took 4 ms, 1
+[90m[39mselect "p0".* from "payments"."payment_debts" as "p0" where "p0"."id" = ? limit ? for update[90m [took 4 ms, 1 result][39m
+[90m[39mupdate "payments"."payment_debts" set "status_concept_id" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and "row_version
+[90m[39mupdate "payments"."payment_checkout_sessions" set "status_concept_id" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and 
+[90m[39mupdate "payments"."payment_intents" set "status_concept_id" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and "row_versi
+[90m[39mcommit
+R5I> D9 RLS_ENFORCE=false dos close: deuda=PENDING sesiones=EXPIRED+EXPIRED
+R5DL> Process 77768 waits for ShareLock on transaction 2102282; blocked by process 77769. // Process 77769 waits for ShareLock on transaction 2102283; blocked by process 77768. :: where=while locking tuple (0,3) in relation "payment_debts"
+R5I> SQL ronda 1: eundefined:[40P01],ok
+[90m[39mbegin
+[90m[39mbegin
+[90m[39mselect "p0".* from "payments"."payment_intents" as "p0" where "p0"."id" = ? and "p0"."tenant_id" = ? limit ? for update[90m [took
+[90m[39mselect "p0".* from "payments"."payment_intents" as "p0" where "p0"."id" = ? and "p0"."tenant_id" = ? limit ? for update[90m [took
+[90m[39mselect "p0".* from "payments"."payment_checkout_sessions" as "p0" where "p0"."payment_intent_id" = ? for update[90m [took 3 ms, 1
+[90m[39mselect "p0".* from "payments"."payment_checkout_sessions" as "p0" where "p0"."payment_intent_id" = ? for update[90m [took 2 ms, 1
+[90m[39mselect "p0".* from "payments"."payment_debts" as "p0" where "p0"."id" = ? limit ? for update[90m [took 2 ms, 1 result][39m
+[90m[39mupdate "payments"."payment_checkout_sessions" set "status_concept_id" = ?, "updated_at" = ?, "row_version" = ? where "id" = ? and 
+[90m[39m[31mselect "p0".* from "payments"."payment_debts" as "p0" where "p0"."id" = ? limit ? for update[90m [took 1030 ms][39m[39m
+[90m[39mupdate "payments"."payment_intents" set "status_concept_id" = case when ("id" = ?) then ? when ("id" = ?) then ? else "status_conc
+[90m[39mcommit
+[90m[39mrollback
+R5I> D9 RLS_ENFORCE=false deadlock-soak (40 close): ok=21 errores={"eundefined:[40P01]":19}
+R5I> D9 RLS_ENFORCE=true (NOBYPASSRLS) dos close: deuda=PENDING sesiones=EXPIRED+EXPIRED
+R5I> D9 RLS_ENFORCE=true (NOBYPASSRLS) deadlock-soak (40 close): ok=40 errores={}
+Test Suites: 1 passed, 1 total
+Tests:       10 skipped, 2 passed, 12 total
+Snapshots:   0 total
+Time:        25.164 s
+Ran all test suites matching rev5-charge with tests matching "sin deadlocks".
+EXIT 0
