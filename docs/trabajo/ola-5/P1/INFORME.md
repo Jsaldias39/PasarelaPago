@@ -160,7 +160,9 @@ Decisiones DT-46 a DT-52 y ambigüedad A-10 en `DECISIONES-TOMADAS.md`. Procedim
 
 **Hallazgo de la verificación (cambia lo que pidió la re-revisión):** el `backoff` del servidor NO sirve para esto aunque la API lo acepte: con `backoff` configurado, `nak(retardo)` solo vale en la primera reentrega y un `nak()` plano reentrega en caliente (DT-49). Por eso la espera la fija el código.
 
-**Gates:** @@GATES@@
+**Gates:** **INCOMPLETOS** (la cola de `/tmp/pay-heavy.lock` quedó bloqueada más de 25 min por una prueba ajena colgada, `pay-ledger test/deployment.spec.ts`, y se cortó la espera).
+- Hechos, con `flock`: `pay-webhooks` `typecheck` 0, `build` 0, `yarn test` 614/614 (`fb-gate-pay-webhooks-test-run2.txt`; la corrida 1, 612/613, falló por el mensaje de mentira de `svix-engine-errors.spec.ts`, ya corregido, ver arriba); `pay-payments` `typecheck` 0, `build` 0, `yarn test` 515/515 dos veces (`fb-gate-pay-payments-*`). Falta una 2ª corrida limpia de webhooks tras la corrección.
+- **NO ejecutados:** `typecheck`, `build` y `yarn test` ×2 de `pay-settlement`, `pay-edge` y `pay-schedules` (solo corrieron sus pruebas dirigidas: 7/7, 6/6 y 6/6 verdes, sin gates ni comprobación de tipos de lo nuevo), `yarn eslint` de la raíz sobre lo tocado, y las **mutaciones** (23, listadas con su comando en `evidencia/fb-mut.py`; se ejecutan en un worktree aparte y nunca tocan el árbol principal). Peldaño: `TESTED` (dirigidas) para esos tres servicios; no `REGRESSION_VERIFIED`.
 
 **No cubre.**
 - **Restauración real:** la «restauración» de F-B1 se reproduce borrando las filas posteriores al «respaldo» (mismo estado: Svix las tiene, la base no); no se ejecutó `pg_dump`/`pg_restore` de `pay-webhooks`.
