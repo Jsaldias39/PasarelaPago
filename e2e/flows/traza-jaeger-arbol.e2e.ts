@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { publicApi } from '../lib/flow.ts';
-import { Jaeger, serverSpanOf, servicesOf, viewsOf } from '../lib/jaeger.ts';
+import { danglingParents, Jaeger, reachableFrom, renderTree, serverSpanOf, servicesOf, viewsOf } from '../lib/jaeger.ts';
 import { seedMerchant, waitForEdgeToKnow, type SeededMerchant } from '../lib/seed.ts';
 import { hasEdgeAndPayments, nowUs, otelEnvOverrides, qrIntent, randomSpanId, randomTraceId, TraceProbe } from '../lib/trace-probe.ts';
 import { until } from '../lib/wait.ts';
@@ -84,5 +84,27 @@ describe('árbol completo de la traza en Jaeger (borde → pay-payments → ries
     await until('pay-risk registró alguna evaluación', async () => accessLines('pay-risk'), (lines) => lines.some((l) => l.url.startsWith('/assessments')), 60_000, 300);
     const carrying = (['pay-risk', 'pay-connectors'] as const).filter((s) => accessLines(s).some((l) => l.id === requestId));
     expect(carrying.length).toBeGreaterThan(0);
+  });
+
+  // Se AGREGA (no se cambia ninguna aserción de arriba): el DoD pide el ÁRBOL, y «hay un span de pay-risk en la traza» no prueba que cuelgue de algo.
+  it('el árbol de la traza del cobro no tiene padres ausentes (salvo el span del cliente): TODO span cuelga, directa o indirectamente, del span servidor del borde', async () => {
+    const trace = await until(
+      'Jaeger tiene la traza completa del cobro (borde, pay-payments, pay-risk y pay-connectors) sin padres ausentes',
+      async () => jaeger.trace(traceId),
+      (t) => {
+        if (!t) return false;
+        const views = viewsOf(t);
+        const services = servicesOf(views);
+        return ['pay-edge', 'pay-payments', 'pay-risk', 'pay-connectors'].every((s) => services.includes(s)) && danglingParents(views).length <= 1;
+      },
+      90_000,
+      700,
+    );
+    const views = viewsOf(trace!);
+    process.stdout.write(`ÁRBOL DEL COBRO ${traceId} (span del cliente ${clientSpan}; servicios: ${servicesOf(views).join(', ')}; ${views.length} spans):\n${renderTree(views)}\n`);
+    expect(danglingParents(views).map((d) => ({ service: d.service, parentId: d.parentId }))).toEqual([{ service: 'pay-edge', parentId: clientSpan }]);
+    const edge = serverSpanOf(views, 'pay-edge')!;
+    const reachable = reachableFrom(views, edge.spanId);
+    expect(views.filter((v) => !reachable.has(v.spanId)).map((v) => `${v.service}:${v.operation}`)).toEqual([]);
   });
 });

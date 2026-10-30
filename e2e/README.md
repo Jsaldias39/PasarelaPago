@@ -7,7 +7,7 @@ TigerBeetle privado, en `PAY_MODE=sandbox` con el conector `mock`. Matriz, halla
 ```bash
 yarn e2e:up | e2e:down | e2e:boot | e2e:smoke
 yarn e2e            # jest, 1 worker: humo, degradado, E1, E1 con pagador simulado, E2, E3, E4, E5, E6, E7, E8, seed:sandbox, D-32, ledger, callbacks, guardia de modo, capa sandbox (pay-mockbank), candado y unitarias del arnés
-yarn e2e:pending    # solo lo que hoy no puede pasar (falla a propósito); hoy: `pending/traza-jaeger-arbol.e2e.ts` (ola 5, ver abajo). Los hallazgos 13 y 14 se corrigieron y sus reproductores pasaron a flows/
+yarn e2e:pending    # solo lo que hoy no puede pasar (falla a propósito); hoy `pending/` está vacío (sin pruebas, pasa con `--passWithNoTests`): los reproductores de los hallazgos 13 y 14 y el de la traza (ola 5) se corrigieron y pasaron a flows/
 yarn e2e:typecheck
 yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo proceso (docs/trabajo/ola-3/P1/CARGA.md)
 ```
@@ -41,5 +41,5 @@ yarn load:harness   # prueba de carga de T-01 con el stack del arnés en un solo
 ## Ola 5 (P1.H2.M3): traza real en Jaeger
 
 - `flows/traza-jaeger.e2e.ts`: los servicios exportan OTLP/HTTP al Jaeger REAL del Compose (`pay-jaeger-1`: OTLP en `127.0.0.1:54318`, consulta en `127.0.0.1:54686`; sobrescribibles con `PAY_E2E_JAEGER_OTLP_URL` y `PAY_E2E_JAEGER_QUERY_URL`; el único ajuste del arnés es el entorno `OTEL_EXPORTER_OTLP_ENDPOINT` + `OTEL_BSP_SCHEDULE_DELAY`). Afirma lo que hoy es verdad: `traceparent` válido ⇒ el borde continúa la traza y `pay-payments` cae en la misma; malformado / de versión futura / ausente ⇒ 201 y traza nueva; `request_id` consistente en los logs; ningún span lleva clave de API, cuerpo ni PAN. Falla de forma accionable si el Jaeger del Compose no responde.
-- `pending/traza-jaeger-arbol.e2e.ts`: lo que el DoD pide y hoy no se cumple (padre real del span de `pay-payments`, una sola traza sin `traceparent` entrante, traza hasta `pay-risk`/`pay-connectors`/`pay-qr`, `x-request-id` aguas abajo). Causas y propuestas: `docs/trabajo/ola-5/P1/PROPUESTAS-TRAZA.md`.
+- `flows/traza-jaeger-arbol.e2e.ts` (antes en `pending/`, en rojo a propósito; pasó a `flows/` con sus aserciones sin cambios cuando pay-edge, pay-payments y pay-connectors propagaron el contexto): lo que el DoD pide. El span servidor de `pay-payments` cuelga de un span cliente real del borde; sin `traceparent` entrante el borde y `pay-payments` quedan en UNA traza; la traza del cobro llega a `pay-risk` / `pay-connectors` (y `pay-qr`) cruzando Temporal; el `x-request-id` del cliente llega a `pay-risk` / `pay-connectors`. Se agregó una prueba del ÁRBOL: ningún padre ausente (salvo el span del cliente) y todo span alcanzable desde el span servidor del borde. Causas y arreglo: `docs/trabajo/ola-5/P1/PROPUESTAS-TRAZA.md`.
 - Piezas: `lib/jaeger.ts` (cliente de la API de consulta y árbol de spans; `lib/jaeger.spec.ts`) y `lib/trace-probe.ts` (peticiones con `traceparent`/`x-request-id`, búsqueda de la traza por user-agent, logs).

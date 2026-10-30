@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { jest } from '@jest/globals';
 import { type LedgerTestContext, businessRef, createLedgerContext, merchantId } from './helpers/app';
+import { deleteFromImmutable } from './helpers/immutable';
 import { waitFor } from './helpers/wait';
 import { useIdNamespace } from '../src/ledger/ids';
 
@@ -47,10 +48,9 @@ describe('invariante global (REQ-P2-4)', () => {
     await tx([leg(CLEARING, `merchant:${m}:pending`, 4242, 'charge')]);
     expect((await ctx.invariant.check()).ok).toBe(true);
     // corrupción: se borra de Postgres una línea de extracto (los metadatos se despegan del dinero)
-    await ctx.db.pool.query(
-      "DELETE FROM ledger_statement_lines WHERE account = $1 AND direction = 'credit'",
-      [`merchant:${m}:pending`],
-    );
+    // `ledger_statement_lines` es de solo-agregar en el modelo (guardián `ledger_statement_lines_immutable`, ola-5/P2): la corrupción deliberada de la prueba apaga SOLO ese trigger,
+    // dentro de una transacción y en el esquema aislado de la prueba (helpers/immutable.ts). El guardián vuelve a quedar armado al terminar.
+    await deleteFromImmutable(ctx.db.pool, 'ledger_statement_lines', "account = $1 AND direction = 'credit'", [`merchant:${m}:pending`]);
     const logged = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     const report = await ctx.invariant.check();
     expect(report.ok).toBe(false);

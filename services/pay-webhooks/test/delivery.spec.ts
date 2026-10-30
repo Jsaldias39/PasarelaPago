@@ -3,6 +3,7 @@ import { DELIVERY_ENGINE, type DeliveryEngine } from '../src/engine/delivery-eng
 import { WebhookReceiver } from '../src/receiver/webhook-receiver';
 import { cloudEvent } from './fixtures';
 import { newKey, newMerchantId, startWebhooks, type WebhooksHarness } from './harness';
+import { deleteFromImmutable } from './immutable';
 
 /**
  * P1.H3.M1/M2/M4 contra el motor en proceso ([DOBLE de Svix]) con Postgres real. Reloj, DNS y último salto de red son dobles;
@@ -32,7 +33,8 @@ describe('[DOBLE de Svix] entrega firmada con reintentos', () => {
   afterAll(async () => h.stop());
   beforeEach(async () => {
     // El trabajador toma TODA entrega vencida: cada prueba parte sin restos de las anteriores (esquema propio de esta corrida).
-    await h.db.pool.query('DELETE FROM webhook_delivery_attempts');
+    // `webhook_delivery_attempts` es de solo-agregar en el modelo (guardián `webhook_delivery_attempts_immutable`, ola-5/P2): se vacía con el helper de pruebas (esquema aislado).
+    await deleteFromImmutable(h.db.pool, 'webhook_delivery_attempts');
     await h.db.pool.query('DELETE FROM webhook_deliveries');
     h.resolver.table[HOST] = ['93.184.216.34'];
   });

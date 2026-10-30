@@ -16,6 +16,11 @@ import { withSendLock } from './send-lock';
 import { refundView, toChargeRow, toRefundRow, type RefundRow } from './rows';
 import { CLOCK, LOCK_POOL, type Clock } from './tokens';
 
+/** Centinela interno de «el conector garantizó que no salió nada»: lo escribe solo la rama «sin efecto» de `send` y es el código del 502 del contrato. */
+const SENTINEL_UNSENT = 'connector_unavailable';
+/** Código con el que se guarda un `failed` del proveedor que trajo el literal del centinela. */
+const PROVIDER_FAILED_CODE = 'rejected_by_provider';
+
 @Injectable()
 export class RefundsService {
   constructor(
@@ -115,14 +120,14 @@ export class RefundsService {
   private async send(ctx: IdempotencyContext, initial: RefundRow): Promise<RefundRow> {
     return withSendLock(this.lockPool, initial.id, async () => {
       let refund = toRefundRow((await this.pool.query('SELECT * FROM connector_refunds WHERE id = $1', [initial.id])).rows[0]);
-      if (refund.status === 'succeeded' || (refund.status === 'failed' && refund.failure_code !== 'connector_unavailable')) return refund; // ya lo resolvió otro envío
+      if (refund.status === 'succeeded' || (refund.status === 'failed' && refund.failure_code !== SENTINEL_UNSENT)) return refund; // ya lo resolvió otro envío
       const charge = await this.charges.byId(refund.charge_id, refund.pay_mode);
       if (!charge.provider_reference) throw new ProblemError('invalid_state_transition');
       // `failed` + `connector_unavailable` + sin referencia del proveedor es el estado que SOLO deja la rama «sin efecto» de más abajo, y esa rama
       // se alcanza únicamente si todos los envíos anteriores terminaron en `ConnectorUnavailableError` (el conector garantiza que no salió nada:
       // un timeout o un corte los vuelve ambiguos y la fila queda `pending`, nunca `failed`). Es la prueba de que NINGUNA orden previa pudo llegar al
       // proveedor, aunque el flag `may_have_reached_provider` (monótono; también lo exige un trigger del modelo) siga en `true` desde el reclamo.
-      const provenUnsent = refund.status === 'failed' && refund.failure_code === 'connector_unavailable' && refund.provider_reference === null;
+      const provenUnsent = refund.status === 'failed' && refund.failure_code === SENTINEL_UNSENT && refund.provider_reference === null;
       if (refund.status === 'failed') {
         // Reintento de un reembolso que quedó sin efecto por un proveedor caído: se vuelve a reservar el importe, revalidando.
         // El flag NO se baja: `provenUnsent` es lo que, en este envío, impide que lo ya probado «sin efecto» se tome por ambiguo.
@@ -133,7 +138,18 @@ export class RefundsService {
           if (BigInt(others.rows[0].total as string) + failed.amount_minor > charge.amount_minor) {
             throw new ProblemError('validation_failed', { errors: [{ field: 'amount_minor', code: 'exceeds_refundable' }] });
           }
-          const reopened = await client.query(`UPDATE connector_refunds SET status = 'pending', failure_code = NULL, updated_at = $2 WHERE id = $1 RETURNING *`, [failed.id, this.clock.now()]);
+          let reopened;
+          try {
+            reopened = await client.query(`UPDATE connector_refunds SET status = 'pending', failure_code = NULL, updated_at = $2 WHERE id = $1 RETURNING *`, [failed.id, this.clock.now()]);
+          } catch (error) {
+            if (uniqueViolation(error)?.constraint === 'connector_refunds_refund_id_uidx') {
+              // F4: mientras esta fila estaba `failed` (fuera del índice), OTRA Idempotency-Key tomó el mismo `refund_id`. Volver a reservarlo sería un segundo
+              // reembolso para el mismo `refund_id`: se rechaza, igual que el `INSERT` (409 del contrato). Es DEFINITIVO y seguro: esta fila no llegó al proveedor
+              // (`provenUnsent`), la transacción se deshace entera (sigue `failed`, sin reclamo) y nada sale al banco. Como todo 4xx, la clave guarda y repite la respuesta.
+              throw new ProblemError('invalid_state_transition', { detail: 'Ya hay un reembolso con ese refund_id' });
+            }
+            throw error;
+          }
           return toRefundRow(reopened.rows[0]);
         });
       }
@@ -161,7 +177,7 @@ export class RefundsService {
           // contradice, ni `provenUnsent` lo desmiente), en la misma sentencia que el cambio de estado. Se libera la reserva (sin evento); el flag
           // no se toca. Es lo que permite repetir con la misma Idempotency-Key mientras el proveedor sigue caído y recibir otra vez el 502.
           const released = await this.pool.query(
-            `UPDATE connector_refunds SET status = 'failed', failure_code = 'connector_unavailable', updated_at = $3
+            `UPDATE connector_refunds SET status = 'failed', failure_code = '${SENTINEL_UNSENT}', updated_at = $3
               WHERE id = $1 AND status = 'pending' AND provider_reference IS NULL AND send_claims = $2`,
             [current.id, mine, this.clock.now()],
           );
@@ -190,9 +206,12 @@ export class RefundsService {
     failureCode: string | null,
   ): Promise<RefundRow> {
     const now = this.clock.now();
+    // F6: `connector_unavailable` es el centinela INTERNO de «sin efecto» (lo escribe solo la rama de `send`, sin referencia). Un `failed` que dice el PROVEEDOR
+    // jamás puede guardarse con ese literal: el envío siguiente lo tomaría por «sin efecto», lo reabriría y lo reenviaría. Aquí solo llegan resultados del proveedor.
+    const stored = failureCode;
     const updated = await client.query(
       `UPDATE connector_refunds SET status = $2, provider_reference = $3, failure_code = $4, updated_at = $5 WHERE id = $1 AND status = 'pending' RETURNING *`,
-      [refund.id, status, providerReference, failureCode, now],
+      [refund.id, status, providerReference, stored, now],
     );
     // Ya resuelto por otro camino: no se vuelve a escribir ni a publicar.
     if (!updated.rows[0]) return toRefundRow((await client.query('SELECT * FROM connector_refunds WHERE id = $1', [refund.id])).rows[0]);
@@ -213,7 +232,7 @@ export class RefundsService {
           providerEventId: `refund:${refund.id}:${status}`,
           occurredAt: now,
           observedVia: 'status_inquiry',
-          failureCode,
+          failureCode: stored,
         }),
         { aggregateType: 'connector_refund', aggregateId: refund.id },
       );

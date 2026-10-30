@@ -1,0 +1,69 @@
+# Evidencia: ¿alguien hace UPDATE / DELETE / TRUNCATE / ON CONFLICT DO UPDATE sobre las nueve tablas?
+# Se busca sobre el árbol del commit 99a3024 (git archive 99a3024) = el código ANTES de este trabajo, para no contar los helpers/specs nuevos.
+# Comando: rg -n -U (multilínea) en services/*/src, services/*/test, e2e, scripts, platform, contracts; se excluyen sql/ddl.sql, node_modules y dist.
+
+=================== ledger_transactions
+--- INSERT en services/*/src:
+services/pay-ledger/src/ledger/ledger.service.ts:162:      `INSERT INTO ledger_transactions (id, mode, business_ref, attempt, content_hash, status, reject_code, currency, legs
+--- UPDATE / DELETE FROM / TRUNCATE / INSERT … DO UPDATE sobre ledger_transactions (multilínea):
+(fin)
+
+=================== ledger_legs
+--- INSERT en services/*/src:
+services/pay-ledger/src/ledger/ledger.service.ts:180:        `INSERT INTO ledger_legs (id, mode, source, source_id, business_ref, attempt, leg_index, debit_account, credit_acc
+--- UPDATE / DELETE FROM / TRUNCATE / INSERT … DO UPDATE sobre ledger_legs (multilínea):
+(fin)
+
+=================== ledger_statement_lines
+--- INSERT en services/*/src:
+services/pay-ledger/src/ledger/ledger.service.ts:188:          `INSERT INTO ledger_statement_lines (id, mode, account, leg_id, business_ref, attempt, leg_index, direction, cou
+--- UPDATE / DELETE FROM / TRUNCATE / INSERT … DO UPDATE sobre ledger_statement_lines (multilínea):
+services/pay-ledger/test/invariant.spec.ts:51:      "DELETE FROM ledger_statement_lines WHERE account = $1 AND direction = 'credit'",
+(fin)
+
+=================== ledger_rejections
+--- INSERT en services/*/src:
+services/pay-ledger/src/ledger/hold.service.ts:128:        await client.query('INSERT INTO ledger_rejections (mode, kind, business_ref, attempt, reject_code, tb_status, caller
+services/pay-ledger/src/ledger/ledger.service.ts:142:          'INSERT INTO ledger_rejections (mode, kind, business_ref, attempt, reject_code, tb_status, caller) VALUES ($1, $
+--- UPDATE / DELETE FROM / TRUNCATE / INSERT … DO UPDATE sobre ledger_rejections (multilínea):
+(fin)
+
+=================== settlement_audit
+--- INSERT en services/*/src:
+services/pay-settlement/src/settlement/reconciliation.service.ts:230:          await client.query(`INSERT INTO settlement_audit (actor, role, action, subject, detail, at) VALU
+services/pay-settlement/src/settlement/payout.service.ts:237:      `INSERT INTO settlement_audit (actor, role, action, subject, detail, at)
+--- UPDATE / DELETE FROM / TRUNCATE / INSERT … DO UPDATE sobre settlement_audit (multilínea):
+(fin)
+
+=================== reveal_audit
+--- INSERT en services/*/src:
+services/pay-vault/src/vault/vault.repo.ts:98:    await db.query('INSERT INTO reveal_audit (token, merchant_id, charge_id, caller, outcome, idempotency_key) VALUES ($1, $2, $3
+--- UPDATE / DELETE FROM / TRUNCATE / INSERT … DO UPDATE sobre reveal_audit (multilínea):
+(fin)
+
+=================== connector_callback_events
+--- INSERT en services/*/src:
+services/pay-connectors/src/core/apply.ts:43:    `INSERT INTO connector_callback_events (connector, provider_event_id, charge_id, pay_mode, status, result, observed_via, occur
+--- UPDATE / DELETE FROM / TRUNCATE / INSERT … DO UPDATE sobre connector_callback_events (multilínea):
+(fin)
+
+=================== connector_api_attempts
+--- INSERT en services/*/src:
+services/pay-connectors/src/core/provider-gateway.ts:87:      await this.pool.query('INSERT INTO connector_api_attempts (subject_id, connector, operation, outcome, latency_ms,
+--- UPDATE / DELETE FROM / TRUNCATE / INSERT … DO UPDATE sobre connector_api_attempts (multilínea):
+(fin)
+
+=================== webhook_delivery_attempts
+--- INSERT en services/*/src:
+services/pay-webhooks/src/engine/delivery.worker.ts:117:      `INSERT INTO webhook_delivery_attempts (delivery_id, attempt, attempted_at, status_code, error_code, duration_ms)
+--- UPDATE / DELETE FROM / TRUNCATE / INSERT … DO UPDATE sobre webhook_delivery_attempts (multilínea):
+services/pay-webhooks/test/delivery.spec.ts:35:    await h.db.pool.query('DELETE FROM webhook_delivery_attempts');
+(fin)
+
+=================== SQL con el nombre de tabla en una variable (hay que mirar cuál tabla recorre)
+scripts/p5-gates.mjs:899:            if (name && !t.has(name)) problems.push(`${rel}: UPDATE ${table}: columna AUSENTE ${name}`);
+services/pay-connectors/test/support/app.ts:99:        await db.pool.query(`DELETE FROM ${table}`);
+services/pay-merchants/test/merchants-truncate.spec.ts:19:        await expect(q(`TRUNCATE ${table} CASCADE`)).rejects.toThrow(/inmutable/);
+
+=================== Recorrido del reset() de connectors (incluye connector_callback_events y connector_api_attempts)
+98:      for (const table of ['bank_transfer_references', 'connector_refunds', 'connector_callback_events', 'connector_api_attempts', 'connector_charges', 'connector_transfers', 'connector_health', 'connector_callback_endpoints', 'statement_exceptions']) {

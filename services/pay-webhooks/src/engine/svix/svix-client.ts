@@ -49,6 +49,8 @@ export interface SvixEndpointOut {
   readonly disabled: boolean;
   readonly createdAt: string;
   readonly eventTypes: readonly string[] | null;
+  /** Metadatos del endpoint (texto→texto). Aquí viaja la marca de propietario (`svix-namespace.ts`). Vacío si el endpoint no los tiene. */
+  readonly metadata: Readonly<Record<string, string>>;
 }
 
 export interface SvixAttemptOut {
@@ -74,6 +76,20 @@ export interface CreateEndpointInput {
   readonly eventTypes: readonly string[] | null;
   /** `whsec_…` (HMAC) o `whsk_…` (Ed25519). El OpenAPI solo documenta `whsec_`; el servidor acepta `whsk_` (observado). */
   readonly secret: string;
+  /** Marca de propietario del entorno (`svix-namespace.ts`). */
+  readonly metadata?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Peor caso de duración de UN alta de endpoint contra Svix: `ensureEventType` por cada tipo público, `ensureApp`, `createEndpoint`,
+ * `getEndpointKey` y el borrado compensatorio, cada uno agotando sus intentos (timeout por intento + esperas crecientes entre intentos).
+ * El reconciliador no debe considerar huérfano un endpoint antes de este plazo: la fila local se confirma al final del alta.
+ */
+export function provisionBudgetMs(maxAttempts: number, timeoutMs: number, eventTypes: number): number {
+  let backoff = 0;
+  for (let attempt = 2; attempt <= maxAttempts; attempt += 1) backoff += Math.min(200 * 2 ** (attempt - 2), 2_000);
+  const perCall = maxAttempts * timeoutMs + backoff;
+  return (eventTypes + 4) * perCall;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -110,7 +126,7 @@ export class SvixClient {
   /** 201 al crear; `SvixApiError` 409 si ya existe un endpoint con ese `uid` (el llamador decide si es el suyo). */
   async createEndpoint(appUid: string, input: CreateEndpointInput): Promise<void> {
     await this.call('POST', `/api/v1/app/${enc(appUid)}/endpoint`, {
-      body: { uid: input.uid, url: input.url, eventTypes: input.eventTypes, secret: input.secret },
+      body: { uid: input.uid, url: input.url, eventTypes: input.eventTypes, secret: input.secret, ...(input.metadata ? { metadata: input.metadata } : {}) },
       expect: [201],
     });
   }
@@ -172,6 +188,7 @@ export class SvixClient {
             disabled: raw.disabled === true,
             createdAt: raw.createdAt,
             eventTypes: Array.isArray(raw.eventTypes) ? (raw.eventTypes as string[]) : null,
+            metadata: stringRecord(raw.metadata),
           });
         }
       }
@@ -264,6 +281,12 @@ export class SvixClient {
 }
 
 const enc = encodeURIComponent;
+
+/** Solo pares texto→texto; cualquier otra forma se descarta (nunca se confía en metadatos con otra forma). */
+function stringRecord(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+}
 
 function isTimeout(error: unknown): boolean {
   // Sin `instanceof Error`: el DOMException de `AbortSignal.timeout` puede venir de otro «realm» (VM de pruebas, librerías).

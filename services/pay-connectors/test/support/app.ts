@@ -13,6 +13,7 @@ import { SIMULATED_BANK } from '../../src/core/mock-pump.service';
 import { TRANSFER_BANK } from '../../src/connectors.module';
 import type { SimulatedBank } from '../../src/connectors/mock/simulated-bank';
 import { CLOCK, QR_PORT, type Clock } from '../../src/core/tokens';
+import { deleteFromImmutable } from './immutable';
 
 export const REPO = join(process.cwd(), '../..');
 /** El esquema es el del MODELO, vendorizado (D-18): `sql/ddl.sql` ya trae las tablas técnicas (idempotencia, outbox, inbox). */
@@ -95,8 +96,11 @@ export async function createTestApp(options: { controllers?: Array<new (...args:
     },
     async reset() {
       // `DELETE` y no `TRUNCATE` en las tablas de DINERO: el modelo prohíbe TRUNCATE en connector_charges/transfers/refunds (append-only para la aplicación). Hijos primero (FK).
+      // `connector_callback_events` y `connector_api_attempts` son de SOLO-AGREGAR en el modelo (guardián `<tabla>_immutable`, ola-5/P2): se vacían con `deleteFromImmutable`, que apaga ese
+      // único trigger dentro de una transacción y lo deja armado (esquema aislado de la prueba; ver support/immutable.ts).
       for (const table of ['bank_transfer_references', 'connector_refunds', 'connector_callback_events', 'connector_api_attempts', 'connector_charges', 'connector_transfers', 'connector_health', 'connector_callback_endpoints', 'statement_exceptions']) {
-        await db.pool.query(`DELETE FROM ${table}`);
+        if (table === 'connector_callback_events' || table === 'connector_api_attempts') await deleteFromImmutable(db.pool, table);
+        else await db.pool.query(`DELETE FROM ${table}`);
       }
       // Las tablas TÉCNICAS sí con TRUNCATE (no tienen guardián ni FK): el relé del outbox corre en segundo plano y hace `UPDATE outbox_events … published_at` por fila; un
       // `DELETE FROM outbox_events` a la vez con ese UPDATE da `deadlock detected` (lo vio el log de Postgres: «DELETE FROM outbox_events» vs «UPDATE outbox_events SET published_at»),

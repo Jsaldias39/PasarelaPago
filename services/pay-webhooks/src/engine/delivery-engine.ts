@@ -40,6 +40,24 @@ export interface DeliveryEngine {
    * @throws EngineRejectedError si el mensaje NUNCA se podrá entregar (reintentar no sirve); cualquier otro error es transitorio.
    */
   publish(db: Queryable, message: OutboundMessage): Promise<number>;
+  /**
+   * Opcional. Igual que `publish` pero distingue POR QUÉ no se creó ninguna entrega (sin suscriptores vs. el mensaje ya estaba publicado), para que la
+   * métrica `noEndpoints` no cuente como «sin endpoints» un evento que Svix ya tenía (REVISION-DINERO F8). `publish` devuelve `deliveries` de este resultado.
+   */
+  publishDetailed?(db: Queryable, message: OutboundMessage): Promise<PublishResult>;
+  /**
+   * Opcional. Deshace en el motor lo que `provisionEndpoint` dejó FUERA de la transacción del alta (un endpoint de Svix) cuando el alta falló de forma
+   * definitiva después de aprovisionar. Nunca lanza: si no puede, lo registra y la reconciliación lo resolverá. El motor en proceso no lo necesita
+   * (su estado vive en la misma transacción y se revierte con ella).
+   */
+  compensateProvision?(endpoint: EndpointRecord): Promise<void>;
+}
+
+export type PublishOutcome = 'queued' | 'no_subscribers' | 'already_published';
+
+export interface PublishResult {
+  readonly deliveries: number;
+  readonly outcome: PublishOutcome;
 }
 
 export type EngineRejection = 'payload_invalid' | 'event_id_conflict' | 'rejected_by_engine';
@@ -49,6 +67,28 @@ export class EngineRejectedError extends Error {
   constructor(readonly reason: EngineRejection) {
     super(`Mensaje rechazado por el motor de entrega: ${reason}`);
     this.name = 'EngineRejectedError';
+  }
+}
+
+/**
+ * El motor rechazó las credenciales (401/403): es un error de CONFIGURACIÓN, no del mensaje ni transitorio. El mensaje NO se descarta ni se da por
+ * entregado: el consumidor lo deja pendiente con una espera larga, detiene el lote y deja una alerta visible (log, métrica y `/health`).
+ */
+export class EngineMisconfiguredError extends Error {
+  constructor(readonly status: 401 | 403) {
+    super(`El motor de entrega rechazó las credenciales (${status}): revisar WEBHOOKS_SVIX_AUTH_TOKEN`);
+    this.name = 'EngineMisconfiguredError';
+  }
+}
+
+/**
+ * Los endpoints locales no existen en el motor (p. ej. Svix perdió la aplicación del comercio y con ella sus endpoints). Recrear la aplicación no los
+ * devuelve (el secreto de cada uno solo lo tiene el comercio), así que publicar «con éxito» perdería el evento en silencio: se deja pendiente y se alerta.
+ */
+export class EngineDriftError extends Error {
+  constructor(readonly missingEndpoints: number) {
+    super(`El motor de entrega no tiene ${missingEndpoints} endpoint(s) que existen localmente`);
+    this.name = 'EngineDriftError';
   }
 }
 
